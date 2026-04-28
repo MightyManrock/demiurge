@@ -52,6 +52,7 @@ from tick_logic import (
     TickConfig, SimulationState, CivilizationMomentum,
     TickLoop, TickResult, TerminalConditionType,
 )
+from scenario_loader import load_scenario
 
 
 # ─────────────────────────────────────────
@@ -897,16 +898,63 @@ class SessionLog:
 # MAIN LOOP
 # ─────────────────────────────────────────
 
+def _select_scenario() -> SimulationState:
+    """
+    Display a startup menu of available .db files in the scenarios/
+    folder, plus an option to load the hardcoded default scenario.
+    Returns a fully constructed SimulationState.
+    """
+    scenarios_dir = Path(__file__).parent / "scenarios"
+    db_files = sorted(scenarios_dir.glob("*.db")) if scenarios_dir.exists() else []
+
+    print()
+    print("  SELECT SCENARIO")
+    print("  ────────────────────────────────────────────────")
+
+    if db_files:
+        for i, path in enumerate(db_files, start=1):
+            print(f"  [{i}] {path.stem.replace('_', ' ').title()}")
+            print(f"       {path}")
+    else:
+        print("  (no scenario files found in scenarios/)")
+
+    print(f"  [D] Default scenario  (build_scenario_default)")
+    if db_files:
+        print(f"  [Q] Quit")
+    print()
+
+    while True:
+        raw = input("  > ").strip().upper()
+
+        if raw == "Q":
+            raise SystemExit(0)
+
+        if raw == "D":
+            print("  Loading default scenario...")
+            return build_scenario_default()
+
+        if raw.isdigit():
+            idx = int(raw) - 1
+            if 0 <= idx < len(db_files):
+                path = db_files[idx]
+                print(f"  Loading {path.name}...")
+                return load_scenario(path)
+
+        print(f"  Invalid choice — enter a number 1–{len(db_files)}, D, or Q.")
+
+
 def main():
     print(SEP2)
     print("  DEMIURGE — TEST HARNESS")
     print(SEP2)
 
+    state = _select_scenario()
+    print()
+
     log_path = Path(f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
     log = SessionLog(log_path)
     print(f"  Logging to: {log_path}\n")
 
-    state = build_scenario_default()
     loop  = TickLoop()
     library = loop._action_library
     last_result: TickResult | None = None
