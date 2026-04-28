@@ -15,8 +15,9 @@ from action_core import (
     build_action_library,
     ActionDefinition,
     ActionReliability,
-    WhisperIntent, ProbabilityNudgeIntent,
-    ProxiusDirectiveIntent, EssenceHarvestIntent,
+    WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
+    DevelopmentIntent, ProxiusDirectiveIntent,
+    LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     TargetType,
 )
 from eval_core import (
@@ -284,8 +285,7 @@ class TickLoop:
         self.rng_seed = rng_seed or random.randint(0, 2**32)
         self._rng = random.Random(self.rng_seed)
         self._action_library = build_action_library()
-        # Built once so ActionDefinition UUIDs are stable across ticks
-        # and match the UUIDs stored in queued ActionInstances.
+        self._overthrow_this_tick: Optional[ActionOutcome] = None
 
     def advance(
         self,
@@ -298,6 +298,7 @@ class TickLoop:
         collected as StateMutation lists and applied
         at the end of each phase.
         """
+        self._overthrow_this_tick = None
         cfg = state.config
         seed = self._rng.randint(0, 2**32)
         phase_rng = random.Random(seed)
@@ -538,6 +539,9 @@ class TickLoop:
                 instance, defn, state, rng
             )
 
+            if defn.name == "Move Against Luminary":
+                self._overthrow_this_tick = outcome
+
             result.entries.append(
                 ActionProcessingResult.ActionEntry(
                     action_instance_id=instance.id,
@@ -759,6 +763,153 @@ class TickLoop:
                         f"The world remains barren."
                     )
 
+            elif defn.name == "Extinguish Civilization":
+                civ = state.civilizations.get(str(instance.target_id))
+                if not civ:
+                    return mutations, "Target civilization not found."
+                if outcome != ActionOutcome.FAILURE:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_DESTROYED,
+                        target_id=civ.id,
+                        field="",
+                        note=f"{civ.name} extinguished by divine decree",
+                    ))
+                    narrative = (
+                        f"{civ.name} has been extinguished. "
+                        f"The world falls silent where they once stood."
+                    )
+                else:
+                    narrative = f"The attempt to extinguish {civ.name} failed. They endure."
+
+            elif defn.name == "Exile to Underreal":
+                tid_str = str(instance.target_id) if instance.target_id else None
+                target_name = "the target"
+                for collection in (state.civilizations, state.mortals, state.worlds):
+                    if tid_str and tid_str in collection:
+                        target_name = getattr(collection[tid_str], "name", target_name)
+                        break
+                if outcome != ActionOutcome.FAILURE:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.EXILED_TO_UNDERREAL,
+                        target_id=instance.target_id,
+                        field="",
+                        note=f"{target_name} cast into the Underreal",
+                    ))
+                    narrative = (
+                        f"{target_name} has been cast into the Underreal. "
+                        f"A distinctive trace lingers where they were."
+                    )
+                else:
+                    narrative = (
+                        f"The exile of {target_name} failed — "
+                        f"the target resisted the conceptual unraveling."
+                    )
+
+            elif defn.name == "Perform Direct Miracle":
+                mortal = state.mortals.get(str(instance.target_id)) if instance.target_id else None
+                if not mortal:
+                    return mutations, "Target mortal not found."
+                if outcome != ActionOutcome.FAILURE:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.MORTAL_ALIGNMENT,
+                        target_id=mortal.id,
+                        field="alignment",
+                        delta=0.3 if outcome == ActionOutcome.SUCCESS else 0.1,
+                        note=f"Direct miracle witnessed by {mortal.name}",
+                    ))
+                    if mortal.civilization_id:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.CIVILIZATION_STAT,
+                            target_id=mortal.civilization_id,
+                            field="divine_awareness",
+                            delta=0.15 if outcome == ActionOutcome.SUCCESS else 0.05,
+                            note=f"Divine awareness spike from miracle on {mortal.name}",
+                        ))
+                    narrative = (
+                        f"A direct miracle was performed for {mortal.name}. "
+                        f"Their faith is confirmed; word will spread."
+                    )
+                else:
+                    narrative = (
+                        f"The miracle for {mortal.name} failed to manifest. "
+                        f"They were left waiting."
+                    )
+
+            elif defn.name == "Empower Proxius":
+                proxius = state.mortals.get(str(instance.target_id)) if instance.target_id else None
+                if not proxius or proxius.role != MortalRole.PROXIUS:
+                    return mutations, "No active Proxius found to empower."
+                if outcome != ActionOutcome.FAILURE:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.MORTAL_ALIGNMENT,
+                        target_id=proxius.id,
+                        field="alignment",
+                        delta=0.2 if outcome == ActionOutcome.SUCCESS else 0.08,
+                        note=f"{proxius.name} granted temporary divine capability",
+                    ))
+                    narrative = (
+                        f"{proxius.name} has been granted a surge of divine capability. "
+                        f"Their alignment to your will is reinforced."
+                    )
+                else:
+                    narrative = f"The empowerment of {proxius.name} failed to take hold."
+
+            elif defn.name == "Reshape World Geography":
+                world_obj = state.worlds.get(str(instance.target_id)) if instance.target_id else None
+                if not world_obj:
+                    return mutations, "Target world not found."
+                if outcome == ActionOutcome.SUCCESS:
+                    condition_ladder = [
+                        WorldCondition.DYING, WorldCondition.BARREN,
+                        WorldCondition.STRESSED, WorldCondition.STABLE,
+                        WorldCondition.THRIVING,
+                    ]
+                    try:
+                        idx = condition_ladder.index(world_obj.condition)
+                        new_condition = condition_ladder[min(idx + 1, len(condition_ladder) - 1)]
+                    except ValueError:
+                        new_condition = WorldCondition.STABLE
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.WORLD_CONDITION,
+                        target_id=world_obj.id,
+                        field="condition",
+                        new_value=new_condition.value,
+                        note=f"Geography reshaped on {world_obj.name}",
+                    ))
+                    narrative = (
+                        f"The geography of {world_obj.name} has been reshaped. "
+                        f"Continents shifted; the world's condition improved."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    narrative = (
+                        f"The reshaping of {world_obj.name} is complete, "
+                        f"though the results are imperfect."
+                    )
+                else:
+                    narrative = (
+                        f"The attempt to reshape {world_obj.name} failed. "
+                        f"The world resists divine remolding."
+                    )
+
+            elif defn.name == "Move Against Luminary":
+                luminary = state.luminaries.get(str(instance.target_id)) if instance.target_id else None
+                lum_name = luminary.name if luminary else "the Luminary"
+                if outcome == ActionOutcome.SUCCESS:
+                    narrative = (
+                        f"The accumulated Essence unleashed against {lum_name} found its mark. "
+                        f"Their hold on your universe shatters."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    narrative = (
+                        f"The challenge to {lum_name} landed but did not sever. "
+                        f"They will retaliate."
+                    )
+                else:
+                    narrative = (
+                        f"The move against {lum_name} was deflected. "
+                        f"They are now aware of your intent."
+                    )
+
             return mutations, narrative
 
         # ── Whisper / Dream ───────────────────────────
@@ -910,6 +1061,156 @@ class TickLoop:
                 f"Apparent leak: {apparent_leak:.2f}. "
                 f"Concealment integrity held at {intent.concealment_priority:.0%} priority."
             )
+
+        # ── Omen / Manifestation ──────────────────────
+        elif isinstance(intent, OmenIntent):
+            if outcome == ActionOutcome.FAILURE:
+                return mutations, "The omen dissipated — mortals found no meaning in it."
+
+            effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
+
+            target_civs: list = []
+            if intent.civilization_scope:
+                civ_obj = state.civilizations.get(str(intent.civilization_scope))
+                if civ_obj:
+                    target_civs.append((str(intent.civilization_scope), civ_obj))
+            else:
+                target_civs = list(state.civilizations.items())
+
+            for cid, civ_obj in target_civs:
+                for dv in intent.domain_vectors:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.BELIEF_SHIFT,
+                        target_id=civ_obj.id,
+                        field="dominant_beliefs",
+                        delta=dv.direction * effectiveness * 0.15,
+                        new_value=dv.domain_tag,
+                        note=f"Omen: '{intent.sign_description[:40]}'",
+                    ))
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.CIVILIZATION_STAT,
+                    target_id=civ_obj.id,
+                    field="divine_awareness",
+                    delta=0.1 * effectiveness,
+                    note=f"Omen raises divine awareness in {civ_obj.name}",
+                ))
+
+            scope_desc = (
+                state.civilizations[str(intent.civilization_scope)].name
+                if intent.civilization_scope
+                and str(intent.civilization_scope) in state.civilizations
+                else "all civilizations"
+            )
+            narrative = (
+                f"The omen '{intent.sign_description}' manifested for {scope_desc}. "
+                f"Intended: '{intent.intended_interpretation}'. "
+                f"Effectiveness: {effectiveness:.0%}."
+            )
+
+        # ── Civilizational Development ────────────────
+        elif isinstance(intent, DevelopmentIntent):
+            if outcome == ActionOutcome.FAILURE:
+                return mutations, "The developmental nudge failed to take root."
+
+            effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.4
+            civ_obj = state.civilizations.get(str(instance.target_id)) if instance.target_id else None
+            if not civ_obj:
+                return mutations, "Target civilization not found."
+
+            for dv in intent.domain_vectors:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.BELIEF_SHIFT,
+                    target_id=civ_obj.id,
+                    field="dominant_beliefs",
+                    delta=dv.direction * effectiveness * 0.1,
+                    new_value=dv.domain_tag,
+                    note=f"Development nudge: '{intent.target_aspect[:40]}'",
+                ))
+
+            narrative = (
+                f"Civilizational development nudge toward '{intent.target_aspect}' "
+                f"applied to {civ_obj.name}. "
+                f"Effectiveness: {effectiveness:.0%}."
+            )
+
+        # ── Luminary Petition ─────────────────────────
+        elif isinstance(intent, LuminaryPetitionIntent):
+            luminary = state.luminaries.get(str(instance.target_id)) if instance.target_id else None
+            if not luminary:
+                return mutations, "Target Luminary not found."
+
+            if outcome == ActionOutcome.SUCCESS:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.DISPOSITION_CHANGE,
+                    target_id=luminary.id,
+                    field="results",
+                    delta=0.05,
+                    note=f"Petition '{intent.subject[:40]}' received favorably",
+                ))
+                narrative = (
+                    f"Your petition regarding '{intent.subject}' was received. "
+                    f"{luminary.name} acknowledged your position ({intent.tone})."
+                )
+            elif outcome == ActionOutcome.PARTIAL:
+                narrative = (
+                    f"Your petition regarding '{intent.subject}' was heard but not acted upon. "
+                    f"{luminary.name} remains noncommittal."
+                )
+            else:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.DISPOSITION_CHANGE,
+                    target_id=luminary.id,
+                    field="methods",
+                    delta=-0.03,
+                    note=f"Petition '{intent.subject[:40]}' dismissed",
+                ))
+                narrative = (
+                    f"Your petition regarding '{intent.subject}' was dismissed. "
+                    f"{luminary.name} appeared displeased by the request."
+                )
+
+        # ── Salvage from Underreal ────────────────────
+        elif isinstance(intent, SalvageIntent):
+            if outcome == ActionOutcome.FAILURE:
+                return mutations, (
+                    "The Underreal yielded nothing coherent. "
+                    "The concept dissolved on contact."
+                )
+
+            target_world = state.worlds.get(str(intent.target_world_id))
+            if not target_world:
+                return mutations, "Target world for salvage not found."
+
+            if outcome == ActionOutcome.CHAOTIC_RESULT:
+                for dv in intent.domain_vectors:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DOMAIN_EXPRESSION,
+                        target_id=target_world.id,
+                        field="domain_expression",
+                        delta=-dv.direction * 0.2,
+                        new_value=dv.domain_tag,
+                        note=f"Chaotic salvage on {target_world.name}: concept inverted",
+                    ))
+                narrative = (
+                    f"Something emerged from the Underreal, but not '{intent.desired_concept}'. "
+                    f"The concept manifested on {target_world.name} in an unexpected form."
+                )
+            else:
+                effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
+                for dv in intent.domain_vectors:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DOMAIN_EXPRESSION,
+                        target_id=target_world.id,
+                        field="domain_expression",
+                        delta=dv.direction * effectiveness * 0.2,
+                        new_value=dv.domain_tag,
+                        note=f"Salvaged '{intent.desired_concept[:40]}' on {target_world.name}",
+                    ))
+                narrative = (
+                    f"Salvaged '{intent.desired_concept}' from the Underreal. "
+                    f"The concept has taken root on {target_world.name}. "
+                    f"Effectiveness: {effectiveness:.0%}."
+                )
 
         return mutations, narrative
 
@@ -1179,6 +1480,26 @@ class TickLoop:
         profile: "UniverseDomainProfile",
     ) -> TerminalCheck:
 
+        # Victory: overthrow
+        if self._overthrow_this_tick == ActionOutcome.SUCCESS:
+            return TerminalCheck(
+                condition=TerminalConditionType.VICTORY_OVERTHROW,
+                triggered=True,
+                note=(
+                    "You have severed the Luminary's hold on your universe. "
+                    "The throne is yours — for now."
+                ),
+            )
+        if self._overthrow_this_tick == ActionOutcome.CHAOTIC_RESULT:
+            return TerminalCheck(
+                condition=TerminalConditionType.DEFEAT_CAST_DOWN,
+                triggered=True,
+                note=(
+                    "The overthrow attempt unraveled catastrophically. "
+                    "The Luminaries cast you into the Underreal."
+                ),
+            )
+
         # Defeat: all Luminaries hostile
         all_hostile = all(
             lum.disposition.overall < -0.8
@@ -1193,13 +1514,6 @@ class TickLoop:
                     "The Underreal awaits."
                 ),
             )
-
-        # Victory: overthrow — checked elsewhere when action resolves,
-        # but disposition-based collapse of Luminary authority
-        # could trigger here too in future iterations.
-
-        # Scenario expiry would check universe age against
-        # a scenario end_time field (not yet modeled).
 
         return TerminalCheck(condition=TerminalConditionType.NONE)
 
@@ -1292,6 +1606,12 @@ class TickLoop:
                         obj = getattr(state.civilizations[tid], parts[0])
                         current = getattr(obj, parts[1], 0.0)
                         setattr(obj, parts[1], max(0.0, min(1.0, current + (m.delta or 0))))
+                    elif len(parts) == 1:
+                        current = getattr(state.civilizations[tid], parts[0], 0.0)
+                        setattr(
+                            state.civilizations[tid], parts[0],
+                            max(0.0, min(1.0, current + (m.delta or 0)))
+                        )
 
             elif m.mutation_type in (
                 MutationType.BELIEF_SHIFT,
@@ -1345,5 +1665,45 @@ class TickLoop:
             elif m.mutation_type == MutationType.WORLD_CONDITION:
                 if tid in state.worlds and m.new_value:
                     state.worlds[tid].condition = WorldCondition(m.new_value)
+
+            elif m.mutation_type == MutationType.ENTITY_DESTROYED:
+                if tid in state.civilizations:
+                    civ = state.civilizations.pop(tid)
+                    world = state.worlds.get(str(civ.world_id))
+                    if world and civ.id in world.civilization_ids:
+                        world.civilization_ids.remove(civ.id)
+                elif tid in state.mortals:
+                    state.mortals[tid].status = MortalStatus.DECEASED
+
+            elif m.mutation_type == MutationType.EXILED_TO_UNDERREAL:
+                if tid in state.civilizations:
+                    civ = state.civilizations.pop(tid)
+                    world = state.worlds.get(str(civ.world_id))
+                    if world:
+                        if civ.id in world.civilization_ids:
+                            world.civilization_ids.remove(civ.id)
+                        if "domain:underreal_trace" not in world.domain_expression:
+                            world.domain_expression.append("domain:underreal_trace")
+                elif tid in state.mortals:
+                    mortal = state.mortals[tid]
+                    mortal.status = MortalStatus.DECEASED
+                    world = state.worlds.get(str(mortal.world_id))
+                    if world and "domain:underreal_trace" not in world.domain_expression:
+                        world.domain_expression.append("domain:underreal_trace")
+                elif tid in state.worlds:
+                    state.worlds[tid].condition = WorldCondition.BARREN
+                    state.worlds[tid].domain_expression = ["domain:underreal_trace"]
+
+            elif m.mutation_type == MutationType.DISPOSITION_CHANGE:
+                if tid in state.luminaries:
+                    lum = state.luminaries[tid]
+                    if m.field == "results":
+                        lum.disposition.results = max(
+                            -1.0, min(1.0, lum.disposition.results + (m.delta or 0))
+                        )
+                    elif m.field == "methods":
+                        lum.disposition.methods = max(
+                            -1.0, min(1.0, lum.disposition.methods + (m.delta or 0))
+                        )
 
         return state

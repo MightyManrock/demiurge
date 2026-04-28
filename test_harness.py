@@ -792,6 +792,28 @@ def _build_intent(
                 domain_vectors=[dv] if dv else [],
             )
 
+    elif cat == ActionCategory.OVERT_MIRACLE:
+        if action_key in ("manifest_omen", "divine_manifestation"):
+            sign = input("  Sign description (what occurs): ").strip() or "A celestial anomaly appears"
+            interpretation = (
+                input("  Intended interpretation: ").strip() or "The gods demand action"
+            )
+            dv = _prompt_domain_vector()
+            civ_scope = None
+            if target_id:
+                tid_str = str(target_id)
+                if tid_str in state.civilizations:
+                    civ_scope = target_id
+                elif tid_str in state.mortals:
+                    civ_scope = state.mortals[tid_str].civilization_id
+            return OmenIntent(
+                sign_description=sign,
+                intended_interpretation=interpretation,
+                domain_vectors=[dv] if dv else [],
+                framing=_prompt_framing(),
+                civilization_scope=civ_scope,
+            )
+
     elif cat == ActionCategory.LUMINARY_RELATIONS:
         subject = input("  Subject of communication: ").strip() or "Current universe state"
         position = input("  Your position / what you want: ").strip() or "Continued patience"

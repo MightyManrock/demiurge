@@ -78,18 +78,6 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     lum_attention, ticks_since = _load_luminary_state(conn)
 
     universe = Universe(
-        id=UUID(meta["demiurge_id"]),   # placeholder — Universe has its own UUID
-        name=meta["universe_name"],
-        demiurge_id=demiurge.id,
-        pantheon_id=pantheon.id,
-        rules=rules,
-        galaxy_ids=list(galaxies.keys()),
-        current_age=meta["current_age"],
-    )
-    # Reconstruct the real universe UUID — it isn't stored separately,
-    # so we give it a deterministic identity derived from the demiurge id.
-    # For a proper save/load, Universe.id would be its own column; fine for now.
-    universe = Universe(
         name=meta["universe_name"],
         demiurge_id=demiurge.id,
         pantheon_id=pantheon.id,
