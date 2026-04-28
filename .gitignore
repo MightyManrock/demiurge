@@ -1,3 +1,9 @@
+bin/
+lib/
+lib64
+
+pyvenv.cfg
+
 # Claude Code
 CLAUDE.md
 
