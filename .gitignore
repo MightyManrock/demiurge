@@ -1,6 +1,7 @@
 bin/
 lib/
 lib64
+*.kate-swp
 
 pyvenv.cfg
 
