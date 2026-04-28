@@ -913,8 +913,18 @@ def _select_scenario() -> SimulationState:
 
     if db_files:
         for i, path in enumerate(db_files, start=1):
-            print(f"  [{i}] {path.stem.replace('_', ' ').title()}")
-            print(f"       {path}")
+            try:
+                import sqlite3 as _sq
+                with _sq.connect(path) as _c:
+                    row = _c.execute("SELECT name, description FROM scenario_meta LIMIT 1").fetchone()
+                scenario_name = row[0] if row else path.stem
+                scenario_desc = row[1] if (row and row[1]) else ""
+            except Exception:
+                scenario_name = path.stem
+                scenario_desc = ""
+            print(f"  [{i}] {scenario_name}")
+            if scenario_desc:
+                print(f"       {scenario_desc}")
     else:
         print("  (no scenario files found in scenarios/)")
 
