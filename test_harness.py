@@ -64,14 +64,23 @@ def build_scenario_default() -> SimulationState:
     """
     Scenario: 'The Warden's Compact'
 
-    You are Demiurge of a young universe containing one inhabited world.
-    Your two liege Luminaries have contradictory temperaments:
+    You are Demiurge of a young universe with two inhabited worlds and one
+    barren candidate for seeding. Your two liege Luminaries have contradictory
+    temperaments:
       - Cassiel, Luminary of Order and Silence — patient, demands subtlety
       - Vrath, Luminary of Conflict and Change — wrathful, demands results fast
 
     The Pantheon expects subtlety. Vrath privately does not care,
     but expects civilizational Domain alignment toward conflict within
     a short window. The tension is immediate.
+
+    Spatial layout:
+      The Nascent Coil (galaxy)
+        Ardent System
+          Neran          — stable, continental civilization (domain:order)
+          Vel Arath      — barren, no life; candidate for seed_world
+        The Outer Reach (system)
+          Oros           — stable, nascent tribal society (domain:conflict seeds)
     """
 
     # ── Powers ──────────────────────────────────────
@@ -193,26 +202,59 @@ def build_scenario_default() -> SimulationState:
         name="The Nascent Coil",
         coordinates=CosmicCoordinates(x=0.0, y=0.0, z=0.0),
     )
+
+    # Ardent System — inner system, two worlds
     system = System(
         name="Ardent System",
         galaxy_id=galaxy.id,
         star_type=StarType.MAIN_SEQUENCE,
     )
-    world = World(
+    neran = World(
         name="Neran",
         system_id=system.id,
         condition=WorldCondition.STABLE,
         domain_expression=["domain:order"],
         age=120.0,
     )
+    # Vel Arath — barren sibling world, no life yet
+    vel_arath = World(
+        name="Vel Arath",
+        system_id=system.id,
+        condition=WorldCondition.BARREN,
+        domain_expression=[],
+        age=180.0,
+        # Older than Neran; conditions are inert but not hostile
+    )
 
     galaxy.system_ids.append(system.id)
-    system.world_ids.append(world.id)
+    system.world_ids.append(neran.id)
+    system.world_ids.append(vel_arath.id)
 
-    # ── Civilization ──────────────────────────────────
+    # The Outer Reach — distant system, one young world
+    system_outer = System(
+        name="The Outer Reach",
+        galaxy_id=galaxy.id,
+        star_type=StarType.DWARF,
+        coordinates=CosmicCoordinates(x=12.0, y=3.0, z=-2.0),
+    )
+    oros = World(
+        name="Oros",
+        system_id=system_outer.id,
+        condition=WorldCondition.STABLE,
+        domain_expression=["domain:conflict"],
+        age=55.0,
+        # Young world; its first civilization is already war-shaped
+    )
+
+    galaxy.system_ids.append(system_outer.id)
+    system_outer.world_ids.append(oros.id)
+
+    # ── Civilizations ─────────────────────────────────
+
+    # Neran: established continental power, order-oriented
     civ = Civilization(
         name="The Neran Confederacy",
-        world_id=world.id,
+        world_id=neran.id,
         scale=CivilizationScale.CONTINENTAL,
         health=CivilizationHealth(
             stability=0.6,
@@ -224,12 +266,32 @@ def build_scenario_default() -> SimulationState:
         divine_awareness=0.25,
         age=80.0,
     )
-    world.civilization_ids.append(civ.id)
+    neran.civilization_ids.append(civ.id)
 
-    # ── Notable Mortal (candidate for Proxius) ────────
-    mortal = NotableMortal(
+    # Oros: nascent tribal confederation, conflict-and-change flavored
+    keth = Civilization(
+        name="The Keth Wanderers",
+        world_id=oros.id,
+        scale=CivilizationScale.TRIBAL,
+        health=CivilizationHealth(
+            stability=0.4,
+            prosperity=0.3,
+            cohesion=0.65,
+            # Tight bonds within bands, but fragile overall
+        ),
+        dominant_beliefs=["domain:conflict", "domain:ancestor_worship"],
+        theistic=True,
+        divine_awareness=0.10,
+        age=12.0,
+    )
+    oros.civilization_ids.append(keth.id)
+
+    # ── Notable Mortals ───────────────────────────────
+
+    # Neran: pragmatic administrator — strong proxius candidate (order)
+    senna = NotableMortal(
         name="Senna Vaur",
-        world_id=world.id,
+        world_id=neran.id,
         civilization_id=civ.id,
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
@@ -237,7 +299,61 @@ def build_scenario_default() -> SimulationState:
         alignment=0.75,
         age=34.0,
     )
-    civ.notable_mortal_ids.append(mortal.id)
+    civ.notable_mortal_ids.append(senna.id)
+
+    # Neran: military commander — aligned with conflict, personally ambitious
+    karath = NotableMortal(
+        name="Karath Omn",
+        world_id=neran.id,
+        civilization_id=civ.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        personal_tags=["domain:conflict", "domain:war", "ambitious", "ruthless"],
+        alignment=0.45,
+        # Pursues his own agenda as readily as yours; needs careful direction
+        age=41.0,
+    )
+    civ.notable_mortal_ids.append(karath.id)
+
+    # Neran: temple keeper — devout, subtlety-inclined; Cassiel's natural ally
+    veth = NotableMortal(
+        name="Veth Sarai",
+        world_id=neran.id,
+        civilization_id=civ.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        personal_tags=["domain:order", "domain:silence", "devout", "cautious"],
+        alignment=0.85,
+        age=52.0,
+    )
+    civ.notable_mortal_ids.append(veth.id)
+
+    # Neran: merchant guildmaster — self-interested, low loyalty, domain:trade
+    durenn = NotableMortal(
+        name="Durenn Vail",
+        world_id=neran.id,
+        civilization_id=civ.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        personal_tags=["domain:trade", "domain:law", "opportunistic", "pragmatic"],
+        alignment=0.35,
+        # Will work with you if it suits him; unreliable as proxius
+        age=47.0,
+    )
+    civ.notable_mortal_ids.append(durenn.id)
+
+    # Oros: tribal war-chieftain — Vrath's natural instrument on Oros
+    asha = NotableMortal(
+        name="Asha Keln",
+        world_id=oros.id,
+        civilization_id=keth.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        personal_tags=["domain:conflict", "domain:change", "tribal_leader", "spiritual"],
+        alignment=0.60,
+        age=29.0,
+    )
+    keth.notable_mortal_ids.append(asha.id)
 
     # ── Demiurge ─────────────────────────────────────
     demiurge = Demiurge(
@@ -270,11 +386,29 @@ def build_scenario_default() -> SimulationState:
         pantheon=pantheon,
         luminaries=luminaries,
         domains=domains,
-        galaxies={str(galaxy.id): galaxy},
-        systems={str(system.id): system},
-        worlds={str(world.id): world},
-        civilizations={str(civ.id): civ},
-        mortals={str(mortal.id): mortal},
+        galaxies={
+            str(galaxy.id): galaxy,
+        },
+        systems={
+            str(system.id):       system,
+            str(system_outer.id): system_outer,
+        },
+        worlds={
+            str(neran.id):     neran,       # Neran
+            str(vel_arath.id): vel_arath,   # barren
+            str(oros.id):      oros,        # Keth tribal world
+        },
+        civilizations={
+            str(civ.id):  civ,    # The Neran Confederacy
+            str(keth.id): keth,   # The Keth Wanderers
+        },
+        mortals={
+            str(senna.id):  senna,
+            str(karath.id): karath,
+            str(veth.id):   veth,
+            str(durenn.id): durenn,
+            str(asha.id):   asha,
+        },
         civ_momentum={
             str(civ.id): CivilizationMomentum(
                 civilization_id=civ.id,
@@ -282,7 +416,14 @@ def build_scenario_default() -> SimulationState:
                 prosperity_delta=0.05,
                 cohesion_delta=-0.05,
                 # Slight internal fracturing despite surface stability
-            )
+            ),
+            str(keth.id): CivilizationMomentum(
+                civilization_id=keth.id,
+                stability_delta=-0.05,
+                prosperity_delta=0.0,
+                cohesion_delta=0.1,
+                # Bands are consolidating, but overall stability is shaky
+            ),
         },
         luminary_attention={
             str(cassiel.id): 0.15,
@@ -473,7 +614,16 @@ def build_intent_interactively(
         mortals = list(state.mortals.items())
         print("  Select target mortal:")
         for i, (mid, m) in enumerate(mortals):
-            print(f"    {i+1}. {m.name} [{m.role.value}]  alignment:{m.alignment:.2f}")
+            w_obj  = state.worlds.get(str(m.world_id))
+            c_obj  = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
+            loc    = w_obj.name if w_obj else "?"
+            if c_obj:
+                loc += f" · {c_obj.name}"
+            role_str = m.role.value if m.role != MortalRole.OTHER else "mortal"
+            print(
+                f"    {i+1}. {m.name:<16s} [{role_str}]  "
+                f"align:{m.alignment:.2f}   {loc}"
+            )
         print("    0. Cancel")
         choice = _prompt_int("  > ", 0, len(mortals))
         if choice == 0:
@@ -485,7 +635,9 @@ def build_intent_interactively(
         civs = list(state.civilizations.items())
         print("  Select target civilization:")
         for i, (cid, c) in enumerate(civs):
-            print(f"    {i+1}. {c.name}")
+            w_obj = state.worlds.get(str(c.world_id))
+            loc   = w_obj.name if w_obj else "?"
+            print(f"    {i+1}. {c.name:<30s} [{c.scale.value}]  {loc}")
         print("    0. Cancel")
         choice = _prompt_int("  > ", 0, len(civs))
         if choice == 0:
@@ -497,7 +649,7 @@ def build_intent_interactively(
         lums = list(state.luminaries.items())
         print("  Select target Luminary:")
         for i, (lid, l) in enumerate(lums):
-            print(f"    {i+1}. {l.name}")
+            print(f"    {i+1}. {l.name}  [{l.temperament.value}]")
         print("    0. Cancel")
         choice = _prompt_int("  > ", 0, len(lums))
         if choice == 0:
@@ -513,7 +665,14 @@ def build_intent_interactively(
         worlds = list(state.worlds.items())
         print("  Select target world:")
         for i, (wid, w) in enumerate(worlds):
-            print(f"    {i+1}. {w.name}")
+            sys_obj  = state.systems.get(str(w.system_id))
+            sys_name = sys_obj.name if sys_obj else "?"
+            n_civs   = len(w.civilization_ids)
+            life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
+            print(
+                f"    {i+1}. {w.name:<14s} [{w.condition.value}]  "
+                f"{sys_name:<20s}  {life_str}"
+            )
         print("    0. Cancel")
         choice = _prompt_int("  > ", 0, len(worlds))
         if choice == 0:
@@ -526,14 +685,16 @@ def build_intent_interactively(
     if defn.requires_proxius:
         proxii = [
             (mid, m) for mid, m in state.mortals.items()
-            if m.role == MortalRole.PROXY and m.status == MortalStatus.ACTIVE
+            if m.role == MortalRole.PROXIUS and m.status == MortalStatus.ACTIVE
         ]
         if not proxii:
             print("  No active Proxii available for this action.")
             return None
         print("  Select Proxius to act through:")
         for i, (mid, m) in enumerate(proxii):
-            print(f"    {i+1}. {m.name}  alignment:{m.alignment:.2f}")
+            w_obj = state.worlds.get(str(m.world_id))
+            loc   = w_obj.name if w_obj else "?"
+            print(f"    {i+1}. {m.name:<16s} align:{m.alignment:.2f}   {loc}")
         choice = _prompt_int("  > ", 1, len(proxii))
         proxius_id = UUID(proxii[choice - 1][0])
 
@@ -640,7 +801,7 @@ def _build_intent(
             tone=tone,
         )
 
-    # No structured intent needed (scry, appoint_proxy, etc.)
+    # No structured intent needed (scry, appoint_proxius, etc.)
     return None
 
 
@@ -747,7 +908,7 @@ def main():
 
     state = build_scenario_default()
     loop  = TickLoop()
-    library = build_action_library()
+    library = loop._action_library
     last_result: TickResult | None = None
 
     # Map action keys to definitions with a stable index

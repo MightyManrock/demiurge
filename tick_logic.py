@@ -35,7 +35,7 @@ from onto_core import (
 )
 from universe_core import (
     Universe, Galaxy, System, World, Civilization, NotableMortal,
-    MortalRole,
+    MortalRole, MortalStatus, WorldCondition,
 )
 
 
@@ -283,6 +283,9 @@ class TickLoop:
     def __init__(self, rng_seed: Optional[int] = None):
         self.rng_seed = rng_seed or random.randint(0, 2**32)
         self._rng = random.Random(self.rng_seed)
+        self._action_library = build_action_library()
+        # Built once so ActionDefinition UUIDs are stable across ticks
+        # and match the UUIDs stored in queued ActionInstances.
 
     def advance(
         self,
@@ -520,14 +523,12 @@ class TickLoop:
     ) -> ActionProcessingResult:
 
         result = ActionProcessingResult()
-        library = build_action_library()
 
         for instance in state.action_queue:
             defn_id = str(instance.action_definition_id)
-            # Match by name since we're using string keys in the library
             defn = next(
-                (v for v in library.values()
-                 if str(v.id) == defn_id or v.name == defn_id),
+                (v for v in self._action_library.values()
+                 if str(v.id) == defn_id),
                 None
             )
             if defn is None:
@@ -684,7 +685,80 @@ class TickLoop:
         narrative = f"{defn.name} executed."
 
         intent = instance.intent
+
+        # ── Intent-less actions with defined effects ───
         if intent is None:
+            if defn.name == "Appoint Proxius":
+                mortal = state.mortals.get(str(instance.target_id))
+                if not mortal:
+                    return mutations, "No mortal found to appoint."
+                if mortal.role == MortalRole.PROXIUS:
+                    return mutations, f"{mortal.name} is already a Proxius."
+                if outcome != ActionOutcome.FAILURE:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.PROXIUS_APPOINTED,
+                        target_id=mortal.id,
+                        field="role",
+                        new_value=MortalRole.PROXIUS.value,
+                        note=f"{mortal.name} elevated to Proxius",
+                    ))
+                    narrative = f"{mortal.name} has been elevated to Proxius."
+                else:
+                    narrative = f"The elevation of {mortal.name} did not take hold."
+
+            elif defn.name == "Dismiss Proxius":
+                mortal = state.mortals.get(str(instance.target_id))
+                if not mortal:
+                    return mutations, "No mortal found to dismiss."
+                if mortal.role != MortalRole.PROXIUS:
+                    return mutations, f"{mortal.name} is not a Proxius."
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.PROXIUS_DISMISSED,
+                    target_id=mortal.id,
+                    field="role",
+                    new_value=MortalRole.OTHER.value,
+                    note=f"{mortal.name} dismissed from Proxius role",
+                ))
+                narrative = f"{mortal.name} has been relieved of their Proxius appointment."
+
+            elif defn.name == "Seed World with Life":
+                world_obj = state.worlds.get(str(instance.target_id))
+                if not world_obj:
+                    return mutations, "Target world not found."
+                if world_obj.condition != WorldCondition.BARREN:
+                    return mutations, (
+                        f"{world_obj.name} already sustains life — seeding had no effect."
+                    )
+                if outcome == ActionOutcome.SUCCESS:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.WORLD_CONDITION,
+                        target_id=world_obj.id,
+                        field="condition",
+                        new_value=WorldCondition.STABLE.value,
+                        note=f"Life seeded on {world_obj.name}",
+                    ))
+                    narrative = (
+                        f"Life has taken root on {world_obj.name}. "
+                        f"The world stirs — barren no longer."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.WORLD_CONDITION,
+                        target_id=world_obj.id,
+                        field="condition",
+                        new_value=WorldCondition.STRESSED.value,
+                        note=f"Life partially seeded on {world_obj.name} — fragile",
+                    ))
+                    narrative = (
+                        f"Life clings to {world_obj.name}, but only barely. "
+                        f"The world is stressed — it will need tending."
+                    )
+                else:
+                    narrative = (
+                        f"The seeding of {world_obj.name} failed to take hold. "
+                        f"The world remains barren."
+                    )
+
             return mutations, narrative
 
         # ── Whisper / Dream ───────────────────────────
@@ -1239,5 +1313,37 @@ class TickLoop:
                         tags.append(tag)
                     elif (m.delta or 0) < -0.3 and tag in tags:
                         tags.remove(tag)
+
+            elif m.mutation_type == MutationType.PROXIUS_APPOINTED:
+                if tid in state.mortals:
+                    mortal = state.mortals[tid]
+                    mortal.role = MortalRole.PROXIUS
+                    if mortal.id not in state.demiurge.proxius_ids:
+                        state.demiurge.proxius_ids.append(mortal.id)
+                    world_id_str = str(mortal.world_id)
+                    if world_id_str in state.worlds:
+                        world = state.worlds[world_id_str]
+                        if mortal.id not in world.proxius_ids:
+                            world.proxius_ids.append(mortal.id)
+
+            elif m.mutation_type == MutationType.PROXIUS_DISMISSED:
+                if tid in state.mortals:
+                    mortal = state.mortals[tid]
+                    mortal.role = MortalRole.OTHER
+                    if mortal.id in state.demiurge.proxius_ids:
+                        state.demiurge.proxius_ids.remove(mortal.id)
+                    world_id_str = str(mortal.world_id)
+                    if world_id_str in state.worlds:
+                        world = state.worlds[world_id_str]
+                        if mortal.id in world.proxius_ids:
+                            world.proxius_ids.remove(mortal.id)
+
+            elif m.mutation_type == MutationType.MORTAL_STATUS:
+                if tid in state.mortals and m.new_value:
+                    state.mortals[tid].status = MortalStatus(m.new_value)
+
+            elif m.mutation_type == MutationType.WORLD_CONDITION:
+                if tid in state.worlds and m.new_value:
+                    state.worlds[tid].condition = WorldCondition(m.new_value)
 
         return state
