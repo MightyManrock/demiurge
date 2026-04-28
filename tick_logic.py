@@ -6,6 +6,38 @@ from uuid import UUID, uuid4
 import random
 import math
 
+from action_core import (
+    DomainVector,
+    StateMutation, MutationType,
+    ActionOutcome,
+    ActionInstance,
+    EssenceStockpile,
+    build_action_library,
+    ActionDefinition,
+    ActionReliability,
+    WhisperIntent, ProbabilityNudgeIntent,
+    ProxiusDirectiveIntent, EssenceHarvestIntent,
+    TargetType,
+)
+from eval_core import (
+    UniverseDomainProfile,
+    LuminaryEvaluation,
+    DialogueTrigger,
+    EvaluationEngine,
+    AttentionTrigger,
+    FootprintAssessment,
+    EssenceSuspicion,
+    DispositionDelta,
+    DispositionDeltaReason,
+)
+from onto_core import (
+    Demiurge, Pantheon, Luminary, Domain,
+)
+from universe_core import (
+    Universe, Galaxy, System, World, Civilization, NotableMortal,
+    MortalRole,
+)
+
 
 # ─────────────────────────────────────────
 # TICK CONFIGURATION
@@ -34,7 +66,7 @@ class TickConfig(BaseModel):
         default_factory=lambda: {
             "overt_miracles":  1.0,
             "subtle_influence": 1.8,  # Fades faster — it's deniable by design
-            "proxii_activity":  0.8,
+            "proxius_activity": 0.8,
             "direct_creation":  0.4,  # Reshaping a world doesn't unhappen quickly
         }
     )
@@ -392,7 +424,7 @@ class TickLoop:
                 ))
 
             # Flag a Proxius going significantly rogue
-            if (mortal.role == "proxy"
+            if (mortal.role == "proxius"
                     and mortal.alignment < 0.4
                     and (mortal.alignment - drift) >= 0.4):
                 result.narrative_events.append(
@@ -537,7 +569,7 @@ class TickLoop:
         scale = 0.5 if partial else 1.0
 
         for category in ["overt_miracles", "subtle_influence",
-                          "proxii_activity", "direct_creation"]:
+                          "proxius_activity", "direct_creation"]:
             cost = getattr(defn.footprint_cost, category) * scale
             if cost > 0.0:
                 # Universe-wide footprint
@@ -933,7 +965,7 @@ class TickLoop:
             constraint_evals = []
             tolerances = state.universe.rules.footprint_tolerances
             for category in ["overt_miracles", "subtle_influence",
-                              "proxii_activity", "direct_creation"]:
+                              "proxius_activity", "direct_creation"]:
                 fp_value = getattr(state.demiurge.footprint, category)
                 tolerance = getattr(tolerances, category)
 

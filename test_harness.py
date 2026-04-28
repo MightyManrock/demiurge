@@ -179,7 +179,7 @@ def build_scenario_default() -> SimulationState:
         footprint_tolerances=FootprintTolerances(
             overt_miracles=0.25,
             subtle_influence=0.75,
-            proxii_activity=0.55,
+            proxius_activity=0.55,
             direct_creation=0.20,
         ),
         proxii_policy=ProxiiPolicy(max_per_world=1, tolerance_for_excess=0.25),
@@ -323,7 +323,7 @@ def display_state(state: SimulationState) -> str:
         "DEMIURGE",
         f"  Footprint — overt:{fp.overt_miracles:.2f}  "
         f"subtle:{fp.subtle_influence:.2f}  "
-        f"proxii:{fp.proxii_activity:.2f}  "
+        f"proxii:{fp.proxius_activity:.2f}  "
         f"creation:{fp.direct_creation:.2f}",
         f"  Essence   — actual:{es.actual:.2f}  "
         f"apparent:{es.apparent:.2f}  "
@@ -523,7 +523,7 @@ def build_intent_interactively(
 
     # ── Proxius selection for directed actions ────────
     proxius_id = None
-    if defn.requires_proxy:
+    if defn.requires_proxius:
         proxii = [
             (mid, m) for mid, m in state.mortals.items()
             if m.role == MortalRole.PROXY and m.status == MortalStatus.ACTIVE
@@ -591,7 +591,7 @@ def _build_intent(
                 target_aspect=aspect,
             )
 
-    elif cat == ActionCategory.PROXII_DIRECTION:
+    elif cat == ActionCategory.PROXIUS_DIRECTION:
         if action_key == "issue_directive":
             goal = input("  Directive goal: ").strip() or "Strengthen the reformist faction"
             dv = _prompt_domain_vector()
@@ -655,7 +655,7 @@ def _prompt_domain_vector() -> DomainVector | None:
 
 
 def _prompt_framing():
-    from sim_core import Framing
+    from action_core import Framing
     options = [f.value for f in Framing]
     print(f"  Framing: {', '.join(options)}")
     choice = input("  > ").strip().lower()
