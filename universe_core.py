@@ -245,6 +245,13 @@ class MortalRole(str, Enum):
     OTHER   = "other"   # Person of interest with no divine appointment
 
 
+# class MortalProminence(str, Enum):
+#     LEADER = "leader"  # A mortal with political power
+#     PRIEST = "priest"     # A mortal directly involved in a religious institution
+#     REBEL = "rebel"       # A mortal opposed to the current political order they live under
+#     NONE = "none"       # A mortal of no political import
+
+
 class MortalStatus(str, Enum):
     ACTIVE   = "active"
     DORMANT  = "dormant"     # Appointed but currently inactive

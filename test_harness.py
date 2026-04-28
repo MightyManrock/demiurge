@@ -28,6 +28,7 @@ from universe_core import (
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, NotableMortal,
     Universe,
+    # MortalProminence
 )
 from action_core import (
     EssenceStockpile,
@@ -256,7 +257,7 @@ def build_scenario_default() -> SimulationState:
     civ = Civilization(
         name="The Neran Confederacy",
         world_id=neran.id,
-        scale=CivilizationScale.CONTINENTAL,
+        scale=CivilizationScale.INTERSTELLAR,
         health=CivilizationHealth(
             stability=0.6,
             prosperity=0.5,
@@ -581,6 +582,153 @@ def display_tick_result(result: TickResult) -> str:
             SEP2,
         ]
 
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────
+# BRIEFING
+# Full scenario context for the player.
+# ─────────────────────────────────────────
+
+def display_briefing(state: SimulationState) -> str:
+    lines = [
+        SEP2,
+        f"  SCENARIO BRIEFING",
+        f"  {state.universe.name}  (Age {state.universe.current_age:.1f})",
+        SEP2,
+        "",
+    ]
+
+    # ── Pantheon ──────────────────────────────────────
+    pan = state.pantheon
+    lines.append(f"PANTHEON: {pan.name}")
+    if pan.collective_constraints:
+        lines.append("  Collective Constraints:")
+        for c in pan.collective_constraints:
+            lines.append(f"    • {c.name}  [enforcement: {c.enforcement_weight:.2f}]")
+            lines.append(f"      {c.description}")
+    lines.append(SEP)
+
+    # ── Liege Luminaries ──────────────────────────────
+    lines.append("YOUR LIEGE LUMINARIES")
+    for lid in [str(i) for i in state.demiurge.liege_luminary_ids]:
+        lum = state.luminaries.get(lid)
+        if not lum:
+            continue
+        lines.append("")
+        lines.append(f"  {lum.name.upper()}  [{lum.temperament.value}]")
+
+        domain_names = [
+            state.domains[str(did)].name
+            for did in lum.domains
+            if str(did) in state.domains
+        ]
+        lines.append(f"  Domains: {', '.join(domain_names)}")
+
+        for did in lum.domains:
+            d = state.domains.get(str(did))
+            if d:
+                lines.append(f"    • {d.name}: {d.description}")
+                if d.tags:
+                    lines.append(f"      Tags: {', '.join(d.tags)}")
+
+        if lum.constraints:
+            lines.append("  Constraints imposed on you:")
+            for c in lum.constraints:
+                lines.append(
+                    f"    • {c.name}  [enforcement: {c.enforcement_weight:.2f}]"
+                )
+                lines.append(f"      {c.description}")
+
+        d = lum.disposition
+        att = state.luminary_attention.get(lid, 0.0)
+        lines.append(
+            f"  Starting disposition:  results{d.results:+.2f}  "
+            f"methods{d.methods:+.2f}  attention:{att:.2f}"
+        )
+
+    lines += ["", SEP]
+
+    # ── Universe Rules ─────────────────────────────────
+    rules = state.universe.rules
+    tol   = rules.footprint_tolerances
+    pp    = rules.proxii_policy
+    cap_str = f"max {pp.max_per_world} per world" if pp.max_per_world else "no per-world limit"
+    lines += [
+        "UNIVERSE RULES",
+        "  Footprint Tolerances:",
+        f"    Overt Miracles:   {tol.overt_miracles:.2f}  |  "
+        f"Subtle Influence: {tol.subtle_influence:.2f}",
+        f"    Proxius Activity: {tol.proxius_activity:.2f}  |  "
+        f"Direct Creation:  {tol.direct_creation:.2f}",
+        f"  Proxii Policy: {cap_str}  (slack: {pp.tolerance_for_excess:.2f})",
+        f"  Active shaping expected:    {'yes' if rules.active_shaping_expected else 'no'}",
+        f"  Mortals perceive divinity:  {'yes' if rules.mortals_can_perceive_divinity else 'no'}",
+    ]
+    if rules.notes:
+        lines.append(f"  Notes: {rules.notes}")
+    if rules.special_flags:
+        lines.append(f"  Special flags: {', '.join(rules.special_flags)}")
+    lines.append(SEP)
+
+    # ── Spatial hierarchy ─────────────────────────────
+    lines.append("YOUR UNIVERSE")
+    for gid, galaxy in state.galaxies.items():
+        lines += ["", f"  Galaxy: {galaxy.name}"]
+        for sid in galaxy.system_ids:
+            sys_obj = state.systems.get(str(sid))
+            if not sys_obj:
+                continue
+            lines.append(f"    System: {sys_obj.name}  [{sys_obj.star_type.value}]")
+            for wid in sys_obj.world_ids:
+                world = state.worlds.get(str(wid))
+                if not world:
+                    continue
+                n_civs  = len(world.civilization_ids)
+                life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
+                lines.append(
+                    f"      {world.name}  [{world.condition.value}]"
+                    f"  age:{world.age:.0f}  {life_str}"
+                )
+                if world.domain_expression:
+                    lines.append(
+                        f"        domain expression: {', '.join(world.domain_expression)}"
+                    )
+                for cid in world.civilization_ids:
+                    civ = state.civilizations.get(str(cid))
+                    if civ:
+                        h = civ.health
+                        lines.append(
+                            f"        └─ {civ.name}  [{civ.scale.value}]"
+                            f"  stab:{h.stability:.2f} pros:{h.prosperity:.2f}"
+                            f" coh:{h.cohesion:.2f}"
+                        )
+                        if civ.dominant_beliefs:
+                            lines.append(
+                                f"           beliefs: {', '.join(civ.dominant_beliefs)}"
+                            )
+    lines += ["", SEP]
+
+    # ── Notable Mortals ────────────────────────────────
+    lines.append("NOTABLE MORTALS")
+    for mid, mortal in state.mortals.items():
+        w_obj = state.worlds.get(str(mortal.world_id))
+        c_obj = (
+            state.civilizations.get(str(mortal.civilization_id))
+            if mortal.civilization_id else None
+        )
+        loc      = w_obj.name if w_obj else "?"
+        if c_obj:
+            loc += f" · {c_obj.name}"
+        role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
+        lines.append(
+            f"  {mortal.name:16s} [{role_str:7s}]  "
+            f"align:{mortal.alignment:.2f}   {loc}"
+        )
+        if mortal.personal_tags:
+            lines.append(f"    Tags: {', '.join(mortal.personal_tags)}")
+
+    lines += ["", SEP2]
     return "\n".join(lines)
 
 
@@ -994,6 +1142,9 @@ def main():
     # Map action keys to definitions with a stable index
     action_index: list[tuple[str, ActionDefinition]] = list(library.items())
 
+    briefing = display_briefing(state)
+    print(briefing)
+    log.write(briefing)
     print(display_state(state))
     log.write_state(state)
 
@@ -1004,6 +1155,7 @@ def main():
         print("  [A] Browse and queue actions")
         print("  [T] Advance time (execute queued actions + tick)")
         print("  [S] Show current state")
+        print("  [B] Show scenario briefing")
         print("  [Q] Quit")
         if state.action_queue:
             print(f"\n  Queued: {len(state.action_queue)} action(s) pending")
@@ -1018,6 +1170,11 @@ def main():
 
         elif cmd == "S":
             out = display_state(state)
+            print(out)
+            log.write(out)
+
+        elif cmd == "B":
+            out = display_briefing(state)
             print(out)
             log.write(out)
 
