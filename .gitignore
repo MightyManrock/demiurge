@@ -7,7 +7,7 @@ pyvenv.cfg
 
 autoplay.py
 logs/*.log
-domains.md
+traits/*
 
 # Claude Code
 CLAUDE.md
