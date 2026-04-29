@@ -6,7 +6,7 @@ lib64
 pyvenv.cfg
 
 autoplay.py
-logs/
+logs/*
 
 # Claude Code
 CLAUDE.md
