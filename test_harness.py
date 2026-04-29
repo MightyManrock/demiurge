@@ -345,6 +345,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.75,
         chrono_age=170.0,
         bio_age=170.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(senna.id)
 
@@ -363,6 +365,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.45,
         chrono_age=205.0,
         bio_age=205.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(karath.id)
 
@@ -382,6 +386,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.85,
         chrono_age=260.0,
         bio_age=260.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(veth.id)
 
@@ -401,6 +407,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.35,
         chrono_age=235.0,
         bio_age=235.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(durenn.id)
 
@@ -419,6 +427,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.60,
         chrono_age=145.0,
         bio_age=145.0,
+        home_location=oros.id,
+        current_location=oros.id,
     )
     keth.notable_mortal_ids.append(asha.id)
 
@@ -439,6 +449,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.20,
         chrono_age=155.0,
         bio_age=155.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(orryn.id)
 
@@ -457,6 +469,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.55,
         chrono_age=190.0,
         bio_age=190.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(thessal.id)
 
@@ -475,6 +489,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.70,
         chrono_age=85.0,
         bio_age=85.0,
+        home_location=neran.id,
+        current_location=neran.id,
     )
     civ.notable_mortal_ids.append(maeva.id)
 
@@ -493,6 +509,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.30,
         chrono_age=130.0,
         bio_age=130.0,
+        home_location=oros.id,
+        current_location=oros.id,
     )
     keth.notable_mortal_ids.append(kael.id)
 
@@ -511,6 +529,8 @@ def build_scenario_default() -> SimulationState:
         alignment=0.50,
         chrono_age=175.0,
         bio_age=175.0,
+        home_location=oros.id,
+        current_location=oros.id,
     )
     keth.notable_mortal_ids.append(urren.id)
 
@@ -907,7 +927,7 @@ def display_briefing(state: SimulationState) -> str:
     for mid, mortal in state.mortals.items():
         if not is_mortal_visible(mortal):
             continue
-        w_obj = state.worlds.get(str(mortal.world_id))
+        w_obj = state.worlds.get(str(mortal.current_location or mortal.world_id))
         c_obj = (
             state.civilizations.get(str(mortal.civilization_id))
             if mortal.civilization_id else None
@@ -981,7 +1001,7 @@ def build_intent_interactively(
             return None
         print("  Issue directive to which Proxius?")
         for i, (mid, m) in enumerate(proxii):
-            w_obj = state.worlds.get(str(m.world_id))
+            w_obj = state.worlds.get(str(m.current_location or m.world_id))
             loc = w_obj.name if w_obj else "?"
             dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             print(
@@ -1019,7 +1039,7 @@ def build_intent_interactively(
             return None
         print("  Select target mortal:")
         for i, (mid, m) in enumerate(mortals):
-            w_obj  = state.worlds.get(str(m.world_id))
+            w_obj  = state.worlds.get(str(m.current_location or m.world_id))
             c_obj  = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
             loc    = w_obj.name if w_obj else "?"
             if c_obj:
@@ -1116,7 +1136,7 @@ def build_intent_interactively(
             return None
         print("  Select Proxius to act through:")
         for i, (mid, m) in enumerate(proxii):
-            w_obj    = state.worlds.get(str(m.world_id))
+            w_obj    = state.worlds.get(str(m.current_location or m.world_id))
             loc      = w_obj.name if w_obj else "?"
             dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             print(f"    {i+1}. {m.name:<16s} align:{m.alignment:.2f}   {loc}{dormant_note}")

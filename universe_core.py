@@ -347,6 +347,12 @@ class NotableMortal(BaseModel):
     chrono_age: float = 0.0  # Always increments each tick
     bio_age: float = 0.0     # Frozen while mortal is an active Proxius or Herald
 
+    # Where this mortal was born / first recorded (fixed).
+    # Where they are now (changes when moved to a new world or sub-world location).
+    # Both hold a world UUID for now; will accommodate sub-world locations later.
+    home_location: Optional[UUID] = None
+    current_location: Optional[UUID] = None
+
 
 # ─────────────────────────────────────────
 # UNIVERSE — top-level container

@@ -163,7 +163,9 @@ CREATE TABLE IF NOT EXISTS mortals (
     chrono_age             REAL NOT NULL DEFAULT 0.0,
     bio_age                REAL NOT NULL DEFAULT 0.0,
     appointed_by_demiurge  TEXT,
-    appointed_by_luminary  TEXT
+    appointed_by_luminary  TEXT,
+    home_location          TEXT,  -- UUID of home world / location (fixed at creation)
+    current_location       TEXT   -- UUID of current world / location (changes on movement)
 );
 
 -- ─────────────────────────────────────────
