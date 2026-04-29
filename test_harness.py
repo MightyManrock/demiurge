@@ -41,6 +41,7 @@ from action_core import (
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent,
+    ExploreBeliefIntent,
     DomainVector,
     # Mutations
     StateMutation, MutationType, ActionOutcome,
@@ -1125,9 +1126,15 @@ def build_intent_interactively(
     # ── Intent construction ───────────────────────────
     intent = _build_intent(action_key, defn, target_id, state)
 
+    # Actions that build intent interactively may cancel (return None).
+    if intent is None and action_key == "explore_beliefs":
+        return None
+
     summary = f"{defn.name}"
     if target_id:
         summary += f" → {_name_for_id(target_id, state)}"
+    if isinstance(intent, ExploreBeliefIntent):
+        summary += f" → {intent.domain_tag.split(':', 1)[-1]}"
 
     instance = ActionInstance(
         action_definition_id=defn.id,
@@ -1149,6 +1156,9 @@ def _build_intent(
 ):
     """Prompt for intent fields based on action category."""
     cat = defn.category
+
+    if action_key == "explore_beliefs":
+        return _build_explore_intent(state)
 
     if cat == ActionCategory.DIRECT_CREATION:
         if action_key == "seed_world":
@@ -1295,6 +1305,62 @@ def _prominence_label(mortal: "NotableMortal") -> str:
     always = mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD
     tier = "always visible" if always else f"prominence:{mortal.prominence:.2f}"
     return f"{role_part}  [{tier}]"
+
+
+def _build_explore_intent(state: SimulationState) -> ExploreBeliefIntent | None:
+    """
+    Show explorable domains (accessible but not yet unlocked) and
+    return an ExploreBeliefIntent for the chosen one.
+    """
+    registry = get_registry()
+    lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
+
+    accessible = registry.demiurge_accessible(
+        all_lum_canonical,
+        state.demiurge.unlocked_domain_tags,
+    )
+    already_unlocked = set(state.demiurge.unlocked_domain_tags)
+    explorable = [t for t in accessible if t not in already_unlocked]
+
+    if not explorable:
+        print("  No new domains available for exploration.")
+        print("  (All accessible domains are already part of your explored beliefs.)")
+        return None
+
+    lum_col_w = 10
+    print()
+    print(f"  {'Domain':<22}", end="")
+    for lum, _ in lum_info:
+        print(f"  {lum.name:>{lum_col_w}}", end="")
+    print("   (approval if promoted)")
+    print("  " + "─" * (24 + len(lum_info) * (lum_col_w + 2)))
+
+    for i, tag in enumerate(explorable):
+        short = tag.split(":", 1)[1]
+        print(f"  {i+1:3d}.  {short:<18}", end="")
+        for lum, lum_tags in lum_info:
+            lid = str(lum.id)
+            if not lum_tags:
+                print(f"  {'·':>{lum_col_w}}", end="")
+                continue
+            approval = registry.luminary_approval(
+                tag, lum_tags,
+                fellow_lum_tags=fellow_tags[lid],
+                temperament=lum.temperament.value,
+            )
+            if abs(approval) < 0.01:
+                print(f"  {'·':>{lum_col_w}}", end="")
+            else:
+                print(f"  {approval:>+{lum_col_w}.2f}", end="")
+        print()
+
+    print("    0. Cancel")
+    choice = _prompt_int("  > ", 0, len(explorable))
+    if choice == 0:
+        return None
+
+    tag = explorable[choice - 1]
+    return ExploreBeliefIntent(domain_tag=tag)
 
 
 def _get_lum_domain_context(state: SimulationState):
@@ -1659,9 +1725,10 @@ def _action_browser(
         "maintain_concealment": "Maintain Concealment",
         "harvest_essence": "Harvest Essence",
     }
+    key_by_id = {str(v.id): k for k, v in library.items()}
+    queued_keys = {key_by_id.get(str(ai.action_definition_id)) for ai in state.action_queue}
+
     if key in MUTEX_PAIR:
-        key_by_id = {str(v.id): k for k, v in library.items()}
-        queued_keys = {key_by_id.get(str(ai.action_definition_id)) for ai in state.action_queue}
         conflict = queued_keys & MUTEX_PAIR - {key}
         if conflict:
             conflicting = next(iter(conflict))
@@ -1670,6 +1737,10 @@ def _action_browser(
                 f"{MUTEX_NAMES.get(conflicting, conflicting)} in the same tick."
             )
             return
+
+    if key == "explore_beliefs" and "explore_beliefs" in queued_keys:
+        print("\n  Blocked: can only explore one domain per tick.")
+        return
 
     result = build_intent_interactively(key, defn, state)
     if result is None:

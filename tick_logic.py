@@ -18,7 +18,7 @@ from action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
-    SeedWorldIntent, UpliftSpeciesIntent,
+    SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     TargetType,
 )
 from eval_core import (
@@ -684,6 +684,7 @@ class TickLoop:
         rejected: list[str] = []
         seen_mutex: set[str] = set()
         directed_proxii: set[str] = set()
+        seen_explore = False
 
         for instance in queue:
             key = self._action_key_by_id.get(str(instance.action_definition_id))
@@ -700,6 +701,15 @@ class TickLoop:
                     )
                     continue
                 seen_mutex.add(key)
+
+            # One explore_beliefs per tick
+            if key == "explore_beliefs":
+                if seen_explore:
+                    rejected.append(
+                        "Explore Beliefs blocked: can only explore one domain per tick."
+                    )
+                    continue
+                seen_explore = True
 
             # One directive per Proxius per tick
             if isinstance(instance.intent, ProxiusDirectiveIntent) and instance.proxius_id:
@@ -1203,6 +1213,25 @@ class TickLoop:
                 # No mutations — purely observational; they do not know you checked.
 
             return mutations, narrative
+
+        # ── Explore Beliefs ───────────────────────────
+        if isinstance(intent, ExploreBeliefIntent):
+            tag = intent.domain_tag
+            if tag in state.demiurge.unlocked_domain_tags:
+                return mutations, f"{tag} is already part of your explored beliefs."
+            mutations.append(StateMutation(
+                mutation_type=MutationType.DEMIURGE_UNLOCK,
+                target_id=state.demiurge.id,
+                field="unlocked_domain_tags",
+                new_value=tag,
+                note=f"Demiurge explored: {tag}",
+            ))
+            short = tag.split(":", 1)[1] if ":" in tag else tag
+            return mutations, (
+                f"You turn your awareness inward and contemplate {short}. "
+                f"The domain takes shape in your understanding — "
+                f"a new frontier, not yet manifested in the world."
+            )
 
         # ── Whisper / Dream ───────────────────────────
         if isinstance(intent, WhisperIntent):
@@ -2184,5 +2213,10 @@ class TickLoop:
             elif m.mutation_type == MutationType.SPECIES_CONDITION:
                 if tid in state.species and m.new_value:
                     state.species[tid].condition = SpeciesCondition(m.new_value)
+
+            elif m.mutation_type == MutationType.DEMIURGE_UNLOCK:
+                tag = str(m.new_value) if m.new_value else None
+                if tag and tag not in state.demiurge.unlocked_domain_tags:
+                    state.demiurge.unlocked_domain_tags.append(tag)
 
         return state

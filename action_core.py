@@ -383,6 +383,18 @@ class UpliftSpeciesIntent(BaseModel):
     framing: Framing = Framing.NATURAL
 
 
+class ExploreBeliefIntent(BaseModel):
+    """
+    For: explore_beliefs
+    The Demiurge contemplates a domain adjacent to their current understanding,
+    expanding their conceptual frontier without promoting it in the universe.
+    Adds the domain to the Demiurge's unlocked_domain_tags list.
+    """
+    domain_tag: str
+    # The canonical domain:... tag being explored.
+    # Must be within the Demiurge's current accessibility threshold.
+
+
 # ─────────────────────────────────────────
 # UNIFIED INTENT TYPE
 # ActionInstance.intent replaces .parameters
@@ -399,6 +411,7 @@ ActionIntent = Union[
     SalvageIntent,
     SeedWorldIntent,
     UpliftSpeciesIntent,
+    ExploreBeliefIntent,
 ]
 
 
@@ -894,6 +907,24 @@ def build_action_library() -> dict[str, ActionDefinition]:
             tags=["underreal", "concealment", "essence_consuming", "maintenance"],
         ),
 
+        # ── Demiurge Self-Development ─────────────────────
+
+        "explore_beliefs": ActionDefinition(
+            name="Explore Beliefs",
+            category=ActionCategory.OBSERVATION,
+            description=(
+                "Contemplate a domain adjacent to your current understanding. "
+                "Expands your conceptual frontier without promoting the belief "
+                "in the universe — but unlocks it for future directive use. "
+                "Limited to one per tick."
+            ),
+            valid_targets=[TargetType.UNDERREAL],
+            reliability=ActionReliability.CERTAIN,
+            footprint_cost=FootprintCost(),
+            essence_cost=0.0,
+            tags=["observation", "zero_footprint", "self_development", "one_per_tick"],
+        ),
+
         "overthrow_luminary": ActionDefinition(
             name="Move Against Luminary",
             category=ActionCategory.UNDERREAL,
@@ -970,6 +1001,7 @@ class MutationType(str, Enum):
     SPECIES_CREATED        = "species_created"
     SPECIES_UPLIFTED       = "species_uplifted"
     SPECIES_CONDITION      = "species_condition"
+    DEMIURGE_UNLOCK        = "demiurge_unlock"
 
 
 class StateMutation(BaseModel):
