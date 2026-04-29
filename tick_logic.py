@@ -319,6 +319,9 @@ class TickLoop:
         self.rng_seed = rng_seed or random.randint(0, 2**32)
         self._rng = random.Random(self.rng_seed)
         self._action_library = build_action_library()
+        self._action_key_by_id: dict[str, str] = {
+            str(v.id): k for k, v in self._action_library.items()
+        }
         self._overthrow_this_tick: Optional[ActionOutcome] = None
 
     def advance(
@@ -648,6 +651,58 @@ class TickLoop:
     # PHASE 2: ACTION PROCESSING
     # ─────────────────────────────────────────
 
+    def _validate_and_filter_queue(
+        self,
+        queue: list["ActionInstance"],
+    ) -> tuple[list["ActionInstance"], list[str]]:
+        """
+        Enforce declarative action queue constraints. Returns (filtered_queue, rejection_messages).
+
+        Current rules:
+        - maintain_concealment and harvest_essence are mutually exclusive per tick
+        - A Proxius may receive at most one ProxiusDirectiveIntent per tick
+        """
+        MUTEX_PAIR = frozenset({"maintain_concealment", "harvest_essence"})
+        MUTEX_NAMES = {
+            "maintain_concealment": "Maintain Concealment",
+            "harvest_essence": "Harvest Essence",
+        }
+
+        accepted: list[ActionInstance] = []
+        rejected: list[str] = []
+        seen_mutex: set[str] = set()
+        directed_proxii: set[str] = set()
+
+        for instance in queue:
+            key = self._action_key_by_id.get(str(instance.action_definition_id))
+
+            # Mutual exclusion: maintain_concealment / harvest_essence
+            if key in MUTEX_PAIR:
+                conflict = seen_mutex & MUTEX_PAIR
+                if conflict:
+                    conflicting = next(iter(conflict))
+                    rejected.append(
+                        f"{MUTEX_NAMES.get(key, key)} blocked: "
+                        f"cannot be combined with {MUTEX_NAMES.get(conflicting, conflicting)} "
+                        f"in the same tick."
+                    )
+                    continue
+                seen_mutex.add(key)
+
+            # One directive per Proxius per tick
+            if isinstance(instance.intent, ProxiusDirectiveIntent) and instance.proxius_id:
+                pid = str(instance.proxius_id)
+                if pid in directed_proxii:
+                    rejected.append(
+                        f"Directive blocked: that Proxius already has a directive queued this tick."
+                    )
+                    continue
+                directed_proxii.add(pid)
+
+            accepted.append(instance)
+
+        return accepted, rejected
+
     def _process_action_queue(
         self,
         state: SimulationState,
@@ -657,7 +712,16 @@ class TickLoop:
 
         result = ActionProcessingResult()
 
-        for instance in state.action_queue:
+        validated_queue, rejections = self._validate_and_filter_queue(state.action_queue)
+        for msg in rejections:
+            result.entries.append(ActionProcessingResult.ActionEntry(
+                action_instance_id=uuid4(),
+                outcome=ActionOutcome.FAILURE,
+                mutations=[],
+                narrative=msg,
+            ))
+
+        for instance in validated_queue:
             defn_id = str(instance.action_definition_id)
             defn = next(
                 (v for v in self._action_library.values()
@@ -1107,6 +1171,24 @@ class TickLoop:
                     f"Their activity is suspended; bio-age resumes at reduced rate. "
                     f"Issue a directive to reactivate them."
                 )
+
+            elif defn.name == "Audit Proxius":
+                mortal = state.mortals.get(str(instance.target_id)) if instance.target_id else None
+                if not mortal or mortal.role != MortalRole.PROXIUS:
+                    return mutations, "No Proxius found to audit."
+                alignment_desc = (
+                    "faithfully aligned"    if mortal.alignment > 0.7 else
+                    "drifting"              if mortal.alignment > 0.4 else
+                    "significantly divergent"
+                )
+                tags = ", ".join(mortal.personal_tags) if mortal.personal_tags else "none"
+                narrative = (
+                    f"Silent audit of {mortal.name} complete. "
+                    f"Alignment: {mortal.alignment:.2f} ({alignment_desc}). "
+                    f"Status: {mortal.status.value}. "
+                    f"Personal convictions: {tags}."
+                )
+                # No mutations — purely observational; they do not know you checked.
 
             return mutations, narrative
 

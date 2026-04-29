@@ -959,6 +959,50 @@ def build_intent_interactively(
         print(f"  Essence: {verb} {abs(defn.essence_cost):.2f}")
     print()
 
+    # ── issue_directive: target and proxius are the same selection ───────
+    if action_key == "issue_directive":
+        include_dormant = "include_dormant_proxius" in defn.tags
+        already_directed = {
+            str(ai.proxius_id)
+            for ai in state.action_queue
+            if isinstance(ai.intent, ProxiusDirectiveIntent) and ai.proxius_id is not None
+        }
+        proxii = [
+            (mid, m) for mid, m in state.mortals.items()
+            if m.role == MortalRole.PROXIUS
+            and mid not in already_directed
+            and (m.status == MortalStatus.ACTIVE
+                 or (include_dormant and m.status == MortalStatus.DORMANT))
+        ]
+        if not proxii:
+            print("  No Proxii available to receive a directive this tick.")
+            return None
+        print("  Issue directive to which Proxius?")
+        for i, (mid, m) in enumerate(proxii):
+            w_obj = state.worlds.get(str(m.world_id))
+            loc = w_obj.name if w_obj else "?"
+            dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
+            print(
+                f"    {i+1}. {m.name:<16s}  align:{m.alignment:.2f}   {loc}{dormant_note}"
+            )
+        print("    0. Cancel")
+        choice = _prompt_int("  > ", 0, len(proxii))
+        if choice == 0:
+            return None
+        target_id = UUID(proxii[choice - 1][0])
+        intent = _build_intent(action_key, defn, target_id, state)
+        summary = f"{defn.name} → {_name_for_id(target_id, state)}"
+        instance = ActionInstance(
+            action_definition_id=defn.id,
+            target_type=TargetType.MORTAL,
+            target_id=target_id,
+            timestamp=state.universe.current_age,
+            demiurge_id=state.demiurge.id,
+            proxius_id=target_id,
+            intent=intent,
+        )
+        return instance, summary
+
     # ── Target selection ──────────────────────────────
     target_id = None
     target_type = defn.valid_targets[0]  # Default; refined below
@@ -1504,6 +1548,25 @@ def _action_browser(
         return
 
     key, defn = actions[action_choice - 1]
+
+    # Enforce mutual exclusion between maintain_concealment and harvest_essence
+    MUTEX_PAIR = frozenset({"maintain_concealment", "harvest_essence"})
+    MUTEX_NAMES = {
+        "maintain_concealment": "Maintain Concealment",
+        "harvest_essence": "Harvest Essence",
+    }
+    if key in MUTEX_PAIR:
+        key_by_id = {str(v.id): k for k, v in library.items()}
+        queued_keys = {key_by_id.get(str(ai.action_definition_id)) for ai in state.action_queue}
+        conflict = queued_keys & MUTEX_PAIR - {key}
+        if conflict:
+            conflicting = next(iter(conflict))
+            print(
+                f"\n  Blocked: {MUTEX_NAMES.get(key, key)} cannot be queued alongside "
+                f"{MUTEX_NAMES.get(conflicting, conflicting)} in the same tick."
+            )
+            return
+
     result = build_intent_interactively(key, defn, state)
     if result is None:
         print("  Cancelled.")
