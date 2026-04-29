@@ -19,10 +19,10 @@ _PROJECT_ROOT = Path(__file__).parent
 DEFAULT_CORE_DB = _PROJECT_ROOT / "core" / "core.db"
 
 # ── Threshold constants ────────────────────────────────────────────────
-LUMINARY_ACCESS_THRESHOLD = 0.30
+LUMINARY_ACCESS_THRESHOLD = 0.60
 # Tags at or above this similarity to any Luminary domain are accessible.
 
-DEMIURGE_UNLOCK_THRESHOLD = 0.35
+DEMIURGE_UNLOCK_THRESHOLD = 0.70
 # Narrower threshold for access from Demiurge-unlocked (non-Luminary) domains.
 
 # ── Canonical domain list (order is display order) ────────────────────
