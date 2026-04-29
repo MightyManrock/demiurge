@@ -1393,7 +1393,7 @@ def main():
     state = _select_scenario()
     print()
 
-    log_path = Path(f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    log_path = Path(os.path.join("logs", f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"))
     log = SessionLog(log_path)
     print(f"  Logging to: {log_path}\n")
 
