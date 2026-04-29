@@ -126,6 +126,9 @@ class DomainRegistry:
     def all_tags(self) -> list[str]:
         return list(self._all_tags)
 
+    def is_canonical(self, tag: str) -> bool:
+        return tag in self._tag_set
+
     def similarity(self, tag_a: str, tag_b: str) -> float:
         """
         Pairwise similarity between two domain tags.

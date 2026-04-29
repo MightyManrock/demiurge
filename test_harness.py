@@ -56,6 +56,7 @@ from tick_logic import (
     is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD, VISIBILITY_FLOOR,
 )
 from scenario_loader import load_scenario
+from domain_registry import get_registry
 
 
 # ─────────────────────────────────────────
@@ -1168,7 +1169,7 @@ def _build_intent(
                 trait_tags=trait_tags,
             )
         elif action_key == "uplift_species":
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             return UpliftSpeciesIntent(
                 species_id=target_id,
                 domain_vectors=[dv] if dv else [],
@@ -1177,7 +1178,7 @@ def _build_intent(
     elif cat == ActionCategory.SUBTLE_INFLUENCE:
         if action_key in ("whisper", "shape_dream"):
             concept = input("  Concept to plant: ").strip() or "You could shape the future."
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             return WhisperIntent(
                 concept=concept,
                 domain_vectors=[dv] if dv else [],
@@ -1186,7 +1187,7 @@ def _build_intent(
         elif action_key == "nudge_probability":
             event = input("  Event to nudge: ").strip() or "Upcoming succession conflict"
             outcome = input("  Desired outcome: ").strip() or "The reformist faction prevails"
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             return ProbabilityNudgeIntent(
                 event_description=event,
                 desired_outcome=outcome,
@@ -1194,7 +1195,7 @@ def _build_intent(
             )
         elif action_key == "accelerate_development":
             aspect = input("  Which aspect to develop: ").strip() or "military doctrine"
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             return DevelopmentIntent(
                 domain_vectors=[dv] if dv else [],
                 target_aspect=aspect,
@@ -1203,7 +1204,7 @@ def _build_intent(
     elif cat == ActionCategory.PROXIUS_DIRECTION:
         if action_key == "issue_directive":
             goal = input("  Directive goal: ").strip() or "Strengthen the reformist faction"
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             latitude = _prompt_float("  Latitude (0.0 strict – 1.0 open): ", 0.0, 1.0, 0.5)
             return ProxiusDirectiveIntent(
                 goal_statement=goal,
@@ -1232,7 +1233,7 @@ def _build_intent(
                 print(f"    {i+1}. {w.name}")
             choice = _prompt_int("  > ", 1, len(worlds))
             world_id = UUID(worlds[choice-1][0])
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             return SalvageIntent(
                 desired_concept=desired,
                 target_world_id=world_id,
@@ -1245,7 +1246,7 @@ def _build_intent(
             interpretation = (
                 input("  Intended interpretation: ").strip() or "The gods demand action"
             )
-            dv = _prompt_domain_vector()
+            dv = _prompt_domain_select(state)
             civ_scope = None
             if target_id:
                 tid_str = str(target_id)
@@ -1296,13 +1297,106 @@ def _prominence_label(mortal: "NotableMortal") -> str:
     return f"{role_part}  [{tier}]"
 
 
-def _prompt_domain_vector() -> DomainVector | None:
-    tag = input(
-        "  Domain tag to push (e.g. domain:conflict, blank to skip): "
-    ).strip()
-    if not tag:
+def _get_lum_domain_context(state: SimulationState):
+    """
+    Returns (lum_info, fellow_tags, all_lum_canonical_tags) where:
+      lum_info  — list of (Luminary, canonical_tag_list) in iteration order
+      fellow_tags — dict[lid_str -> set[str]] of other Luminaries' canonical tags
+      all_lum_canonical_tags — flat list of all Luminary canonical tags (deduped)
+    """
+    registry = get_registry()
+    lum_info: list[tuple] = []
+    per_lum: dict[str, list[str]] = {}
+
+    for lid, lum in state.luminaries.items():
+        tags: list[str] = []
+        for did in lum.domains:
+            d = state.domains.get(str(did))
+            if d:
+                tags.extend(t for t in d.tags if registry.is_canonical(t))
+        per_lum[lid] = tags
+        lum_info.append((lum, tags))
+
+    fellow_tags: dict[str, set[str]] = {}
+    for lid in per_lum:
+        fellow_tags[lid] = set(
+            t for other_lid, other_tags in per_lum.items()
+            if other_lid != lid
+            for t in other_tags
+        )
+
+    seen: set[str] = set()
+    all_canonical: list[str] = []
+    for tags in per_lum.values():
+        for t in tags:
+            if t not in seen:
+                seen.add(t)
+                all_canonical.append(t)
+
+    return lum_info, fellow_tags, all_canonical
+
+
+def _prompt_domain_select(state: SimulationState) -> DomainVector | None:
+    """
+    Numbered selection list of domain tags accessible to the Demiurge,
+    annotated with each Luminary's approval/disapproval rating.
+    Returns a DomainVector (tag + direction) or None to skip.
+    """
+    registry = get_registry()
+    lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
+
+    accessible = registry.demiurge_accessible(
+        all_lum_canonical,
+        state.demiurge.unlocked_domain_tags,
+    )
+
+    if not accessible:
+        print("  No domain tags are currently accessible.")
         return None
-    direction = _prompt_float("  Direction (-1.0 away → +1.0 toward): ", -1.0, 1.0, 0.5)
+
+    # Header
+    lum_col_w = 10
+    print()
+    print(f"  {'Domain':<22}", end="")
+    for lum, _ in lum_info:
+        print(f"  {lum.name:>{lum_col_w}}", end="")
+    print()
+    print("  " + "─" * (24 + len(lum_info) * (lum_col_w + 2)))
+
+    unlocked_set = set(state.demiurge.unlocked_domain_tags)
+
+    for i, tag in enumerate(accessible):
+        short = tag.split(":", 1)[1]
+        marker = "*" if tag in unlocked_set else " "
+        print(f"  {i+1:3d}.{marker}{short:<18}", end="")
+        for lum, lum_tags in lum_info:
+            lid = str(lum.id)
+            if not lum_tags:
+                print(f"  {'·':>{lum_col_w}}", end="")
+                continue
+            approval = registry.luminary_approval(
+                tag, lum_tags,
+                fellow_lum_tags=fellow_tags[lid],
+                temperament=lum.temperament.value,
+            )
+            if abs(approval) < 0.01:
+                print(f"  {'·':>{lum_col_w}}", end="")
+            else:
+                print(f"  {approval:>+{lum_col_w}.2f}", end="")
+        print()
+
+    if unlocked_set:
+        print("  (* = unlocked by you)")
+    print(f"    0. No domain influence (skip)")
+
+    choice = _prompt_int("  > ", 0, len(accessible))
+    if choice == 0:
+        return None
+
+    tag = accessible[choice - 1]
+    direction = _prompt_float(
+        "  Direction  -1.0 (suppress) ──► +1.0 (promote): ", -1.0, 1.0, 0.5
+    )
     return DomainVector(domain_tag=tag, direction=direction)
 
 
