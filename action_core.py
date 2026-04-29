@@ -662,14 +662,11 @@ def build_action_library() -> dict[str, ActionDefinition]:
             name="Scry",
             category=ActionCategory.OBSERVATION,
             description=(
-                "Observe a target closely. Returns current state details "
-                "beyond the simulation's passive summary view."
+                "Survey a world to read its current state and bring "
+                "low-prominence mortals into view. The only way to discover "
+                "mortals who are not automatically perceived."
             ),
-            valid_targets=[
-                TargetType.WORLD,
-                TargetType.CIVILIZATION,
-                TargetType.MORTAL
-            ],
+            valid_targets=[TargetType.WORLD],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(subtle_influence=0.05),
             tags=["observation", "low_footprint", "intelligence"],
@@ -927,6 +924,7 @@ class MutationType(str, Enum):
     MORTAL_ALIGNMENT       = "mortal_alignment"
     MORTAL_STATUS          = "mortal_status"
     MORTAL_AGE             = "mortal_age"
+    MORTAL_VISIBILITY      = "mortal_visibility"
     BELIEF_SHIFT           = "belief_shift"
     DOMAIN_EXPRESSION      = "domain_expression"
     PROXIUS_APPOINTED        = "proxius_appointed"

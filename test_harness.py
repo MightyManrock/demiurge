@@ -26,10 +26,9 @@ from universe_core import (
     Galaxy, System, CosmicCoordinates, StarType,
     WorldCondition, WorldFootprint, World,
     CivilizationScale, CivilizationHealth, Civilization,
-    MortalRole, MortalStatus, NotableMortal,
+    MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Universe,
-    # MortalProminence
 )
 from action_core import (
     EssenceStockpile,
@@ -54,6 +53,7 @@ from eval_core import (
 from tick_logic import (
     TickConfig, SimulationState, CivilizationMomentum,
     TickLoop, TickResult, TerminalConditionType,
+    is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD, VISIBILITY_FLOOR,
 )
 from scenario_loader import load_scenario
 
@@ -336,6 +336,9 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
         species_id=naran.id,
+        prominence_roles=[MortalProminence.LEADER],
+        prominence=0.65,
+        visibility=1.0,
         personal_tags=["domain:order", "ambitious", "pragmatic"],
         alignment=0.75,
         chrono_age=170.0,
@@ -351,9 +354,11 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
         species_id=naran.id,
+        prominence_roles=[MortalProminence.MILITARY],
+        prominence=0.80,
+        visibility=1.0,
         personal_tags=["domain:conflict", "domain:war", "ambitious", "ruthless"],
         alignment=0.45,
-        # Pursues his own agenda as readily as yours; needs careful direction
         chrono_age=205.0,
         bio_age=205.0,
     )
@@ -368,6 +373,9 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
         species_id=naran.id,
+        prominence_roles=[MortalProminence.PRIEST],
+        prominence=0.70,
+        visibility=1.0,
         personal_tags=["domain:order", "domain:silence", "devout", "cautious"],
         alignment=0.85,
         chrono_age=260.0,
@@ -375,7 +383,8 @@ def build_scenario_default() -> SimulationState:
     )
     civ.notable_mortal_ids.append(veth.id)
 
-    # Neran: merchant guildmaster — self-interested, low loyalty, domain:trade
+    # Neran: merchant guildmaster — influential but operates in shadow
+    # prominence below ALWAYS_VISIBLE_THRESHOLD; starts known but will fade without attention
     durenn = NotableMortal(
         name="Durenn Vail",
         world_id=neran.id,
@@ -383,9 +392,11 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
         species_id=naran.id,
+        prominence_roles=[MortalProminence.MERCHANT],
+        prominence=0.55,
+        visibility=0.6,
         personal_tags=["domain:trade", "domain:law", "opportunistic", "pragmatic"],
         alignment=0.35,
-        # Will work with you if it suits him; unreliable as proxius
         chrono_age=235.0,
         bio_age=235.0,
     )
@@ -399,6 +410,9 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
         species_id=keth_species.id,
+        prominence_roles=[MortalProminence.LEADER, MortalProminence.MILITARY],
+        prominence=0.75,
+        visibility=1.0,
         personal_tags=["domain:conflict", "domain:change", "tribal_leader", "spiritual"],
         alignment=0.60,
         chrono_age=145.0,
@@ -563,16 +577,21 @@ def display_state(state: SimulationState) -> str:
     # ── Mortals of note ───────────────────────────────
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
-        if mortal.status == MortalStatus.DECEASED:
+        if not is_mortal_visible(mortal):
             continue
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
         age_str = f"age:{mortal.chrono_age:.0f}"
         if mortal.bio_age != mortal.chrono_age:
             age_str += f"(bio:{mortal.bio_age:.0f})"
+        prom_str = _prominence_label(mortal)
+        vis_note = (
+            f"  vis:{mortal.visibility:.2f}"
+            if mortal.prominence < ALWAYS_VISIBLE_THRESHOLD else ""
+        )
         lines.append(
             f"  {mortal.name:16s} [{role_str}]  "
-            f"align:{mortal.alignment:.2f}  {age_str}  "
-            f"tags: {', '.join(mortal.personal_tags)}"
+            f"align:{mortal.alignment:.2f}  {age_str}{vis_note}  "
+            f"{prom_str}"
         )
     lines.append(SEP2)
 
@@ -787,6 +806,8 @@ def display_briefing(state: SimulationState) -> str:
     # ── Notable Mortals ────────────────────────────────
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
+        if not is_mortal_visible(mortal):
+            continue
         w_obj = state.worlds.get(str(mortal.world_id))
         c_obj = (
             state.civilizations.get(str(mortal.civilization_id))
@@ -801,10 +822,16 @@ def display_briefing(state: SimulationState) -> str:
             age_str += f"(bio:{mortal.bio_age:.0f})"
         sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_note = f"  [{sp_obj.name}]" if sp_obj else ""
+        prom_str = _prominence_label(mortal)
+        vis_note = (
+            f"  vis:{mortal.visibility:.2f}"
+            if mortal.prominence < ALWAYS_VISIBLE_THRESHOLD else ""
+        )
         lines.append(
             f"  {mortal.name:16s} [{role_str:7s}]  "
-            f"align:{mortal.alignment:.2f}  {age_str}{sp_note}   {loc}"
+            f"align:{mortal.alignment:.2f}  {age_str}{sp_note}{vis_note}   {loc}"
         )
+        lines.append(f"    {prom_str}")
         if mortal.personal_tags:
             lines.append(f"    Tags: {', '.join(mortal.personal_tags)}")
 
@@ -840,7 +867,13 @@ def build_intent_interactively(
     target_type = defn.valid_targets[0]  # Default; refined below
 
     if TargetType.MORTAL in defn.valid_targets and state.mortals:
-        mortals = list(state.mortals.items())
+        mortals = [
+            (mid, m) for mid, m in state.mortals.items()
+            if is_mortal_visible(m)
+        ]
+        if not mortals:
+            print("  No mortals are currently within your perception.")
+            return None
         print("  Select target mortal:")
         for i, (mid, m) in enumerate(mortals):
             w_obj  = state.worlds.get(str(m.world_id))
@@ -849,9 +882,10 @@ def build_intent_interactively(
             if c_obj:
                 loc += f" · {c_obj.name}"
             role_str = m.role.value if m.role != MortalRole.OTHER else "mortal"
+            prom_str = _prominence_label(m)
             print(
                 f"    {i+1}. {m.name:<16s} [{role_str}]  "
-                f"align:{m.alignment:.2f}   {loc}"
+                f"align:{m.alignment:.2f}   {loc}  {prom_str}"
             )
         print("    0. Cancel")
         choice = _prompt_int("  > ", 0, len(mortals))
@@ -1094,6 +1128,17 @@ def _build_intent(
 
     # No structured intent needed (scry, appoint_proxius, etc.)
     return None
+
+
+def _prominence_label(mortal: "NotableMortal") -> str:
+    """Short display string showing role(s) and prominence tier."""
+    if not mortal.prominence_roles or mortal.prominence_roles == [MortalProminence.NONE]:
+        role_part = "no notable role"
+    else:
+        role_part = " · ".join(r.value.title() for r in mortal.prominence_roles)
+    always = mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD
+    tier = "always visible" if always else f"prominence:{mortal.prominence:.2f}"
+    return f"{role_part}  [{tier}]"
 
 
 def _prompt_domain_vector() -> DomainVector | None:

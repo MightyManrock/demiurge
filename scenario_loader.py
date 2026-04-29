@@ -26,7 +26,7 @@ from universe_core import (
     Galaxy, System, CosmicCoordinates, StarType,
     WorldCondition, WorldFootprint, World,
     CivilizationScale, CivilizationHealth, Civilization,
-    MortalRole, MortalStatus, NotableMortal,
+    MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Universe,
 )
@@ -310,6 +310,9 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             role=MortalRole(row["role"]),
             status=MortalStatus(row["status"]),
             species_id=_uuid(row["species_id"]),
+            prominence_roles=[MortalProminence(v) for v in _j(row["prominence_roles"])],
+            prominence=row["prominence"],
+            visibility=row["visibility"],
             personal_tags=_j(row["personal_tags"]),
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
@@ -364,6 +367,7 @@ def _load_tick_config(conn) -> TickConfig:
         alignment_drift_rate=row["alignment_drift_rate"],
         attention_decay_rate=row["attention_decay_rate"],
         evaluation_interval=row["evaluation_interval"],
+        mortal_visibility_decay_rate=row["mortal_visibility_decay_rate"],
     )
 
 

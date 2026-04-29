@@ -314,9 +314,10 @@ def _write_mortals(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO mortals
                (id, name, world_id, civilization_id, role, status,
-                species_id, personal_tags, alignment, chrono_age, bio_age,
+                species_id, prominence_roles, prominence, visibility,
+                personal_tags, alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -325,6 +326,9 @@ def _write_mortals(conn, state: SimulationState):
                 m.role.value,
                 m.status.value,
                 str(m.species_id) if m.species_id else None,
+                _j([r.value for r in m.prominence_roles]),
+                m.prominence,
+                m.visibility,
                 _j(m.personal_tags),
                 m.alignment,
                 m.chrono_age,
@@ -375,8 +379,9 @@ def _write_tick_config(conn, state: SimulationState):
             decay_mult_overt_miracles, decay_mult_subtle_influence,
             decay_mult_proxius_activity, decay_mult_direct_creation,
             concealment_decay_rate, civ_momentum_rate, civ_noise_factor,
-            alignment_drift_rate, attention_decay_rate, evaluation_interval)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            alignment_drift_rate, attention_decay_rate, evaluation_interval,
+            mortal_visibility_decay_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cfg.tick_duration,
             cfg.footprint_decay_rate,
@@ -390,6 +395,7 @@ def _write_tick_config(conn, state: SimulationState):
             cfg.alignment_drift_rate,
             cfg.attention_decay_rate,
             cfg.evaluation_interval,
+            cfg.mortal_visibility_decay_rate,
         ),
     )
 

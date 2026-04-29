@@ -37,10 +37,32 @@ from onto_core import (
 )
 from universe_core import (
     Universe, Galaxy, System, World, Civilization, NotableMortal,
-    MortalRole, MortalStatus, WorldCondition,
+    MortalRole, MortalStatus, MortalProminence, WorldCondition,
     Species, SpeciesCondition,
-    # Mortal Prominence,
 )
+
+
+# ─────────────────────────────────────────
+# MORTAL VISIBILITY CONSTANTS
+# ─────────────────────────────────────────
+
+ALWAYS_VISIBLE_THRESHOLD = 0.65
+# Mortals at or above this prominence are always perceived —
+# no visibility tracking needed.
+
+VISIBILITY_FLOOR = 0.1
+# Below this value a mortal has slipped from the Demiurge's awareness.
+
+
+def is_mortal_visible(mortal: "NotableMortal") -> bool:
+    """True if the Demiurge can currently perceive this mortal."""
+    return (
+        mortal.status != MortalStatus.DECEASED
+        and (
+            mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD
+            or mortal.visibility > VISIBILITY_FLOOR
+        )
+    )
 
 
 # ─────────────────────────────────────────
@@ -91,6 +113,10 @@ class TickConfig(BaseModel):
     # Proxii and Heralds slowly drift toward their personal tags
     # and away from their patron's agenda unless directed.
     alignment_drift_rate: float = 0.01
+
+    # Mortal visibility decay
+    # How quickly a non-prominent mortal fades from the Demiurge's awareness.
+    mortal_visibility_decay_rate: float = 0.03
 
     # Luminary attention decay
     # Attention naturally falls when nothing interesting happens.
@@ -487,6 +513,23 @@ class TickLoop:
                             f"{mortal.name} has died of natural causes at age {new_bio_age:.0f}."
                         )
 
+        # ── Mortal visibility decay ────────────────────
+        for mid, mortal in state.mortals.items():
+            if mortal.status == MortalStatus.DECEASED:
+                continue
+            if mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD:
+                continue
+            if mortal.visibility <= 0.0:
+                continue
+            new_vis = max(0.0, mortal.visibility - cfg.mortal_visibility_decay_rate)
+            result.mortal_mutations.append(StateMutation(
+                mutation_type=MutationType.MORTAL_VISIBILITY,
+                target_id=UUID(mid),
+                field="visibility",
+                delta=-(mortal.visibility - new_vis),
+                note=f"{mortal.name} visibility decay",
+            ))
+
         # ── Footprint decay ────────────────────────────
         fp = state.demiurge.footprint
         for category, multiplier in cfg.footprint_decay_multipliers.items():
@@ -687,6 +730,18 @@ class TickLoop:
             instance, defn, state, outcome, rng
         )
         mutations.extend(intent_mutations)
+
+        # ── Visibility refresh for mortal-targeted actions ─
+        if instance.target_type == TargetType.MORTAL and instance.target_id:
+            mortal = state.mortals.get(str(instance.target_id))
+            if mortal and mortal.prominence < ALWAYS_VISIBLE_THRESHOLD:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_VISIBILITY,
+                    target_id=instance.target_id,
+                    field="visibility",
+                    new_value=1.0,
+                    note=f"Visibility refreshed by {defn.name}",
+                ))
 
         return outcome, mutations, narrative
 
@@ -928,6 +983,48 @@ class TickLoop:
                         f"The move against {lum_name} was deflected. "
                         f"They are now aware of your intent."
                     )
+
+            elif defn.name == "Scry":
+                world_obj = state.worlds.get(str(instance.target_id)) if instance.target_id else None
+                if not world_obj:
+                    return mutations, "Target world not found."
+
+                effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
+                discovery_bonus = 0.3 if outcome == ActionOutcome.SUCCESS else 0.0
+
+                discovered: list[str] = []
+                refreshed: list[str] = []
+
+                world_mortals = [
+                    (mid, m) for mid, m in state.mortals.items()
+                    if str(m.world_id) == str(world_obj.id)
+                    and m.status != MortalStatus.DECEASED
+                    and m.prominence < ALWAYS_VISIBLE_THRESHOLD
+                ]
+                for mid, mortal in world_mortals:
+                    if rng.random() < mortal.prominence + discovery_bonus:
+                        new_vis = min(1.0, 0.5 + mortal.prominence * 0.4 * effectiveness)
+                        was_visible = mortal.visibility > VISIBILITY_FLOOR
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.MORTAL_VISIBILITY,
+                            target_id=UUID(mid),
+                            field="visibility",
+                            new_value=new_vis,
+                            note=f"Scry on {world_obj.name}: {mortal.name} sighted",
+                        ))
+                        if was_visible:
+                            refreshed.append(mortal.name)
+                        else:
+                            discovered.append(mortal.name)
+
+                parts = [f"You scried {world_obj.name}."]
+                if discovered:
+                    parts.append(f"Newly sighted: {', '.join(discovered)}.")
+                if refreshed:
+                    parts.append(f"Sight maintained on: {', '.join(refreshed)}.")
+                if not discovered and not refreshed:
+                    parts.append("No low-prominence mortals came to your attention.")
+                narrative = " ".join(parts)
 
             return mutations, narrative
 
@@ -1750,6 +1847,7 @@ class TickLoop:
                 if tid in state.mortals:
                     mortal = state.mortals[tid]
                     mortal.role = MortalRole.PROXIUS
+                    mortal.visibility = 1.0  # Appointing means you now fully see them
                     if mortal.id not in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.append(mortal.id)
                     world_id_str = str(mortal.world_id)
@@ -1778,6 +1876,14 @@ class TickLoop:
                 if tid in state.mortals and m.field in ("chrono_age", "bio_age"):
                     current = getattr(state.mortals[tid], m.field, 0.0)
                     setattr(state.mortals[tid], m.field, current + (m.delta or 0))
+
+            elif m.mutation_type == MutationType.MORTAL_VISIBILITY:
+                if tid in state.mortals:
+                    if m.new_value is not None:
+                        state.mortals[tid].visibility = max(0.0, min(1.0, float(m.new_value)))
+                    elif m.delta is not None:
+                        current = state.mortals[tid].visibility
+                        state.mortals[tid].visibility = max(0.0, min(1.0, current + m.delta))
 
             elif m.mutation_type == MutationType.WORLD_CONDITION:
                 if tid in state.worlds and m.new_value:

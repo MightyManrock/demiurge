@@ -155,6 +155,9 @@ CREATE TABLE IF NOT EXISTS mortals (
     role                   TEXT NOT NULL DEFAULT 'other',
     status                 TEXT NOT NULL DEFAULT 'active',
     species_id             TEXT,
+    prominence_roles       TEXT NOT NULL DEFAULT '[]',  -- JSON array of MortalProminence values
+    prominence             REAL NOT NULL DEFAULT 0.5,
+    visibility             REAL NOT NULL DEFAULT 0.0,
     personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
     alignment              REAL NOT NULL DEFAULT 0.8,
     chrono_age             REAL NOT NULL DEFAULT 0.0,
@@ -203,9 +206,10 @@ CREATE TABLE IF NOT EXISTS tick_config (
     concealment_decay_rate      REAL NOT NULL DEFAULT 0.02,
     civ_momentum_rate           REAL NOT NULL DEFAULT 0.02,
     civ_noise_factor            REAL NOT NULL DEFAULT 0.01,
-    alignment_drift_rate        REAL NOT NULL DEFAULT 0.01,
-    attention_decay_rate        REAL NOT NULL DEFAULT 0.03,
-    evaluation_interval         REAL NOT NULL DEFAULT 10.0
+    alignment_drift_rate           REAL NOT NULL DEFAULT 0.01,
+    attention_decay_rate           REAL NOT NULL DEFAULT 0.03,
+    evaluation_interval            REAL NOT NULL DEFAULT 10.0,
+    mortal_visibility_decay_rate   REAL NOT NULL DEFAULT 0.03
 );
 
 -- Per-civilization natural momentum at scenario start.

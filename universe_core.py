@@ -276,16 +276,25 @@ class Civilization(BaseModel):
 # ─────────────────────────────────────────
 
 class MortalRole(str, Enum):
-    PROXIUS   = "proxius"
+    PROXIUS = "proxius"
     HERALD  = "herald"
     OTHER   = "other"   # Person of interest with no divine appointment
 
 
-# class MortalProminence(str, Enum):
-#     LEADER = "leader"  # A mortal with political power
-#     PRIEST = "priest"     # A mortal directly involved in a religious institution
-#     REBEL = "rebel"       # A mortal opposed to the current political order they live under
-#     NONE = "none"       # A mortal of no political import
+class MortalProminence(str, Enum):
+    """
+    Discrete social role(s) that make a mortal notable.
+    A mortal can hold several simultaneously.
+    Used by the UI to explain why a mortal is visible.
+    """
+    LEADER   = "leader"    # Political or civic authority
+    MILITARY = "military"  # Military commander
+    PRIEST   = "priest"    # Religious figure
+    MERCHANT = "merchant"  # Economic power
+    REBEL    = "rebel"     # Opposed to the current order
+    SCHOLAR  = "scholar"   # Keeper of knowledge or arcane lore
+    NONE     = "none"      # No notable role
+
 
 
 class MortalStatus(str, Enum):
@@ -315,6 +324,20 @@ class NotableMortal(BaseModel):
     personal_tags: list[str] = Field(default_factory=list)
 
     species_id: Optional[UUID] = None
+
+    # Discrete social roles — explains in the UI why this mortal is notable.
+    # An empty list (or [NONE]) means the mortal has no recognised public role.
+    prominence_roles: list[MortalProminence] = Field(default_factory=list)
+
+    # Numeric prominence 0.0–1.0. Drives discovery probability and the
+    # always-visible threshold check. Set independently of prominence_roles
+    # so role and mechanical weight can be tuned separately.
+    prominence: float = Field(ge=0.0, le=1.0, default=0.5)
+
+    # How clearly the Demiurge currently perceives this mortal.
+    # Decays passively; refreshed by scrying their world or taking direct action.
+    # Ignored when prominence >= ALWAYS_VISIBLE_THRESHOLD.
+    visibility: float = Field(ge=0.0, le=1.0, default=0.0)
 
     # How faithfully they're currently pursuing their
     # patron's agenda vs. their own. 1.0 = fully aligned.
