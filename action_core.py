@@ -668,7 +668,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             requires_proxius=True,
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(proxius_activity=0.1),
-            tags=["proxii", "appointment"],
+            tags=["proxii", "appointment", "include_dormant_proxius"],
         ),
 
         "go_quiet_proxius": ActionDefinition(
@@ -727,7 +727,8 @@ def build_action_library() -> dict[str, ActionDefinition]:
             requires_proxius=True,
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(),
-            tags=["observation", "zero_footprint", "proxii", "alignment_check"],
+            tags=["observation", "zero_footprint", "proxii", "alignment_check",
+                  "include_dormant_proxius"],
         ),
 
         # ── Herald Interaction ───────────────────────────

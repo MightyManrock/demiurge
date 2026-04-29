@@ -1025,6 +1025,46 @@ def build_intent_interactively(
         )
         return instance, summary
 
+    # ── Proxius-targeted actions: the Proxius IS the target ──────────────
+    # Actions where requires_proxius=True and the Proxius is the sole valid
+    # target (not a vehicle acting on something else). issue_directive is
+    # handled above; all remaining requires_proxius actions follow this path.
+    if defn.requires_proxius:
+        include_dormant = "include_dormant_proxius" in defn.tags
+        proxii = [
+            (mid, m) for mid, m in state.mortals.items()
+            if m.role == MortalRole.PROXIUS
+            and (m.status == MortalStatus.ACTIVE
+                 or (include_dormant and m.status == MortalStatus.DORMANT))
+        ]
+        if not proxii:
+            status_note = "active or dormant" if include_dormant else "active"
+            print(f"  No {status_note} Proxii available for this action.")
+            return None
+        print("  Select Proxius:")
+        for i, (mid, m) in enumerate(proxii):
+            w_obj = state.worlds.get(str(m.current_location or m.world_id))
+            loc = w_obj.name if w_obj else "?"
+            dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
+            print(f"    {i+1}. {m.name:<16s}  align:{m.alignment:.2f}   {loc}{dormant_note}")
+        print("    0. Cancel")
+        choice = _prompt_int("  > ", 0, len(proxii))
+        if choice == 0:
+            return None
+        proxius_id = UUID(proxii[choice - 1][0])
+        intent = _build_intent(action_key, defn, proxius_id, state)
+        summary = f"{defn.name} → {_name_for_id(proxius_id, state)}"
+        instance = ActionInstance(
+            action_definition_id=defn.id,
+            target_type=TargetType.MORTAL,
+            target_id=proxius_id,
+            timestamp=state.universe.current_age,
+            demiurge_id=state.demiurge.id,
+            proxius_id=proxius_id,
+            intent=intent,
+        )
+        return instance, summary
+
     # ── Target selection ──────────────────────────────
     target_id = None
     target_type = defn.valid_targets[0]  # Default; refined below
@@ -1121,29 +1161,8 @@ def build_intent_interactively(
         target_id = UUID(worlds[choice - 1][0])
         target_type = TargetType.WORLD
 
-    # ── Proxius selection for directed actions ────────
-    proxius_id = None
-    if defn.requires_proxius:
-        include_dormant = "include_dormant_proxius" in defn.tags
-        proxii = [
-            (mid, m) for mid, m in state.mortals.items()
-            if m.role == MortalRole.PROXIUS
-            and (m.status == MortalStatus.ACTIVE
-                 or (include_dormant and m.status == MortalStatus.DORMANT))
-        ]
-        if not proxii:
-            print("  No active Proxii available for this action.")
-            return None
-        print("  Select Proxius to act through:")
-        for i, (mid, m) in enumerate(proxii):
-            w_obj    = state.worlds.get(str(m.current_location or m.world_id))
-            loc      = w_obj.name if w_obj else "?"
-            dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
-            print(f"    {i+1}. {m.name:<16s} align:{m.alignment:.2f}   {loc}{dormant_note}")
-        choice = _prompt_int("  > ", 1, len(proxii))
-        proxius_id = UUID(proxii[choice - 1][0])
-
     # ── Intent construction ───────────────────────────
+    proxius_id = None
     intent = _build_intent(action_key, defn, target_id, state)
 
     # Actions that build intent interactively may cancel (return None).
