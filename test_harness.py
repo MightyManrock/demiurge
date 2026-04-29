@@ -420,6 +420,98 @@ def build_scenario_default() -> SimulationState:
     )
     keth.notable_mortal_ids.append(asha.id)
 
+    # ── Hidden mortals (visibility=0.0, discoverable via scry) ───────────
+
+    # Neran: political agitator — low-prominence rebel, dangerous if discovered
+    orryn = NotableMortal(
+        name="Orryn Vel",
+        world_id=neran.id,
+        civilization_id=civ.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        species_id=naran.id,
+        prominence_roles=[MortalProminence.REBEL],
+        prominence=0.40,
+        visibility=0.0,
+        personal_tags=["domain:change", "domain:conflict", "agitator", "charismatic"],
+        alignment=0.20,
+        chrono_age=155.0,
+        bio_age=155.0,
+    )
+    civ.notable_mortal_ids.append(orryn.id)
+
+    # Neran: obsessive archivist — scholar who knows too much
+    thessal = NotableMortal(
+        name="Thessal Dour",
+        world_id=neran.id,
+        civilization_id=civ.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        species_id=naran.id,
+        prominence_roles=[MortalProminence.SCHOLAR],
+        prominence=0.30,
+        visibility=0.0,
+        personal_tags=["domain:order", "domain:silence", "obsessive", "reclusive"],
+        alignment=0.55,
+        chrono_age=190.0,
+        bio_age=190.0,
+    )
+    civ.notable_mortal_ids.append(thessal.id)
+
+    # Neran: minor temple keeper — devout but obscure
+    maeva = NotableMortal(
+        name="Maeva Sorn",
+        world_id=neran.id,
+        civilization_id=civ.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        species_id=naran.id,
+        prominence_roles=[MortalProminence.PRIEST],
+        prominence=0.25,
+        visibility=0.0,
+        personal_tags=["domain:silence", "domain:order", "devout", "receptive"],
+        alignment=0.70,
+        chrono_age=85.0,
+        bio_age=85.0,
+    )
+    civ.notable_mortal_ids.append(maeva.id)
+
+    # Oros: ambitious challenger to Asha's authority
+    kael = NotableMortal(
+        name="Kael Ash",
+        world_id=oros.id,
+        civilization_id=keth.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        species_id=keth_species.id,
+        prominence_roles=[MortalProminence.LEADER],
+        prominence=0.50,
+        visibility=0.0,
+        personal_tags=["domain:conflict", "domain:change", "ambitious", "suspicious"],
+        alignment=0.30,
+        chrono_age=130.0,
+        bio_age=130.0,
+    )
+    keth.notable_mortal_ids.append(kael.id)
+
+    # Oros: wandering spirit-speaker — spiritually perceptive, may sense the divine
+    urren = NotableMortal(
+        name="Urren",
+        world_id=oros.id,
+        civilization_id=keth.id,
+        role=MortalRole.OTHER,
+        status=MortalStatus.ACTIVE,
+        species_id=keth_species.id,
+        prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
+        prominence=0.35,
+        visibility=0.0,
+        personal_tags=["domain:change", "domain:ancestor_worship", "spiritual", "perceptive"],
+        alignment=0.50,
+        chrono_age=175.0,
+        bio_age=175.0,
+    )
+    keth.notable_mortal_ids.append(urren.id)
+
     # ── Demiurge ─────────────────────────────────────
     demiurge = Demiurge(
         name="The Unnamed",
@@ -473,6 +565,11 @@ def build_scenario_default() -> SimulationState:
             str(veth.id):   veth,
             str(durenn.id): durenn,
             str(asha.id):   asha,
+            str(orryn.id):  orryn,
+            str(thessal.id): thessal,
+            str(maeva.id):  maeva,
+            str(kael.id):   kael,
+            str(urren.id):  urren,
         },
         species={
             str(naran.id):       naran,
