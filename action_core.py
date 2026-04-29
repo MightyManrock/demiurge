@@ -620,14 +620,16 @@ def build_action_library() -> dict[str, ActionDefinition]:
             category=ActionCategory.PROXIUS_DIRECTION,
             description=(
                 "Communicate intent to a Proxius. They interpret and execute "
-                "according to their alignment and personal tags."
+                "according to their alignment and personal tags. "
+                "Issuing to a dormant Proxius reactivates them."
             ),
             valid_targets=[TargetType.MORTAL],
             requires_proxius=True,
             reliability=ActionReliability.UNCERTAIN,
             # Uncertainty here is alignment drift, not the channel
             footprint_cost=FootprintCost(proxius_activity=0.15),
-            tags=["proxii", "indirect", "alignment_dependent"],
+            tags=["proxii", "indirect", "alignment_dependent",
+                  "include_dormant_proxius"],
         ),
 
         "empower_proxius": ActionDefinition(
@@ -654,6 +656,22 @@ def build_action_library() -> dict[str, ActionDefinition]:
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(proxius_activity=0.1),
             tags=["proxii", "appointment"],
+        ),
+
+        "go_quiet_proxius": ActionDefinition(
+            name="Go Quiet",
+            category=ActionCategory.PROXIUS_DIRECTION,
+            description=(
+                "Signal a Proxius to suspend visible activity. "
+                "They enter dormancy — appointed but generating no ongoing "
+                "proxius_activity footprint. Bio-age resumes during dormancy. "
+                "A future directive reactivates them."
+            ),
+            valid_targets=[TargetType.MORTAL],
+            requires_proxius=True,
+            reliability=ActionReliability.CERTAIN,
+            footprint_cost=FootprintCost(proxius_activity=0.05),
+            tags=["proxii", "appointment", "footprint_management"],
         ),
 
         # ── Observation ──────────────────────────────────
@@ -858,6 +876,22 @@ def build_action_library() -> dict[str, ActionDefinition]:
             essence_cost=0.05,
             concealment_impact=0.05,
             tags=["underreal", "observation", "intelligence"],
+        ),
+
+        "maintain_concealment": ActionDefinition(
+            name="Maintain Concealment",
+            category=ActionCategory.UNDERREAL,
+            description=(
+                "Actively reinforce the veil over your Essence stockpile. "
+                "Spend a small amount of Essence to restore concealment integrity. "
+                "Diminishing returns when integrity is already high. "
+                "Cannot be combined with an Essence harvest in the same tick."
+            ),
+            valid_targets=[TargetType.UNDERREAL],
+            reliability=ActionReliability.PROBABLE,
+            footprint_cost=FootprintCost(),
+            essence_cost=0.10,
+            tags=["underreal", "concealment", "essence_consuming", "maintenance"],
         ),
 
         "overthrow_luminary": ActionDefinition(

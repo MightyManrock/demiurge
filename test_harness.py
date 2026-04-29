@@ -1058,18 +1058,22 @@ def build_intent_interactively(
     # ── Proxius selection for directed actions ────────
     proxius_id = None
     if defn.requires_proxius:
+        include_dormant = "include_dormant_proxius" in defn.tags
         proxii = [
             (mid, m) for mid, m in state.mortals.items()
-            if m.role == MortalRole.PROXIUS and m.status == MortalStatus.ACTIVE
+            if m.role == MortalRole.PROXIUS
+            and (m.status == MortalStatus.ACTIVE
+                 or (include_dormant and m.status == MortalStatus.DORMANT))
         ]
         if not proxii:
             print("  No active Proxii available for this action.")
             return None
         print("  Select Proxius to act through:")
         for i, (mid, m) in enumerate(proxii):
-            w_obj = state.worlds.get(str(m.world_id))
-            loc   = w_obj.name if w_obj else "?"
-            print(f"    {i+1}. {m.name:<16s} align:{m.alignment:.2f}   {loc}")
+            w_obj    = state.worlds.get(str(m.world_id))
+            loc      = w_obj.name if w_obj else "?"
+            dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
+            print(f"    {i+1}. {m.name:<16s} align:{m.alignment:.2f}   {loc}{dormant_note}")
         choice = _prompt_int("  > ", 1, len(proxii))
         proxius_id = UUID(proxii[choice - 1][0])
 

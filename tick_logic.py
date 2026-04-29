@@ -304,6 +304,10 @@ class SimulationState(BaseModel):
     tick_number: int = 0
     config: TickConfig = Field(default_factory=TickConfig)
 
+    # Consecutive ticks where essence.actual did not increase.
+    # Used to stall passive concealment decay when the Demiurge goes quiet.
+    ticks_without_essence_gain: int = 0
+
 
 # ─────────────────────────────────────────
 # TICK LOOP
@@ -351,10 +355,17 @@ class TickLoop:
         state = self._apply_passive_mutations(state, passive)
 
         # ── Phase 2: Action Processing ─────────────────
+        _essence_before = state.essence.actual
         action_result = self._process_action_queue(state, cfg, phase_rng)
         result.action_result = action_result
         state = self._apply_action_mutations(state, action_result)
         state.action_queue = []
+
+        # Track how long since the Demiurge last gained Essence (for concealment stall)
+        if state.essence.actual > _essence_before:
+            state.ticks_without_essence_gain = 0
+        else:
+            state.ticks_without_essence_gain += 1
 
         # ── Phase 3: Domain Profiling ──────────────────
         profile = self._build_domain_profile(state)
@@ -426,6 +437,17 @@ class TickLoop:
                         note=f"{civ.name} {stat} passive drift",
                     ))
 
+            # Apply belief_drift from momentum
+            for dv in momentum.belief_drift:
+                result.civilization_mutations.append(StateMutation(
+                    mutation_type=MutationType.BELIEF_SHIFT,
+                    target_id=UUID(cid),
+                    field="dominant_beliefs",
+                    delta=dv.direction * cfg.civ_momentum_rate,
+                    new_value=dv.domain_tag,
+                    note=f"{civ.name} belief drift: {dv.domain_tag}",
+                ))
+
             # Narrative event if a civilization crosses a threshold
             new_stability = civ.health.stability + momentum.stability_delta * cfg.civ_momentum_rate
             if new_stability < 0.2 and civ.health.stability >= 0.2:
@@ -480,19 +502,24 @@ class TickLoop:
                 note=f"{mortal.name} chrono_age +{cfg.tick_duration}",
             ))
 
-            # bio_age frozen while mortal is an active Proxius or Herald
-            is_age_frozen = (
-                mortal.status == MortalStatus.ACTIVE
-                and mortal.role in (MortalRole.PROXIUS, MortalRole.HERALD)
-            )
-            if not is_age_frozen:
-                new_bio_age = mortal.bio_age + cfg.tick_duration
+            # bio_age frozen for active Proxii/Heralds, slow for dormant Proxii
+            if (mortal.status == MortalStatus.ACTIVE
+                    and mortal.role in (MortalRole.PROXIUS, MortalRole.HERALD)):
+                bio_delta = 0.0
+            elif (mortal.status == MortalStatus.DORMANT
+                    and mortal.role == MortalRole.PROXIUS):
+                bio_delta = cfg.tick_duration / 5.0
+            else:
+                bio_delta = cfg.tick_duration
+
+            if bio_delta > 0.0:
+                new_bio_age = mortal.bio_age + bio_delta
                 result.mortal_mutations.append(StateMutation(
                     mutation_type=MutationType.MORTAL_AGE,
                     target_id=UUID(mid),
                     field="bio_age",
-                    delta=cfg.tick_duration,
-                    note=f"{mortal.name} bio_age +{cfg.tick_duration}",
+                    delta=bio_delta,
+                    note=f"{mortal.name} bio_age +{bio_delta}",
                 ))
 
                 # Death check fires once bio_age enters the species lifespan range
@@ -561,18 +588,29 @@ class TickLoop:
                     ))
 
         # ── Concealment degradation ────────────────────
+        # Decay stalls when the Demiurge has gone quiet on Essence for several ticks.
+        # 3+ quiet ticks → half rate; 6+ quiet ticks → full stall.
         if state.essence.concealment_integrity > 0.0:
-            new_integrity = max(
-                0.0,
-                state.essence.concealment_integrity - cfg.concealment_decay_rate
-            )
-            result.concealment_mutations.append(StateMutation(
-                mutation_type=MutationType.CONCEALMENT_CHANGE,
-                target_id=state.demiurge.id,
-                field="concealment_integrity",
-                delta=-(state.essence.concealment_integrity - new_integrity),
-                note="Passive concealment degradation",
-            ))
+            quiet = state.ticks_without_essence_gain
+            if quiet >= 6:
+                effective_decay = 0.0
+            elif quiet >= 3:
+                effective_decay = cfg.concealment_decay_rate * 0.5
+            else:
+                effective_decay = cfg.concealment_decay_rate
+
+            if effective_decay > 0.0:
+                new_integrity = max(
+                    0.0,
+                    state.essence.concealment_integrity - effective_decay
+                )
+                result.concealment_mutations.append(StateMutation(
+                    mutation_type=MutationType.CONCEALMENT_CHANGE,
+                    target_id=state.demiurge.id,
+                    field="concealment_integrity",
+                    delta=-(state.essence.concealment_integrity - new_integrity),
+                    note="Passive concealment degradation",
+                ))
 
         # ── Luminary attention decay ───────────────────
         for lid in state.luminaries:
@@ -691,15 +729,16 @@ class TickLoop:
                     ))
 
         # ── Essence handling ───────────────────────────
-        if defn.essence_cost != 0.0:
+        # Positive cost = spending; negative cost (harvests) are handled
+        # entirely by the EssenceHarvestIntent handler to avoid double-counting.
+        if defn.essence_cost > 0.0:
             effective_cost = defn.essence_cost * scale
             mutations.append(StateMutation(
                 mutation_type=MutationType.ESSENCE_CHANGE,
                 target_id=state.demiurge.id,
                 field="actual",
                 delta=-effective_cost,
-                # Negative cost = harvest (essence_cost is negative in definition)
-                note=f"{defn.name}: essence {'harvest' if effective_cost < 0 else 'spend'}",
+                note=f"{defn.name}: essence spend",
             ))
             if defn.concealment_impact > 0.0:
                 apparent_leak = defn.concealment_impact * scale
@@ -1026,6 +1065,49 @@ class TickLoop:
                     parts.append("No low-prominence mortals came to your attention.")
                 narrative = " ".join(parts)
 
+            elif defn.name == "Maintain Concealment":
+                if outcome == ActionOutcome.FAILURE:
+                    return mutations, "The concealment maintenance failed to take hold."
+
+                effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.4
+                current_integrity = state.essence.concealment_integrity
+                # Diminishing returns: less useful when integrity is already high
+                restore = 0.30 * effectiveness * (1.0 - current_integrity * 0.5)
+                restore = max(0.0, restore)
+                if restore > 0.0:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.CONCEALMENT_CHANGE,
+                        target_id=state.demiurge.id,
+                        field="concealment_integrity",
+                        delta=restore,
+                        note="Concealment integrity maintained",
+                    ))
+                narrative = (
+                    f"Concealment reinforced. "
+                    f"Integrity restored by {restore:.2f} "
+                    f"(was {current_integrity:.2f}, "
+                    f"now {min(1.0, current_integrity + restore):.2f})."
+                )
+
+            elif defn.name == "Go Quiet":
+                mortal = state.mortals.get(str(instance.target_id)) if instance.target_id else None
+                if not mortal or mortal.role != MortalRole.PROXIUS:
+                    return mutations, "No Proxius found to go quiet."
+                if mortal.status == MortalStatus.DORMANT:
+                    return mutations, f"{mortal.name} is already dormant."
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_STATUS,
+                    target_id=mortal.id,
+                    field="status",
+                    new_value=MortalStatus.DORMANT.value,
+                    note=f"{mortal.name} goes quiet — proxius_activity suspended",
+                ))
+                narrative = (
+                    f"{mortal.name} has gone quiet. "
+                    f"Their activity is suspended; bio-age resumes at reduced rate. "
+                    f"Issue a directive to reactivate them."
+                )
+
             return mutations, narrative
 
         # ── Whisper / Dream ───────────────────────────
@@ -1096,6 +1178,16 @@ class TickLoop:
             if not proxius:
                 return mutations, "No Proxius found to receive directive."
 
+            # Reactivate a dormant Proxius when a directive is issued
+            if proxius.status == MortalStatus.DORMANT:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_STATUS,
+                    target_id=proxius.id,
+                    field="status",
+                    new_value=MortalStatus.ACTIVE.value,
+                    note=f"{proxius.name} reactivated by directive",
+                ))
+
             # How faithfully they interpret the directive
             # depends on alignment and how much latitude you gave
             interpretation_fidelity = (
@@ -1124,8 +1216,8 @@ class TickLoop:
             ))
 
             # Domain expression shift proportional to fidelity
-            world_id = state.worlds.get(str(proxius.world_id))
-            if world_id:
+            world_obj = state.worlds.get(str(proxius.world_id))
+            if world_obj:
                 for dv in intent.domain_vectors:
                     mutations.append(StateMutation(
                         mutation_type=MutationType.DOMAIN_EXPRESSION,
