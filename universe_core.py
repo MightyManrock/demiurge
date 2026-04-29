@@ -125,6 +125,40 @@ class System(BaseModel):
 
 
 # ─────────────────────────────────────────
+# SPECIES
+# A named, categorized form of life.
+# ─────────────────────────────────────────
+
+class SpeciesCondition(str, Enum):
+    THRIVING   = "thriving"
+    STABLE     = "stable"
+    ENDANGERED = "endangered"
+    EXTINCT    = "extinct"
+
+
+class Species(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    description: str = ""
+    origin_world_id: Optional[UUID] = None
+
+    sapient: bool = True
+    transplanted: bool = False  # True if the species exists away from its origin world
+
+    lifespan_min: float  # In universe time units — death checks begin here
+    lifespan_max: float  # Full probability reached at this age
+
+    # Biological trait vocabulary: "trait:bipedal", "trait:warm_blooded"
+    # Rarely domain tags — only when the biology *is* the domain expression.
+    trait_tags: list[str] = Field(default_factory=list)
+
+    # Culture vocabulary for sapient species: "culture:nomadic", "culture:ancestor_veneration"
+    cultural_tags: list[str] = Field(default_factory=list)
+
+    condition: SpeciesCondition = SpeciesCondition.STABLE
+
+
+# ─────────────────────────────────────────
 # WORLD
 # The primary locus of gameplay.
 # ─────────────────────────────────────────
@@ -166,6 +200,7 @@ class World(BaseModel):
     condition: WorldCondition = WorldCondition.STABLE
 
     civilization_ids: list[UUID] = Field(default_factory=list)
+    species_ids: list[UUID] = Field(default_factory=list)
     proxius_ids: list[UUID] = Field(default_factory=list)
     herald_ids: list[UUID] = Field(default_factory=list)
 
@@ -231,6 +266,7 @@ class Civilization(BaseModel):
     divine_awareness: float = Field(ge=0.0, le=1.0, default=0.3)
     # 0.0 = no concept of gods; 1.0 = constant direct interaction
 
+    primary_species_id: Optional[UUID] = None
     notable_mortal_ids: list[UUID] = Field(default_factory=list)
     age: float = 0.0
 
@@ -278,11 +314,14 @@ class NotableMortal(BaseModel):
     # with their patron's Domains.
     personal_tags: list[str] = Field(default_factory=list)
 
+    species_id: Optional[UUID] = None
+
     # How faithfully they're currently pursuing their
     # patron's agenda vs. their own. 1.0 = fully aligned.
     alignment: float = Field(ge=0.0, le=1.0, default=0.8)
 
-    age: float = 0.0
+    chrono_age: float = 0.0  # Always increments each tick
+    bio_age: float = 0.0     # Frozen while mortal is an active Proxius or Herald
 
 
 # ─────────────────────────────────────────

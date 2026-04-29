@@ -27,6 +27,7 @@ from universe_core import (
     WorldCondition, WorldFootprint, World,
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, NotableMortal,
+    Species, SpeciesCondition,
     Universe,
 )
 from action_core import EssenceStockpile
@@ -68,6 +69,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     rules    = _load_universe_rules(conn)
     galaxies = _load_galaxies(conn)
     systems  = _load_systems(conn)
+    species  = _load_species(conn)
     worlds   = _load_worlds(conn)
     civs     = _load_civilizations(conn)
     mortals  = _load_mortals(conn)
@@ -98,6 +100,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         worlds=worlds,
         civilizations=civs,
         mortals=mortals,
+        species=species,
         civ_momentum=civ_momentum,
         luminary_attention=lum_attention,
         ticks_since_evaluation=ticks_since,
@@ -190,6 +193,26 @@ def _load_universe_rules(conn) -> UniverseRules:
     )
 
 
+def _load_species(conn) -> dict[str, Species]:
+    out = {}
+    for row in conn.execute("SELECT * FROM species"):
+        sp = Species(
+            id=UUID(row["id"]),
+            name=row["name"],
+            description=row["description"],
+            origin_world_id=_uuid(row["origin_world_id"]),
+            sapient=bool(row["sapient"]),
+            transplanted=bool(row["transplanted"]),
+            lifespan_min=row["lifespan_min"],
+            lifespan_max=row["lifespan_max"],
+            trait_tags=_j(row["trait_tags"]),
+            cultural_tags=_j(row["cultural_tags"]),
+            condition=SpeciesCondition(row["condition"]),
+        )
+        out[str(sp.id)] = sp
+    return out
+
+
 def _load_galaxies(conn) -> dict[str, Galaxy]:
     out = {}
     for row in conn.execute("SELECT * FROM galaxies"):
@@ -236,6 +259,7 @@ def _load_worlds(conn) -> dict[str, World]:
             system_id=UUID(row["system_id"]),
             condition=WorldCondition(row["condition"]),
             domain_expression=_j(row["domain_expression"]),
+            species_ids=[UUID(x) for x in _j(row["species_ids"])],
             age=row["age"],
         )
         # Re-attach civilization IDs
@@ -260,6 +284,7 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
                 prosperity=row["health_prosperity"],
                 cohesion=row["health_cohesion"],
             ),
+            primary_species_id=_uuid(row["primary_species_id"]),
             dominant_beliefs=_j(row["dominant_beliefs"]),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
@@ -284,9 +309,11 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             civilization_id=_uuid(row["civilization_id"]),
             role=MortalRole(row["role"]),
             status=MortalStatus(row["status"]),
+            species_id=_uuid(row["species_id"]),
             personal_tags=_j(row["personal_tags"]),
             alignment=row["alignment"],
-            age=row["age"],
+            chrono_age=row["chrono_age"],
+            bio_age=row["bio_age"],
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
         )

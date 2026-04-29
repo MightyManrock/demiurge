@@ -107,12 +107,27 @@ CREATE TABLE IF NOT EXISTS systems (
     z         REAL NOT NULL DEFAULT 0.0
 );
 
+CREATE TABLE IF NOT EXISTS species (
+    id               TEXT PRIMARY KEY,
+    name             TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    origin_world_id  TEXT,
+    sapient          INTEGER NOT NULL DEFAULT 1,   -- bool
+    transplanted     INTEGER NOT NULL DEFAULT 0,   -- bool
+    lifespan_min     REAL NOT NULL DEFAULT 100.0,
+    lifespan_max     REAL NOT NULL DEFAULT 200.0,
+    trait_tags       TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    cultural_tags    TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    condition        TEXT NOT NULL DEFAULT 'stable'
+);
+
 CREATE TABLE IF NOT EXISTS worlds (
     id                TEXT PRIMARY KEY,
     name              TEXT NOT NULL,
     system_id         TEXT NOT NULL,
     condition         TEXT NOT NULL DEFAULT 'stable',
     domain_expression TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    species_ids       TEXT NOT NULL DEFAULT '[]',  -- JSON array
     age               REAL NOT NULL DEFAULT 0.0
 );
 
@@ -125,6 +140,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
     health_stability  REAL NOT NULL DEFAULT 0.5,
     health_prosperity REAL NOT NULL DEFAULT 0.5,
     health_cohesion   REAL NOT NULL DEFAULT 0.5,
+    primary_species_id TEXT,
     dominant_beliefs  TEXT NOT NULL DEFAULT '[]',  -- JSON array
     theistic          INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness  REAL NOT NULL DEFAULT 0.3,
@@ -138,9 +154,11 @@ CREATE TABLE IF NOT EXISTS mortals (
     civilization_id        TEXT,
     role                   TEXT NOT NULL DEFAULT 'other',
     status                 TEXT NOT NULL DEFAULT 'active',
+    species_id             TEXT,
     personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
     alignment              REAL NOT NULL DEFAULT 0.8,
-    age                    REAL NOT NULL DEFAULT 0.0,
+    chrono_age             REAL NOT NULL DEFAULT 0.0,
+    bio_age                REAL NOT NULL DEFAULT 0.0,
     appointed_by_demiurge  TEXT,
     appointed_by_luminary  TEXT
 );

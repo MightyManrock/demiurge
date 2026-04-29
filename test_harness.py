@@ -27,6 +27,7 @@ from universe_core import (
     WorldCondition, WorldFootprint, World,
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, NotableMortal,
+    Species, SpeciesCondition,
     Universe,
     # MortalProminence
 )
@@ -40,7 +41,8 @@ from action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent,
-    SalvageIntent, DomainVector,
+    SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent,
+    DomainVector,
     # Mutations
     StateMutation, MutationType, ActionOutcome,
 )
@@ -216,7 +218,7 @@ def build_scenario_default() -> SimulationState:
         system_id=system.id,
         condition=WorldCondition.STABLE,
         domain_expression=["domain:order"],
-        age=120.0,
+        age=600.0,
     )
     # Vel Arath — barren sibling world, no life yet
     vel_arath = World(
@@ -224,7 +226,7 @@ def build_scenario_default() -> SimulationState:
         system_id=system.id,
         condition=WorldCondition.BARREN,
         domain_expression=[],
-        age=180.0,
+        age=900.0,
         # Older than Neran; conditions are inert but not hostile
     )
 
@@ -244,7 +246,7 @@ def build_scenario_default() -> SimulationState:
         system_id=system_outer.id,
         condition=WorldCondition.STABLE,
         domain_expression=["domain:conflict"],
-        age=55.0,
+        age=275.0,
         # Young world; its first civilization is already war-shaped
     )
 
@@ -253,7 +255,41 @@ def build_scenario_default() -> SimulationState:
 
     # ── Civilizations ─────────────────────────────────
 
-    # Neran: established continental power, order-oriented
+    # ── Species ───────────────────────────────────────
+
+    # Naran — the humanoid people of Neran
+    # Long-lived relative to their world's age; Veth (bio_age 260) is near end-of-life
+    naran = Species(
+        name="Naran",
+        description="Humanoid species native to Neran. Ordered society, long memory.",
+        origin_world_id=neran.id,
+        sapient=True,
+        lifespan_min=240,
+        lifespan_max=340,
+        trait_tags=["trait:bipedal", "trait:warm_blooded"],
+        cultural_tags=["culture:institutional", "culture:ancestor_veneration"],
+        condition=SpeciesCondition.STABLE,
+    )
+    neran.species_ids.append(naran.id)
+
+    # Keth — the tribal wanderers of Oros
+    # Shorter-lived; Asha (bio_age 145) is young and vigorous
+    keth_species = Species(
+        name="Keth",
+        description="Nomadic humanoids of Oros. Pack-bonded, spiritually attuned.",
+        origin_world_id=oros.id,
+        sapient=True,
+        lifespan_min=200,
+        lifespan_max=280,
+        trait_tags=["trait:bipedal", "trait:nocturnal"],
+        cultural_tags=["culture:nomadic", "culture:oral_tradition"],
+        condition=SpeciesCondition.STABLE,
+    )
+    oros.species_ids.append(keth_species.id)
+
+    # ── Civilizations ─────────────────────────────────
+
+    # Neran: established interstellar power, order-oriented
     civ = Civilization(
         name="The Neran Confederacy",
         world_id=neran.id,
@@ -263,10 +299,11 @@ def build_scenario_default() -> SimulationState:
             prosperity=0.5,
             cohesion=0.55,
         ),
+        primary_species_id=naran.id,
         dominant_beliefs=["domain:order", "domain:law"],
         theistic=True,
         divine_awareness=0.25,
-        age=80.0,
+        age=400.0,
     )
     neran.civilization_ids.append(civ.id)
 
@@ -281,10 +318,11 @@ def build_scenario_default() -> SimulationState:
             cohesion=0.65,
             # Tight bonds within bands, but fragile overall
         ),
+        primary_species_id=keth_species.id,
         dominant_beliefs=["domain:conflict", "domain:ancestor_worship"],
         theistic=True,
         divine_awareness=0.10,
-        age=12.0,
+        age=60.0,
     )
     oros.civilization_ids.append(keth.id)
 
@@ -297,9 +335,11 @@ def build_scenario_default() -> SimulationState:
         civilization_id=civ.id,
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
+        species_id=naran.id,
         personal_tags=["domain:order", "ambitious", "pragmatic"],
         alignment=0.75,
-        age=34.0,
+        chrono_age=170.0,
+        bio_age=170.0,
     )
     civ.notable_mortal_ids.append(senna.id)
 
@@ -310,23 +350,28 @@ def build_scenario_default() -> SimulationState:
         civilization_id=civ.id,
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
+        species_id=naran.id,
         personal_tags=["domain:conflict", "domain:war", "ambitious", "ruthless"],
         alignment=0.45,
         # Pursues his own agenda as readily as yours; needs careful direction
-        age=41.0,
+        chrono_age=205.0,
+        bio_age=205.0,
     )
     civ.notable_mortal_ids.append(karath.id)
 
     # Neran: temple keeper — devout, subtlety-inclined; Cassiel's natural ally
+    # bio_age 260 — entering the Naran death-check zone (lifespan_min 240)
     veth = NotableMortal(
         name="Veth Sarai",
         world_id=neran.id,
         civilization_id=civ.id,
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
+        species_id=naran.id,
         personal_tags=["domain:order", "domain:silence", "devout", "cautious"],
         alignment=0.85,
-        age=52.0,
+        chrono_age=260.0,
+        bio_age=260.0,
     )
     civ.notable_mortal_ids.append(veth.id)
 
@@ -337,10 +382,12 @@ def build_scenario_default() -> SimulationState:
         civilization_id=civ.id,
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
+        species_id=naran.id,
         personal_tags=["domain:trade", "domain:law", "opportunistic", "pragmatic"],
         alignment=0.35,
         # Will work with you if it suits him; unreliable as proxius
-        age=47.0,
+        chrono_age=235.0,
+        bio_age=235.0,
     )
     civ.notable_mortal_ids.append(durenn.id)
 
@@ -351,9 +398,11 @@ def build_scenario_default() -> SimulationState:
         civilization_id=keth.id,
         role=MortalRole.OTHER,
         status=MortalStatus.ACTIVE,
+        species_id=keth_species.id,
         personal_tags=["domain:conflict", "domain:change", "tribal_leader", "spiritual"],
         alignment=0.60,
-        age=29.0,
+        chrono_age=145.0,
+        bio_age=145.0,
     )
     keth.notable_mortal_ids.append(asha.id)
 
@@ -378,7 +427,7 @@ def build_scenario_default() -> SimulationState:
         pantheon_id=pantheon.id,
         rules=rules,
         galaxy_ids=[galaxy.id],
-        current_age=120.0,
+        current_age=600.0,
     )
 
     return SimulationState(
@@ -411,6 +460,10 @@ def build_scenario_default() -> SimulationState:
             str(durenn.id): durenn,
             str(asha.id):   asha,
         },
+        species={
+            str(naran.id):       naran,
+            str(keth_species.id): keth_species,
+        },
         civ_momentum={
             str(civ.id): CivilizationMomentum(
                 civilization_id=civ.id,
@@ -437,8 +490,8 @@ def build_scenario_default() -> SimulationState:
             str(vrath.id):   0.0,
         },
         config=TickConfig(
-            tick_duration=5.0,
-            evaluation_interval=8.0,
+            tick_duration=0.5,
+            evaluation_interval=5.0,
         ),
     )
 
@@ -513,9 +566,12 @@ def display_state(state: SimulationState) -> str:
         if mortal.status == MortalStatus.DECEASED:
             continue
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
+        age_str = f"age:{mortal.chrono_age:.0f}"
+        if mortal.bio_age != mortal.chrono_age:
+            age_str += f"(bio:{mortal.bio_age:.0f})"
         lines.append(
             f"  {mortal.name:16s} [{role_str}]  "
-            f"alignment:{mortal.alignment:.2f}  "
+            f"align:{mortal.alignment:.2f}  {age_str}  "
             f"tags: {', '.join(mortal.personal_tags)}"
         )
     lines.append(SEP2)
@@ -709,6 +765,25 @@ def display_briefing(state: SimulationState) -> str:
                             )
     lines += ["", SEP]
 
+    # ── Species ────────────────────────────────────────
+    if state.species:
+        lines.append("SPECIES")
+        for sid, sp in state.species.items():
+            w_obj = state.worlds.get(str(sp.origin_world_id)) if sp.origin_world_id else None
+            origin = w_obj.name if w_obj else "unknown"
+            sapient_str = "sapient" if sp.sapient else "non-sapient"
+            transplanted_str = "  [transplanted]" if sp.transplanted else ""
+            lines.append(
+                f"  {sp.name:16s} [{sapient_str}]  "
+                f"origin:{origin}  "
+                f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  "
+                f"[{sp.condition.value}]{transplanted_str}"
+            )
+            if sp.trait_tags or sp.cultural_tags:
+                tag_line = ", ".join(sp.trait_tags + sp.cultural_tags)
+                lines.append(f"    {tag_line}")
+        lines.append(SEP)
+
     # ── Notable Mortals ────────────────────────────────
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
@@ -721,9 +796,14 @@ def display_briefing(state: SimulationState) -> str:
         if c_obj:
             loc += f" · {c_obj.name}"
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
+        age_str = f"age:{mortal.chrono_age:.0f}"
+        if mortal.bio_age != mortal.chrono_age:
+            age_str += f"(bio:{mortal.bio_age:.0f})"
+        sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
+        sp_note = f"  [{sp_obj.name}]" if sp_obj else ""
         lines.append(
             f"  {mortal.name:16s} [{role_str:7s}]  "
-            f"align:{mortal.alignment:.2f}   {loc}"
+            f"align:{mortal.alignment:.2f}  {age_str}{sp_note}   {loc}"
         )
         if mortal.personal_tags:
             lines.append(f"    Tags: {', '.join(mortal.personal_tags)}")
@@ -806,6 +886,21 @@ def build_intent_interactively(
         target_id = UUID(lums[choice - 1][0])
         target_type = TargetType.LUMINARY
 
+    elif TargetType.SPECIES in defn.valid_targets and state.species:
+        species_list = list(state.species.items())
+        print("  Select target species:")
+        for i, (sid, sp) in enumerate(species_list):
+            w_obj = state.worlds.get(str(sp.origin_world_id)) if sp.origin_world_id else None
+            origin = w_obj.name if w_obj else "unknown"
+            sapient_str = "sapient" if sp.sapient else "non-sapient"
+            print(f"    {i+1}. {sp.name:<16s} [{sapient_str}]  origin: {origin}")
+        print("    0. Cancel")
+        choice = _prompt_int("  > ", 0, len(species_list))
+        if choice == 0:
+            return None
+        target_id = UUID(species_list[choice - 1][0])
+        target_type = TargetType.SPECIES
+
     elif TargetType.UNDERREAL in defn.valid_targets:
         target_type = TargetType.UNDERREAL
         target_id = None
@@ -875,7 +970,32 @@ def _build_intent(
     """Prompt for intent fields based on action category."""
     cat = defn.category
 
-    if cat == ActionCategory.SUBTLE_INFLUENCE:
+    if cat == ActionCategory.DIRECT_CREATION:
+        if action_key == "seed_world":
+            name = input("  Species name: ").strip() or "Life-Form Alpha"
+            lifespan_min = _prompt_float("  Lifespan min (time units): ", 1.0, 100000.0, 100.0)
+            lifespan_max = _prompt_float("  Lifespan max (time units): ", 1.0, 100000.0, 200.0)
+            sapient_raw = input("  Sapient from the start? (y/n) [n]: ").strip().lower()
+            sapient = sapient_raw == "y"
+            tags_raw = input(
+                "  Trait tags (comma-separated, e.g. trait:bipedal — blank to skip): "
+            ).strip()
+            trait_tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+            return SeedWorldIntent(
+                species_name=name,
+                lifespan_min=lifespan_min,
+                lifespan_max=lifespan_max,
+                sapient=sapient,
+                trait_tags=trait_tags,
+            )
+        elif action_key == "uplift_species":
+            dv = _prompt_domain_vector()
+            return UpliftSpeciesIntent(
+                species_id=target_id,
+                domain_vectors=[dv] if dv else [],
+            )
+
+    elif cat == ActionCategory.SUBTLE_INFLUENCE:
         if action_key in ("whisper", "shape_dream"):
             concept = input("  Concept to plant: ").strip() or "You could shape the future."
             dv = _prompt_domain_vector()

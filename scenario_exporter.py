@@ -55,6 +55,7 @@ def export_scenario(
     _write_universe_rules(conn, state)
     _write_galaxies(conn, state)
     _write_systems(conn, state)
+    _write_species(conn, state)
     _write_worlds(conn, state)
     _write_civilizations(conn, state)
     _write_mortals(conn, state)
@@ -210,6 +211,29 @@ def _write_universe_rules(conn, state: SimulationState):
     )
 
 
+def _write_species(conn, state: SimulationState):
+    for sp in state.species.values():
+        conn.execute(
+            """INSERT INTO species
+               (id, name, description, origin_world_id, sapient, transplanted,
+                lifespan_min, lifespan_max, trait_tags, cultural_tags, condition)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                str(sp.id),
+                sp.name,
+                sp.description,
+                str(sp.origin_world_id) if sp.origin_world_id else None,
+                int(sp.sapient),
+                int(sp.transplanted),
+                sp.lifespan_min,
+                sp.lifespan_max,
+                _j(sp.trait_tags),
+                _j(sp.cultural_tags),
+                sp.condition.value,
+            ),
+        )
+
+
 def _write_galaxies(conn, state: SimulationState):
     for g in state.galaxies.values():
         conn.execute(
@@ -245,14 +269,16 @@ def _write_systems(conn, state: SimulationState):
 def _write_worlds(conn, state: SimulationState):
     for w in state.worlds.values():
         conn.execute(
-            """INSERT INTO worlds (id, name, system_id, condition, domain_expression, age)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO worlds
+               (id, name, system_id, condition, domain_expression, species_ids, age)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(w.id),
                 w.name,
                 str(w.system_id),
                 w.condition.value,
                 _j(w.domain_expression),
+                _j(w.species_ids),
                 w.age,
             ),
         )
@@ -264,8 +290,8 @@ def _write_civilizations(conn, state: SimulationState):
             """INSERT INTO civilizations
                (id, name, world_id, scale,
                 health_stability, health_prosperity, health_cohesion,
-                dominant_beliefs, theistic, divine_awareness, age)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                primary_species_id, dominant_beliefs, theistic, divine_awareness, age)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -274,6 +300,7 @@ def _write_civilizations(conn, state: SimulationState):
                 c.health.stability,
                 c.health.prosperity,
                 c.health.cohesion,
+                str(c.primary_species_id) if c.primary_species_id else None,
                 _j(c.dominant_beliefs),
                 int(c.theistic),
                 c.divine_awareness,
@@ -287,9 +314,9 @@ def _write_mortals(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO mortals
                (id, name, world_id, civilization_id, role, status,
-                personal_tags, alignment, age,
+                species_id, personal_tags, alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -297,9 +324,11 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.civilization_id) if m.civilization_id else None,
                 m.role.value,
                 m.status.value,
+                str(m.species_id) if m.species_id else None,
                 _j(m.personal_tags),
                 m.alignment,
-                m.age,
+                m.chrono_age,
+                m.bio_age,
                 str(m.appointed_by_demiurge) if m.appointed_by_demiurge else None,
                 str(m.appointed_by_luminary) if m.appointed_by_luminary else None,
             ),

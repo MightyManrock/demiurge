@@ -74,6 +74,7 @@ class TargetType(str, Enum):
     WORLD         = "world"
     CIVILIZATION  = "civilization"
     MORTAL        = "mortal"
+    SPECIES       = "species"
     LUMINARY      = "luminary"
     UNDERREAL     = "underreal"
 
@@ -356,6 +357,32 @@ class SalvageIntent(BaseModel):
     # burning Essence without result.
 
 
+class SeedWorldIntent(BaseModel):
+    """
+    For: seed_world
+    You name and define the life you're introducing.
+    Non-sapient by default — sapience requires uplift later
+    or can be seeded directly at higher footprint cost.
+    """
+    species_name: str
+    lifespan_min: float
+    lifespan_max: float
+    sapient: bool = False
+    trait_tags: list[str] = Field(default_factory=list)
+    # e.g. ["trait:bipedal", "trait:warm_blooded", "trait:nocturnal"]
+
+
+class UpliftSpeciesIntent(BaseModel):
+    """
+    For: uplift_species
+    Catalyze a non-sapient species toward full sapience.
+    The domain_vectors shape what kind of sapience emerges.
+    """
+    species_id: UUID
+    domain_vectors: list[DomainVector] = Field(default_factory=list)
+    framing: Framing = Framing.NATURAL
+
+
 # ─────────────────────────────────────────
 # UNIFIED INTENT TYPE
 # ActionInstance.intent replaces .parameters
@@ -370,6 +397,8 @@ ActionIntent = Union[
     LuminaryPetitionIntent,
     EssenceHarvestIntent,
     SalvageIntent,
+    SeedWorldIntent,
+    UpliftSpeciesIntent,
 ]
 
 
@@ -428,11 +457,29 @@ def build_action_library() -> dict[str, ActionDefinition]:
         "seed_world": ActionDefinition(
             name="Seed World with Life",
             category=ActionCategory.DIRECT_CREATION,
-            description="Introduce life to a barren world from scratch.",
+            description=(
+                "Introduce a named species to a barren world. "
+                "You define the species' basic biology and lifespan. "
+                "Sapience requires a separate uplift action."
+            ),
             valid_targets=[TargetType.WORLD],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(direct_creation=0.8),
-            tags=["creation", "world_shaping", "high_footprint"],
+            tags=["creation", "world_shaping", "high_footprint", "species"],
+        ),
+
+        "uplift_species": ActionDefinition(
+            name="Uplift Species to Sapience",
+            category=ActionCategory.DIRECT_CREATION,
+            description=(
+                "Catalyze a non-sapient species toward full sapience. "
+                "A civilization will eventually emerge. High footprint."
+            ),
+            valid_targets=[TargetType.SPECIES],
+            reliability=ActionReliability.PROBABLE,
+            footprint_cost=FootprintCost(direct_creation=0.6, subtle_influence=0.2),
+            essence_cost=0.2,
+            tags=["creation", "species", "high_footprint", "civilization_seed"],
         ),
 
         "reshape_world": ActionDefinition(
@@ -879,6 +926,7 @@ class MutationType(str, Enum):
     WORLD_CONDITION        = "world_condition"
     MORTAL_ALIGNMENT       = "mortal_alignment"
     MORTAL_STATUS          = "mortal_status"
+    MORTAL_AGE             = "mortal_age"
     BELIEF_SHIFT           = "belief_shift"
     DOMAIN_EXPRESSION      = "domain_expression"
     PROXIUS_APPOINTED        = "proxius_appointed"
@@ -887,6 +935,9 @@ class MutationType(str, Enum):
     ENTITY_DESTROYED       = "entity_destroyed"
     EXILED_TO_UNDERREAL    = "exiled_to_underreal"
     SALVAGED_FROM_UNDERREAL = "salvaged_from_underreal"
+    SPECIES_CREATED        = "species_created"
+    SPECIES_UPLIFTED       = "species_uplifted"
+    SPECIES_CONDITION      = "species_condition"
 
 
 class StateMutation(BaseModel):

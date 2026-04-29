@@ -18,6 +18,7 @@ from action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
+    SeedWorldIntent, UpliftSpeciesIntent,
     TargetType,
 )
 from eval_core import (
@@ -37,6 +38,7 @@ from onto_core import (
 from universe_core import (
     Universe, Galaxy, System, World, Civilization, NotableMortal,
     MortalRole, MortalStatus, WorldCondition,
+    Species, SpeciesCondition,
     # Mortal Prominence,
 )
 
@@ -252,6 +254,7 @@ class SimulationState(BaseModel):
     worlds:        dict[str, "World"]
     civilizations: dict[str, "Civilization"]
     mortals:       dict[str, "NotableMortal"]
+    species:       dict[str, "Species"] = Field(default_factory=dict)
 
     # Momentum vectors for each civilization
     # Updated by actions and passive simulation
@@ -436,6 +439,53 @@ class TickLoop:
                     f"Proxius {mortal.name} appears to be pursuing "
                     f"their own agenda more than yours."
                 )
+
+        # ── Mortal aging ───────────────────────────────
+        for mid, mortal in state.mortals.items():
+            if mortal.status == MortalStatus.DECEASED:
+                continue
+
+            # chrono_age always increments
+            result.mortal_mutations.append(StateMutation(
+                mutation_type=MutationType.MORTAL_AGE,
+                target_id=UUID(mid),
+                field="chrono_age",
+                delta=cfg.tick_duration,
+                note=f"{mortal.name} chrono_age +{cfg.tick_duration}",
+            ))
+
+            # bio_age frozen while mortal is an active Proxius or Herald
+            is_age_frozen = (
+                mortal.status == MortalStatus.ACTIVE
+                and mortal.role in (MortalRole.PROXIUS, MortalRole.HERALD)
+            )
+            if not is_age_frozen:
+                new_bio_age = mortal.bio_age + cfg.tick_duration
+                result.mortal_mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_AGE,
+                    target_id=UUID(mid),
+                    field="bio_age",
+                    delta=cfg.tick_duration,
+                    note=f"{mortal.name} bio_age +{cfg.tick_duration}",
+                ))
+
+                # Death check fires once bio_age enters the species lifespan range
+                sp = state.species.get(str(mortal.species_id)) if mortal.species_id else None
+                if sp and new_bio_age >= sp.lifespan_min:
+                    range_width = max(1.0, sp.lifespan_max - sp.lifespan_min)
+                    progress = min(1.0, (new_bio_age - sp.lifespan_min) / range_width)
+                    death_prob = progress * 0.3  # peaks at 30%/tick at lifespan_max
+                    if rng.random() < death_prob:
+                        result.mortal_mutations.append(StateMutation(
+                            mutation_type=MutationType.MORTAL_STATUS,
+                            target_id=UUID(mid),
+                            field="status",
+                            new_value=MortalStatus.DECEASED.value,
+                            note=f"{mortal.name} died of natural causes (bio_age {new_bio_age:.0f})",
+                        ))
+                        result.narrative_events.append(
+                            f"{mortal.name} has died of natural causes at age {new_bio_age:.0f}."
+                        )
 
         # ── Footprint decay ────────────────────────────
         fp = state.demiurge.footprint
@@ -727,42 +777,10 @@ class TickLoop:
                 narrative = f"{mortal.name} has been relieved of their Proxius appointment."
 
             elif defn.name == "Seed World with Life":
-                world_obj = state.worlds.get(str(instance.target_id))
-                if not world_obj:
-                    return mutations, "Target world not found."
-                if world_obj.condition != WorldCondition.BARREN:
-                    return mutations, (
-                        f"{world_obj.name} already sustains life — seeding had no effect."
-                    )
-                if outcome == ActionOutcome.SUCCESS:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.WORLD_CONDITION,
-                        target_id=world_obj.id,
-                        field="condition",
-                        new_value=WorldCondition.STABLE.value,
-                        note=f"Life seeded on {world_obj.name}",
-                    ))
-                    narrative = (
-                        f"Life has taken root on {world_obj.name}. "
-                        f"The world stirs — barren no longer."
-                    )
-                elif outcome == ActionOutcome.PARTIAL:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.WORLD_CONDITION,
-                        target_id=world_obj.id,
-                        field="condition",
-                        new_value=WorldCondition.STRESSED.value,
-                        note=f"Life partially seeded on {world_obj.name} — fragile",
-                    ))
-                    narrative = (
-                        f"Life clings to {world_obj.name}, but only barely. "
-                        f"The world is stressed — it will need tending."
-                    )
-                else:
-                    narrative = (
-                        f"The seeding of {world_obj.name} failed to take hold. "
-                        f"The world remains barren."
-                    )
+                return mutations, (
+                    "Seed World requires a SeedWorldIntent specifying the species. "
+                    "Use the action browser to provide species details."
+                )
 
             elif defn.name == "Extinguish Civilization":
                 civ = state.civilizations.get(str(instance.target_id))
@@ -1212,6 +1230,99 @@ class TickLoop:
                     f"The concept has taken root on {target_world.name}. "
                     f"Effectiveness: {effectiveness:.0%}."
                 )
+
+        # ── Seed World ────────────────────────────────
+        elif isinstance(intent, SeedWorldIntent):
+            world_obj = state.worlds.get(str(instance.target_id)) if instance.target_id else None
+            if not world_obj:
+                return mutations, "Target world not found."
+            if world_obj.condition != WorldCondition.BARREN:
+                return mutations, (
+                    f"{world_obj.name} already sustains life — seeding had no effect."
+                )
+            if outcome == ActionOutcome.FAILURE:
+                return mutations, (
+                    f"The seeding of {world_obj.name} failed to take hold. "
+                    f"The world remains barren."
+                )
+
+            new_condition = (
+                WorldCondition.STABLE if outcome == ActionOutcome.SUCCESS
+                else WorldCondition.STRESSED
+            )
+            new_species = Species(
+                name=intent.species_name,
+                origin_world_id=world_obj.id,
+                sapient=intent.sapient,
+                transplanted=False,
+                lifespan_min=intent.lifespan_min,
+                lifespan_max=intent.lifespan_max,
+                trait_tags=intent.trait_tags,
+            )
+            mutations.append(StateMutation(
+                mutation_type=MutationType.WORLD_CONDITION,
+                target_id=world_obj.id,
+                field="condition",
+                new_value=new_condition.value,
+                note=f"Life seeded on {world_obj.name}",
+            ))
+            mutations.append(StateMutation(
+                mutation_type=MutationType.SPECIES_CREATED,
+                target_id=world_obj.id,
+                field="",
+                new_value=new_species,
+                note=f"Species '{intent.species_name}' introduced to {world_obj.name}",
+            ))
+            sapient_note = " They are already sapient." if intent.sapient else ""
+            if outcome == ActionOutcome.SUCCESS:
+                narrative = (
+                    f"Life has taken root on {world_obj.name}: the {intent.species_name}."
+                    f"{sapient_note}"
+                )
+            else:
+                narrative = (
+                    f"Life clings to {world_obj.name} — the {intent.species_name} survive, "
+                    f"but the world is stressed. They will need tending."
+                )
+
+        # ── Uplift Species ────────────────────────────
+        elif isinstance(intent, UpliftSpeciesIntent):
+            sp = state.species.get(str(intent.species_id))
+            if not sp:
+                return mutations, "Target species not found."
+            if sp.sapient:
+                return mutations, f"The {sp.name} are already sapient."
+            if outcome == ActionOutcome.FAILURE:
+                return mutations, (
+                    f"The uplift of the {sp.name} failed to catalyze. "
+                    f"They remain pre-sapient."
+                )
+
+            effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
+            mutations.append(StateMutation(
+                mutation_type=MutationType.SPECIES_UPLIFTED,
+                target_id=sp.id,
+                field="sapient",
+                new_value=True,
+                note=f"{sp.name} uplifted to sapience",
+            ))
+            for dv in intent.domain_vectors:
+                # Sapience flavor pushes domain expression on origin world
+                if sp.origin_world_id:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DOMAIN_EXPRESSION,
+                        target_id=sp.origin_world_id,
+                        field="domain_expression",
+                        delta=dv.direction * effectiveness * 0.15,
+                        new_value=dv.domain_tag,
+                        note=f"Uplift of {sp.name}: emergent domain flavor",
+                    ))
+            narrative = (
+                f"The {sp.name} have crossed the threshold into sapience. "
+                f"A civilization will emerge from them in time."
+            )
+            if outcome == ActionOutcome.PARTIAL:
+                narrative += " The transition is incomplete — they are fragile."
 
         return mutations, narrative
 
@@ -1663,6 +1774,11 @@ class TickLoop:
                 if tid in state.mortals and m.new_value:
                     state.mortals[tid].status = MortalStatus(m.new_value)
 
+            elif m.mutation_type == MutationType.MORTAL_AGE:
+                if tid in state.mortals and m.field in ("chrono_age", "bio_age"):
+                    current = getattr(state.mortals[tid], m.field, 0.0)
+                    setattr(state.mortals[tid], m.field, current + (m.delta or 0))
+
             elif m.mutation_type == MutationType.WORLD_CONDITION:
                 if tid in state.worlds and m.new_value:
                     state.worlds[tid].condition = WorldCondition(m.new_value)
@@ -1706,5 +1822,22 @@ class TickLoop:
                         lum.disposition.methods = max(
                             -1.0, min(1.0, lum.disposition.methods + (m.delta or 0))
                         )
+
+            elif m.mutation_type == MutationType.SPECIES_CREATED:
+                if isinstance(m.new_value, Species):
+                    sp = m.new_value
+                    state.species[str(sp.id)] = sp
+                    if tid and tid in state.worlds:
+                        if sp.id not in state.worlds[tid].species_ids:
+                            state.worlds[tid].species_ids.append(sp.id)
+
+            elif m.mutation_type == MutationType.SPECIES_UPLIFTED:
+                if tid in state.species:
+                    state.species[tid].sapient = True
+                    state.species[tid].condition = SpeciesCondition.THRIVING
+
+            elif m.mutation_type == MutationType.SPECIES_CONDITION:
+                if tid in state.species and m.new_value:
+                    state.species[tid].condition = SpeciesCondition(m.new_value)
 
         return state
