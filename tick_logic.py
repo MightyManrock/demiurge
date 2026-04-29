@@ -40,6 +40,7 @@ from universe_core import (
     MortalRole, MortalStatus, MortalProminence, WorldCondition,
     Species, SpeciesCondition,
 )
+from domain_registry import DomainRegistry, get_registry
 
 
 # ─────────────────────────────────────────
@@ -332,6 +333,7 @@ class TickLoop:
             str(v.id): k for k, v in self._action_library.items()
         }
         self._overthrow_this_tick: Optional[ActionOutcome] = None
+        self._domain_registry: Optional[DomainRegistry] = get_registry()
 
     def advance(
         self,
@@ -1691,6 +1693,17 @@ class TickLoop:
         engine = EvaluationEngine()
         prev_profile = state.previous_domain_profile or profile
 
+        # Pre-collect domain tags for every Luminary for Realpolitik lookups.
+        # Map: luminary_id_str -> list[str] of domain tags
+        all_lum_domain_tags: dict[str, list[str]] = {}
+        for lid_inner, lum_inner in state.luminaries.items():
+            tags_inner: list[str] = []
+            for did in lum_inner.domains:
+                domain = state.domains.get(str(did))
+                if domain:
+                    tags_inner.extend(domain.tags)
+            all_lum_domain_tags[lid_inner] = tags_inner
+
         for lid, luminary in state.luminaries.items():
             ticks_since = state.ticks_since_evaluation.get(lid, cfg.evaluation_interval)
             current_att = state.luminary_attention.get(lid, 0.2)
@@ -1706,12 +1719,13 @@ class TickLoop:
 
             state.ticks_since_evaluation[lid] = 0.0
 
-            # Gather Luminary domain tags from its domain objects
-            luminary_domain_tags = []
-            for did in luminary.domains:
-                domain = state.domains.get(str(did))
-                if domain:
-                    luminary_domain_tags.extend(domain.tags)
+            luminary_domain_tags = all_lum_domain_tags[lid]
+
+            # Combined domain tags of all fellow Luminaries (for Realpolitik)
+            fellow_lum_tags: set[str] = set()
+            for other_lid, other_tags in all_lum_domain_tags.items():
+                if other_lid != lid:
+                    fellow_lum_tags.update(other_tags)
 
             # Attention level
             attention_triggers: list[AttentionTrigger] = []
@@ -1776,6 +1790,23 @@ class TickLoop:
             )
             delta.results += results_reason.delta
             delta.reasons.append(results_reason)
+
+            # Similarity-weighted influence from related/opposing expressed domains
+            sim_modifier = engine.similarity_results_modifier(
+                luminary_domain_tags=luminary_domain_tags,
+                fellow_luminary_tags=fellow_lum_tags,
+                current_profile=profile,
+                temperament=luminary.temperament.value,
+                registry=self._domain_registry,
+            )
+            if abs(sim_modifier) > 0.001:
+                delta.results += sim_modifier
+                delta.reasons.append(DispositionDeltaReason(
+                    axis="results",
+                    delta=sim_modifier,
+                    source="domain_similarity_influence",
+                    note="Expressed domains adjacent or opposing to Luminary domains",
+                ))
 
             # Capricious temperament: random amplification
             if luminary.temperament.value == "capricious":

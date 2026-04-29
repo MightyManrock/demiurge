@@ -347,6 +347,7 @@ def _load_demiurge(conn) -> Demiurge:
             direct_creation=row["fp_direct_creation"],
         ),
         proxius_ids=[UUID(x) for x in _j(row["proxius_ids"])],
+        unlocked_domain_tags=_j(row.get("unlocked_domain_tags", "[]")),
     )
 
 

@@ -156,3 +156,6 @@ class Demiurge(BaseModel):
     granted_domains: list[UUID]         # Domains the lieges have empowered you with
     footprint: FootprintProfile = Field(default_factory=FootprintProfile)
     proxius_ids: list[UUID] = Field(default_factory=list)
+    unlocked_domain_tags: list[str] = Field(default_factory=list)
+    # domain:... tags the Demiurge has explored or promoted beyond their Luminaries'
+    # granted domains. Each unlocked tag extends the Demiurge's accessible frontier.

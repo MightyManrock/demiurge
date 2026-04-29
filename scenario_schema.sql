@@ -171,16 +171,17 @@ CREATE TABLE IF NOT EXISTS mortals (
 -- ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS demiurge (
-    id                  TEXT PRIMARY KEY,
-    name                TEXT NOT NULL,
-    liege_luminary_ids  TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    granted_domains     TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    id                    TEXT PRIMARY KEY,
+    name                  TEXT NOT NULL,
+    liege_luminary_ids    TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    granted_domains       TEXT NOT NULL DEFAULT '[]',  -- JSON array
     -- FootprintProfile (embedded)
-    fp_overt_miracles   REAL NOT NULL DEFAULT 0.0,
-    fp_subtle_influence REAL NOT NULL DEFAULT 0.0,
-    fp_proxius_activity REAL NOT NULL DEFAULT 0.0,
-    fp_direct_creation  REAL NOT NULL DEFAULT 0.0,
-    proxius_ids         TEXT NOT NULL DEFAULT '[]'   -- JSON array
+    fp_overt_miracles     REAL NOT NULL DEFAULT 0.0,
+    fp_subtle_influence   REAL NOT NULL DEFAULT 0.0,
+    fp_proxius_activity   REAL NOT NULL DEFAULT 0.0,
+    fp_direct_creation    REAL NOT NULL DEFAULT 0.0,
+    proxius_ids           TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    unlocked_domain_tags  TEXT NOT NULL DEFAULT '[]'   -- JSON array of domain:... strings
 );
 
 CREATE TABLE IF NOT EXISTS essence (

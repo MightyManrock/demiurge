@@ -387,6 +387,37 @@ class EvaluationEngine:
         return scores, overall
 
     @staticmethod
+    def similarity_results_modifier(
+        luminary_domain_tags: list[str],
+        fellow_luminary_tags: set[str],
+        current_profile: UniverseDomainProfile,
+        temperament: str,
+        registry: Optional["DomainRegistry"] = None,
+    ) -> float:
+        """
+        Secondary results modifier from similarity-weighted domain expression.
+
+        Adds a bonus for expressed domains that are similar to the Luminary's
+        own domains, and a penalty for opposing ones — applying the two edge rules:
+          - Internal contradiction bypass: opposing domains within the same
+            Luminary's set don't penalize each other.
+          - Realpolitik: opposing domains held by fellow Luminaries receive
+            temperament-scaled dampening.
+
+        Returns a delta in roughly [-0.3, 0.3] to add to the primary alignment.
+        Returns 0.0 if no registry is available (graceful degradation).
+        """
+        if registry is None or not luminary_domain_tags:
+            return 0.0
+
+        return registry.similarity_influence(
+            lum_tags=luminary_domain_tags,
+            fellow_lum_tags=fellow_luminary_tags,
+            profile_scores=current_profile.scores,
+            temperament=temperament,
+        )
+
+    @staticmethod
     def domain_alignment_to_results_delta(
         overall_alignment: float,
         previous_alignment: float,
