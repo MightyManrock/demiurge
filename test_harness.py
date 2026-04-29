@@ -217,7 +217,7 @@ def build_scenario_default() -> SimulationState:
         name="Neran",
         system_id=system.id,
         condition=WorldCondition.STABLE,
-        domain_expression=["domain:order"],
+        domain_expression={"domain:order": 0.6},
         age=600.0,
     )
     # Vel Arath — barren sibling world, no life yet
@@ -225,7 +225,7 @@ def build_scenario_default() -> SimulationState:
         name="Vel Arath",
         system_id=system.id,
         condition=WorldCondition.BARREN,
-        domain_expression=[],
+        domain_expression={},
         age=900.0,
         # Older than Neran; conditions are inert but not hostile
     )
@@ -245,7 +245,7 @@ def build_scenario_default() -> SimulationState:
         name="Oros",
         system_id=system_outer.id,
         condition=WorldCondition.STABLE,
-        domain_expression=["domain:conflict"],
+        domain_expression={"domain:conflict": 0.5},
         age=275.0,
         # Young world; its first civilization is already war-shaped
     )
@@ -300,7 +300,7 @@ def build_scenario_default() -> SimulationState:
             cohesion=0.55,
         ),
         primary_species_id=naran.id,
-        dominant_beliefs=["domain:order", "domain:law"],
+        dominant_beliefs={"domain:order": 0.8, "domain:law": 0.6},
         theistic=True,
         divine_awareness=0.25,
         age=400.0,
@@ -319,7 +319,7 @@ def build_scenario_default() -> SimulationState:
             # Tight bonds within bands, but fragile overall
         ),
         primary_species_id=keth_species.id,
-        dominant_beliefs=["domain:conflict", "domain:ancestor_worship"],
+        dominant_beliefs={"domain:conflict": 0.7, "domain:ancestor_worship": 0.5},
         theistic=True,
         divine_awareness=0.10,
         age=60.0,
@@ -653,9 +653,9 @@ def display_state(state: SimulationState) -> str:
     # ── Worlds ────────────────────────────────────────
     lines.append("WORLDS")
     for wid, world in state.worlds.items():
+        domain_str = _format_beliefs(world.domain_expression) or "none"
         lines.append(
-            f"  {world.name}  [{world.condition.value}]  "
-            f"beliefs: {', '.join(world.domain_expression) or 'none'}"
+            f"  {world.name}  [{world.condition.value}]  domain: {domain_str}"
         )
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
@@ -667,7 +667,7 @@ def display_state(state: SimulationState) -> str:
                     f"coh:{h.cohesion:.2f}"
                 )
                 lines.append(
-                    f"       beliefs: {', '.join(civ.dominant_beliefs) or 'none'}"
+                    f"       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}"
                 )
     lines.append(SEP)
 
@@ -864,7 +864,7 @@ def display_briefing(state: SimulationState) -> str:
                 )
                 if world.domain_expression:
                     lines.append(
-                        f"        domain expression: {', '.join(world.domain_expression)}"
+                        f"        domain expression: {_format_beliefs(world.domain_expression)}"
                     )
                 for cid in world.civilization_ids:
                     civ = state.civilizations.get(str(cid))
@@ -877,7 +877,7 @@ def display_briefing(state: SimulationState) -> str:
                         )
                         if civ.dominant_beliefs:
                             lines.append(
-                                f"           beliefs: {', '.join(civ.dominant_beliefs)}"
+                                f"           beliefs: {_format_beliefs(civ.dominant_beliefs)}"
                             )
     lines += ["", SEP]
 
@@ -1273,6 +1273,16 @@ def _build_intent(
 
     # No structured intent needed (scry, appoint_proxius, etc.)
     return None
+
+
+def _format_beliefs(beliefs: "dict[str, float]") -> str:
+    """Format a weighted belief dict as 'tag(0.73)  tag(0.45)', sorted by strength."""
+    if not beliefs:
+        return ""
+    return "  ".join(
+        f"{tag}({v:.2f})"
+        for tag, v in sorted(beliefs.items(), key=lambda kv: -kv[1])
+    )
 
 
 def _prominence_label(mortal: "NotableMortal") -> str:

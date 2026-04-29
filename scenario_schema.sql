@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS worlds (
     name              TEXT NOT NULL,
     system_id         TEXT NOT NULL,
     condition         TEXT NOT NULL DEFAULT 'stable',
-    domain_expression TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    domain_expression TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     species_ids       TEXT NOT NULL DEFAULT '[]',  -- JSON array
     age               REAL NOT NULL DEFAULT 0.0
 );
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
     health_prosperity REAL NOT NULL DEFAULT 0.5,
     health_cohesion   REAL NOT NULL DEFAULT 0.5,
     primary_species_id TEXT,
-    dominant_beliefs  TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    dominant_beliefs  TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     theistic          INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness  REAL NOT NULL DEFAULT 0.3,
     age               REAL NOT NULL DEFAULT 0.0

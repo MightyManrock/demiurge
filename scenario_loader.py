@@ -57,6 +57,15 @@ def _j(text: str) -> list:
     return json.loads(text) if text else []
 
 
+def _jd(text: str) -> dict[str, float]:
+    """Parse a JSON belief/domain dict. Handles legacy list format for backward compat."""
+    val = json.loads(text) if text else {}
+    if isinstance(val, list):
+        # Legacy format: list of tag strings — convert to dict with default strength 0.7
+        return {tag: 0.7 for tag in val}
+    return val
+
+
 def _uuid(text: str | None) -> UUID | None:
     return UUID(text) if text else None
 
@@ -258,7 +267,7 @@ def _load_worlds(conn) -> dict[str, World]:
             name=row["name"],
             system_id=UUID(row["system_id"]),
             condition=WorldCondition(row["condition"]),
-            domain_expression=_j(row["domain_expression"]),
+            domain_expression=_jd(row["domain_expression"]),
             species_ids=[UUID(x) for x in _j(row["species_ids"])],
             age=row["age"],
         )
@@ -285,7 +294,7 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
                 cohesion=row["health_cohesion"],
             ),
             primary_species_id=_uuid(row["primary_species_id"]),
-            dominant_beliefs=_j(row["dominant_beliefs"]),
+            dominant_beliefs=_jd(row["dominant_beliefs"]),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
             age=row["age"],

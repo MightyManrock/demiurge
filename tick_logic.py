@@ -47,6 +47,15 @@ from universe_core import (
 # ─────────────────────────────────────────
 
 ALWAYS_VISIBLE_THRESHOLD = 0.65
+
+# ─────────────────────────────────────────
+# BELIEF SYSTEM CONSTANTS
+# ─────────────────────────────────────────
+
+BELIEF_FLOOR = 0.02
+# Belief/domain-expression entries below this strength are
+# silently pruned each passive phase. Keeps dicts clean of
+# ghost residue from many tiny-delta actions.
 # Mortals at or above this prominence are always perceived —
 # no visibility tracking needed.
 
@@ -356,6 +365,7 @@ class TickLoop:
         passive = self._run_passive_phase(state, cfg, phase_rng)
         result.passive_result = passive
         state = self._apply_passive_mutations(state, passive)
+        state = self._prune_weak_beliefs(state)
 
         # ── Phase 2: Action Processing ─────────────────
         _essence_before = state.essence.actual
@@ -1641,15 +1651,15 @@ class TickLoop:
         for civ in state.civilizations.values():
             w = scale_weights.get(civ.scale, 0.5) * civ.health.overall()
             total_weight += w
-            for belief_tag in civ.dominant_beliefs:
-                raw_scores[belief_tag] += w
+            for belief_tag, strength in civ.dominant_beliefs.items():
+                raw_scores[belief_tag] += w * strength
 
         # Also factor in world-level domain_expression
         for world in state.worlds.values():
             world_weight = 0.3  # Worlds contribute less than civilizations
-            for tag in world.domain_expression:
-                raw_scores[tag] += world_weight
-                total_weight += world_weight
+            for tag, strength in world.domain_expression.items():
+                raw_scores[tag] += world_weight * strength
+                total_weight += world_weight * strength
 
         if total_weight == 0.0:
             return UniverseDomainProfile(
@@ -1904,6 +1914,22 @@ class TickLoop:
     # HELPERS
     # ─────────────────────────────────────────
 
+    def _prune_weak_beliefs(self, state: SimulationState) -> SimulationState:
+        """
+        Remove belief and domain-expression entries whose strength has fallen
+        below BELIEF_FLOOR. Runs every passive phase to prevent ghost residue
+        from accumulating via many small-delta mutations.
+        """
+        for civ in state.civilizations.values():
+            civ.dominant_beliefs = {
+                tag: s for tag, s in civ.dominant_beliefs.items() if s > BELIEF_FLOOR
+            }
+        for world in state.worlds.values():
+            world.domain_expression = {
+                tag: s for tag, s in world.domain_expression.items() if s > BELIEF_FLOOR
+            }
+        return state
+
     def _resolve_world_id(
         self,
         instance: "ActionInstance",
@@ -2000,22 +2026,25 @@ class TickLoop:
                 MutationType.BELIEF_SHIFT,
                 MutationType.DOMAIN_EXPRESSION,
             ):
-                # Tag-based list mutations — add tag if direction positive,
-                # remove if strongly negative. Full weight system later.
-                if tid in state.civilizations and m.new_value:
+                tag = str(m.new_value) if m.new_value else None
+                if not tag:
+                    pass
+                elif tid in state.civilizations:
                     beliefs = state.civilizations[tid].dominant_beliefs
-                    tag = m.new_value
-                    if (m.delta or 0) > 0 and tag not in beliefs:
-                        beliefs.append(tag)
-                    elif (m.delta or 0) < -0.3 and tag in beliefs:
-                        beliefs.remove(tag)
-                elif tid in state.worlds and m.new_value:
-                    tags = state.worlds[tid].domain_expression
-                    tag = m.new_value
-                    if (m.delta or 0) > 0 and tag not in tags:
-                        tags.append(tag)
-                    elif (m.delta or 0) < -0.3 and tag in tags:
-                        tags.remove(tag)
+                    current = beliefs.get(tag, 0.0)
+                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    if new_strength > 0.0:
+                        beliefs[tag] = new_strength
+                    elif tag in beliefs:
+                        del beliefs[tag]
+                elif tid in state.worlds:
+                    domain = state.worlds[tid].domain_expression
+                    current = domain.get(tag, 0.0)
+                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    if new_strength > 0.0:
+                        domain[tag] = new_strength
+                    elif tag in domain:
+                        del domain[tag]
 
             elif m.mutation_type == MutationType.PROXIUS_APPOINTED:
                 if tid in state.mortals:
@@ -2079,17 +2108,22 @@ class TickLoop:
                     if world:
                         if civ.id in world.civilization_ids:
                             world.civilization_ids.remove(civ.id)
-                        if "domain:underreal_trace" not in world.domain_expression:
-                            world.domain_expression.append("domain:underreal_trace")
+                        world.domain_expression["domain:underreal_trace"] = min(
+                            1.0,
+                            world.domain_expression.get("domain:underreal_trace", 0.0) + 0.4,
+                        )
                 elif tid in state.mortals:
                     mortal = state.mortals[tid]
                     mortal.status = MortalStatus.DECEASED
                     world = state.worlds.get(str(mortal.world_id))
-                    if world and "domain:underreal_trace" not in world.domain_expression:
-                        world.domain_expression.append("domain:underreal_trace")
+                    if world:
+                        world.domain_expression["domain:underreal_trace"] = min(
+                            1.0,
+                            world.domain_expression.get("domain:underreal_trace", 0.0) + 0.2,
+                        )
                 elif tid in state.worlds:
                     state.worlds[tid].condition = WorldCondition.BARREN
-                    state.worlds[tid].domain_expression = ["domain:underreal_trace"]
+                    state.worlds[tid].domain_expression = {"domain:underreal_trace": 1.0}
 
             elif m.mutation_type == MutationType.DISPOSITION_CHANGE:
                 if tid in state.luminaries:

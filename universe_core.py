@@ -206,11 +206,11 @@ class World(BaseModel):
 
     local_footprint: WorldFootprint = Field(default_factory=WorldFootprint)
 
-    # Domain tags that characterize this world's
-    # current "spiritual flavor" — aggregate of its
-    # civilizations' dominant beliefs and recent history.
+    # Weighted domain expression for this world — aggregate of its
+    # civilizations' dominant beliefs and any direct shaping actions.
     # Used for Luminary satisfaction evaluation.
-    domain_expression: list[str] = Field(default_factory=list)
+    # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
+    domain_expression: dict[str, float] = Field(default_factory=dict)
 
     age: float = 0.0        # In-universe time units; scenario defines the scale
 
@@ -252,12 +252,13 @@ class Civilization(BaseModel):
     scale: CivilizationScale = CivilizationScale.TRIBAL
     health: CivilizationHealth = Field(default_factory=CivilizationHealth)
 
-    # Which Domain tags this civilization currently
-    # expresses through its beliefs, practices, conflicts.
+    # Weighted Domain beliefs this civilization expresses through
+    # its practices, conflicts, and cultural identity.
     # This is the primary signal Luminaries read to judge
     # whether your universe is reflecting their Domains.
-    dominant_beliefs: list[str] = Field(default_factory=list)
-    # e.g. ["domain:war", "domain:trade", "domain:ancestor_worship"]
+    # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
+    dominant_beliefs: dict[str, float] = Field(default_factory=dict)
+    # e.g. {"domain:war": 0.8, "domain:trade": 0.3}
 
     # Whether this civilization is aware of and actively
     # engaging with the divine — affects footprint

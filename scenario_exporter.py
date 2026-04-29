@@ -26,10 +26,10 @@ SCHEMA_PATH = Path(__file__).parent / "scenario_schema.sql"
 
 
 def _j(value) -> str:
-    """Serialize a list of UUIDs or strings to a JSON text column."""
+    """Serialize a list of UUIDs/strings, or a dict, to a JSON text column."""
     if isinstance(value, list):
         return json.dumps([str(v) for v in value])
-    return json.dumps(value)
+    return json.dumps(value)  # dicts (belief weights, etc.) serialize directly
 
 
 def export_scenario(
