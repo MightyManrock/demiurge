@@ -629,7 +629,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             ),
             valid_targets=[TargetType.MORTAL],
             reliability=ActionReliability.CERTAIN,
-            footprint_cost=FootprintCost(subtle_influence=0.05,proxius_activity=0.3),
+            footprint_cost=FootprintCost(proxius_activity=0.10),
             tags=["proxii", "appointment", "politically_sensitive"],
         ),
 
