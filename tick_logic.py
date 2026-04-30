@@ -51,6 +51,14 @@ from domain_registry import DomainRegistry, get_registry
 ALWAYS_VISIBLE_THRESHOLD = 0.65
 
 # ─────────────────────────────────────────
+# PROXIUS POLICY CONSTANTS
+# ─────────────────────────────────────────
+
+# Fraction of the passive rate applied to each Proxius on a policy-compliant world.
+# Compliant worlds have ≤ proxii_policy.max_per_world active Proxii.
+PROXIUS_COMPLIANCE_FACTOR = 0.3
+
+# ─────────────────────────────────────────
 # BELIEF SYSTEM CONSTANTS
 # ─────────────────────────────────────────
 
@@ -132,6 +140,12 @@ class TickConfig(BaseModel):
     # Luminary attention decay
     # Attention naturally falls when nothing interesting happens.
     attention_decay_rate: float = 0.03
+
+    # Passive Proxius footprint
+    # Each active Proxius generates this much proxius_activity per tick.
+    # Policy-compliant worlds (≤ max_per_world Proxii) contribute at
+    # PROXIUS_COMPLIANCE_FACTOR of this rate; excess Proxii contribute at full rate.
+    proxius_passive_footprint_rate: float = 0.03
 
     # Evaluation frequency
     # Not every tick triggers a full Luminary evaluation.
@@ -609,6 +623,42 @@ class TickLoop:
                 delta=-(mortal.visibility - new_vis),
                 note=f"{mortal.name} visibility decay",
             ))
+
+        # ── Passive Proxius footprint accumulation ────────
+        # Active Proxii generate proxius_activity each tick.
+        # Policy-compliant worlds contribute at PROXIUS_COMPLIANCE_FACTOR of
+        # the base rate; excess Proxii on a world contribute at full rate.
+        if cfg.proxius_passive_footprint_rate > 0.0:
+            policy = state.universe.rules.proxii_policy
+            proxii_by_world: dict[str, int] = {}
+            for mortal in state.mortals.values():
+                if (mortal.role == MortalRole.PROXIUS
+                        and mortal.status == MortalStatus.ACTIVE):
+                    loc = str(mortal.current_location or mortal.world_id)
+                    proxii_by_world[loc] = proxii_by_world.get(loc, 0) + 1
+
+            total_passive_fp = 0.0
+            for count in proxii_by_world.values():
+                if policy.max_per_world is not None:
+                    compliant = min(count, policy.max_per_world)
+                    excess    = max(0, count - policy.max_per_world)
+                else:
+                    compliant = count
+                    excess    = 0
+                total_passive_fp += (
+                    compliant * cfg.proxius_passive_footprint_rate * PROXIUS_COMPLIANCE_FACTOR
+                    + excess  * cfg.proxius_passive_footprint_rate
+                )
+
+            if total_passive_fp > 0.001:
+                n_active = sum(proxii_by_world.values())
+                result.footprint_mutations.append(StateMutation(
+                    mutation_type=MutationType.FOOTPRINT_CHANGE,
+                    target_id=state.demiurge.id,
+                    field="proxius_activity",
+                    delta=total_passive_fp,
+                    note=f"Passive Proxius activity ({n_active} active)",
+                ))
 
         # ── Footprint decay ────────────────────────────
         fp = state.demiurge.footprint

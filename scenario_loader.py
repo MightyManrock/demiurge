@@ -382,6 +382,7 @@ def _load_tick_config(conn) -> TickConfig:
         attention_decay_rate=row["attention_decay_rate"],
         evaluation_interval=row["evaluation_interval"],
         mortal_visibility_decay_rate=row["mortal_visibility_decay_rate"],
+        proxius_passive_footprint_rate=row.get("proxius_passive_footprint_rate", 0.03),
     )
 
 

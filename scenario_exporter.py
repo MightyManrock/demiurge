@@ -380,8 +380,8 @@ def _write_tick_config(conn, state: SimulationState):
             decay_mult_proxius_activity, decay_mult_direct_creation,
             concealment_decay_rate, civ_momentum_rate, civ_noise_factor,
             alignment_drift_rate, attention_decay_rate, evaluation_interval,
-            mortal_visibility_decay_rate)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            mortal_visibility_decay_rate, proxius_passive_footprint_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cfg.tick_duration,
             cfg.footprint_decay_rate,
@@ -396,6 +396,7 @@ def _write_tick_config(conn, state: SimulationState):
             cfg.attention_decay_rate,
             cfg.evaluation_interval,
             cfg.mortal_visibility_decay_rate,
+            cfg.proxius_passive_footprint_rate,
         ),
     )
 

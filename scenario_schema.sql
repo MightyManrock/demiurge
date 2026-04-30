@@ -209,10 +209,11 @@ CREATE TABLE IF NOT EXISTS tick_config (
     concealment_decay_rate      REAL NOT NULL DEFAULT 0.02,
     civ_momentum_rate           REAL NOT NULL DEFAULT 0.02,
     civ_noise_factor            REAL NOT NULL DEFAULT 0.01,
-    alignment_drift_rate           REAL NOT NULL DEFAULT 0.01,
-    attention_decay_rate           REAL NOT NULL DEFAULT 0.03,
-    evaluation_interval            REAL NOT NULL DEFAULT 10.0,
-    mortal_visibility_decay_rate   REAL NOT NULL DEFAULT 0.03
+    alignment_drift_rate               REAL NOT NULL DEFAULT 0.01,
+    attention_decay_rate               REAL NOT NULL DEFAULT 0.03,
+    evaluation_interval                REAL NOT NULL DEFAULT 10.0,
+    mortal_visibility_decay_rate       REAL NOT NULL DEFAULT 0.03,
+    proxius_passive_footprint_rate     REAL NOT NULL DEFAULT 0.03
 );
 
 -- Per-civilization natural momentum at scenario start.
