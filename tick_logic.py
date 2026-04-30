@@ -42,6 +42,7 @@ from universe_core import (
     Species, SpeciesCondition,
 )
 from domain_registry import DomainRegistry, get_registry
+from culture_registry import CultureRegistry, get_registry as get_culture_registry
 
 
 # ─────────────────────────────────────────
@@ -359,6 +360,7 @@ class TickLoop:
         }
         self._overthrow_this_tick: Optional[ActionOutcome] = None
         self._domain_registry: Optional[DomainRegistry] = get_registry()
+        self._culture_registry: Optional[CultureRegistry] = get_culture_registry()
 
     def advance(
         self,

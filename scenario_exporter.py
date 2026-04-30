@@ -675,7 +675,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_min=240,
         lifespan_max=340,
         bio_tags=["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"],
-        cultural_tags=["culture:institutional", "culture:ancestor_worship"],
+        cultural_tags={"culture:ancestor_worship": 0.70, "culture:hierarchy": 0.60},
         condition=SpeciesCondition.STABLE,
     )
     neran.species_ids.append(naran.id)
@@ -688,7 +688,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_min=200,
         lifespan_max=280,
         bio_tags=["bio:bipedal", "bio:nocturnal", "bio:carbon_based"],
-        cultural_tags=["culture:nomadic", "culture:oral_tradition"],
+        cultural_tags={"culture:nomadism": 0.80, "culture:animism": 0.55},
         condition=SpeciesCondition.STABLE,
     )
     oros.species_ids.append(keth_species.id)
@@ -701,11 +701,12 @@ def build_scenario_default() -> SimulationState:
         health=CivilizationHealth(stability=0.6, prosperity=0.5, cohesion=0.55),
         primary_species_id=naran.id,
         dominant_beliefs={"domain:order": 0.8, "domain:law": 0.6},
-        culture_tags=[
-            "culture:science", "culture:industrialism", "culture:sedentism",
-            "culture:commerce", "culture:hierarchy", "culture:diplomacy",
-            "culture:luminary_worship", "culture:ancestor_worship",
-        ],
+        culture_tags={
+            "culture:sedentism": 0.90, "culture:hierarchy": 0.85,
+            "culture:industrialism": 0.80, "culture:commerce": 0.75,
+            "culture:diplomacy": 0.70, "culture:science": 0.65,
+            "culture:luminary_worship": 0.60, "culture:ancestor_worship": 0.50,
+        },
         theistic=True,
         divine_awareness=0.25,
         age=400.0,
@@ -719,10 +720,11 @@ def build_scenario_default() -> SimulationState:
         health=CivilizationHealth(stability=0.4, prosperity=0.3, cohesion=0.65),
         primary_species_id=keth_species.id,
         dominant_beliefs={"domain:conflict": 0.7, "domain:ancestor_worship": 0.5},
-        culture_tags=[
-            "culture:nomadism", "culture:foraging", "culture:animism",
-            "culture:ancestor_worship", "culture:conquest", "culture:egalitarianism",
-        ],
+        culture_tags={
+            "culture:nomadism": 0.95, "culture:ancestor_worship": 0.85,
+            "culture:animism": 0.80, "culture:foraging": 0.70,
+            "culture:conquest": 0.60, "culture:egalitarianism": 0.50,
+        },
         theistic=True,
         divine_awareness=0.10,
         age=60.0,
@@ -735,7 +737,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.LEADER], prominence=0.65, visibility=1.0,
         personal_tags=["domain:order", "ambitious", "pragmatic"],
-        culture_tags=["culture:hierarchy", "culture:diplomacy", "culture:sedentism"],
+        culture_tags={"culture:hierarchy": 0.80, "culture:diplomacy": 0.80, "culture:sedentism": 0.80},
         alignment=0.75, chrono_age=170.0, bio_age=170.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -746,7 +748,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.MILITARY], prominence=0.80, visibility=1.0,
         personal_tags=["domain:conflict", "domain:war", "ambitious", "ruthless"],
-        culture_tags=["culture:hierarchy", "culture:sedentism", "culture:industrialism"],
+        culture_tags={"culture:hierarchy": 0.90, "culture:sedentism": 0.80, "culture:industrialism": 0.70},
         alignment=0.45, chrono_age=205.0, bio_age=205.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -757,7 +759,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.PRIEST], prominence=0.70, visibility=1.0,
         personal_tags=["domain:order", "domain:silence", "devout", "cautious"],
-        culture_tags=["culture:luminary_worship", "culture:ancestor_worship", "culture:sedentism"],
+        culture_tags={"culture:luminary_worship": 0.90, "culture:ancestor_worship": 0.80, "culture:sedentism": 0.80},
         alignment=0.85, chrono_age=260.0, bio_age=260.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -768,7 +770,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.MERCHANT], prominence=0.55, visibility=0.6,
         personal_tags=["domain:trade", "domain:law", "opportunistic", "pragmatic"],
-        culture_tags=["culture:commerce", "culture:hierarchy", "culture:sedentism"],
+        culture_tags={"culture:commerce": 0.85, "culture:sedentism": 0.80, "culture:hierarchy": 0.70},
         alignment=0.35, chrono_age=235.0, bio_age=235.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -780,7 +782,7 @@ def build_scenario_default() -> SimulationState:
         prominence_roles=[MortalProminence.LEADER, MortalProminence.MILITARY],
         prominence=0.75, visibility=1.0,
         personal_tags=["domain:conflict", "domain:change", "tribal_leader", "spiritual"],
-        culture_tags=["culture:conquest", "culture:animism", "culture:nomadism"],
+        culture_tags={"culture:nomadism": 0.90, "culture:animism": 0.85, "culture:conquest": 0.80},
         alignment=0.60, chrono_age=145.0, bio_age=145.0,
         home_location=oros.id, current_location=oros.id,
     )
@@ -791,7 +793,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.REBEL], prominence=0.40, visibility=0.0,
         personal_tags=["domain:change", "domain:conflict", "agitator", "charismatic"],
-        culture_tags=["culture:sedentism", "culture:science"],
+        culture_tags={"culture:science": 0.80, "culture:sedentism": 0.70},
         alignment=0.20, chrono_age=155.0, bio_age=155.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -802,7 +804,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.SCHOLAR], prominence=0.30, visibility=0.0,
         personal_tags=["domain:order", "domain:silence", "obsessive", "reclusive"],
-        culture_tags=["culture:science", "culture:sedentism"],
+        culture_tags={"culture:science": 0.90, "culture:sedentism": 0.80},
         alignment=0.55, chrono_age=190.0, bio_age=190.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -813,7 +815,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.PRIEST], prominence=0.25, visibility=0.0,
         personal_tags=["domain:silence", "domain:order", "devout", "receptive"],
-        culture_tags=["culture:luminary_worship", "culture:ancestor_worship", "culture:sedentism"],
+        culture_tags={"culture:luminary_worship": 0.90, "culture:ancestor_worship": 0.85, "culture:sedentism": 0.80},
         alignment=0.70, chrono_age=85.0, bio_age=85.0,
         home_location=neran.id, current_location=neran.id,
     )
@@ -824,7 +826,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=keth_species.id,
         prominence_roles=[MortalProminence.LEADER], prominence=0.50, visibility=0.0,
         personal_tags=["domain:conflict", "domain:change", "ambitious", "suspicious"],
-        culture_tags=["culture:conquest", "culture:nomadism"],
+        culture_tags={"culture:conquest": 0.85, "culture:nomadism": 0.90},
         alignment=0.30, chrono_age=130.0, bio_age=130.0,
         home_location=oros.id, current_location=oros.id,
     )
@@ -836,7 +838,7 @@ def build_scenario_default() -> SimulationState:
         prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
         prominence=0.35, visibility=0.0,
         personal_tags=["domain:change", "domain:ancestor_worship", "spiritual", "perceptive"],
-        culture_tags=["culture:animism", "culture:ancestor_worship", "culture:nomadism"],
+        culture_tags={"culture:animism": 0.90, "culture:ancestor_worship": 0.85, "culture:nomadism": 0.80},
         alignment=0.50, chrono_age=175.0, bio_age=175.0,
         home_location=oros.id, current_location=oros.id,
     )

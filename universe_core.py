@@ -151,8 +151,8 @@ class Species(BaseModel):
     bio_tags: list[str] = Field(default_factory=list)
     # e.g. ["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"]
 
-    cultural_tags: list[str] = Field(default_factory=list)
-    # e.g. ["culture:nomadic", "culture:ancestor_worship"]
+    cultural_tags: dict[str, float] = Field(default_factory=dict)
+    # e.g. {"culture:nomadism": 0.9, "culture:ancestor_worship": 0.7}
 
     condition: SpeciesCondition = SpeciesCondition.STABLE
 
@@ -264,8 +264,8 @@ class Civilization(BaseModel):
     dominant_beliefs: dict[str, float] = Field(default_factory=dict)
     # e.g. {"domain:war": 0.8, "domain:trade": 0.3}
 
-    culture_tags: list[str] = Field(default_factory=list)
-    # e.g. ["culture:science", "culture:hierarchy", "culture:ancestor_worship"]
+    culture_tags: dict[str, float] = Field(default_factory=dict)
+    # e.g. {"culture:hierarchy": 0.85, "culture:science": 0.65}
 
     # Whether this civilization is aware of and actively
     # engaging with the divine — affects footprint
@@ -330,8 +330,8 @@ class NotableMortal(BaseModel):
     # actually cares about, which may or may not align
     # with their patron's Domains.
     personal_tags: list[str] = Field(default_factory=list)
-    culture_tags: list[str] = Field(default_factory=list)
-    # Cultural traits inherited from their civilization, e.g. ["culture:sedentism", "culture:hierarchy"]
+    culture_tags: dict[str, float] = Field(default_factory=dict)
+    # Cultural traits inherited from their civilization, e.g. {"culture:hierarchy": 0.8}
 
     species_id: Optional[UUID] = None
 

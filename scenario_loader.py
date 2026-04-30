@@ -234,7 +234,7 @@ def _load_species(conn) -> dict[str, Species]:
             lifespan_min=row["lifespan_min"],
             lifespan_max=row["lifespan_max"],
             bio_tags=_j(row.get("bio_tags", row.get("trait_tags", "[]"))),
-            cultural_tags=_j(row.get("cultural_tags", "[]")),
+            cultural_tags=_jd(row.get("cultural_tags", "{}")),
             condition=SpeciesCondition(row["condition"]),
         )
         out[str(sp.id)] = sp
@@ -318,7 +318,7 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
             ),
             primary_species_id=_uuid(row["primary_species_id"]),
             dominant_beliefs=_jd(row["dominant_beliefs"]),
-            culture_tags=_j(row.get("culture_tags", "[]")),
+            culture_tags=_jd(row.get("culture_tags", "{}")),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
             age=row["age"],
@@ -349,7 +349,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             prominence=row["prominence"],
             visibility=row["visibility"],
             personal_tags=_j(row["personal_tags"]),
-            culture_tags=_j(row.get("culture_tags", "[]")),
+            culture_tags=_jd(row.get("culture_tags", "{}")),
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],

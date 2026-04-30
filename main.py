@@ -338,7 +338,7 @@ def display_briefing(state: SimulationState) -> str:
                             )
                         if civ.culture_tags:
                             lines.append(
-                                f"           culture: {', '.join(civ.culture_tags)}"
+                                f"           culture: {_format_culture(civ.culture_tags)}"
                             )
     lines += ["", SEP]
 
@@ -357,7 +357,7 @@ def display_briefing(state: SimulationState) -> str:
                 f"[{sp.condition.value}]{transplanted_str}"
             )
             if sp.bio_tags or sp.cultural_tags:
-                tag_line = ", ".join(sp.bio_tags + sp.cultural_tags)
+                tag_line = ", ".join(sp.bio_tags + list(sp.cultural_tags.keys()))
                 lines.append(f"    {tag_line}")
         lines.append(SEP)
 
@@ -393,7 +393,7 @@ def display_briefing(state: SimulationState) -> str:
         if mortal.personal_tags:
             lines.append(f"    Tags: {', '.join(mortal.personal_tags)}")
         if mortal.culture_tags:
-            lines.append(f"    Culture: {', '.join(mortal.culture_tags)}")
+            lines.append(f"    Culture: {_format_culture(mortal.culture_tags)}")
 
     lines += ["", SEP2]
     return "\n".join(lines)
@@ -803,6 +803,16 @@ def _format_beliefs(beliefs: "dict[str, float]") -> str:
     return "  ".join(
         f"{tag}({v:.2f})"
         for tag, v in sorted(beliefs.items(), key=lambda kv: -kv[1])
+    )
+
+
+def _format_culture(tags: "dict[str, float]") -> str:
+    """Format culture tags as a comma-separated list, sorted by strength, prefix stripped."""
+    if not tags:
+        return ""
+    return ", ".join(
+        t.split(":", 1)[-1]
+        for t, _ in sorted(tags.items(), key=lambda kv: -kv[1])
     )
 
 

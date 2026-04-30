@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS species (
     lifespan_min     REAL NOT NULL DEFAULT 100.0,
     lifespan_max     REAL NOT NULL DEFAULT 200.0,
     bio_tags         TEXT NOT NULL DEFAULT '[]',   -- JSON array
-    cultural_tags    TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    cultural_tags    TEXT NOT NULL DEFAULT '{}',   -- JSON object {tag: strength_float}
     condition        TEXT NOT NULL DEFAULT 'stable'
 );
 
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
     health_cohesion   REAL NOT NULL DEFAULT 0.5,
     primary_species_id TEXT,
     dominant_beliefs  TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
-    culture_tags      TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    culture_tags      TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     theistic          INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness  REAL NOT NULL DEFAULT 0.3,
     age               REAL NOT NULL DEFAULT 0.0
@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS mortals (
     prominence             REAL NOT NULL DEFAULT 0.5,
     visibility             REAL NOT NULL DEFAULT 0.0,
     personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    culture_tags           TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    culture_tags           TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     alignment              REAL NOT NULL DEFAULT 0.8,
     chrono_age             REAL NOT NULL DEFAULT 0.0,
     bio_age                REAL NOT NULL DEFAULT 0.0,
