@@ -150,7 +150,8 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
         constraints_by_owner.setdefault(row["owner_id"], []).append(c)
 
     lums = {}
-    for row in conn.execute("SELECT * FROM luminaries"):
+    for raw in conn.execute("SELECT * FROM luminaries"):
+        row = dict(raw)
         lid = row["id"]
         l = Luminary(
             id=UUID(lid),
@@ -164,7 +165,7 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
             ),
             constraints=constraints_by_owner.get(lid, []),
             herald_id=_uuid(row["herald_id"]),
-            speech_tags=_j(row["speech_tags"]),
+            status_tags=_j(row.get("status_tags", row.get("speech_tags", "[]"))),
         )
         lums[str(l.id)] = l
 
@@ -204,7 +205,8 @@ def _load_universe_rules(conn) -> UniverseRules:
 
 def _load_species(conn) -> dict[str, Species]:
     out = {}
-    for row in conn.execute("SELECT * FROM species"):
+    for raw in conn.execute("SELECT * FROM species"):
+        row = dict(raw)
         sp = Species(
             id=UUID(row["id"]),
             name=row["name"],
@@ -214,8 +216,8 @@ def _load_species(conn) -> dict[str, Species]:
             transplanted=bool(row["transplanted"]),
             lifespan_min=row["lifespan_min"],
             lifespan_max=row["lifespan_max"],
-            trait_tags=_j(row["trait_tags"]),
-            cultural_tags=_j(row["cultural_tags"]),
+            bio_tags=_j(row.get("bio_tags", row.get("trait_tags", "[]"))),
+            cultural_tags=_j(row.get("cultural_tags", "[]")),
             condition=SpeciesCondition(row["condition"]),
         )
         out[str(sp.id)] = sp
@@ -261,13 +263,16 @@ def _load_systems(conn) -> dict[str, System]:
 
 def _load_worlds(conn) -> dict[str, World]:
     out = {}
-    for row in conn.execute("SELECT * FROM worlds"):
+    for raw in conn.execute("SELECT * FROM worlds"):
+        row = dict(raw)
         w = World(
             id=UUID(row["id"]),
             name=row["name"],
             system_id=UUID(row["system_id"]),
             condition=WorldCondition(row["condition"]),
             domain_expression=_jd(row["domain_expression"]),
+            geo_tags=_j(row.get("geo_tags", "[]")),
+            atmo_tags=_j(row.get("atmo_tags", "[]")),
             species_ids=[UUID(x) for x in _j(row["species_ids"])],
             age=row["age"],
         )
@@ -282,7 +287,8 @@ def _load_worlds(conn) -> dict[str, World]:
 
 def _load_civilizations(conn) -> dict[str, Civilization]:
     out = {}
-    for row in conn.execute("SELECT * FROM civilizations"):
+    for raw in conn.execute("SELECT * FROM civilizations"):
+        row = dict(raw)
         c = Civilization(
             id=UUID(row["id"]),
             name=row["name"],
@@ -295,6 +301,7 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
             ),
             primary_species_id=_uuid(row["primary_species_id"]),
             dominant_beliefs=_jd(row["dominant_beliefs"]),
+            culture_tags=_j(row.get("culture_tags", "[]")),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
             age=row["age"],
@@ -325,6 +332,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             prominence=row["prominence"],
             visibility=row["visibility"],
             personal_tags=_j(row["personal_tags"]),
+            culture_tags=_j(row.get("culture_tags", "[]")),
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],

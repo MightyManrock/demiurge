@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS luminaries (
     disposition_results  REAL NOT NULL DEFAULT 0.0,
     disposition_methods  REAL NOT NULL DEFAULT 0.0,
     herald_id            TEXT,
-    speech_tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array
+    status_tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array
 );
 
 -- Constraints belong to either a Luminary or a Pantheon.
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS species (
     transplanted     INTEGER NOT NULL DEFAULT 0,   -- bool
     lifespan_min     REAL NOT NULL DEFAULT 100.0,
     lifespan_max     REAL NOT NULL DEFAULT 200.0,
-    trait_tags       TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    bio_tags         TEXT NOT NULL DEFAULT '[]',   -- JSON array
     cultural_tags    TEXT NOT NULL DEFAULT '[]',   -- JSON array
     condition        TEXT NOT NULL DEFAULT 'stable'
 );
@@ -127,6 +127,8 @@ CREATE TABLE IF NOT EXISTS worlds (
     system_id         TEXT NOT NULL,
     condition         TEXT NOT NULL DEFAULT 'stable',
     domain_expression TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
+    geo_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    atmo_tags         TEXT NOT NULL DEFAULT '[]',  -- JSON array
     species_ids       TEXT NOT NULL DEFAULT '[]',  -- JSON array
     age               REAL NOT NULL DEFAULT 0.0
 );
@@ -142,6 +144,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
     health_cohesion   REAL NOT NULL DEFAULT 0.5,
     primary_species_id TEXT,
     dominant_beliefs  TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
+    culture_tags      TEXT NOT NULL DEFAULT '[]',  -- JSON array
     theistic          INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness  REAL NOT NULL DEFAULT 0.3,
     age               REAL NOT NULL DEFAULT 0.0
@@ -159,6 +162,7 @@ CREATE TABLE IF NOT EXISTS mortals (
     prominence             REAL NOT NULL DEFAULT 0.5,
     visibility             REAL NOT NULL DEFAULT 0.0,
     personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    culture_tags           TEXT NOT NULL DEFAULT '[]',  -- JSON array
     alignment              REAL NOT NULL DEFAULT 0.8,
     chrono_age             REAL NOT NULL DEFAULT 0.0,
     bio_age                REAL NOT NULL DEFAULT 0.0,

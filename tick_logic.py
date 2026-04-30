@@ -1628,7 +1628,7 @@ class TickLoop:
                 transplanted=False,
                 lifespan_min=intent.lifespan_min,
                 lifespan_max=intent.lifespan_max,
-                trait_tags=intent.trait_tags,
+                bio_tags=intent.bio_tags,
             )
             mutations.append(StateMutation(
                 mutation_type=MutationType.WORLD_CONDITION,

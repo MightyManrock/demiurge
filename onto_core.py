@@ -110,9 +110,8 @@ class Luminary(BaseModel):
     disposition: Disposition = Field(default_factory=Disposition)
     constraints: list[Constraint] = Field(default_factory=list)
     herald_id: Optional[UUID] = None        # Mortal Herald assigned to the Demiurge's universe
-    speech_tags: list[str] = Field(default_factory=list)
-    # Personality/domain tags for the dialogue system to query against
-    # e.g. ["formal", "domain:war", "temperament:wrathful", "status:liege"]
+    status_tags: list[str] = Field(default_factory=list)
+    # e.g. ["status:liege"]
 
 
 class Pantheon(BaseModel):

@@ -373,8 +373,8 @@ class SeedWorldIntent(BaseModel):
     lifespan_min: float
     lifespan_max: float
     sapient: bool = False
-    trait_tags: list[str] = Field(default_factory=list)
-    # e.g. ["trait:bipedal", "trait:warm_blooded", "trait:nocturnal"]
+    bio_tags: list[str] = Field(default_factory=list)
+    # e.g. ["bio:bipedal", "bio:warm_blooded", "bio:nocturnal"]
 
 
 class UpliftSpeciesIntent(BaseModel):

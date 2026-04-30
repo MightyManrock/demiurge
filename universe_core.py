@@ -148,12 +148,11 @@ class Species(BaseModel):
     lifespan_min: float  # In universe time units — death checks begin here
     lifespan_max: float  # Full probability reached at this age
 
-    # Biological trait vocabulary: "trait:bipedal", "trait:warm_blooded"
-    # Rarely domain tags — only when the biology *is* the domain expression.
-    trait_tags: list[str] = Field(default_factory=list)
+    bio_tags: list[str] = Field(default_factory=list)
+    # e.g. ["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"]
 
-    # Culture vocabulary for sapient species: "culture:nomadic", "culture:ancestor_veneration"
     cultural_tags: list[str] = Field(default_factory=list)
+    # e.g. ["culture:nomadic", "culture:ancestor_worship"]
 
     condition: SpeciesCondition = SpeciesCondition.STABLE
 
@@ -212,6 +211,11 @@ class World(BaseModel):
     # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
     domain_expression: dict[str, float] = Field(default_factory=dict)
 
+    geo_tags: list[str] = Field(default_factory=list)
+    # e.g. ["geo:terrestrial", "geo:arid"]
+    atmo_tags: list[str] = Field(default_factory=list)
+    # e.g. ["atmo:nitrogen_oxygen"]
+
     age: float = 0.0        # In-universe time units; scenario defines the scale
 
 
@@ -259,6 +263,9 @@ class Civilization(BaseModel):
     # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
     dominant_beliefs: dict[str, float] = Field(default_factory=dict)
     # e.g. {"domain:war": 0.8, "domain:trade": 0.3}
+
+    culture_tags: list[str] = Field(default_factory=list)
+    # e.g. ["culture:science", "culture:hierarchy", "culture:ancestor_worship"]
 
     # Whether this civilization is aware of and actively
     # engaging with the divine — affects footprint
@@ -323,6 +330,8 @@ class NotableMortal(BaseModel):
     # actually cares about, which may or may not align
     # with their patron's Domains.
     personal_tags: list[str] = Field(default_factory=list)
+    culture_tags: list[str] = Field(default_factory=list)
+    # Cultural traits inherited from their civilization, e.g. ["culture:sedentism", "culture:hierarchy"]
 
     species_id: Optional[UUID] = None
 

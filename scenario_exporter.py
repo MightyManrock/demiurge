@@ -128,7 +128,7 @@ def _write_luminaries(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO luminaries
                (id, name, domains, pantheon_id, temperament,
-                disposition_results, disposition_methods, herald_id, speech_tags)
+                disposition_results, disposition_methods, herald_id, status_tags)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(luminary.id),
@@ -139,7 +139,7 @@ def _write_luminaries(conn, state: SimulationState):
                 luminary.disposition.results,
                 luminary.disposition.methods,
                 str(luminary.herald_id) if luminary.herald_id else None,
-                _j(luminary.speech_tags),
+                _j(luminary.status_tags),
             ),
         )
         for c in luminary.constraints:
@@ -216,7 +216,7 @@ def _write_species(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO species
                (id, name, description, origin_world_id, sapient, transplanted,
-                lifespan_min, lifespan_max, trait_tags, cultural_tags, condition)
+                lifespan_min, lifespan_max, bio_tags, cultural_tags, condition)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(sp.id),
@@ -227,7 +227,7 @@ def _write_species(conn, state: SimulationState):
                 int(sp.transplanted),
                 sp.lifespan_min,
                 sp.lifespan_max,
-                _j(sp.trait_tags),
+                _j(sp.bio_tags),
                 _j(sp.cultural_tags),
                 sp.condition.value,
             ),
@@ -270,14 +270,17 @@ def _write_worlds(conn, state: SimulationState):
     for w in state.worlds.values():
         conn.execute(
             """INSERT INTO worlds
-               (id, name, system_id, condition, domain_expression, species_ids, age)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               (id, name, system_id, condition, domain_expression,
+                geo_tags, atmo_tags, species_ids, age)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(w.id),
                 w.name,
                 str(w.system_id),
                 w.condition.value,
                 _j(w.domain_expression),
+                _j(w.geo_tags),
+                _j(w.atmo_tags),
                 _j(w.species_ids),
                 w.age,
             ),
@@ -290,8 +293,9 @@ def _write_civilizations(conn, state: SimulationState):
             """INSERT INTO civilizations
                (id, name, world_id, scale,
                 health_stability, health_prosperity, health_cohesion,
-                primary_species_id, dominant_beliefs, theistic, divine_awareness, age)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                primary_species_id, dominant_beliefs, culture_tags,
+                theistic, divine_awareness, age)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -302,6 +306,7 @@ def _write_civilizations(conn, state: SimulationState):
                 c.health.cohesion,
                 str(c.primary_species_id) if c.primary_species_id else None,
                 _j(c.dominant_beliefs),
+                _j(c.culture_tags),
                 int(c.theistic),
                 c.divine_awareness,
                 c.age,
@@ -315,9 +320,9 @@ def _write_mortals(conn, state: SimulationState):
             """INSERT INTO mortals
                (id, name, world_id, civilization_id, role, status,
                 species_id, prominence_roles, prominence, visibility,
-                personal_tags, alignment, chrono_age, bio_age,
+                personal_tags, culture_tags, alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -330,6 +335,7 @@ def _write_mortals(conn, state: SimulationState):
                 m.prominence,
                 m.visibility,
                 _j(m.personal_tags),
+                _j(m.culture_tags),
                 m.alignment,
                 m.chrono_age,
                 m.bio_age,

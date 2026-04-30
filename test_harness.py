@@ -146,10 +146,7 @@ def build_scenario_default() -> SimulationState:
                 enforcement_weight=0.6,
             ),
         ],
-        speech_tags=[
-            "domain:order", "domain:silence",
-            "temperament:patient", "status:liege",
-        ],
+        status_tags=["status:liege"],
     )
 
     vrath = Luminary(
@@ -168,10 +165,7 @@ def build_scenario_default() -> SimulationState:
                 enforcement_weight=0.9,
             ),
         ],
-        speech_tags=[
-            "domain:conflict", "domain:change",
-            "temperament:wrathful", "status:liege",
-        ],
+        status_tags=["status:liege"],
     )
 
     luminaries = {str(l.id): l for l in [cassiel, vrath]}
@@ -220,6 +214,8 @@ def build_scenario_default() -> SimulationState:
         system_id=system.id,
         condition=WorldCondition.STABLE,
         domain_expression={"domain:order": 0.6},
+        geo_tags=["geo:terrestrial", "geo:temperate"],
+        atmo_tags=["atmo:nitrogen_oxygen"],
         age=600.0,
     )
     # Vel Arath — barren sibling world, no life yet
@@ -228,6 +224,8 @@ def build_scenario_default() -> SimulationState:
         system_id=system.id,
         condition=WorldCondition.BARREN,
         domain_expression={},
+        geo_tags=["geo:rocky", "geo:barren"],
+        atmo_tags=["atmo:none"],
         age=900.0,
         # Older than Neran; conditions are inert but not hostile
     )
@@ -248,6 +246,8 @@ def build_scenario_default() -> SimulationState:
         system_id=system_outer.id,
         condition=WorldCondition.STABLE,
         domain_expression={"domain:conflict": 0.5},
+        geo_tags=["geo:terrestrial", "geo:arid"],
+        atmo_tags=["atmo:nitrogen_oxygen"],
         age=275.0,
         # Young world; its first civilization is already war-shaped
     )
@@ -268,8 +268,8 @@ def build_scenario_default() -> SimulationState:
         sapient=True,
         lifespan_min=240,
         lifespan_max=340,
-        trait_tags=["trait:bipedal", "trait:warm_blooded"],
-        cultural_tags=["culture:institutional", "culture:ancestor_veneration"],
+        bio_tags=["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"],
+        cultural_tags=["culture:institutional", "culture:ancestor_worship"],
         condition=SpeciesCondition.STABLE,
     )
     neran.species_ids.append(naran.id)
@@ -283,7 +283,7 @@ def build_scenario_default() -> SimulationState:
         sapient=True,
         lifespan_min=200,
         lifespan_max=280,
-        trait_tags=["trait:bipedal", "trait:nocturnal"],
+        bio_tags=["bio:bipedal", "bio:nocturnal", "bio:carbon_based"],
         cultural_tags=["culture:nomadic", "culture:oral_tradition"],
         condition=SpeciesCondition.STABLE,
     )
@@ -303,6 +303,11 @@ def build_scenario_default() -> SimulationState:
         ),
         primary_species_id=naran.id,
         dominant_beliefs={"domain:order": 0.8, "domain:law": 0.6},
+        culture_tags=[
+            "culture:science", "culture:industrialism", "culture:sedentism",
+            "culture:commerce", "culture:hierarchy", "culture:diplomacy",
+            "culture:luminary_worship", "culture:ancestor_worship",
+        ],
         theistic=True,
         divine_awareness=0.25,
         age=400.0,
@@ -322,6 +327,10 @@ def build_scenario_default() -> SimulationState:
         ),
         primary_species_id=keth_species.id,
         dominant_beliefs={"domain:conflict": 0.7, "domain:ancestor_worship": 0.5},
+        culture_tags=[
+            "culture:nomadism", "culture:foraging", "culture:animism",
+            "culture:ancestor_worship", "culture:conquest", "culture:egalitarianism",
+        ],
         theistic=True,
         divine_awareness=0.10,
         age=60.0,
@@ -342,6 +351,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.65,
         visibility=1.0,
         personal_tags=["domain:order", "ambitious", "pragmatic"],
+        culture_tags=["culture:hierarchy", "culture:diplomacy", "culture:sedentism"],
         alignment=0.75,
         chrono_age=170.0,
         bio_age=170.0,
@@ -362,6 +372,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.80,
         visibility=1.0,
         personal_tags=["domain:conflict", "domain:war", "ambitious", "ruthless"],
+        culture_tags=["culture:hierarchy", "culture:sedentism", "culture:industrialism"],
         alignment=0.45,
         chrono_age=205.0,
         bio_age=205.0,
@@ -383,6 +394,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.70,
         visibility=1.0,
         personal_tags=["domain:order", "domain:silence", "devout", "cautious"],
+        culture_tags=["culture:luminary_worship", "culture:ancestor_worship", "culture:sedentism"],
         alignment=0.85,
         chrono_age=260.0,
         bio_age=260.0,
@@ -404,6 +416,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.55,
         visibility=0.6,
         personal_tags=["domain:trade", "domain:law", "opportunistic", "pragmatic"],
+        culture_tags=["culture:commerce", "culture:hierarchy", "culture:sedentism"],
         alignment=0.35,
         chrono_age=235.0,
         bio_age=235.0,
@@ -424,6 +437,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.75,
         visibility=1.0,
         personal_tags=["domain:conflict", "domain:change", "tribal_leader", "spiritual"],
+        culture_tags=["culture:conquest", "culture:animism", "culture:nomadism"],
         alignment=0.60,
         chrono_age=145.0,
         bio_age=145.0,
@@ -446,6 +460,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.40,
         visibility=0.0,
         personal_tags=["domain:change", "domain:conflict", "agitator", "charismatic"],
+        culture_tags=["culture:sedentism", "culture:science"],
         alignment=0.20,
         chrono_age=155.0,
         bio_age=155.0,
@@ -466,6 +481,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.30,
         visibility=0.0,
         personal_tags=["domain:order", "domain:silence", "obsessive", "reclusive"],
+        culture_tags=["culture:science", "culture:sedentism"],
         alignment=0.55,
         chrono_age=190.0,
         bio_age=190.0,
@@ -486,6 +502,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.25,
         visibility=0.0,
         personal_tags=["domain:silence", "domain:order", "devout", "receptive"],
+        culture_tags=["culture:luminary_worship", "culture:ancestor_worship", "culture:sedentism"],
         alignment=0.70,
         chrono_age=85.0,
         bio_age=85.0,
@@ -506,6 +523,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.50,
         visibility=0.0,
         personal_tags=["domain:conflict", "domain:change", "ambitious", "suspicious"],
+        culture_tags=["culture:conquest", "culture:nomadism"],
         alignment=0.30,
         chrono_age=130.0,
         bio_age=130.0,
@@ -526,6 +544,7 @@ def build_scenario_default() -> SimulationState:
         prominence=0.35,
         visibility=0.0,
         personal_tags=["domain:change", "domain:ancestor_worship", "spiritual", "perceptive"],
+        culture_tags=["culture:animism", "culture:ancestor_worship", "culture:nomadism"],
         alignment=0.50,
         chrono_age=175.0,
         bio_age=175.0,
@@ -904,6 +923,13 @@ def display_briefing(state: SimulationState) -> str:
                     lines.append(
                         f"        domain expression: {_format_beliefs(world.domain_expression)}"
                     )
+                if world.geo_tags or world.atmo_tags:
+                    parts = []
+                    if world.geo_tags:
+                        parts.append(f"geo: {', '.join(world.geo_tags)}")
+                    if world.atmo_tags:
+                        parts.append(f"atmo: {', '.join(world.atmo_tags)}")
+                    lines.append(f"        {' · '.join(parts)}")
                 for cid in world.civilization_ids:
                     civ = state.civilizations.get(str(cid))
                     if civ:
@@ -916,6 +942,10 @@ def display_briefing(state: SimulationState) -> str:
                         if civ.dominant_beliefs:
                             lines.append(
                                 f"           beliefs: {_format_beliefs(civ.dominant_beliefs)}"
+                            )
+                        if civ.culture_tags:
+                            lines.append(
+                                f"           culture: {', '.join(civ.culture_tags)}"
                             )
     lines += ["", SEP]
 
@@ -933,8 +963,8 @@ def display_briefing(state: SimulationState) -> str:
                 f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  "
                 f"[{sp.condition.value}]{transplanted_str}"
             )
-            if sp.trait_tags or sp.cultural_tags:
-                tag_line = ", ".join(sp.trait_tags + sp.cultural_tags)
+            if sp.bio_tags or sp.cultural_tags:
+                tag_line = ", ".join(sp.bio_tags + sp.cultural_tags)
                 lines.append(f"    {tag_line}")
         lines.append(SEP)
 
@@ -969,6 +999,8 @@ def display_briefing(state: SimulationState) -> str:
         lines.append(f"    {prom_str}")
         if mortal.personal_tags:
             lines.append(f"    Tags: {', '.join(mortal.personal_tags)}")
+        if mortal.culture_tags:
+            lines.append(f"    Culture: {', '.join(mortal.culture_tags)}")
 
     lines += ["", SEP2]
     return "\n".join(lines)
@@ -1223,15 +1255,15 @@ def _build_intent(
             sapient_raw = input("  Sapient from the start? (y/n) [n]: ").strip().lower()
             sapient = sapient_raw == "y"
             tags_raw = input(
-                "  Trait tags (comma-separated, e.g. trait:bipedal — blank to skip): "
+                "  Bio tags (comma-separated, e.g. bio:bipedal — blank to skip): "
             ).strip()
-            trait_tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+            bio_tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
             return SeedWorldIntent(
                 species_name=name,
                 lifespan_min=lifespan_min,
                 lifespan_max=lifespan_max,
                 sapient=sapient,
-                trait_tags=trait_tags,
+                bio_tags=bio_tags,
             )
         elif action_key == "uplift_species":
             dv = _prompt_domain_select(state)
