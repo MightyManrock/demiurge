@@ -1,652 +1,44 @@
 #!/usr/bin/env python3
 """
-test_harness.py
-Minimal CLI playtester for the Demiurge simulation.
-Assumes all model/engine code is importable from sim_core.py.
+main.py
+Interactive CLI for the Demiurge simulation.
 """
 
 from __future__ import annotations
-import json
 import os
-import sys
-import textwrap
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4, UUID
+from uuid import UUID
 
-# ── All model imports ──────────────────────────────────────────────────────
-from onto_core import (
-    Power, Domain, Temperament, Disposition, Constraint,
-    Luminary, Pantheon,
-    # Demiurge
-    FootprintProfile, Demiurge,
-)
-from universe_core import (
-    FootprintTolerances, ProxiiPolicy, UniverseRules,
-    Galaxy, System, CosmicCoordinates, StarType,
-    WorldCondition, WorldFootprint, World,
-    CivilizationScale, CivilizationHealth, Civilization,
-    MortalRole, MortalStatus, MortalProminence, NotableMortal,
-    Species, SpeciesCondition,
-    Universe,
-)
+from universe_core import MortalRole, MortalStatus, MortalProminence
 from action_core import (
-    EssenceStockpile,
-    # Actions
     ActionCategory, TargetType, ActionDefinition,
-    ActionReliability, FootprintCost,
-    build_action_library, ActionInstance, ActionResult, OngoingAction,
-    # Intent types
+    ActionInstance, OngoingAction,
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent,
     ExploreBeliefIntent,
     DomainVector,
-    # Mutations
-    StateMutation, MutationType, ActionOutcome,
-)
-from eval_core import (
-    EvaluationEngine, UniverseDomainProfile,
-    LuminaryEvaluation, DispositionDelta,
-    FootprintAssessment, EssenceSuspicion,
 )
 from tick_logic import (
-    TickConfig, SimulationState, CivilizationMomentum,
-    TickLoop, TickResult, TerminalConditionType,
-    is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD, VISIBILITY_FLOOR,
+    SimulationState,
+    TickLoop, TickResult,
+    is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD,
 )
 from scenario_loader import load_scenario
 from scenario_exporter import export_scenario
 from domain_registry import get_registry
 
-
-# ─────────────────────────────────────────
-# SCENARIO FACTORY
-# Builds a concrete starting SimulationState.
-# Tweak this to test different scenarios.
-# ─────────────────────────────────────────
-
-def build_scenario_default() -> SimulationState:
-    """
-    Scenario: 'The Warden's Compact'
-
-    You are Demiurge of a young universe with two inhabited worlds and one
-    barren candidate for seeding. Your two liege Luminaries have contradictory
-    temperaments:
-      - Cassiel, Luminary of Order and Silence — patient, demands subtlety
-      - Vrath, Luminary of Conflict and Change — wrathful, demands results fast
-
-    The Pantheon expects subtlety. Vrath privately does not care,
-    but expects civilizational Domain alignment toward conflict within
-    a short window. The tension is immediate.
-
-    Spatial layout:
-      The Nascent Coil (galaxy)
-        Ardent System
-          Neran          — stable, continental civilization (domain:order)
-          Vel Arath      — barren, no life; candidate for seed_world
-        The Outer Reach (system)
-          Oros           — stable, nascent tribal society (domain:conflict seeds)
-    """
-
-    # ── Powers ──────────────────────────────────────
-    p_order    = Power(name="Order",    description="The force of structure, law, silence.")
-    p_conflict = Power(name="Conflict", description="The force of struggle, change, becoming.")
-    p_silence  = Power(name="Silence",  description="Absence as presence; the space between.")
-    p_change   = Power(name="Change",   description="Flux, transformation, impermanence.")
-
-    # ── Domains ─────────────────────────────────────
-    d_order = Domain(
-        name="Order",
-        description="Hierarchy, law, institutional permanence.",
-        source_powers=[p_order.id],
-        tags=["domain:order", "domain:law", "domain:hierarchy"],
-    )
-    d_silence = Domain(
-        name="Silence",
-        description="Restraint, hidden influence, the unseen hand.",
-        source_powers=[p_silence.id],
-        tags=["domain:silence", "domain:restraint", "domain:subtlety"],
-    )
-    d_conflict = Domain(
-        name="Conflict",
-        description="War, competition, the crucible of strength.",
-        source_powers=[p_conflict.id],
-        tags=["domain:conflict", "domain:war", "domain:struggle"],
-    )
-    d_change = Domain(
-        name="Change",
-        description="Revolution, dissolution, new forms from old.",
-        source_powers=[p_change.id],
-        tags=["domain:change", "domain:revolution", "domain:flux"],
-    )
-
-    domains = {
-        str(d.id): d
-        for d in [d_order, d_silence, d_conflict, d_change]
-    }
-
-    # ── Luminaries ───────────────────────────────────
-    cassiel = Luminary(
-        name="Cassiel",
-        domains=[d_order.id, d_silence.id],
-        temperament=Temperament.PATIENT,
-        disposition=Disposition(results=0.1, methods=0.2),
-        constraints=[
-            Constraint(
-                name="Subtlety Mandate",
-                description="Overt miracles must remain minimal.",
-                domain_source=d_silence.id,
-                enforcement_weight=0.85,
-            ),
-            Constraint(
-                name="Proxius Restraint",
-                description="No more than one Proxius per world.",
-                domain_source=d_order.id,
-                enforcement_weight=0.6,
-            ),
-        ],
-        status_tags=["status:liege"],
-    )
-
-    vrath = Luminary(
-        name="Vrath",
-        domains=[d_conflict.id, d_change.id],
-        temperament=Temperament.WRATHFUL,
-        disposition=Disposition(results=0.0, methods=-0.1),
-        constraints=[
-            Constraint(
-                name="Results Demand",
-                description=(
-                    "The universe must show strong conflict/change domain "
-                    "expression within a reasonable span."
-                ),
-                domain_source=d_conflict.id,
-                enforcement_weight=0.9,
-            ),
-        ],
-        status_tags=["status:liege"],
-    )
-
-    luminaries = {str(l.id): l for l in [cassiel, vrath]}
-
-    # ── Pantheon ─────────────────────────────────────
-    pantheon = Pantheon(
-        name="The Warden's Compact",
-        luminary_ids=[cassiel.id, vrath.id],
-        collective_constraints=[
-            Constraint(
-                name="Collective Subtlety Expectation",
-                description="Neither Luminary sanctions flagrant divine display.",
-                enforcement_weight=0.5,
-            ),
-        ],
-    )
-
-    # ── Universe Rules ────────────────────────────────
-    rules = UniverseRules(
-        footprint_tolerances=FootprintTolerances(
-            overt_miracles=0.25,
-            subtle_influence=0.75,
-            proxius_activity=0.55,
-            direct_creation=0.20,
-        ),
-        proxii_policy=ProxiiPolicy(max_per_world=1, tolerance_for_excess=0.25),
-        mortals_can_perceive_divinity=True,
-        active_shaping_expected=True,
-        notes="Cassiel expects patience; Vrath expects results. They do not discuss this.",
-    )
-
-    # ── Spatial hierarchy ─────────────────────────────
-    galaxy = Galaxy(
-        name="The Nascent Coil",
-        coordinates=CosmicCoordinates(x=0.0, y=0.0, z=0.0),
-    )
-
-    # Ardent System — inner system, two worlds
-    system = System(
-        name="Ardent System",
-        galaxy_id=galaxy.id,
-        star_type=StarType.MAIN_SEQUENCE,
-    )
-    neran = World(
-        name="Neran",
-        system_id=system.id,
-        condition=WorldCondition.STABLE,
-        domain_expression={"domain:order": 0.6},
-        geo_tags=["geo:terrestrial", "geo:temperate"],
-        atmo_tags=["atmo:nitrogen_oxygen"],
-        age=600.0,
-    )
-    # Vel Arath — barren sibling world, no life yet
-    vel_arath = World(
-        name="Vel Arath",
-        system_id=system.id,
-        condition=WorldCondition.BARREN,
-        domain_expression={},
-        geo_tags=["geo:rocky", "geo:barren"],
-        atmo_tags=["atmo:none"],
-        age=900.0,
-        # Older than Neran; conditions are inert but not hostile
-    )
-
-    galaxy.system_ids.append(system.id)
-    system.world_ids.append(neran.id)
-    system.world_ids.append(vel_arath.id)
-
-    # The Outer Reach — distant system, one young world
-    system_outer = System(
-        name="The Outer Reach",
-        galaxy_id=galaxy.id,
-        star_type=StarType.DWARF,
-        coordinates=CosmicCoordinates(x=12.0, y=3.0, z=-2.0),
-    )
-    oros = World(
-        name="Oros",
-        system_id=system_outer.id,
-        condition=WorldCondition.STABLE,
-        domain_expression={"domain:conflict": 0.5},
-        geo_tags=["geo:terrestrial", "geo:arid"],
-        atmo_tags=["atmo:nitrogen_oxygen"],
-        age=275.0,
-        # Young world; its first civilization is already war-shaped
-    )
-
-    galaxy.system_ids.append(system_outer.id)
-    system_outer.world_ids.append(oros.id)
-
-    # ── Civilizations ─────────────────────────────────
-
-    # ── Species ───────────────────────────────────────
-
-    # Naran — the humanoid people of Neran
-    # Long-lived relative to their world's age; Veth (bio_age 260) is near end-of-life
-    naran = Species(
-        name="Naran",
-        description="Humanoid species native to Neran. Ordered society, long memory.",
-        origin_world_id=neran.id,
-        sapient=True,
-        lifespan_min=240,
-        lifespan_max=340,
-        bio_tags=["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"],
-        cultural_tags=["culture:institutional", "culture:ancestor_worship"],
-        condition=SpeciesCondition.STABLE,
-    )
-    neran.species_ids.append(naran.id)
-
-    # Keth — the tribal wanderers of Oros
-    # Shorter-lived; Asha (bio_age 145) is young and vigorous
-    keth_species = Species(
-        name="Keth",
-        description="Nomadic humanoids of Oros. Pack-bonded, spiritually attuned.",
-        origin_world_id=oros.id,
-        sapient=True,
-        lifespan_min=200,
-        lifespan_max=280,
-        bio_tags=["bio:bipedal", "bio:nocturnal", "bio:carbon_based"],
-        cultural_tags=["culture:nomadic", "culture:oral_tradition"],
-        condition=SpeciesCondition.STABLE,
-    )
-    oros.species_ids.append(keth_species.id)
-
-    # ── Civilizations ─────────────────────────────────
-
-    # Neran: established interstellar power, order-oriented
-    civ = Civilization(
-        name="The Neran Confederacy",
-        world_id=neran.id,
-        scale=CivilizationScale.INTERSTELLAR,
-        health=CivilizationHealth(
-            stability=0.6,
-            prosperity=0.5,
-            cohesion=0.55,
-        ),
-        primary_species_id=naran.id,
-        dominant_beliefs={"domain:order": 0.8, "domain:law": 0.6},
-        culture_tags=[
-            "culture:science", "culture:industrialism", "culture:sedentism",
-            "culture:commerce", "culture:hierarchy", "culture:diplomacy",
-            "culture:luminary_worship", "culture:ancestor_worship",
-        ],
-        theistic=True,
-        divine_awareness=0.25,
-        age=400.0,
-    )
-    neran.civilization_ids.append(civ.id)
-
-    # Oros: nascent tribal confederation, conflict-and-change flavored
-    keth = Civilization(
-        name="The Keth Wanderers",
-        world_id=oros.id,
-        scale=CivilizationScale.TRIBAL,
-        health=CivilizationHealth(
-            stability=0.4,
-            prosperity=0.3,
-            cohesion=0.65,
-            # Tight bonds within bands, but fragile overall
-        ),
-        primary_species_id=keth_species.id,
-        dominant_beliefs={"domain:conflict": 0.7, "domain:ancestor_worship": 0.5},
-        culture_tags=[
-            "culture:nomadism", "culture:foraging", "culture:animism",
-            "culture:ancestor_worship", "culture:conquest", "culture:egalitarianism",
-        ],
-        theistic=True,
-        divine_awareness=0.10,
-        age=60.0,
-    )
-    oros.civilization_ids.append(keth.id)
-
-    # ── Notable Mortals ───────────────────────────────
-
-    # Neran: pragmatic administrator — strong proxius candidate (order)
-    senna = NotableMortal(
-        name="Senna Vaur",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.LEADER],
-        prominence=0.65,
-        visibility=1.0,
-        personal_tags=["domain:order", "ambitious", "pragmatic"],
-        culture_tags=["culture:hierarchy", "culture:diplomacy", "culture:sedentism"],
-        alignment=0.75,
-        chrono_age=170.0,
-        bio_age=170.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(senna.id)
-
-    # Neran: military commander — aligned with conflict, personally ambitious
-    karath = NotableMortal(
-        name="Karath Omn",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.MILITARY],
-        prominence=0.80,
-        visibility=1.0,
-        personal_tags=["domain:conflict", "domain:war", "ambitious", "ruthless"],
-        culture_tags=["culture:hierarchy", "culture:sedentism", "culture:industrialism"],
-        alignment=0.45,
-        chrono_age=205.0,
-        bio_age=205.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(karath.id)
-
-    # Neran: temple keeper — devout, subtlety-inclined; Cassiel's natural ally
-    # bio_age 260 — entering the Naran death-check zone (lifespan_min 240)
-    veth = NotableMortal(
-        name="Veth Sarai",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.PRIEST],
-        prominence=0.70,
-        visibility=1.0,
-        personal_tags=["domain:order", "domain:silence", "devout", "cautious"],
-        culture_tags=["culture:luminary_worship", "culture:ancestor_worship", "culture:sedentism"],
-        alignment=0.85,
-        chrono_age=260.0,
-        bio_age=260.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(veth.id)
-
-    # Neran: merchant guildmaster — influential but operates in shadow
-    # prominence below ALWAYS_VISIBLE_THRESHOLD; starts known but will fade without attention
-    durenn = NotableMortal(
-        name="Durenn Vail",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.MERCHANT],
-        prominence=0.55,
-        visibility=0.6,
-        personal_tags=["domain:trade", "domain:law", "opportunistic", "pragmatic"],
-        culture_tags=["culture:commerce", "culture:hierarchy", "culture:sedentism"],
-        alignment=0.35,
-        chrono_age=235.0,
-        bio_age=235.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(durenn.id)
-
-    # Oros: tribal war-chieftain — Vrath's natural instrument on Oros
-    asha = NotableMortal(
-        name="Asha Keln",
-        world_id=oros.id,
-        civilization_id=keth.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=keth_species.id,
-        prominence_roles=[MortalProminence.LEADER, MortalProminence.MILITARY],
-        prominence=0.75,
-        visibility=1.0,
-        personal_tags=["domain:conflict", "domain:change", "tribal_leader", "spiritual"],
-        culture_tags=["culture:conquest", "culture:animism", "culture:nomadism"],
-        alignment=0.60,
-        chrono_age=145.0,
-        bio_age=145.0,
-        home_location=oros.id,
-        current_location=oros.id,
-    )
-    keth.notable_mortal_ids.append(asha.id)
-
-    # ── Hidden mortals (visibility=0.0, discoverable via scry) ───────────
-
-    # Neran: political agitator — low-prominence rebel, dangerous if discovered
-    orryn = NotableMortal(
-        name="Orryn Vel",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.REBEL],
-        prominence=0.40,
-        visibility=0.0,
-        personal_tags=["domain:change", "domain:conflict", "agitator", "charismatic"],
-        culture_tags=["culture:sedentism", "culture:science"],
-        alignment=0.20,
-        chrono_age=155.0,
-        bio_age=155.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(orryn.id)
-
-    # Neran: obsessive archivist — scholar who knows too much
-    thessal = NotableMortal(
-        name="Thessal Dour",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.SCHOLAR],
-        prominence=0.30,
-        visibility=0.0,
-        personal_tags=["domain:order", "domain:silence", "obsessive", "reclusive"],
-        culture_tags=["culture:science", "culture:sedentism"],
-        alignment=0.55,
-        chrono_age=190.0,
-        bio_age=190.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(thessal.id)
-
-    # Neran: minor temple keeper — devout but obscure
-    maeva = NotableMortal(
-        name="Maeva Sorn",
-        world_id=neran.id,
-        civilization_id=civ.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=naran.id,
-        prominence_roles=[MortalProminence.PRIEST],
-        prominence=0.25,
-        visibility=0.0,
-        personal_tags=["domain:silence", "domain:order", "devout", "receptive"],
-        culture_tags=["culture:luminary_worship", "culture:ancestor_worship", "culture:sedentism"],
-        alignment=0.70,
-        chrono_age=85.0,
-        bio_age=85.0,
-        home_location=neran.id,
-        current_location=neran.id,
-    )
-    civ.notable_mortal_ids.append(maeva.id)
-
-    # Oros: ambitious challenger to Asha's authority
-    kael = NotableMortal(
-        name="Kael Ash",
-        world_id=oros.id,
-        civilization_id=keth.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=keth_species.id,
-        prominence_roles=[MortalProminence.LEADER],
-        prominence=0.50,
-        visibility=0.0,
-        personal_tags=["domain:conflict", "domain:change", "ambitious", "suspicious"],
-        culture_tags=["culture:conquest", "culture:nomadism"],
-        alignment=0.30,
-        chrono_age=130.0,
-        bio_age=130.0,
-        home_location=oros.id,
-        current_location=oros.id,
-    )
-    keth.notable_mortal_ids.append(kael.id)
-
-    # Oros: wandering spirit-speaker — spiritually perceptive, may sense the divine
-    urren = NotableMortal(
-        name="Urren",
-        world_id=oros.id,
-        civilization_id=keth.id,
-        role=MortalRole.OTHER,
-        status=MortalStatus.ACTIVE,
-        species_id=keth_species.id,
-        prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
-        prominence=0.35,
-        visibility=0.0,
-        personal_tags=["domain:change", "domain:ancestor_worship", "spiritual", "perceptive"],
-        culture_tags=["culture:animism", "culture:ancestor_worship", "culture:nomadism"],
-        alignment=0.50,
-        chrono_age=175.0,
-        bio_age=175.0,
-        home_location=oros.id,
-        current_location=oros.id,
-    )
-    keth.notable_mortal_ids.append(urren.id)
-
-    # ── Demiurge ─────────────────────────────────────
-    demiurge = Demiurge(
-        name="The Unnamed",
-        liege_luminary_ids=[cassiel.id, vrath.id],
-        granted_domains=[d_order.id, d_conflict.id],
-        footprint=FootprintProfile(),
-    )
-
-    essence = EssenceStockpile(
-        actual=0.0,
-        apparent=0.0,
-        concealment_integrity=1.0,
-    )
-
-    # ── Universe ──────────────────────────────────────
-    universe = Universe(
-        name="The Neran Universe",
-        demiurge_id=demiurge.id,
-        pantheon_id=pantheon.id,
-        rules=rules,
-        galaxy_ids=[galaxy.id],
-        current_age=600.0,
-    )
-
-    return SimulationState(
-        universe=universe,
-        demiurge=demiurge,
-        essence=essence,
-        pantheon=pantheon,
-        luminaries=luminaries,
-        domains=domains,
-        galaxies={
-            str(galaxy.id): galaxy,
-        },
-        systems={
-            str(system.id):       system,
-            str(system_outer.id): system_outer,
-        },
-        worlds={
-            str(neran.id):     neran,       # Neran
-            str(vel_arath.id): vel_arath,   # barren
-            str(oros.id):      oros,        # Keth tribal world
-        },
-        civilizations={
-            str(civ.id):  civ,    # The Neran Confederacy
-            str(keth.id): keth,   # The Keth Wanderers
-        },
-        mortals={
-            str(senna.id):  senna,
-            str(karath.id): karath,
-            str(veth.id):   veth,
-            str(durenn.id): durenn,
-            str(asha.id):   asha,
-            str(orryn.id):  orryn,
-            str(thessal.id): thessal,
-            str(maeva.id):  maeva,
-            str(kael.id):   kael,
-            str(urren.id):  urren,
-        },
-        species={
-            str(naran.id):       naran,
-            str(keth_species.id): keth_species,
-        },
-        civ_momentum={
-            str(civ.id): CivilizationMomentum(
-                civilization_id=civ.id,
-                stability_delta=0.1,
-                prosperity_delta=0.05,
-                cohesion_delta=-0.05,
-                # Slight internal fracturing despite surface stability
-            ),
-            str(keth.id): CivilizationMomentum(
-                civilization_id=keth.id,
-                stability_delta=-0.05,
-                prosperity_delta=0.0,
-                cohesion_delta=0.1,
-                # Bands are consolidating, but overall stability is shaky
-            ),
-        },
-        luminary_attention={
-            str(cassiel.id): 0.15,
-            str(vrath.id):   0.30,
-            # Vrath is already watching
-        },
-        ticks_since_evaluation={
-            str(cassiel.id): 0.0,
-            str(vrath.id):   0.0,
-        },
-        config=TickConfig(
-            tick_duration=0.5,
-            evaluation_interval=5.0,
-        ),
-    )
+# Actions whose required systems haven't been built yet.
+# Listed in the action browser with a note; selecting one shows a message and backs out.
+_STUB_ACTIONS: frozenset[str] = frozenset({
+    "read_divine_traces",     # needs divine-trace / other-actor footprint system
+    "negotiate_herald",       # needs Herald entity class
+    "obstruct_herald",        # needs Herald entity class
+    "petition_luminary_herald",  # needs Herald entity class
+    "investigate_underreal",  # needs Underreal content system
+})
 
 
 # ─────────────────────────────────────────
@@ -1687,7 +1079,7 @@ def _peek_db_meta(path: Path) -> dict:
 
 def _select_scenario() -> SimulationState:
     """
-    Startup menu — list saves and scenarios, or load the hardcoded default.
+    Startup menu — list saves and scenarios.
     Returns a fully constructed SimulationState.
     """
     saves_dir     = Path(__file__).parent / "saves"
@@ -1726,7 +1118,6 @@ def _select_scenario() -> SimulationState:
         print("  (no saves or scenario files found)")
         print()
 
-    print("  [D] New game  (default scenario)")
     print("  [Q] Quit")
     print()
 
@@ -1737,10 +1128,6 @@ def _select_scenario() -> SimulationState:
         if raw == "Q":
             raise SystemExit(0)
 
-        if raw == "D":
-            print("  Starting new game...")
-            return build_scenario_default()
-
         if raw.isdigit():
             n = int(raw) - 1
             if 0 <= n < max_idx:
@@ -1748,8 +1135,10 @@ def _select_scenario() -> SimulationState:
                 print(f"  Loading {path.name}...")
                 return load_scenario(path)
 
-        hint = f"1–{max_idx}, " if max_idx else ""
-        print(f"  Invalid choice — enter {hint}D, or Q.")
+        if max_idx:
+            print(f"  Invalid choice — enter 1–{max_idx} or Q.")
+        else:
+            print("  Invalid choice — enter Q.")
 
 
 def _save_game(state: SimulationState) -> None:
@@ -1775,7 +1164,7 @@ def _save_game(state: SimulationState) -> None:
 
 def main():
     print(SEP2)
-    print("  DEMIURGE — TEST HARNESS")
+    print("  DEMIURGE")
     print(SEP2)
 
     state = _select_scenario()
@@ -1962,10 +1351,11 @@ def _action_browser(
             verb = "↑" if defn.essence_cost < 0 else "↓"
             essence_str = f"  Ess{verb}{abs(defn.essence_cost):.1f}"
         persist_tag = "  [can persist]" if "can_persist" in defn.tags else ""
+        stub_tag    = "  [not yet implemented]" if key in _STUB_ACTIONS else ""
         print(
             f"    {i+1}. {defn.name:35s}"
             f"  FP:{fp_total:.2f}{essence_str}"
-            f"  [{defn.reliability.value}]{persist_tag}"
+            f"  [{defn.reliability.value}]{persist_tag}{stub_tag}"
         )
     print("    0. Back")
 
@@ -1974,6 +1364,13 @@ def _action_browser(
         return
 
     key, defn = actions[action_choice - 1]
+
+    # Block stub actions before any intent prompting
+    if key in _STUB_ACTIONS:
+        print(f"\n  {defn.name} is not yet implemented.")
+        print(f"  {defn.description}")
+        print("  This action requires systems that are planned but not yet built.")
+        return
 
     # Enforce one action per category per tick
     if defn.category.value in queued_cats:

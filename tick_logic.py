@@ -199,6 +199,11 @@ class PassiveWorldResult(BaseModel):
     # e.g. "The Verath Confederation collapsed into civil war"
     #      "Proxius Aldren has begun acting outside their directive"
 
+    # Death mutations held back until after Phase 2 so that a same-tick
+    # appoint_proxius action can save a mortal before the death is committed.
+    pending_death_mutations:  list["StateMutation"] = Field(default_factory=list)
+    pending_death_narratives: list[str]             = Field(default_factory=list)
+
 
 # ─────────────────────────────────────────
 # ACTION PROCESSING RESULT
@@ -428,6 +433,17 @@ class TickLoop:
                 if oa:
                     oa.executed_ticks += 1
 
+        # ── Deferred death check ───────────────────────
+        # Applied after Phase 2 so a same-tick appoint_proxius saves the mortal.
+        # pending_death_mutations and pending_death_narratives are parallel lists.
+        for mut, narrative in zip(passive.pending_death_mutations, passive.pending_death_narratives):
+            mortal = state.mortals.get(str(mut.target_id))
+            if mortal and mortal.role in (MortalRole.PROXIUS, MortalRole.HERALD):
+                continue  # appointment this tick saved them; suppress death
+            if mortal and mortal.status != MortalStatus.DECEASED:
+                mortal.status = MortalStatus.DECEASED
+            result.passive_result.narrative_events.append(narrative)
+
         # Track how long since the Demiurge last gained Essence (for concealment stall)
         if state.essence.actual > _essence_before:
             state.ticks_without_essence_gain = 0
@@ -596,14 +612,14 @@ class TickLoop:
                     progress = min(1.0, (new_bio_age - sp.lifespan_min) / range_width)
                     death_prob = progress * 0.3  # peaks at 30%/tick at lifespan_max
                     if rng.random() < death_prob:
-                        result.mortal_mutations.append(StateMutation(
+                        result.pending_death_mutations.append(StateMutation(
                             mutation_type=MutationType.MORTAL_STATUS,
                             target_id=UUID(mid),
                             field="status",
                             new_value=MortalStatus.DECEASED.value,
                             note=f"{mortal.name} died of natural causes (bio_age {new_bio_age:.0f})",
                         ))
-                        result.narrative_events.append(
+                        result.pending_death_narratives.append(
                             f"{mortal.name} has died of natural causes at age {new_bio_age:.0f}."
                         )
 
