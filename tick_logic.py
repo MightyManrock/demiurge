@@ -378,11 +378,13 @@ class TickLoop:
         # ── Inject ongoing actions (appended after manual queue) ──────────
         # Manually queued actions in the same category take priority;
         # _validate_and_filter_queue blocks any duplicate-category entry.
+        # Map instance.id -> category so we can credit executed_ticks after.
+        ongoing_instance_ids: dict[str, str] = {}
         for cat_val, ongoing in list(state.ongoing_actions.items()):
             defn = self._action_library.get(ongoing.action_key)
             if defn is None:
                 continue
-            state.action_queue.append(ActionInstance(
+            instance = ActionInstance(
                 action_definition_id=defn.id,
                 target_type=ongoing.target_type,
                 target_id=ongoing.target_id,
@@ -390,7 +392,9 @@ class TickLoop:
                 demiurge_id=state.demiurge.id,
                 proxius_id=ongoing.proxius_id,
                 intent=ongoing.intent,
-            ))
+            )
+            state.action_queue.append(instance)
+            ongoing_instance_ids[str(instance.id)] = cat_val
             ongoing.ticks_active += 1
 
         # ── Phase 2: Action Processing ─────────────────
@@ -399,6 +403,16 @@ class TickLoop:
         result.action_result = action_result
         state = self._apply_action_mutations(state, action_result)
         state.action_queue = []
+
+        # Credit executed_ticks for ongoing actions that weren't category-blocked.
+        # Accepted entries keep their original instance.id; rejected entries get
+        # a fresh uuid4(), so membership in this set is unambiguous.
+        executed_ids = {str(e.action_instance_id) for e in action_result.entries}
+        for iid, cat_val in ongoing_instance_ids.items():
+            if iid in executed_ids:
+                oa = state.ongoing_actions.get(cat_val)
+                if oa:
+                    oa.executed_ticks += 1
 
         # Track how long since the Demiurge last gained Essence (for concealment stall)
         if state.essence.actual > _essence_before:

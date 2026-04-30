@@ -724,7 +724,7 @@ def display_state(state: SimulationState) -> str:
                 target_str = f" → {_name_for_id(oa.target_id, state)}"
             lines.append(
                 f"  [{cat_label}] {oa.action_key.replace('_', ' ').title()}"
-                f"{target_str}  ({oa.ticks_active} tick{'s' if oa.ticks_active != 1 else ''})"
+                f"{target_str}  ({oa.executed_ticks}/{oa.ticks_active} ticks executed)"
             )
     else:
         lines.append("  None")
@@ -1788,10 +1788,9 @@ def _manage_ongoing_actions(
         target_str = ""
         if oa.target_id:
             target_str = f" → {oa.target_id}"
-        ticks = oa.ticks_active
         print(
             f"    {i+1}. [{cat_label}] {name}{target_str}"
-            f"  ({ticks} tick{'s' if ticks != 1 else ''})"
+            f"  ({oa.executed_ticks}/{oa.ticks_active} ticks executed)"
         )
     print("    0. Back")
 
@@ -1835,7 +1834,7 @@ def _action_browser(
         elif ongoing:
             od = library.get(ongoing.action_key)
             oname = od.name if od else ongoing.action_key
-            annotation = f"  [ongoing: {oname} ({ongoing.ticks_active}t)]"
+            annotation = f"  [ongoing: {oname} ({ongoing.executed_ticks}x)]"
         else:
             annotation = ""
         print(f"    {i+1}. {cat.value.replace('_',' ').title()}{annotation}")
@@ -1853,8 +1852,8 @@ def _action_browser(
         od = library.get(ongoing.action_key)
         oname = od.name if od else ongoing.action_key
         print(
-            f"\n  [ONGOING] {oname}  ({ongoing.ticks_active} tick"
-            f"{'s' if ongoing.ticks_active != 1 else ''} running)"
+            f"\n  [ONGOING] {oname}  "
+            f"({ongoing.executed_ticks}x executed, {ongoing.ticks_active} ticks old)"
         )
         print("    1. Stop ongoing action (then pick a new one)")
         print("    2. Override this tick (pick action; ongoing resumes next tick)")

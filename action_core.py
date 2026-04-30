@@ -994,6 +994,7 @@ class OngoingAction(BaseModel):
     proxius_id: Optional[UUID] = None
     intent: Optional[ActionIntent] = None
     ticks_active: int = 0
+    executed_ticks: int = 0
     started_at_tick: int = 0
 
 
