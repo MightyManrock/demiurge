@@ -509,35 +509,35 @@ def build_scenario_default() -> SimulationState:
     """
 
     # ── Powers ──────────────────────────────────────
-    p_order    = Power(name="Order",    description="The force of structure, law, silence.")
-    p_conflict = Power(name="Conflict", description="The force of struggle, change, becoming.")
+    p_order    = Power(name="Order",    description="The force of structure, rule, and stillness.")
+    p_conflict = Power(name="Conflict", description="The force of struggle, competition, and upheaval.")
     p_silence  = Power(name="Silence",  description="Absence as presence; the space between.")
     p_change   = Power(name="Change",   description="Flux, transformation, impermanence.")
 
     # ── Domains ─────────────────────────────────────
     d_order = Domain(
         name="Order",
-        description="Hierarchy, law, institutional permanence.",
+        description="Hierarchy, rule, institutional permanence.",
         source_powers=[p_order.id],
-        tags=["domain:order", "domain:law", "domain:hierarchy"],
+        tags=["domain:order"],
     )
     d_silence = Domain(
         name="Silence",
         description="Restraint, hidden influence, the unseen hand.",
         source_powers=[p_silence.id],
-        tags=["domain:silence", "domain:restraint", "domain:subtlety"],
+        tags=["domain:silence"],
     )
     d_conflict = Domain(
         name="Conflict",
-        description="War, competition, the crucible of strength.",
+        description="Competition, opposition, the crucible of strength.",
         source_powers=[p_conflict.id],
-        tags=["domain:conflict", "domain:war", "domain:struggle"],
+        tags=["domain:conflict"],
     )
     d_change = Domain(
         name="Change",
         description="Revolution, dissolution, new forms from old.",
         source_powers=[p_change.id],
-        tags=["domain:change", "domain:revolution", "domain:flux"],
+        tags=["domain:change"],
     )
 
     domains = {str(d.id): d for d in [d_order, d_silence, d_conflict, d_change]}
@@ -700,7 +700,7 @@ def build_scenario_default() -> SimulationState:
         scale=CivilizationScale.INTERSTELLAR,
         health=CivilizationHealth(stability=0.6, prosperity=0.5, cohesion=0.55),
         primary_species_id=naran.id,
-        dominant_beliefs={"domain:order": 0.8, "domain:law": 0.6},
+        dominant_beliefs={"domain:order": 0.8, "domain:mastery": 0.5},
         culture_tags={
             "culture:sedentism": 0.90, "culture:hierarchy": 0.85,
             "culture:industrialism": 0.80, "culture:commerce": 0.75,
@@ -719,7 +719,7 @@ def build_scenario_default() -> SimulationState:
         scale=CivilizationScale.TRIBAL,
         health=CivilizationHealth(stability=0.4, prosperity=0.3, cohesion=0.65),
         primary_species_id=keth_species.id,
-        dominant_beliefs={"domain:conflict": 0.7, "domain:ancestor_worship": 0.5},
+        dominant_beliefs={"domain:conflict": 0.7, "domain:memory": 0.5},
         culture_tags={
             "culture:nomadism": 0.95, "culture:ancestor_worship": 0.85,
             "culture:animism": 0.80, "culture:foraging": 0.70,
@@ -747,7 +747,7 @@ def build_scenario_default() -> SimulationState:
         name="Karath Omn", world_id=neran.id, civilization_id=civ.id,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.MILITARY], prominence=0.80, visibility=1.0,
-        personal_tags=["domain:conflict", "domain:war", "status:commander", "personal:ambitious", "personal:ruthless"],
+        personal_tags=["domain:conflict", "domain:mastery", "status:commander", "personal:ambitious", "personal:ruthless"],
         culture_tags={"culture:hierarchy": 0.90, "culture:sedentism": 0.80, "culture:industrialism": 0.70},
         alignment=0.45, chrono_age=205.0, bio_age=205.0,
         home_location=neran.id, current_location=neran.id,
@@ -769,7 +769,7 @@ def build_scenario_default() -> SimulationState:
         name="Durenn Vail", world_id=neran.id, civilization_id=civ.id,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
         prominence_roles=[MortalProminence.MERCHANT], prominence=0.55, visibility=0.6,
-        personal_tags=["domain:trade", "domain:law", "status:trade_magnate", "personal:opportunistic", "personal:pragmatic"],
+        personal_tags=["domain:community", "domain:order", "status:trade_magnate", "personal:opportunistic", "personal:pragmatic"],
         culture_tags={"culture:commerce": 0.85, "culture:sedentism": 0.80, "culture:hierarchy": 0.70},
         alignment=0.35, chrono_age=235.0, bio_age=235.0,
         home_location=neran.id, current_location=neran.id,
@@ -837,7 +837,7 @@ def build_scenario_default() -> SimulationState:
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=keth_species.id,
         prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
         prominence=0.35, visibility=0.0,
-        personal_tags=["domain:change", "domain:ancestor_worship", "status:shaman", "personal:spiritual", "personal:perceptive"],
+        personal_tags=["domain:change", "domain:memory", "status:shaman", "personal:spiritual", "personal:perceptive"],
         culture_tags={"culture:animism": 0.90, "culture:ancestor_worship": 0.85, "culture:nomadism": 0.80},
         alignment=0.50, chrono_age=175.0, bio_age=175.0,
         home_location=oros.id, current_location=oros.id,
