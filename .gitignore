@@ -8,6 +8,7 @@ pyvenv.cfg
 autoplay.py
 logs/*.log
 docs/*
+saves/*.db
 
 # Claude Code
 CLAUDE.md
