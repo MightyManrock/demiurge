@@ -65,6 +65,7 @@ class ActionCategory(str, Enum):
     HERALD_INTERACTION = "herald_interaction"
     LUMINARY_RELATIONS = "luminary_relations"
     UNDERREAL         = "underreal"
+    SELF_REFINEMENT   = "self_refinement"
 
 
 class TargetType(str, Enum):
@@ -916,18 +917,17 @@ def build_action_library() -> dict[str, ActionDefinition]:
 
         "explore_beliefs": ActionDefinition(
             name="Explore Beliefs",
-            category=ActionCategory.OBSERVATION,
+            category=ActionCategory.SELF_REFINEMENT,
             description=(
                 "Contemplate a domain adjacent to your current understanding. "
                 "Expands your conceptual frontier without promoting the belief "
-                "in the universe — but unlocks it for future directive use. "
-                "Limited to one per tick."
+                "in the universe — but unlocks it for future directive use."
             ),
             valid_targets=[TargetType.UNDERREAL],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(),
             essence_cost=0.0,
-            tags=["observation", "zero_footprint", "self_development", "one_per_tick"],
+            tags=["zero_footprint", "self_refinement"],
         ),
 
         "overthrow_luminary": ActionDefinition(

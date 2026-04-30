@@ -1757,10 +1757,21 @@ def _action_browser(
     for key, defn in action_index:
         categories.setdefault(defn.category, []).append((key, defn))
 
+    # Build a map of already-queued categories for this tick
+    key_by_id = {str(v.id): k for k, v in library.items()}
+    queued_cats: dict[str, str] = {}  # category.value -> action name that claimed it
+    for ai in state.action_queue:
+        k = key_by_id.get(str(ai.action_definition_id))
+        if k and k in library:
+            dq = library[k]
+            queued_cats[dq.category.value] = dq.name
+
     print("\n  ACTION CATEGORIES")
     cat_list = list(categories.items())
     for i, (cat, _) in enumerate(cat_list):
-        print(f"    {i+1}. {cat.value.replace('_',' ').title()}")
+        used = queued_cats.get(cat.value)
+        used_str = f"  [used: {used}]" if used else ""
+        print(f"    {i+1}. {cat.value.replace('_',' ').title()}{used_str}")
     print("    0. Back")
 
     cat_choice = _prompt_int("  > ", 0, len(cat_list))
@@ -1788,27 +1799,12 @@ def _action_browser(
 
     key, defn = actions[action_choice - 1]
 
-    # Enforce mutual exclusion between maintain_concealment and harvest_essence
-    MUTEX_PAIR = frozenset({"maintain_concealment", "harvest_essence"})
-    MUTEX_NAMES = {
-        "maintain_concealment": "Maintain Concealment",
-        "harvest_essence": "Harvest Essence",
-    }
-    key_by_id = {str(v.id): k for k, v in library.items()}
-    queued_keys = {key_by_id.get(str(ai.action_definition_id)) for ai in state.action_queue}
-
-    if key in MUTEX_PAIR:
-        conflict = queued_keys & MUTEX_PAIR - {key}
-        if conflict:
-            conflicting = next(iter(conflict))
-            print(
-                f"\n  Blocked: {MUTEX_NAMES.get(key, key)} cannot be queued alongside "
-                f"{MUTEX_NAMES.get(conflicting, conflicting)} in the same tick."
-            )
-            return
-
-    if key == "explore_beliefs" and "explore_beliefs" in queued_keys:
-        print("\n  Blocked: can only explore one domain per tick.")
+    # Enforce one action per category per tick
+    if defn.category.value in queued_cats:
+        existing = queued_cats[defn.category.value]
+        print(
+            f"\n  Blocked: '{existing}' is already queued in this category this tick."
+        )
         return
 
     result = build_intent_interactively(key, defn, state)

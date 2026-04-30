@@ -670,57 +670,27 @@ class TickLoop:
         """
         Enforce declarative action queue constraints. Returns (filtered_queue, rejection_messages).
 
-        Current rules:
-        - maintain_concealment and harvest_essence are mutually exclusive per tick
-        - A Proxius may receive at most one ProxiusDirectiveIntent per tick
+        Rule: at most one action per ActionCategory per tick.
         """
-        MUTEX_PAIR = frozenset({"maintain_concealment", "harvest_essence"})
-        MUTEX_NAMES = {
-            "maintain_concealment": "Maintain Concealment",
-            "harvest_essence": "Harvest Essence",
-        }
-
         accepted: list[ActionInstance] = []
         rejected: list[str] = []
-        seen_mutex: set[str] = set()
-        directed_proxii: set[str] = set()
-        seen_explore = False
+        seen_categories: dict[str, str] = {}  # category value -> name of action that claimed it
 
         for instance in queue:
             key = self._action_key_by_id.get(str(instance.action_definition_id))
+            defn = self._action_library.get(key) if key else None
+            if defn is None:
+                continue
 
-            # Mutual exclusion: maintain_concealment / harvest_essence
-            if key in MUTEX_PAIR:
-                conflict = seen_mutex & MUTEX_PAIR
-                if conflict:
-                    conflicting = next(iter(conflict))
-                    rejected.append(
-                        f"{MUTEX_NAMES.get(key, key)} blocked: "
-                        f"cannot be combined with {MUTEX_NAMES.get(conflicting, conflicting)} "
-                        f"in the same tick."
-                    )
-                    continue
-                seen_mutex.add(key)
+            cat = defn.category.value
+            if cat in seen_categories:
+                rejected.append(
+                    f"{defn.name} blocked: a {cat.replace('_', ' ')} action "
+                    f"({seen_categories[cat]}) is already queued this tick."
+                )
+                continue
 
-            # One explore_beliefs per tick
-            if key == "explore_beliefs":
-                if seen_explore:
-                    rejected.append(
-                        "Explore Beliefs blocked: can only explore one domain per tick."
-                    )
-                    continue
-                seen_explore = True
-
-            # One directive per Proxius per tick
-            if isinstance(instance.intent, ProxiusDirectiveIntent) and instance.proxius_id:
-                pid = str(instance.proxius_id)
-                if pid in directed_proxii:
-                    rejected.append(
-                        f"Directive blocked: that Proxius already has a directive queued this tick."
-                    )
-                    continue
-                directed_proxii.add(pid)
-
+            seen_categories[cat] = defn.name
             accepted.append(instance)
 
         return accepted, rejected
