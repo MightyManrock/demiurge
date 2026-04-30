@@ -277,6 +277,10 @@ class ProxiusDirectiveIntent(BaseModel):
     # High priority pushes a Proxius to act faster and more
     # overtly — potentially generating unwanted footprint.
 
+    target_civilization_id: Optional[UUID] = None
+    # The civilization the Proxius should promote domain beliefs within.
+    # Required when domain_vectors is non-empty; ignored otherwise.
+
     constraints: list[str] = Field(default_factory=list)
     # Explicit limits on method.
     # e.g. ["do not kill the king directly", "do not reveal your divine appointment"]

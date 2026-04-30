@@ -1255,10 +1255,40 @@ def _build_intent(
             goal = input("  Directive goal: ").strip() or "Strengthen the reformist faction"
             dv = _prompt_domain_select(state)
             latitude = _prompt_float("  Latitude (0.0 strict – 1.0 open): ", 0.0, 1.0, 0.5)
+
+            # If a domain vector was chosen, pick which civilization to promote it in.
+            # Filter to civilizations on the Proxius's current world.
+            target_civ_id = None
+            if dv:
+                proxius = state.mortals.get(str(target_id)) if target_id else None
+                loc_id = str(proxius.current_location or proxius.world_id) if proxius else None
+                civs_here = [
+                    (cid, c) for cid, c in state.civilizations.items()
+                    if str(c.world_id) == loc_id
+                ] if loc_id else []
+
+                if not civs_here:
+                    print("  (No civilizations at this Proxius's location — domain vector discarded.)")
+                    dv = None
+                elif len(civs_here) == 1:
+                    target_civ_id = UUID(civs_here[0][0])
+                    print(f"  Target civilization: {civs_here[0][1].name}")
+                else:
+                    print("  Promote belief in which civilization?")
+                    for i, (cid, c) in enumerate(civs_here):
+                        print(f"    {i+1}. {c.name}  [{c.scale.value}]")
+                    print("    0. Discard domain vector")
+                    civ_choice = _prompt_int("  > ", 0, len(civs_here))
+                    if civ_choice > 0:
+                        target_civ_id = UUID(civs_here[civ_choice - 1][0])
+                    else:
+                        dv = None
+
             return ProxiusDirectiveIntent(
                 goal_statement=goal,
                 domain_vectors=[dv] if dv else [],
                 latitude=latitude,
+                target_civilization_id=target_civ_id,
             )
 
     elif cat == ActionCategory.UNDERREAL:

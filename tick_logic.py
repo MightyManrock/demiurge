@@ -1338,18 +1338,19 @@ class TickLoop:
                 note=f"Directive received: '{intent.goal_statement[:40]}'",
             ))
 
-            # Domain expression shift proportional to fidelity
-            world_obj = state.worlds.get(str(proxius.world_id))
-            if world_obj:
-                for dv in intent.domain_vectors:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.DOMAIN_EXPRESSION,
-                        target_id=proxius.world_id,
-                        field="domain_expression",
-                        delta=dv.direction * interpretation_fidelity * 0.08,
-                        new_value=dv.domain_tag,
-                        note=f"Proxius {proxius.name} acting on directive {fidelity_note}",
-                    ))
+            # Domain belief shift into the target civilization
+            if intent.domain_vectors and intent.target_civilization_id:
+                civ_obj = state.civilizations.get(str(intent.target_civilization_id))
+                if civ_obj:
+                    for dv in intent.domain_vectors:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.BELIEF_SHIFT,
+                            target_id=civ_obj.id,
+                            field="dominant_beliefs",
+                            delta=dv.direction * interpretation_fidelity * 0.08,
+                            new_value=dv.domain_tag,
+                            note=f"Proxius {proxius.name} promoting {dv.domain_tag} {fidelity_note}",
+                        ))
 
             narrative = (
                 f"Proxius {proxius.name} received directive: "
