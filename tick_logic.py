@@ -11,6 +11,7 @@ from action_core import (
     StateMutation, MutationType,
     ActionOutcome,
     ActionInstance,
+    OngoingAction,
     EssenceStockpile,
     build_action_library,
     ActionDefinition,
@@ -318,6 +319,11 @@ class SimulationState(BaseModel):
     # Used to stall passive concealment decay when the Demiurge goes quiet.
     ticks_without_essence_gain: int = 0
 
+    # Persistent actions that auto-execute each tick.
+    # Keyed by ActionCategory.value; appended to action_queue before Phase 2.
+    # Manually queued actions in the same category take priority and block the ongoing one.
+    ongoing_actions: dict[str, OngoingAction] = Field(default_factory=dict)
+
 
 # ─────────────────────────────────────────
 # TICK LOOP
@@ -368,6 +374,24 @@ class TickLoop:
         result.passive_result = passive
         state = self._apply_passive_mutations(state, passive)
         state = self._prune_weak_beliefs(state)
+
+        # ── Inject ongoing actions (appended after manual queue) ──────────
+        # Manually queued actions in the same category take priority;
+        # _validate_and_filter_queue blocks any duplicate-category entry.
+        for cat_val, ongoing in list(state.ongoing_actions.items()):
+            defn = self._action_library.get(ongoing.action_key)
+            if defn is None:
+                continue
+            state.action_queue.append(ActionInstance(
+                action_definition_id=defn.id,
+                target_type=ongoing.target_type,
+                target_id=ongoing.target_id,
+                timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id,
+                proxius_id=ongoing.proxius_id,
+                intent=ongoing.intent,
+            ))
+            ongoing.ticks_active += 1
 
         # ── Phase 2: Action Processing ─────────────────
         _essence_before = state.essence.actual

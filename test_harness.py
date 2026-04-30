@@ -35,7 +35,7 @@ from action_core import (
     # Actions
     ActionCategory, TargetType, ActionDefinition,
     ActionReliability, FootprintCost,
-    build_action_library, ActionInstance, ActionResult,
+    build_action_library, ActionInstance, ActionResult, OngoingAction,
     # Intent types
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
     DevelopmentIntent, ProxiusDirectiveIntent,
@@ -712,6 +712,22 @@ def display_state(state: SimulationState) -> str:
             f"align:{mortal.alignment:.2f}  {age_str}{vis_note}  "
             f"{prom_str}"
         )
+    lines.append(SEP)
+
+    # ── Ongoing actions ───────────────────────────────
+    lines.append("ONGOING ACTIONS")
+    if state.ongoing_actions:
+        for cat_val, oa in state.ongoing_actions.items():
+            cat_label = cat_val.replace("_", " ").title()
+            target_str = ""
+            if oa.target_id:
+                target_str = f" → {_name_for_id(oa.target_id, state)}"
+            lines.append(
+                f"  [{cat_label}] {oa.action_key.replace('_', ' ').title()}"
+                f"{target_str}  ({oa.ticks_active} tick{'s' if oa.ticks_active != 1 else ''})"
+            )
+    else:
+        lines.append("  None")
     lines.append(SEP2)
 
     return "\n".join(lines)
@@ -1702,12 +1718,18 @@ def main():
         print("  ACTIONS")
         print("  ────────────────────────────────────────────────")
         print("  [A] Browse and queue actions")
+        print("  [O] Manage ongoing actions")
         print("  [T] Advance time (execute queued actions + tick)")
         print("  [S] Show current state")
         print("  [B] Show scenario briefing")
         print("  [Q] Quit")
+        status_parts = []
         if state.action_queue:
-            print(f"\n  Queued: {len(state.action_queue)} action(s) pending")
+            status_parts.append(f"{len(state.action_queue)} queued")
+        if state.ongoing_actions:
+            status_parts.append(f"{len(state.ongoing_actions)} ongoing")
+        if status_parts:
+            print(f"\n  {' | '.join(status_parts)}")
         print()
 
         cmd = input("  > ").strip().upper()
@@ -1730,6 +1752,9 @@ def main():
         elif cmd == "A":
             _action_browser(state, library, action_index, log)
 
+        elif cmd == "O":
+            _manage_ongoing_actions(state, library)
+
         elif cmd == "T":
             print("\n  Advancing time...")
             state, result = loop.advance(state)
@@ -1744,6 +1769,40 @@ def main():
                 break
         else:
             print("  Unknown command.")
+
+
+def _manage_ongoing_actions(
+    state: SimulationState,
+    library: dict,
+):
+    if not state.ongoing_actions:
+        print("\n  No ongoing actions.")
+        return
+
+    print("\n  ONGOING ACTIONS")
+    items = list(state.ongoing_actions.items())
+    for i, (cat_val, oa) in enumerate(items):
+        cat_label = cat_val.replace("_", " ").title()
+        defn = library.get(oa.action_key)
+        name = defn.name if defn else oa.action_key
+        target_str = ""
+        if oa.target_id:
+            target_str = f" → {oa.target_id}"
+        ticks = oa.ticks_active
+        print(
+            f"    {i+1}. [{cat_label}] {name}{target_str}"
+            f"  ({ticks} tick{'s' if ticks != 1 else ''})"
+        )
+    print("    0. Back")
+
+    choice = _prompt_int("  Stop which? > ", 0, len(items))
+    if choice == 0:
+        return
+    cat_val, oa = items[choice - 1]
+    del state.ongoing_actions[cat_val]
+    defn = library.get(oa.action_key)
+    name = defn.name if defn else oa.action_key
+    print(f"\n  Stopped ongoing: {name}")
 
 
 def _action_browser(
@@ -1770,8 +1829,16 @@ def _action_browser(
     cat_list = list(categories.items())
     for i, (cat, _) in enumerate(cat_list):
         used = queued_cats.get(cat.value)
-        used_str = f"  [used: {used}]" if used else ""
-        print(f"    {i+1}. {cat.value.replace('_',' ').title()}{used_str}")
+        ongoing = state.ongoing_actions.get(cat.value)
+        if used:
+            annotation = f"  [used: {used}]"
+        elif ongoing:
+            od = library.get(ongoing.action_key)
+            oname = od.name if od else ongoing.action_key
+            annotation = f"  [ongoing: {oname} ({ongoing.ticks_active}t)]"
+        else:
+            annotation = ""
+        print(f"    {i+1}. {cat.value.replace('_',' ').title()}{annotation}")
     print("    0. Back")
 
     cat_choice = _prompt_int("  > ", 0, len(cat_list))
@@ -1779,6 +1846,26 @@ def _action_browser(
         return
 
     cat, actions = cat_list[cat_choice - 1]
+
+    # If there's an ongoing action in this category, offer management options first
+    ongoing = state.ongoing_actions.get(cat.value)
+    if ongoing:
+        od = library.get(ongoing.action_key)
+        oname = od.name if od else ongoing.action_key
+        print(
+            f"\n  [ONGOING] {oname}  ({ongoing.ticks_active} tick"
+            f"{'s' if ongoing.ticks_active != 1 else ''} running)"
+        )
+        print("    1. Stop ongoing action (then pick a new one)")
+        print("    2. Override this tick (pick action; ongoing resumes next tick)")
+        print("    0. Leave it running (back)")
+        oc = _prompt_int("  > ", 0, 2)
+        if oc == 0:
+            return
+        if oc == 1:
+            del state.ongoing_actions[cat.value]
+            print(f"  Stopped: {oname}")
+
     print(f"\n  {cat.value.upper()}")
     for i, (key, defn) in enumerate(actions):
         fp_total = defn.footprint_cost.total()
@@ -1786,10 +1873,11 @@ def _action_browser(
         if defn.essence_cost != 0:
             verb = "↑" if defn.essence_cost < 0 else "↓"
             essence_str = f"  Ess{verb}{abs(defn.essence_cost):.1f}"
+        persist_tag = "  [can persist]" if "can_persist" in defn.tags else ""
         print(
             f"    {i+1}. {defn.name:35s}"
             f"  FP:{fp_total:.2f}{essence_str}"
-            f"  [{defn.reliability.value}]"
+            f"  [{defn.reliability.value}]{persist_tag}"
         )
     print("    0. Back")
 
@@ -1813,6 +1901,26 @@ def _action_browser(
         return
 
     instance, summary = result
+
+    # For can_persist actions, offer to make it an ongoing action
+    if "can_persist" in defn.tags:
+        print(f"\n  Make '{defn.name}' persistent? It will auto-execute each tick.")
+        persist_choice = input("  [y/n] > ").strip().lower()
+        if persist_choice == "y":
+            state.ongoing_actions[defn.category.value] = OngoingAction(
+                action_key=key,
+                action_definition_id=defn.id,
+                target_type=instance.target_type,
+                target_id=instance.target_id,
+                proxius_id=instance.proxius_id,
+                intent=instance.intent,
+                ticks_active=0,
+                started_at_tick=state.tick_number,
+            )
+            log.write_action(f"[ONGOING SET] {summary}")
+            print(f"\n  Ongoing: {summary}")
+            return
+
     state.action_queue.append(instance)
     log.write_action(summary)
     print(f"\n  Queued: {summary}")

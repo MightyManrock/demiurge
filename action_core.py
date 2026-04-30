@@ -705,7 +705,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.WORLD],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(subtle_influence=0.05),
-            tags=["observation", "low_footprint", "intelligence"],
+            tags=["observation", "low_footprint", "intelligence", "can_persist"],
         ),
 
         "read_divine_traces": ActionDefinition(
@@ -840,7 +840,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             # Negative = yields 0.3 Essence per action
             concealment_impact=0.2,
             # 0.2 added to apparent stockpile unless actively hidden
-            tags=["underreal", "essence_source", "high_risk", "conceal"],
+            tags=["underreal", "essence_source", "high_risk", "conceal", "can_persist"],
         ),
 
         "salvage_concept": ActionDefinition(
@@ -927,7 +927,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(),
             essence_cost=0.0,
-            tags=["zero_footprint", "self_refinement"],
+            tags=["zero_footprint", "self_refinement", "can_persist"],
         ),
 
         "overthrow_luminary": ActionDefinition(
@@ -976,6 +976,25 @@ class ActionInstance(BaseModel):
 
     intent: Optional[ActionIntent] = None
     # None for actions that don't require it (scry, audit_proxius, dismiss_proxius)
+
+
+# ─────────────────────────────────────────
+# ONGOING ACTION
+# ─────────────────────────────────────────
+
+class OngoingAction(BaseModel):
+    """
+    A persistent action that auto-executes each tick until explicitly stopped.
+    Keyed by ActionCategory.value in SimulationState.ongoing_actions.
+    """
+    action_key: str
+    action_definition_id: UUID
+    target_type: TargetType
+    target_id: Optional[UUID] = None
+    proxius_id: Optional[UUID] = None
+    intent: Optional[ActionIntent] = None
+    ticks_active: int = 0
+    started_at_tick: int = 0
 
 
 # ─────────────────────────────────────────
