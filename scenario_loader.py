@@ -30,10 +30,24 @@ from universe_core import (
     Species, SpeciesCondition,
     Universe,
 )
-from action_core import EssenceStockpile
+from action_core import (
+    EssenceStockpile, OngoingAction, TargetType,
+    WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
+    ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
+    SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+)
 from tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig, DomainVector,
 )
+
+_INTENT_CLASSES: dict[str, type] = {
+    cls.__name__: cls
+    for cls in [
+        WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
+        ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
+        SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+    ]
+}
 
 SCHEMA_PATH = Path(__file__).parent / "scenario_schema.sql"
 
@@ -87,6 +101,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     cfg      = _load_tick_config(conn)
     civ_momentum = _load_civ_momentum(conn)
     lum_attention, ticks_since = _load_luminary_state(conn)
+    ongoing_actions = _load_ongoing_actions(conn)
 
     universe = Universe(
         name=meta["universe_name"],
@@ -114,6 +129,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         luminary_attention=lum_attention,
         ticks_since_evaluation=ticks_since,
         config=cfg,
+        ongoing_actions=ongoing_actions,
+        tick_number=meta.get("tick_number", 0),
     )
 
 
@@ -427,3 +444,30 @@ def _load_luminary_state(
         attention[lid] = row["attention"]
         ticks[lid]     = row["ticks_since_evaluation"]
     return attention, ticks
+
+
+def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
+    out: dict[str, OngoingAction] = {}
+    try:
+        rows = conn.execute("SELECT * FROM ongoing_actions").fetchall()
+    except Exception:
+        return out  # table absent in old DBs
+    for raw in rows:
+        row = dict(raw)
+        intent = None
+        intent_type = row.get("intent_type")
+        intent_data = row.get("intent_data")
+        if intent_type and intent_data and intent_type in _INTENT_CLASSES:
+            intent = _INTENT_CLASSES[intent_type].model_validate_json(intent_data)
+        out[row["category_key"]] = OngoingAction(
+            action_key=row["action_key"],
+            action_definition_id=UUID(row["action_definition_id"]),
+            target_type=TargetType(row["target_type"]),
+            target_id=_uuid(row.get("target_id")),
+            proxius_id=_uuid(row.get("proxius_id")),
+            intent=intent,
+            ticks_active=row["ticks_active"],
+            executed_ticks=row["executed_ticks"],
+            started_at_tick=row["started_at_tick"],
+        )
+    return out

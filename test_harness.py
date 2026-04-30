@@ -57,6 +57,7 @@ from tick_logic import (
     is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD, VISIBILITY_FLOOR,
 )
 from scenario_loader import load_scenario
+from scenario_exporter import export_scenario
 from domain_registry import get_registry
 
 
@@ -1665,41 +1666,71 @@ class SessionLog:
 # MAIN LOOP
 # ─────────────────────────────────────────
 
+def _peek_db_meta(path: Path) -> dict:
+    """Return {name, description, tick_number} from a scenario/save .db file."""
+    try:
+        import sqlite3 as _sq
+        with _sq.connect(path) as _c:
+            row = _c.execute(
+                "SELECT name, description, tick_number FROM scenario_meta LIMIT 1"
+            ).fetchone()
+        if row:
+            return {
+                "name": row[0] or path.stem,
+                "description": row[1] or "",
+                "tick_number": row[2] if row[2] is not None else 0,
+            }
+    except Exception:
+        pass
+    return {"name": path.stem, "description": "", "tick_number": 0}
+
+
 def _select_scenario() -> SimulationState:
     """
-    Display a startup menu of available .db files in the scenarios/
-    folder, plus an option to load the hardcoded default scenario.
+    Startup menu — list saves and scenarios, or load the hardcoded default.
     Returns a fully constructed SimulationState.
     """
+    saves_dir     = Path(__file__).parent / "saves"
     scenarios_dir = Path(__file__).parent / "scenarios"
-    db_files = sorted(scenarios_dir.glob("*.db")) if scenarios_dir.exists() else []
+    save_files     = sorted(saves_dir.glob("*.db"))     if saves_dir.exists()     else []
+    scenario_files = sorted(scenarios_dir.glob("*.db")) if scenarios_dir.exists() else []
+
+    all_files: list[Path] = save_files + scenario_files
 
     print()
-    print("  SELECT SCENARIO")
+    print("  LOAD GAME")
     print("  ────────────────────────────────────────────────")
 
-    if db_files:
-        for i, path in enumerate(db_files, start=1):
-            try:
-                import sqlite3 as _sq
-                with _sq.connect(path) as _c:
-                    row = _c.execute("SELECT name, description FROM scenario_meta LIMIT 1").fetchone()
-                scenario_name = row[0] if row else path.stem
-                scenario_desc = row[1] if (row and row[1]) else ""
-            except Exception:
-                scenario_name = path.stem
-                scenario_desc = ""
-            print(f"  [{i}] {scenario_name}")
-            if scenario_desc:
-                print(f"       {scenario_desc}")
-    else:
-        print("  (no scenario files found in scenarios/)")
+    idx = 1
+    if save_files:
+        print("  Saves:")
+        for path in save_files:
+            meta = _peek_db_meta(path)
+            tick_str = f"  [tick {meta['tick_number']}]" if meta["tick_number"] else ""
+            print(f"    [{idx}] {meta['name']}{tick_str}")
+            if meta["description"]:
+                print(f"         {meta['description']}")
+            idx += 1
+        print()
 
-    print(f"  [D] Default scenario  (build_scenario_default)")
-    if db_files:
-        print(f"  [Q] Quit")
+    if scenario_files:
+        print("  Scenarios:")
+        for path in scenario_files:
+            meta = _peek_db_meta(path)
+            print(f"    [{idx}] {meta['name']}")
+            if meta["description"]:
+                print(f"         {meta['description']}")
+            idx += 1
+        print()
+    elif not save_files:
+        print("  (no saves or scenario files found)")
+        print()
+
+    print("  [D] New game  (default scenario)")
+    print("  [Q] Quit")
     print()
 
+    max_idx = len(all_files)
     while True:
         raw = input("  > ").strip().upper()
 
@@ -1707,17 +1738,39 @@ def _select_scenario() -> SimulationState:
             raise SystemExit(0)
 
         if raw == "D":
-            print("  Loading default scenario...")
+            print("  Starting new game...")
             return build_scenario_default()
 
         if raw.isdigit():
-            idx = int(raw) - 1
-            if 0 <= idx < len(db_files):
-                path = db_files[idx]
+            n = int(raw) - 1
+            if 0 <= n < max_idx:
+                path = all_files[n]
                 print(f"  Loading {path.name}...")
                 return load_scenario(path)
 
-        print(f"  Invalid choice — enter a number 1–{len(db_files)}, D, or Q.")
+        hint = f"1–{max_idx}, " if max_idx else ""
+        print(f"  Invalid choice — enter {hint}D, or Q.")
+
+
+def _save_game(state: SimulationState) -> None:
+    saves_dir = Path(__file__).parent / "saves"
+    saves_dir.mkdir(exist_ok=True)
+
+    default_name = f"save_tick{state.tick_number}"
+    raw = input(f"  Save name [{default_name}]: ").strip()
+    name = raw if raw else default_name
+
+    db_path = saves_dir / f"{name}.db"
+    if db_path.exists():
+        confirm = input(f"  '{name}.db' already exists — overwrite? [y/n]: ").strip().lower()
+        if confirm != "y":
+            print("  Save cancelled.")
+            return
+
+    age_str = f"{state.universe.current_age:.1f}"
+    description = f"Tick {state.tick_number}  |  Age {age_str}"
+    export_scenario(state, db_path, scenario_name=name, description=description)
+    print(f"  Saved to saves/{name}.db")
 
 
 def main():
@@ -1754,6 +1807,7 @@ def main():
         print("  [T] Advance time (execute queued actions + tick)")
         print("  [S] Show current state")
         print("  [B] Show scenario briefing")
+        print("  [V] Save game")
         print("  [Q] Quit")
         status_parts = []
         if state.action_queue:
@@ -1786,6 +1840,9 @@ def main():
 
         elif cmd == "O":
             _manage_ongoing_actions(state, library)
+
+        elif cmd == "V":
+            _save_game(state)
 
         elif cmd == "T":
             print("\n  Advancing time...")

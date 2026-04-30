@@ -64,6 +64,7 @@ def export_scenario(
     _write_tick_config(conn, state)
     _write_civ_momentum(conn, state)
     _write_luminary_state(conn, state)
+    _write_ongoing_actions(conn, state)
 
     conn.commit()
     conn.close()
@@ -77,13 +78,15 @@ def export_scenario(
 def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
     conn.execute(
         """INSERT INTO scenario_meta
-           (name, description, universe_name, current_age, demiurge_id, pantheon_id)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+           (name, description, universe_name, current_age, tick_number,
+            demiurge_id, pantheon_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
             state.universe.name,
             state.universe.current_age,
+            state.tick_number,
             str(state.demiurge.id),
             str(state.pantheon.id),
         ),
@@ -433,6 +436,32 @@ def _write_luminary_state(conn, state: SimulationState):
                 lid,
                 state.luminary_attention.get(lid, 0.2),
                 state.ticks_since_evaluation.get(lid, 0.0),
+            ),
+        )
+
+
+def _write_ongoing_actions(conn, state: SimulationState):
+    for cat_val, oa in state.ongoing_actions.items():
+        intent_type = type(oa.intent).__name__ if oa.intent is not None else None
+        intent_data = oa.intent.model_dump_json() if oa.intent is not None else None
+        conn.execute(
+            """INSERT INTO ongoing_actions
+               (category_key, action_key, action_definition_id, target_type,
+                target_id, proxius_id, intent_type, intent_data,
+                ticks_active, executed_ticks, started_at_tick)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cat_val,
+                oa.action_key,
+                str(oa.action_definition_id),
+                oa.target_type.value,
+                str(oa.target_id) if oa.target_id else None,
+                str(oa.proxius_id) if oa.proxius_id else None,
+                intent_type,
+                intent_data,
+                oa.ticks_active,
+                oa.executed_ticks,
+                oa.started_at_tick,
             ),
         )
 

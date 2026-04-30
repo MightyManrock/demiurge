@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     description         TEXT NOT NULL DEFAULT '',
     universe_name       TEXT NOT NULL,
     current_age         REAL NOT NULL DEFAULT 0.0,
+    tick_number         INTEGER NOT NULL DEFAULT 0,
     demiurge_id         TEXT NOT NULL,
     pantheon_id         TEXT NOT NULL
 );
@@ -241,4 +242,19 @@ CREATE TABLE IF NOT EXISTS luminary_state (
     luminary_id              TEXT PRIMARY KEY,
     attention                REAL NOT NULL DEFAULT 0.2,
     ticks_since_evaluation   REAL NOT NULL DEFAULT 0.0
+);
+
+-- Ongoing (persistent) actions active at save time.
+CREATE TABLE IF NOT EXISTS ongoing_actions (
+    category_key           TEXT PRIMARY KEY,
+    action_key             TEXT NOT NULL,
+    action_definition_id   TEXT NOT NULL,
+    target_type            TEXT NOT NULL,
+    target_id              TEXT,
+    proxius_id             TEXT,
+    intent_type            TEXT,    -- Python class name of the intent, or NULL
+    intent_data            TEXT,    -- JSON of intent fields, or NULL
+    ticks_active           INTEGER NOT NULL DEFAULT 0,
+    executed_ticks         INTEGER NOT NULL DEFAULT 0,
+    started_at_tick        INTEGER NOT NULL DEFAULT 0
 );
