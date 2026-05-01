@@ -7,7 +7,7 @@ pyvenv.cfg
 
 autoplay.py
 logs/*.log
-docs/*
+docs
 saves/*.db
 
 # Claude Code
