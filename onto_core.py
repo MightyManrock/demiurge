@@ -158,3 +158,5 @@ class Demiurge(BaseModel):
     unlocked_domain_tags: list[str] = Field(default_factory=list)
     # domain:... tags the Demiurge has explored or promoted beyond their Luminaries'
     # granted domains. Each unlocked tag extends the Demiurge's accessible frontier.
+    unlocked_imagines: list[str] = Field(default_factory=list)
+    # imago node_ids (e.g. "change:t1:wheel") the Demiurge has purchased or drawn.

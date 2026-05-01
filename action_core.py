@@ -180,6 +180,9 @@ class WhisperIntent(BaseModel):
     # Who the mortal is meant to carry this to, if anyone.
     # e.g. "their ruler", "their congregation", "their children"
 
+    imago_node_id: Optional[str] = None
+    # The Imago node (e.g. "change:t1:wheel") that framed this action, if any.
+
 
 class OmenIntent(BaseModel):
     """
@@ -203,6 +206,8 @@ class OmenIntent(BaseModel):
     # Which civilization this is aimed at.
     # None = world-wide, multiple civilizations see it
     # and may interpret it very differently
+
+    imago_node_id: Optional[str] = None
 
 
 class ProbabilityNudgeIntent(BaseModel):
@@ -228,6 +233,8 @@ class ProbabilityNudgeIntent(BaseModel):
     # How hard you're pushing. Higher = more footprint,
     # more likely to work, more obviously unnatural if noticed.
 
+    imago_node_id: Optional[str] = None
+
 
 class DevelopmentIntent(BaseModel):
     """
@@ -249,6 +256,8 @@ class DevelopmentIntent(BaseModel):
     # In universe time units — how long you expect this to take
     # before meaningful domain_expression shift is visible.
     # Informs the evaluation layer's patience modeling.
+
+    imago_node_id: Optional[str] = None
 
 
 class ProxiusDirectiveIntent(BaseModel):
@@ -286,6 +295,8 @@ class ProxiusDirectiveIntent(BaseModel):
     # Explicit limits on method.
     # e.g. ["do not kill the king directly", "do not reveal your divine appointment"]
     # A drifting Proxius may ignore these.
+
+    imago_node_id: Optional[str] = None
 
 
 class LuminaryPetitionIntent(BaseModel):
@@ -361,6 +372,8 @@ class SalvageIntent(BaseModel):
     # you pull back if the salvage is too strange,
     # burning Essence without result.
 
+    imago_node_id: Optional[str] = None
+
 
 class SeedWorldIntent(BaseModel):
     """
@@ -386,6 +399,7 @@ class UpliftSpeciesIntent(BaseModel):
     species_id: UUID
     domain_vectors: list[DomainVector] = Field(default_factory=list)
     framing: Framing = Framing.NATURAL
+    imago_node_id: Optional[str] = None
 
 
 class ExploreBeliefIntent(BaseModel):

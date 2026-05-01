@@ -367,8 +367,9 @@ def _write_demiurge(conn, state: SimulationState):
         """INSERT INTO demiurge
            (id, name, liege_luminary_ids, granted_domains,
             fp_overt_miracles, fp_subtle_influence,
-            fp_proxius_activity, fp_direct_creation, proxius_ids)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            fp_proxius_activity, fp_direct_creation,
+            proxius_ids, unlocked_imagines)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(d.id),
             d.name,
@@ -379,6 +380,7 @@ def _write_demiurge(conn, state: SimulationState):
             fp.proxius_activity,
             fp.direct_creation,
             _j(d.proxius_ids),
+            _j(d.unlocked_imagines),
         ),
     )
 
@@ -850,6 +852,12 @@ def build_scenario_default() -> SimulationState:
         liege_luminary_ids=[cassiel.id, vrath.id],
         granted_domains=[d_order.id, d_conflict.id],
         footprint=FootprintProfile(),
+        unlocked_imagines=[
+            "order:t1:warden",      # Cassiel (Order) — quiet cost of stable boundaries
+            "silence:t1:veil",      # Cassiel (Silence) — the concealed god, subtlety mandate
+            "conflict:t1:banner",   # Vrath (Conflict) — defiance past the point of hope
+            "change:t1:wheel",      # Vrath (Change) — costly, unstoppable transformation
+        ],
     )
 
     essence = EssenceStockpile(actual=0.0, apparent=0.0, concealment_integrity=1.0)

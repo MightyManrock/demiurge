@@ -29,6 +29,7 @@ from tick_logic import (
 from scenario_loader import load_scenario
 from scenario_exporter import export_scenario
 from domain_registry import get_registry
+from imago_registry import get_registry as get_imago_registry
 
 # Actions whose required systems haven't been built yet.
 # Listed in the action browser with a note; selecting one shows a message and backs out.
@@ -659,48 +660,55 @@ def _build_intent(
                 bio_tags=bio_tags,
             )
         elif action_key == "uplift_species":
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
             return UpliftSpeciesIntent(
                 species_id=target_id,
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
+                imago_node_id=imago_id,
             )
 
     elif cat == ActionCategory.SUBTLE_INFLUENCE:
         if action_key in ("whisper", "shape_dream"):
-            concept = input("  Concept to plant: ").strip() or "You could shape the future."
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
+            if imago_id:
+                concept = get_imago_registry().get_node(imago_id).name
+            else:
+                concept = input("  Concept to plant: ").strip() or "You could shape the future."
             return WhisperIntent(
                 concept=concept,
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
                 framing=_prompt_framing(),
+                imago_node_id=imago_id,
             )
         elif action_key == "nudge_probability":
             event = input("  Event to nudge: ").strip() or "Upcoming succession conflict"
             outcome = input("  Desired outcome: ").strip() or "The reformist faction prevails"
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
             return ProbabilityNudgeIntent(
                 event_description=event,
                 desired_outcome=outcome,
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
+                imago_node_id=imago_id,
             )
         elif action_key == "accelerate_development":
             aspect = input("  Which aspect to develop: ").strip() or "military doctrine"
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
             return DevelopmentIntent(
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
                 target_aspect=aspect,
+                imago_node_id=imago_id,
             )
 
     elif cat == ActionCategory.PROXIUS_DIRECTION:
         if action_key == "issue_directive":
             goal = input("  Directive goal: ").strip() or "Strengthen the reformist faction"
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
             latitude = _prompt_float("  Latitude (0.0 strict – 1.0 open): ", 0.0, 1.0, 0.5)
 
-            # If a domain vector was chosen, pick which civilization to promote it in.
+            # If domain vectors were chosen, pick which civilization to promote them in.
             # Filter to civilizations on the Proxius's current world.
             target_civ_id = None
-            if dv:
+            if dvs:
                 proxius = state.mortals.get(str(target_id)) if target_id else None
                 loc_id = str(proxius.current_location or proxius.world_id) if proxius else None
                 civs_here = [
@@ -709,8 +717,8 @@ def _build_intent(
                 ] if loc_id else []
 
                 if not civs_here:
-                    print("  (No civilizations at this Proxius's location — domain vector discarded.)")
-                    dv = None
+                    print("  (No civilizations at this Proxius's location — domain vectors discarded.)")
+                    dvs = []
                 elif len(civs_here) == 1:
                     target_civ_id = UUID(civs_here[0][0])
                     print(f"  Target civilization: {civs_here[0][1].name}")
@@ -718,18 +726,19 @@ def _build_intent(
                     print("  Promote belief in which civilization?")
                     for i, (cid, c) in enumerate(civs_here):
                         print(f"    {i+1}. {c.name}  [{c.scale.value}]")
-                    print("    0. Discard domain vector")
+                    print("    0. Discard domain vectors")
                     civ_choice = _prompt_int("  > ", 0, len(civs_here))
                     if civ_choice > 0:
                         target_civ_id = UUID(civs_here[civ_choice - 1][0])
                     else:
-                        dv = None
+                        dvs = []
 
             return ProxiusDirectiveIntent(
                 goal_statement=goal,
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
                 latitude=latitude,
                 target_civilization_id=target_civ_id,
+                imago_node_id=imago_id,
             )
 
     elif cat == ActionCategory.UNDERREAL:
@@ -753,11 +762,12 @@ def _build_intent(
                 print(f"    {i+1}. {w.name}")
             choice = _prompt_int("  > ", 1, len(worlds))
             world_id = UUID(worlds[choice-1][0])
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
             return SalvageIntent(
                 desired_concept=desired,
                 target_world_id=world_id,
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
+                imago_node_id=imago_id,
             )
 
     elif cat == ActionCategory.OVERT_MIRACLE:
@@ -766,7 +776,7 @@ def _build_intent(
             interpretation = (
                 input("  Intended interpretation: ").strip() or "The gods demand action"
             )
-            dv = _prompt_domain_select(state)
+            dvs, imago_id = _prompt_domain_or_imago(state)
             civ_scope = None
             if target_id:
                 tid_str = str(target_id)
@@ -777,9 +787,10 @@ def _build_intent(
             return OmenIntent(
                 sign_description=sign,
                 intended_interpretation=interpretation,
-                domain_vectors=[dv] if dv else [],
+                domain_vectors=dvs,
                 framing=_prompt_framing(),
                 civilization_scope=civ_scope,
+                imago_node_id=imago_id,
             )
 
     elif cat == ActionCategory.LUMINARY_RELATIONS:
@@ -922,11 +933,11 @@ def _get_lum_domain_context(state: SimulationState):
     return lum_info, fellow_tags, all_canonical
 
 
-def _prompt_domain_select(state: SimulationState) -> DomainVector | None:
+def _prompt_domain_tag(state: SimulationState) -> str | None:
     """
     Numbered selection list of domain tags accessible to the Demiurge,
     annotated with each Luminary's approval/disapproval rating.
-    Returns a DomainVector (tag + direction) or None to skip.
+    Returns the selected tag or None to skip. Does NOT prompt for direction.
     """
     registry = get_registry()
     lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
@@ -940,7 +951,6 @@ def _prompt_domain_select(state: SimulationState) -> DomainVector | None:
         print("  No domain tags are currently accessible.")
         return None
 
-    # Header
     lum_col_w = 10
     print()
     print(f"  {'Domain':<22}", end="")
@@ -978,12 +988,90 @@ def _prompt_domain_select(state: SimulationState) -> DomainVector | None:
     choice = _prompt_int("  > ", 0, len(accessible))
     if choice == 0:
         return None
+    return accessible[choice - 1]
 
-    tag = accessible[choice - 1]
+
+def _prompt_imago_select(nodes: list) -> object | None:
+    """
+    Picker for available Imago nodes for the chosen domain tree.
+    Shows name, blurb, and mechanics. Returns the chosen ImagoNode or None
+    to fall back to manual direction.
+    """
+    print()
+    print("  Frame this action through an Imago:")
+    for i, node in enumerate(nodes):
+        print(f"    {i+1}. {node.name}")
+        if node.tooltip_blurb:
+            print(f'         "{node.tooltip_blurb}"')
+        domain_parts = [
+            (t.split(":", 1)[1], v)
+            for t, v in node.mechanics.items()
+            if t.startswith("domain:")
+        ]
+        culture_parts = [
+            (t.split(":", 1)[1], v)
+            for t, v in node.mechanics.items()
+            if t.startswith("culture:")
+        ]
+        if domain_parts:
+            d_str = ", ".join(
+                f"{t}:{'+' if v > 0 else ''}{v:.2f}" for t, v in domain_parts
+            )
+            print(f"         domains: [{d_str}]")
+        if culture_parts:
+            c_str = ", ".join(
+                f"{t}:{'+' if v > 0 else ''}{v:.2f}" for t, v in culture_parts
+            )
+            print(f"         culture: [{c_str}]")
+    print(f"    0. No Imago — set direction manually")
+
+    choice = _prompt_int("  > ", 0, len(nodes))
+    if choice == 0:
+        return None
+    return nodes[choice - 1]
+
+
+def _prompt_domain_or_imago(
+    state: SimulationState,
+) -> tuple[list[DomainVector], str | None]:
+    """
+    Step 1 — domain tag selection (with Luminary approval ratings).
+    Step 2 — if the Demiurge has Imagines unlocked for that tree, offer the
+              Imago picker; Imago mechanics supply all direction vectors.
+              Otherwise fall back to the manual direction prompt.
+
+    Returns (domain_vectors, imago_node_id).
+    imago_node_id is non-None only when an Imago was chosen; callers use this
+    to suppress free-text prompts (concept, goal) that the Imago answers implicitly.
+    """
+    tag = _prompt_domain_tag(state)
+    if tag is None:
+        return [], None
+
+    tree = tag.split(":", 1)[1]  # "domain:order" -> "order"
+    ireg = get_imago_registry()
+
+    available = [
+        ireg.get_node(nid)
+        for nid in state.demiurge.unlocked_imagines
+        if ireg.get_node(nid) and ireg.get_node(nid).tree == tree
+    ]
+
+    if available:
+        node = _prompt_imago_select(available)
+        if node is not None:
+            dvs = [
+                DomainVector(domain_tag=t, direction=v)
+                for t, v in node.mechanics.items()
+                if t.startswith("domain:")
+            ]
+            return dvs, node.node_id
+
+    # Fallback: single vector with a manually chosen direction.
     direction = _prompt_float(
         "  Direction  -1.0 (suppress) ──► +1.0 (promote): ", -1.0, 1.0, 0.5
     )
-    return DomainVector(domain_tag=tag, direction=direction)
+    return [DomainVector(domain_tag=tag, direction=direction)], None
 
 
 def _prompt_framing():
