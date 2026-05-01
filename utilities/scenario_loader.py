@@ -17,11 +17,11 @@ import sqlite3
 from pathlib import Path
 from uuid import UUID
 
-from onto_core import (
+from core.onto_core import (
     Domain, Luminary, Pantheon, Constraint,
     Temperament, Disposition, FootprintProfile, Demiurge,
 )
-from universe_core import (
+from core.universe_core import (
     FootprintTolerances, ProxiiPolicy, UniverseRules,
     Galaxy, System, CosmicCoordinates, StarType,
     WorldCondition, WorldFootprint, World,
@@ -30,13 +30,13 @@ from universe_core import (
     Species, SpeciesCondition,
     Universe,
 )
-from action_core import (
+from core.action_core import (
     EssenceStockpile, OngoingAction, TargetType,
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
 )
-from tick_logic import (
+from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig, DomainVector,
 )
 
@@ -49,7 +49,7 @@ _INTENT_CLASSES: dict[str, type] = {
     ]
 }
 
-SCHEMA_PATH = Path(__file__).parent / "scenario_schema.sql"
+SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
 
 
 def load_scenario(db_path: str | Path) -> SimulationState:

@@ -10,8 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from universe_core import MortalRole, MortalStatus, MortalProminence
-from action_core import (
+from core.universe_core import MortalRole, MortalStatus, MortalProminence
+from core.action_core import (
     ActionCategory, TargetType, ActionDefinition,
     ActionInstance, OngoingAction,
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
@@ -21,15 +21,15 @@ from action_core import (
     ExploreBeliefIntent,
     DomainVector,
 )
-from tick_logic import (
+from logic.tick_logic import (
     SimulationState,
     TickLoop, TickResult,
     is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD,
 )
-from scenario_loader import load_scenario
-from scenario_exporter import export_scenario
-from domain_registry import get_registry
-from imago_registry import get_registry as get_imago_registry
+from utilities.scenario_loader import load_scenario
+from utilities.scenario_exporter import export_scenario
+from utilities.domain_registry import get_registry
+from utilities.imago_registry import get_registry as get_imago_registry
 
 # Actions whose required systems haven't been built yet.
 # Listed in the action browser with a note; selecting one shows a message and backs out.

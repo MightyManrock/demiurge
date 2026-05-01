@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 import random
 import math
 
-from action_core import (
+from core.action_core import (
     DomainVector,
     StateMutation, MutationType,
     ActionOutcome,
@@ -22,7 +22,7 @@ from action_core import (
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     TargetType,
 )
-from eval_core import (
+from core.eval_core import (
     UniverseDomainProfile,
     LuminaryEvaluation,
     DialogueTrigger,
@@ -33,16 +33,16 @@ from eval_core import (
     DispositionDelta,
     DispositionDeltaReason,
 )
-from onto_core import (
+from core.onto_core import (
     Demiurge, Pantheon, Luminary, Domain,
 )
-from universe_core import (
+from core.universe_core import (
     Universe, Galaxy, System, World, Civilization, NotableMortal,
     MortalRole, MortalStatus, MortalProminence, WorldCondition,
     Species, SpeciesCondition,
 )
-from domain_registry import DomainRegistry, get_registry
-from culture_registry import CultureRegistry, get_registry as get_culture_registry
+from utilities.domain_registry import DomainRegistry, get_registry
+from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
 
 
 # ─────────────────────────────────────────

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p utilities logic)",
+      "Bash(touch core/__init__.py utilities/__init__.py logic/__init__.py)",
+      "Bash(mv onto_core.py universe_core.py action_core.py eval_core.py scenario_schema.sql core/)",
+      "Bash(mv scenario_loader.py scenario_exporter.py domain_registry.py culture_registry.py imago_registry.py utilities/)",
+      "Bash(mv tick_logic.py logic/)"
+    ]
+  }
+}

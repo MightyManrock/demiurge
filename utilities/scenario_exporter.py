@@ -17,11 +17,11 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
-from onto_core import (
+from core.onto_core import (
     Power, Domain, Temperament, Disposition, Constraint,
     Luminary, Pantheon, FootprintProfile, Demiurge,
 )
-from universe_core import (
+from core.universe_core import (
     FootprintTolerances, ProxiiPolicy, UniverseRules,
     Galaxy, System, CosmicCoordinates, StarType,
     WorldCondition, World,
@@ -30,11 +30,11 @@ from universe_core import (
     Species, SpeciesCondition,
     Universe,
 )
-from action_core import EssenceStockpile
-from tick_logic import SimulationState, CivilizationMomentum, TickConfig
+from core.action_core import EssenceStockpile
+from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig
 
 
-SCHEMA_PATH = Path(__file__).parent / "scenario_schema.sql"
+SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
 
 
 def _j(value) -> str:
@@ -925,7 +925,7 @@ def build_scenario_default() -> SimulationState:
 
 if __name__ == "__main__":
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-        Path(__file__).parent / "scenarios" / "wardens_compact.db"
+        Path(__file__).parent.parent / "scenarios" / "wardens_compact.db"
     )
 
     state = build_scenario_default()

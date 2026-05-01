@@ -15,7 +15,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-_PROJECT_ROOT = Path(__file__).parent
+_PROJECT_ROOT = Path(__file__).parent.parent
 DEFAULT_CORE_DB = _PROJECT_ROOT / "core" / "core.db"
 
 # ── Threshold constants ────────────────────────────────────────────────
