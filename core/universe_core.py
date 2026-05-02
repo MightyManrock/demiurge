@@ -301,6 +301,7 @@ class MortalProminence(str, Enum):
     MERCHANT = "merchant"  # Economic power
     REBEL    = "rebel"     # Opposed to the current order
     SCHOLAR  = "scholar"   # Keeper of knowledge or arcane lore
+    APEX    =   "apex" # Notable member of non-sapient species
     NONE     = "none"      # No notable role
 
 
