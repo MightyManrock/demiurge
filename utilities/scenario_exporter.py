@@ -143,7 +143,7 @@ def _write_luminaries(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO luminaries
                (id, name, domains, pantheon_id, temperament,
-                disposition_results, disposition_methods, herald_id, status_tags)
+                disposition_results, disposition_methods, herald_ids, status_tags)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(luminary.id),
@@ -153,7 +153,7 @@ def _write_luminaries(conn, state: SimulationState):
                 luminary.temperament.value,
                 luminary.disposition.results,
                 luminary.disposition.methods,
-                str(luminary.herald_id) if luminary.herald_id else None,
+                _j(luminary.herald_ids),
                 _j(luminary.status_tags),
             ),
         )
@@ -923,7 +923,7 @@ def build_scenario_default() -> SimulationState:
 # CLI entry point
 # ─────────────────────────────────────────
 
-if __name__ == "__main__":
+def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else (
         Path(__file__).parent.parent / "scenarios" / "wardens_compact.db"
     )
@@ -939,3 +939,6 @@ if __name__ == "__main__":
             "Two inhabited worlds, one barren candidate for seeding."
         ),
     )
+
+if __name__ == "__main__":
+    main()

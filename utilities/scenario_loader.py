@@ -181,7 +181,8 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
                 methods=row["disposition_methods"],
             ),
             constraints=constraints_by_owner.get(lid, []),
-            herald_id=_uuid(row["herald_id"]),
+            herald_ids=[UUID(x) for x in _j(row["herald_ids"])],
+            # herald_ids=[""]
             status_tags=_j(row.get("status_tags", row.get("speech_tags", "[]"))),
         )
         lums[str(l.id)] = l

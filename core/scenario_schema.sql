@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS luminaries (
     -- Disposition (embedded)
     disposition_results  REAL NOT NULL DEFAULT 0.0,
     disposition_methods  REAL NOT NULL DEFAULT 0.0,
-    herald_id            TEXT,
+    herald_ids           TEXT NOT NULL DEFAULT '[]',  -- JSON array
     status_tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array
 );
 

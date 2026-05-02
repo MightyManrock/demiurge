@@ -109,7 +109,7 @@ class Luminary(BaseModel):
     temperament: Temperament
     disposition: Disposition = Field(default_factory=Disposition)
     constraints: list[Constraint] = Field(default_factory=list)
-    herald_id: Optional[UUID] = None        # Mortal Herald assigned to the Demiurge's universe
+    herald_ids: list[UUID] = Field(default_factory=list)        # Mortal Heralds assigned to the Demiurge's universe
     status_tags: list[str] = Field(default_factory=list)
     # e.g. ["status:liege"]
 
