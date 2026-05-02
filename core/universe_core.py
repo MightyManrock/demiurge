@@ -315,7 +315,6 @@ class MortalStatus(str, Enum):
 class NotableMortal(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
-    world_id: UUID
     civilization_id: Optional[UUID] = None
     role: MortalRole = MortalRole.OTHER
     status: MortalStatus = MortalStatus.ACTIVE
@@ -359,8 +358,8 @@ class NotableMortal(BaseModel):
     # Where this mortal was born / first recorded (fixed).
     # Where they are now (changes when moved to a new world or sub-world location).
     # Both hold a world UUID for now; will accommodate sub-world locations later.
-    home_location: Optional[UUID] = None
-    current_location: Optional[UUID] = None
+    home_location: UUID
+    current_location: UUID
 
 
 # ─────────────────────────────────────────

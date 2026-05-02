@@ -143,7 +143,7 @@ def _write_luminaries(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO luminaries
                (id, name, domains, pantheon_id, temperament,
-                disposition_results, disposition_methods, herald_id, status_tags)
+                disposition_results, disposition_methods, herald_ids, status_tags)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(luminary.id),
@@ -153,7 +153,7 @@ def _write_luminaries(conn, state: SimulationState):
                 luminary.temperament.value,
                 luminary.disposition.results,
                 luminary.disposition.methods,
-                str(luminary.herald_id) if luminary.herald_id else None,
+                _j(luminary.herald_ids),
                 _j(luminary.status_tags),
             ),
         )
@@ -333,15 +333,15 @@ def _write_mortals(conn, state: SimulationState):
     for m in state.mortals.values():
         conn.execute(
             """INSERT INTO mortals
-               (id, name, world_id, civilization_id, role, status,
+               (id, name, civilization_id, role, status,
                 species_id, prominence_roles, prominence, visibility,
                 personal_tags, culture_tags, alignment, chrono_age, bio_age,
-                appointed_by_demiurge, appointed_by_luminary)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                appointed_by_demiurge, appointed_by_luminary, home_location,
+                current_location)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
-                str(m.world_id),
                 str(m.civilization_id) if m.civilization_id else None,
                 m.role.value,
                 m.status.value,
@@ -356,6 +356,8 @@ def _write_mortals(conn, state: SimulationState):
                 m.bio_age,
                 str(m.appointed_by_demiurge) if m.appointed_by_demiurge else None,
                 str(m.appointed_by_luminary) if m.appointed_by_luminary else None,
+                str(m.home_location),
+                str(m.current_location),
             ),
         )
 
@@ -669,7 +671,7 @@ def build_scenario_default() -> SimulationState:
     system_outer.world_ids.append(oros.id)
 
     # ── Species ───────────────────────────────────────
-    naran = Species(
+    naran_species = Species(
         name="Naran",
         description="Humanoid species native to Neran. Ordered society, long memory.",
         origin_world_id=neran.id,
@@ -680,7 +682,20 @@ def build_scenario_default() -> SimulationState:
         cultural_tags={"culture:ancestor_worship": 0.70, "culture:hierarchy": 0.60},
         condition=SpeciesCondition.STABLE,
     )
-    neran.species_ids.append(naran.id)
+    neran.species_ids.append(naran_species.id)
+
+    ultir_species = Species(
+        name="Ultir",
+        description="Deep-ocean, near-sapient species native to Neran.",
+        origin_world_id=neran.id,
+        sapient=False,
+        lifespan_min=620,
+        lifespan_max=860,
+        bio_tags=["bio:water-breathing", "bio:radial_symm", "bio:carbon_based"],
+        cultural_tags={},
+        condition=SpeciesCondition.ENDANGERED,
+    )
+    neran.species_ids.append(ultir_species.id)
 
     keth_species = Species(
         name="Keth",
@@ -696,12 +711,12 @@ def build_scenario_default() -> SimulationState:
     oros.species_ids.append(keth_species.id)
 
     # ── Civilizations ─────────────────────────────────
-    civ = Civilization(
+    neran_confed = Civilization(
         name="The Neran Confederacy",
         world_id=neran.id,
         scale=CivilizationScale.INTERSTELLAR,
         health=CivilizationHealth(stability=0.6, prosperity=0.5, cohesion=0.55),
-        primary_species_id=naran.id,
+        primary_species_id=naran_species.id,
         dominant_beliefs={"domain:order": 0.8, "domain:mastery": 0.5},
         culture_tags={
             "culture:sedentism": 0.90, "culture:hierarchy": 0.85,
@@ -713,7 +728,7 @@ def build_scenario_default() -> SimulationState:
         divine_awareness=0.25,
         age=400.0,
     )
-    neran.civilization_ids.append(civ.id)
+    neran.civilization_ids.append(neran_confed.id)
 
     keth = Civilization(
         name="The Keth Wanderers",
@@ -735,51 +750,51 @@ def build_scenario_default() -> SimulationState:
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
-        name="Senna Vaur", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Senna Vaur", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.LEADER], prominence=0.65, visibility=1.0,
         personal_tags=["domain:order", "status:senator", "personal:ambitious", "personal:pragmatic"],
         culture_tags={"culture:hierarchy": 0.80, "culture:diplomacy": 0.80, "culture:sedentism": 0.80},
         alignment=0.75, chrono_age=170.0, bio_age=170.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(senna.id)
+    neran_confed.notable_mortal_ids.append(senna.id)
 
     karath = NotableMortal(
-        name="Karath Omn", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Karath Omn", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.MILITARY], prominence=0.80, visibility=1.0,
         personal_tags=["domain:conflict", "domain:mastery", "status:commander", "personal:ambitious", "personal:ruthless"],
         culture_tags={"culture:hierarchy": 0.90, "culture:sedentism": 0.80, "culture:industrialism": 0.70},
         alignment=0.45, chrono_age=205.0, bio_age=205.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(karath.id)
+    neran_confed.notable_mortal_ids.append(karath.id)
 
     veth = NotableMortal(
-        name="Veth Sarai", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Veth Sarai", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.PRIEST], prominence=0.70, visibility=1.0,
         personal_tags=["domain:order", "domain:silence", "status:high_priest", "personal:devout", "personal:cautious"],
         culture_tags={"culture:luminary_worship": 0.90, "culture:ancestor_worship": 0.80, "culture:sedentism": 0.80},
         alignment=0.85, chrono_age=260.0, bio_age=260.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(veth.id)
+    neran_confed.notable_mortal_ids.append(veth.id)
 
     durenn = NotableMortal(
-        name="Durenn Vail", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Durenn Vail", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.MERCHANT], prominence=0.55, visibility=0.6,
         personal_tags=["domain:community", "domain:order", "status:trade_magnate", "personal:opportunistic", "personal:pragmatic"],
         culture_tags={"culture:commerce": 0.85, "culture:sedentism": 0.80, "culture:hierarchy": 0.70},
         alignment=0.35, chrono_age=235.0, bio_age=235.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(durenn.id)
+    neran_confed.notable_mortal_ids.append(durenn.id)
 
     asha = NotableMortal(
-        name="Asha Keln", world_id=oros.id, civilization_id=keth.id,
+        name="Asha Keln", civilization_id=keth.id,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=keth_species.id,
         prominence_roles=[MortalProminence.LEADER, MortalProminence.MILITARY],
         prominence=0.75, visibility=1.0,
@@ -791,40 +806,40 @@ def build_scenario_default() -> SimulationState:
     keth.notable_mortal_ids.append(asha.id)
 
     orryn = NotableMortal(
-        name="Orryn Vel", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Orryn Vel", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.REBEL], prominence=0.40, visibility=0.0,
         personal_tags=["domain:change", "domain:conflict", "status:dissident", "personal:agitator", "personal:charismatic"],
         culture_tags={"culture:science": 0.80, "culture:sedentism": 0.70},
         alignment=0.20, chrono_age=155.0, bio_age=155.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(orryn.id)
+    neran_confed.notable_mortal_ids.append(orryn.id)
 
     thessal = NotableMortal(
-        name="Thessal Dour", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Thessal Dour", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.SCHOLAR], prominence=0.30, visibility=0.0,
         personal_tags=["domain:order", "domain:silence", "personal:obsessive", "personal:reclusive"],
         culture_tags={"culture:science": 0.90, "culture:sedentism": 0.80},
         alignment=0.55, chrono_age=190.0, bio_age=190.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(thessal.id)
+    neran_confed.notable_mortal_ids.append(thessal.id)
 
     maeva = NotableMortal(
-        name="Maeva Sorn", world_id=neran.id, civilization_id=civ.id,
-        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran.id,
+        name="Maeva Sorn", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
         prominence_roles=[MortalProminence.PRIEST], prominence=0.25, visibility=0.0,
         personal_tags=["domain:silence", "domain:order", "personal:devout", "personal:receptive"],
         culture_tags={"culture:luminary_worship": 0.90, "culture:ancestor_worship": 0.85, "culture:sedentism": 0.80},
         alignment=0.70, chrono_age=85.0, bio_age=85.0,
         home_location=neran.id, current_location=neran.id,
     )
-    civ.notable_mortal_ids.append(maeva.id)
+    neran_confed.notable_mortal_ids.append(maeva.id)
 
     kael = NotableMortal(
-        name="Kael Ash", world_id=oros.id, civilization_id=keth.id,
+        name="Kael Ash", civilization_id=keth.id,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=keth_species.id,
         prominence_roles=[MortalProminence.LEADER], prominence=0.50, visibility=0.0,
         personal_tags=["domain:conflict", "domain:change", "status:clan_elder", "personal:ambitious", "personal:suspicious"],
@@ -835,7 +850,7 @@ def build_scenario_default() -> SimulationState:
     keth.notable_mortal_ids.append(kael.id)
 
     urren = NotableMortal(
-        name="Urren", world_id=oros.id, civilization_id=keth.id,
+        name="Urren", civilization_id=keth.id,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=keth_species.id,
         prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
         prominence=0.35, visibility=0.0,
@@ -845,6 +860,16 @@ def build_scenario_default() -> SimulationState:
         home_location=oros.id, current_location=oros.id,
     )
     keth.notable_mortal_ids.append(urren.id)
+
+    korax = NotableMortal(
+        name="Korax", civilization_id=None,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=ultir_species.id,
+        prominence_roles=[MortalProminence.NONE], prominence=0.16, visibility=0.0,
+        personal_tags=["domain:void", "domain:memory", "status:biggest_fish", "personal:almost_sapient", "personal:ambitious"],
+        culture_tags={},
+        alignment=0.5, chrono_age=534.0, bio_age=534.0,
+        home_location=neran.id, current_location=neran.id,
+    )
 
     # ── Demiurge ─────────────────────────────────────
     demiurge = Demiurge(
@@ -889,7 +914,7 @@ def build_scenario_default() -> SimulationState:
             str(oros.id):      oros,
         },
         civilizations={
-            str(civ.id):  civ,
+            str(neran_confed.id):  neran_confed,
             str(keth.id): keth,
         },
         mortals={
@@ -898,14 +923,16 @@ def build_scenario_default() -> SimulationState:
             str(asha.id):    asha,    str(orryn.id):  orryn,
             str(thessal.id): thessal, str(maeva.id):  maeva,
             str(kael.id):    kael,    str(urren.id):  urren,
+            str(korax.id):  korax,
         },
         species={
-            str(naran.id):        naran,
+            str(naran_species.id):        naran_species,
+            str(ultir_species.id):  ultir_species,
             str(keth_species.id): keth_species,
         },
         civ_momentum={
-            str(civ.id): CivilizationMomentum(
-                civilization_id=civ.id,
+            str(neran_confed.id): CivilizationMomentum(
+                civilization_id=neran_confed.id,
                 stability_delta=0.1, prosperity_delta=0.05, cohesion_delta=-0.05,
             ),
             str(keth.id): CivilizationMomentum(
@@ -923,7 +950,7 @@ def build_scenario_default() -> SimulationState:
 # CLI entry point
 # ─────────────────────────────────────────
 
-if __name__ == "__main__":
+def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else (
         Path(__file__).parent.parent / "scenarios" / "wardens_compact.db"
     )
@@ -939,3 +966,6 @@ if __name__ == "__main__":
             "Two inhabited worlds, one barren candidate for seeding."
         ),
     )
+
+if __name__ == "__main__":
+    main()

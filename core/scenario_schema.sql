@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS luminaries (
     -- Disposition (embedded)
     disposition_results  REAL NOT NULL DEFAULT 0.0,
     disposition_methods  REAL NOT NULL DEFAULT 0.0,
-    herald_id            TEXT,
+    herald_ids           TEXT NOT NULL DEFAULT '[]',  -- JSON array
     status_tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array
 );
 
@@ -154,7 +154,6 @@ CREATE TABLE IF NOT EXISTS civilizations (
 CREATE TABLE IF NOT EXISTS mortals (
     id                     TEXT PRIMARY KEY,
     name                   TEXT NOT NULL,
-    world_id               TEXT NOT NULL,
     civilization_id        TEXT,
     role                   TEXT NOT NULL DEFAULT 'other',
     status                 TEXT NOT NULL DEFAULT 'active',
@@ -169,8 +168,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     bio_age                REAL NOT NULL DEFAULT 0.0,
     appointed_by_demiurge  TEXT,
     appointed_by_luminary  TEXT,
-    home_location          TEXT,  -- UUID of home world / location (fixed at creation)
-    current_location       TEXT   -- UUID of current world / location (changes on movement)
+    home_location          TEXT NOT NULL,  -- UUID of home world / location (fixed at creation)
+    current_location       TEXT NOT NULL   -- UUID of current world / location (changes on movement)
 );
 
 -- ─────────────────────────────────────────

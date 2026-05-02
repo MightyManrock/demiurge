@@ -41,7 +41,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, WorldCondition,
     Species, SpeciesCondition,
 )
-from utilities.domain_registry import DomainRegistry, get_registry
+from utilities.domain_registry import DomainRegistry, get_registry as get_domain_registry
 from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
 
 
@@ -359,7 +359,7 @@ class TickLoop:
             str(v.id): k for k, v in self._action_library.items()
         }
         self._overthrow_this_tick: Optional[ActionOutcome] = None
-        self._domain_registry: Optional[DomainRegistry] = get_registry()
+        self._domain_registry: Optional[DomainRegistry] = get_domain_registry()
         self._culture_registry: Optional[CultureRegistry] = get_culture_registry()
 
     def advance(
@@ -1198,7 +1198,7 @@ class TickLoop:
 
                 world_mortals = [
                     (mid, m) for mid, m in state.mortals.items()
-                    if str(m.world_id) == str(world_obj.id)
+                    if str(m.current_location) == str(world_obj.id)
                     and m.status != MortalStatus.DECEASED
                     and m.prominence < ALWAYS_VISIBLE_THRESHOLD
                 ]

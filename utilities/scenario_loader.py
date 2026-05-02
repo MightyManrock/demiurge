@@ -181,7 +181,8 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
                 methods=row["disposition_methods"],
             ),
             constraints=constraints_by_owner.get(lid, []),
-            herald_id=_uuid(row["herald_id"]),
+            herald_ids=[UUID(x) for x in _j(row["herald_ids"])],
+            # herald_ids=[""]
             status_tags=_j(row.get("status_tags", row.get("speech_tags", "[]"))),
         )
         lums[str(l.id)] = l
@@ -336,11 +337,9 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
     out = {}
     for raw in conn.execute("SELECT * FROM mortals"):
         row = dict(raw)
-        world_id = UUID(row["world_id"])
         m = NotableMortal(
             id=UUID(row["id"]),
             name=row["name"],
-            world_id=world_id,
             civilization_id=_uuid(row["civilization_id"]),
             role=MortalRole(row["role"]),
             status=MortalStatus(row["status"]),
@@ -355,8 +354,8 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             bio_age=row["bio_age"],
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
-            home_location=_uuid(row.get("home_location")) or world_id,
-            current_location=_uuid(row.get("current_location")) or world_id,
+            home_location=_uuid(row.get("home_location")),
+            current_location=_uuid(row.get("current_location")),
         )
         out[str(m.id)] = m
     return out

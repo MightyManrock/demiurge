@@ -28,7 +28,7 @@ from logic.tick_logic import (
 )
 from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
-from utilities.domain_registry import get_registry
+from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry
 
 # Actions whose required systems haven't been built yet.
@@ -843,10 +843,10 @@ def _build_explore_intent(state: SimulationState) -> ExploreBeliefIntent | None:
     Show explorable domains (accessible but not yet unlocked) and
     return an ExploreBeliefIntent for the chosen one.
     """
-    registry = get_registry()
+    dreg = get_domain_registry()
     lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
 
-    accessible = registry.demiurge_accessible(
+    accessible = dreg.demiurge_accessible(
         all_lum_canonical,
         state.demiurge.unlocked_domain_tags,
     )
@@ -874,7 +874,7 @@ def _build_explore_intent(state: SimulationState) -> ExploreBeliefIntent | None:
             if not lum_tags:
                 print(f"  {'·':>{lum_col_w}}", end="")
                 continue
-            approval = registry.luminary_approval(
+            approval = dreg.luminary_approval(
                 tag, lum_tags,
                 fellow_lum_tags=fellow_tags[lid],
                 temperament=lum.temperament.value,
@@ -901,7 +901,7 @@ def _get_lum_domain_context(state: SimulationState):
       fellow_tags — dict[lid_str -> set[str]] of other Luminaries' canonical tags
       all_lum_canonical_tags — flat list of all Luminary canonical tags (deduped)
     """
-    registry = get_registry()
+    dreg = get_domain_registry()
     lum_info: list[tuple] = []
     per_lum: dict[str, list[str]] = {}
 
@@ -910,7 +910,7 @@ def _get_lum_domain_context(state: SimulationState):
         for did in lum.domains:
             d = state.domains.get(str(did))
             if d:
-                tags.extend(t for t in d.tags if registry.is_canonical(t))
+                tags.extend(t for t in d.tags if dreg.is_canonical(t))
         per_lum[lid] = tags
         lum_info.append((lum, tags))
 
@@ -939,10 +939,10 @@ def _prompt_domain_tag(state: SimulationState) -> str | None:
     annotated with each Luminary's approval/disapproval rating.
     Returns the selected tag or None to skip. Does NOT prompt for direction.
     """
-    registry = get_registry()
+    dreg = get_domain_registry()
     lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
 
-    accessible = registry.demiurge_accessible(
+    accessible = dreg.demiurge_accessible(
         all_lum_canonical,
         state.demiurge.unlocked_domain_tags,
     )
@@ -970,7 +970,7 @@ def _prompt_domain_tag(state: SimulationState) -> str | None:
             if not lum_tags:
                 print(f"  {'·':>{lum_col_w}}", end="")
                 continue
-            approval = registry.luminary_approval(
+            approval = dreg.luminary_approval(
                 tag, lum_tags,
                 fellow_lum_tags=fellow_tags[lid],
                 temperament=lum.temperament.value,
