@@ -9,6 +9,7 @@ autoplay.py
 logs/*.log
 docs
 saves/*.db
+scenarios/*.bak
 
 # Claude Code
 CLAUDE.md
