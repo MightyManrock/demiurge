@@ -864,7 +864,7 @@ def build_scenario_default() -> SimulationState:
     korax = NotableMortal(
         name="Korax", civilization_id=None,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=ultir_species.id,
-        prominence_roles=[MortalProminence.NONE], prominence=0.16, visibility=0.0,
+        prominence_roles=[MortalProminence.APEX], prominence=0.16, visibility=0.0,
         personal_tags=["domain:void", "domain:memory", "status:biggest_fish", "personal:almost_sapient", "personal:ambitious"],
         culture_tags={},
         alignment=0.5, chrono_age=534.0, bio_age=534.0,
