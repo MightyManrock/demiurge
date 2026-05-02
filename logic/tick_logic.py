@@ -1198,7 +1198,7 @@ class TickLoop:
 
                 world_mortals = [
                     (mid, m) for mid, m in state.mortals.items()
-                    if str(m.world_id) == str(world_obj.id)
+                    if str(m.current_location) == str(world_obj.id)
                     and m.status != MortalStatus.DECEASED
                     and m.prominence < ALWAYS_VISIBLE_THRESHOLD
                 ]

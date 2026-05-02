@@ -337,11 +337,9 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
     out = {}
     for raw in conn.execute("SELECT * FROM mortals"):
         row = dict(raw)
-        world_id = UUID(row["world_id"])
         m = NotableMortal(
             id=UUID(row["id"]),
             name=row["name"],
-            world_id=world_id,
             civilization_id=_uuid(row["civilization_id"]),
             role=MortalRole(row["role"]),
             status=MortalStatus(row["status"]),
@@ -356,8 +354,8 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             bio_age=row["bio_age"],
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
-            home_location=_uuid(row.get("home_location")) or world_id,
-            current_location=_uuid(row.get("current_location")) or world_id,
+            home_location=_uuid(row.get("home_location")),
+            current_location=_uuid(row.get("current_location")),
         )
         out[str(m.id)] = m
     return out
