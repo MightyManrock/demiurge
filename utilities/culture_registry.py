@@ -42,7 +42,14 @@ CULTURE_TAGS: list[str] = [
     "culture:xenophilia", "culture:xenophobia",
     "culture:commerce", "culture:protectionism",
     # Values & Virtues
-    "culture:honesty",
+    "culture:honesty", "culture:adaptability",
+    "culture:moderation", "culture:indulgence",
+    "culture:charity", "culture:prosperity",
+    "culture:ambition", "culture:humility",
+    "culture:wit", "culture:sincerity",
+    "culture:patience", "culture:tenacity ",
+    "culture:idealism", "culture:pragmatism",
+    "culture:erudition", "culture:folk_wisdom",
 ]
 
 # ── Pairwise synergy data ─────────────────────────────────────────────
