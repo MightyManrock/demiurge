@@ -87,7 +87,7 @@ def display_state(state: SimulationState) -> str:
 
     # ── Worlds ────────────────────────────────────────
     lines.append("WORLDS")
-    for wid, world in state.worlds.items():
+    for wid, world in state.worlds.items():  # type: ignore[attr-defined]
         domain_str = _format_beliefs(world.domain_expression) or "none"
         lines.append(
             f"  {world.name}  [{world.condition.value}]  domain: {domain_str}"
@@ -296,15 +296,16 @@ def display_briefing(state: SimulationState) -> str:
 
     # ── Spatial hierarchy ─────────────────────────────
     lines.append("YOUR UNIVERSE")
-    for gid, galaxy in state.galaxies.items():
+    for gid, galaxy in state.galaxies.items():  # type: ignore[attr-defined]
         lines += ["", f"  Galaxy: {galaxy.name}"]
-        for sid in galaxy.system_ids:
-            sys_obj = state.systems.get(str(sid))
+        for sid in galaxy.child_ids:
+            sys_obj = state.locations.get(str(sid))
             if not sys_obj:
                 continue
-            lines.append(f"    System: {sys_obj.name}  [{sys_obj.star_type.value}]")
-            for wid in sys_obj.world_ids:
-                world = state.worlds.get(str(wid))
+            star_str = f"  [{sys_obj.star_type.value}]" if hasattr(sys_obj, "star_type") else ""
+            lines.append(f"    System: {sys_obj.name}{star_str}")
+            for wid in sys_obj.child_ids:
+                world = state.worlds.get(str(wid))  # type: ignore[attr-defined]
                 if not world:
                     continue
                 n_civs  = len(world.civilization_ids)
@@ -347,7 +348,7 @@ def display_briefing(state: SimulationState) -> str:
     if state.species:
         lines.append("SPECIES")
         for sid, sp in state.species.items():
-            w_obj = state.worlds.get(str(sp.origin_world_id)) if sp.origin_world_id else None
+            w_obj = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
             origin = w_obj.name if w_obj else "unknown"
             sapient_str = "sapient" if sp.sapient else "non-sapient"
             transplanted_str = "  [transplanted]" if sp.transplanted else ""
@@ -357,8 +358,8 @@ def display_briefing(state: SimulationState) -> str:
                 f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  "
                 f"[{sp.condition.value}]{transplanted_str}"
             )
-            if sp.bio_tags or sp.cultural_tags:
-                tag_line = ", ".join(sp.bio_tags + list(sp.cultural_tags.keys()))
+            if sp.bio_tags or sp.domain_tags:
+                tag_line = ", ".join(sp.bio_tags + sp.domain_tags)
                 lines.append(f"    {tag_line}")
         lines.append(SEP)
 
@@ -367,7 +368,7 @@ def display_briefing(state: SimulationState) -> str:
     for mid, mortal in state.mortals.items():
         if not is_mortal_visible(mortal):
             continue
-        w_obj = state.worlds.get(str(mortal.current_location or mortal.world_id))
+        w_obj = state.locations.get(str(mortal.current_location))
         c_obj = (
             state.civilizations.get(str(mortal.civilization_id))
             if mortal.civilization_id else None
@@ -443,7 +444,7 @@ def build_intent_interactively(
             return None
         print("  Issue directive to which Proxius?")
         for i, (mid, m) in enumerate(proxii):
-            w_obj = state.worlds.get(str(m.current_location or m.world_id))
+            w_obj = state.locations.get(str(m.current_location))
             loc = w_obj.name if w_obj else "?"
             dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             print(
@@ -485,7 +486,7 @@ def build_intent_interactively(
             return None
         print("  Select Proxius:")
         for i, (mid, m) in enumerate(proxii):
-            w_obj = state.worlds.get(str(m.current_location or m.world_id))
+            w_obj = state.locations.get(str(m.current_location))
             loc = w_obj.name if w_obj else "?"
             dormant_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             print(f"    {i+1}. {m.name:<16s}  align:{m.alignment:.2f}   {loc}{dormant_note}")
@@ -521,7 +522,7 @@ def build_intent_interactively(
             return None
         print("  Select target mortal:")
         for i, (mid, m) in enumerate(mortals):
-            w_obj  = state.worlds.get(str(m.current_location or m.world_id))
+            w_obj  = state.locations.get(str(m.current_location))
             c_obj  = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
             loc    = w_obj.name if w_obj else "?"
             if c_obj:
@@ -543,7 +544,7 @@ def build_intent_interactively(
         civs = list(state.civilizations.items())
         print("  Select target civilization:")
         for i, (cid, c) in enumerate(civs):
-            w_obj = state.worlds.get(str(c.world_id))
+            w_obj = state.locations.get(str(c.origin_location_id)) if c.origin_location_id else None
             loc   = w_obj.name if w_obj else "?"
             print(f"    {i+1}. {c.name:<30s} [{c.scale.value}]  {loc}")
         print("    0. Cancel")
@@ -569,7 +570,7 @@ def build_intent_interactively(
         species_list = list(state.species.items())
         print("  Select target species:")
         for i, (sid, sp) in enumerate(species_list):
-            w_obj = state.worlds.get(str(sp.origin_world_id)) if sp.origin_world_id else None
+            w_obj = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
             origin = w_obj.name if w_obj else "unknown"
             sapient_str = "sapient" if sp.sapient else "non-sapient"
             print(f"    {i+1}. {sp.name:<16s} [{sapient_str}]  origin: {origin}")
@@ -584,11 +585,11 @@ def build_intent_interactively(
         target_type = TargetType.UNDERREAL
         target_id = None
 
-    elif TargetType.WORLD in defn.valid_targets and state.worlds:
-        worlds = list(state.worlds.items())
+    elif TargetType.WORLD in defn.valid_targets and state.worlds:  # type: ignore[attr-defined]
+        worlds = list(state.worlds.items())  # type: ignore[attr-defined]
         print("  Select target world:")
         for i, (wid, w) in enumerate(worlds):
-            sys_obj  = state.systems.get(str(w.system_id))
+            sys_obj  = state.locations.get(str(w.parent_id)) if w.parent_id else None
             sys_name = sys_obj.name if sys_obj else "?"
             n_civs   = len(w.civilization_ids)
             life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
@@ -710,10 +711,10 @@ def _build_intent(
             target_civ_id = None
             if dvs:
                 proxius = state.mortals.get(str(target_id)) if target_id else None
-                loc_id = str(proxius.current_location or proxius.world_id) if proxius else None
+                loc_id = str(proxius.current_location) if proxius else None
                 civs_here = [
                     (cid, c) for cid, c in state.civilizations.items()
-                    if str(c.world_id) == loc_id
+                    if str(c.origin_location_id) == loc_id
                 ] if loc_id else []
 
                 if not civs_here:
@@ -756,7 +757,7 @@ def _build_intent(
             )
         elif action_key == "salvage_concept":
             desired = input("  What are you hoping to find: ").strip()
-            worlds = list(state.worlds.items())
+            worlds = list(state.worlds.items())  # type: ignore[attr-defined]
             print("  Target world for salvage:")
             for i, (wid, w) in enumerate(worlds):
                 print(f"    {i+1}. {w.name}")
@@ -1106,8 +1107,8 @@ def _prompt_float(prompt: str, lo: float, hi: float, default: float) -> float:
 
 def _name_for_id(uid: UUID, state: SimulationState) -> str:
     sid = str(uid)
-    for d in [state.mortals, state.civilizations, state.worlds,
-              state.luminaries, state.galaxies]:
+    for d in [state.mortals, state.civilizations, state.locations,
+              state.luminaries]:
         if sid in d:
             obj = d[sid]
             return getattr(obj, "name", sid[:8])

@@ -37,8 +37,9 @@ from core.onto_core import (
     Demiurge, Pantheon, Luminary, Domain,
 )
 from core.universe_core import (
-    Universe, Galaxy, System, World, Civilization, NotableMortal,
-    MortalRole, MortalStatus, MortalProminence, WorldCondition,
+    Universe, Location, System, SignificantLocation, PopLocation,
+    Civilization, NotableMortal,
+    MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
 )
 from utilities.domain_registry import DomainRegistry, get_registry as get_domain_registry
@@ -306,12 +307,22 @@ class SimulationState(BaseModel):
     pantheon:      "Pantheon"
     luminaries:    dict[str, "Luminary"]    # str(UUID) -> Luminary
     domains:       dict[str, "Domain"]      # str(UUID) -> Domain
-    galaxies:      dict[str, "Galaxy"]
-    systems:       dict[str, "System"]
-    worlds:        dict[str, "World"]
+    locations:     dict[str, "Location"]    # str(UUID) -> Location (all spatial entities)
     civilizations: dict[str, "Civilization"]
     mortals:       dict[str, "NotableMortal"]
     species:       dict[str, "Species"] = Field(default_factory=dict)
+
+    @property
+    def worlds(self) -> "dict[str, SignificantLocation]":
+        return {k: v for k, v in self.locations.items() if isinstance(v, SignificantLocation)}
+
+    @property
+    def galaxies(self) -> "dict[str, Location]":
+        return {k: v for k, v in self.locations.items() if v.location_type == "galaxy"}
+
+    @property
+    def systems(self) -> "dict[str, System]":
+        return {k: v for k, v in self.locations.items() if isinstance(v, System)}
 
     # Momentum vectors for each civilization
     # Updated by actions and passive simulation
@@ -652,7 +663,7 @@ class TickLoop:
             for mortal in state.mortals.values():
                 if (mortal.role == MortalRole.PROXIUS
                         and mortal.status == MortalStatus.ACTIVE):
-                    loc = str(mortal.current_location or mortal.world_id)
+                    loc = str(mortal.current_location)
                     proxii_by_world[loc] = proxii_by_world.get(loc, 0) + 1
 
             total_passive_fp = 0.0
@@ -1059,7 +1070,7 @@ class TickLoop:
             elif defn.name == "Exile to Underreal":
                 tid_str = str(instance.target_id) if instance.target_id else None
                 target_name = "the target"
-                for collection in (state.civilizations, state.mortals, state.worlds):
+                for collection in (state.civilizations, state.mortals, state.locations):
                     if tid_str and tid_str in collection:
                         target_name = getattr(collection[tid_str], "name", target_name)
                         break
@@ -1135,15 +1146,15 @@ class TickLoop:
                     return mutations, "Target world not found."
                 if outcome == ActionOutcome.SUCCESS:
                     condition_ladder = [
-                        WorldCondition.DYING, WorldCondition.BARREN,
-                        WorldCondition.STRESSED, WorldCondition.STABLE,
-                        WorldCondition.THRIVING,
+                        LocCondition.DYING, LocCondition.BARREN,
+                        LocCondition.STRESSED, LocCondition.STABLE,
+                        LocCondition.THRIVING,
                     ]
                     try:
                         idx = condition_ladder.index(world_obj.condition)
                         new_condition = condition_ladder[min(idx + 1, len(condition_ladder) - 1)]
                     except ValueError:
-                        new_condition = WorldCondition.STABLE
+                        new_condition = LocCondition.STABLE
                     mutations.append(StateMutation(
                         mutation_type=MutationType.WORLD_CONDITION,
                         target_id=world_obj.id,
@@ -1585,7 +1596,7 @@ class TickLoop:
                     "The concept dissolved on contact."
                 )
 
-            target_world = state.worlds.get(str(intent.target_world_id))
+            target_world = state.worlds.get(str(intent.target_world_id))  # type: ignore[assignment]
             if not target_world:
                 return mutations, "Target world for salvage not found."
 
@@ -1625,7 +1636,7 @@ class TickLoop:
             world_obj = state.worlds.get(str(instance.target_id)) if instance.target_id else None
             if not world_obj:
                 return mutations, "Target world not found."
-            if world_obj.condition != WorldCondition.BARREN:
+            if world_obj.condition != LocCondition.BARREN:
                 return mutations, (
                     f"{world_obj.name} already sustains life — seeding had no effect."
                 )
@@ -1636,8 +1647,8 @@ class TickLoop:
                 )
 
             new_condition = (
-                WorldCondition.STABLE if outcome == ActionOutcome.SUCCESS
-                else WorldCondition.STRESSED
+                LocCondition.STABLE if outcome == ActionOutcome.SUCCESS
+                else LocCondition.STRESSED
             )
             new_species = Species(
                 name=intent.species_name,
@@ -2077,10 +2088,10 @@ class TickLoop:
             return instance.target_id
         elif instance.target_type == TargetType.CIVILIZATION:
             civ = state.civilizations.get(str(instance.target_id))
-            return civ.world_id if civ else None
+            return civ.origin_location_id if civ else None
         elif instance.target_type == TargetType.MORTAL:
             mortal = state.mortals.get(str(instance.target_id))
-            return mortal.world_id if mortal else None
+            return mortal.current_location if mortal else None
         return None
 
     def _summarize_evaluation(
@@ -2113,11 +2124,11 @@ class TickLoop:
                     obj = state.demiurge.footprint
                     current = getattr(obj, m.field, 0.0)
                     setattr(obj, m.field, max(0.0, min(1.0, current + (m.delta or 0))))
-                elif tid in state.worlds:
+                elif tid in state.locations:
                     # e.g. field = "local_footprint.overt_miracles"
                     parts = m.field.split(".")
                     if len(parts) == 2:
-                        obj = getattr(state.worlds[tid], parts[0])
+                        obj = getattr(state.locations[tid], parts[0])
                         current = getattr(obj, parts[1], 0.0)
                         setattr(obj, parts[1], max(0.0, min(1.0, current + (m.delta or 0))))
                 elif tid in state.luminary_attention:
@@ -2174,14 +2185,16 @@ class TickLoop:
                         beliefs[tag] = new_strength
                     elif tag in beliefs:
                         del beliefs[tag]
-                elif tid in state.worlds:
-                    domain = state.worlds[tid].domain_expression
-                    current = domain.get(tag, 0.0)
-                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
-                    if new_strength > 0.0:
-                        domain[tag] = new_strength
-                    elif tag in domain:
-                        del domain[tag]
+                elif tid in state.locations:
+                    loc = state.locations[tid]
+                    if isinstance(loc, SignificantLocation):
+                        domain = loc.domain_expression
+                        current = domain.get(tag, 0.0)
+                        new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                        if new_strength > 0.0:
+                            domain[tag] = new_strength
+                        elif tag in domain:
+                            del domain[tag]
 
             elif m.mutation_type == MutationType.PROXIUS_APPOINTED:
                 if tid in state.mortals:
@@ -2190,11 +2203,11 @@ class TickLoop:
                     mortal.visibility = 1.0  # Appointing means you now fully see them
                     if mortal.id not in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.append(mortal.id)
-                    world_id_str = str(mortal.world_id)
-                    if world_id_str in state.worlds:
-                        world = state.worlds[world_id_str]
-                        if mortal.id not in world.proxius_ids:
-                            world.proxius_ids.append(mortal.id)
+                    loc_id_str = str(mortal.current_location)
+                    loc = state.locations.get(loc_id_str)
+                    if loc and isinstance(loc, SignificantLocation):
+                        if mortal.id not in loc.proxius_ids:
+                            loc.proxius_ids.append(mortal.id)
 
             elif m.mutation_type == MutationType.PROXIUS_DISMISSED:
                 if tid in state.mortals:
@@ -2202,11 +2215,11 @@ class TickLoop:
                     mortal.role = MortalRole.OTHER
                     if mortal.id in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.remove(mortal.id)
-                    world_id_str = str(mortal.world_id)
-                    if world_id_str in state.worlds:
-                        world = state.worlds[world_id_str]
-                        if mortal.id in world.proxius_ids:
-                            world.proxius_ids.remove(mortal.id)
+                    loc_id_str = str(mortal.current_location)
+                    loc = state.locations.get(loc_id_str)
+                    if loc and isinstance(loc, SignificantLocation):
+                        if mortal.id in loc.proxius_ids:
+                            loc.proxius_ids.remove(mortal.id)
 
             elif m.mutation_type == MutationType.MORTAL_STATUS:
                 if tid in state.mortals and m.new_value:
@@ -2226,13 +2239,16 @@ class TickLoop:
                         state.mortals[tid].visibility = max(0.0, min(1.0, current + m.delta))
 
             elif m.mutation_type == MutationType.WORLD_CONDITION:
-                if tid in state.worlds and m.new_value:
-                    state.worlds[tid].condition = WorldCondition(m.new_value)
+                if tid in state.locations and m.new_value:
+                    loc = state.locations[tid]
+                    if isinstance(loc, SignificantLocation):
+                        loc.condition = LocCondition(m.new_value)
 
             elif m.mutation_type == MutationType.ENTITY_DESTROYED:
                 if tid in state.civilizations:
                     civ = state.civilizations.pop(tid)
-                    world = state.worlds.get(str(civ.world_id))
+                    loc_id = str(civ.origin_location_id) if civ.origin_location_id else None
+                    world = state.worlds.get(loc_id) if loc_id else None
                     if world and civ.id in world.civilization_ids:
                         world.civilization_ids.remove(civ.id)
                 elif tid in state.mortals:
@@ -2241,7 +2257,8 @@ class TickLoop:
             elif m.mutation_type == MutationType.EXILED_TO_UNDERREAL:
                 if tid in state.civilizations:
                     civ = state.civilizations.pop(tid)
-                    world = state.worlds.get(str(civ.world_id))
+                    loc_id = str(civ.origin_location_id) if civ.origin_location_id else None
+                    world = state.worlds.get(loc_id) if loc_id else None
                     if world:
                         if civ.id in world.civilization_ids:
                             world.civilization_ids.remove(civ.id)
@@ -2252,15 +2269,17 @@ class TickLoop:
                 elif tid in state.mortals:
                     mortal = state.mortals[tid]
                     mortal.status = MortalStatus.DECEASED
-                    world = state.worlds.get(str(mortal.world_id))
+                    world = state.worlds.get(str(mortal.current_location))
                     if world:
                         world.domain_expression["domain:underreal_trace"] = min(
                             1.0,
                             world.domain_expression.get("domain:underreal_trace", 0.0) + 0.2,
                         )
-                elif tid in state.worlds:
-                    state.worlds[tid].condition = WorldCondition.BARREN
-                    state.worlds[tid].domain_expression = {"domain:underreal_trace": 1.0}
+                elif tid in state.locations:
+                    loc = state.locations[tid]
+                    if isinstance(loc, SignificantLocation):
+                        loc.condition = LocCondition.BARREN
+                        loc.domain_expression = {"domain:underreal_trace": 1.0}
 
             elif m.mutation_type == MutationType.DISPOSITION_CHANGE:
                 if tid in state.luminaries:
@@ -2278,9 +2297,10 @@ class TickLoop:
                 if isinstance(m.new_value, Species):
                     sp = m.new_value
                     state.species[str(sp.id)] = sp
-                    if tid and tid in state.worlds:
-                        if sp.id not in state.worlds[tid].species_ids:
-                            state.worlds[tid].species_ids.append(sp.id)
+                    if tid and tid in state.locations:
+                        loc = state.locations[tid]
+                        if isinstance(loc, SignificantLocation) and sp.id not in loc.species_ids:
+                            loc.species_ids.append(sp.id)
 
             elif m.mutation_type == MutationType.SPECIES_UPLIFTED:
                 if tid in state.species:

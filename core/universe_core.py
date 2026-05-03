@@ -10,7 +10,6 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
-
 # ─────────────────────────────────────────
 # UNIVERSE RULES
 # Scenario-level mechanical contract.
@@ -80,8 +79,50 @@ class UniverseRules(BaseModel):
 
 
 # ─────────────────────────────────────────
-# SPATIAL HIERARCHY
+# LOCATION HIERARCHY
+# Generic spatial containers for the universe.
 # ─────────────────────────────────────────
+
+class LocCondition(str, Enum):
+    """Broad physical/ecological state."""
+    THRIVING   = "thriving"
+    STABLE     = "stable"
+    STRESSED   = "stressed"
+    DYING      = "dying"
+    BARREN     = "barren"
+
+
+class LocFootprint(BaseModel):
+    """
+    Local divine footprint accumulation on this specific location.
+    Separate from the Demiurge's universe-wide FootprintProfile —
+    a world can be heavily touched without that being
+    universally visible, depending on scenario rules.
+    """
+    overt_miracles: float  = Field(ge=0.0, le=1.0, default=0.0)
+    subtle_influence: float = Field(ge=0.0, le=1.0, default=0.0)
+    proxius_activity: float  = Field(ge=0.0, le=1.0, default=0.0)
+    direct_creation: float  = Field(ge=0.0, le=1.0, default=0.0)
+
+    def aggregate(self) -> float:
+        return (
+            self.overt_miracles +
+            self.subtle_influence +
+            self.proxius_activity +
+            self.direct_creation
+        ) / 4.0
+
+
+class Location(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    description: str = ""
+    location_type: str          # "galaxy", "system", "planet", "plane", "city" — free-form
+    parent_id: Optional[UUID] = None
+    child_ids: list[UUID] = Field(default_factory=list)
+    traits: list[str] = Field(default_factory=list)
+    condition: LocCondition = LocCondition.STABLE
+
 
 class CosmicCoordinates(BaseModel):
     """
@@ -95,18 +136,6 @@ class CosmicCoordinates(BaseModel):
     z: float = 0.0
 
 
-class Galaxy(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    coordinates: CosmicCoordinates = Field(default_factory=CosmicCoordinates)
-    system_ids: list[UUID] = Field(default_factory=list)
-
-    # Dominant domain influence in this region.
-    # Could emerge from civilization beliefs or be
-    # set by scenario — used for regional evaluation weighting.
-    dominant_domain_tags: list[str] = Field(default_factory=list)
-
-
 class StarType(str, Enum):
     MAIN_SEQUENCE = "main_sequence"
     GIANT         = "giant"
@@ -115,13 +144,38 @@ class StarType(str, Enum):
     OTHER         = "other"
 
 
-class System(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    galaxy_id: UUID
+class System(Location):
+    location_type: str = "system"
     coordinates: CosmicCoordinates = Field(default_factory=CosmicCoordinates)
     star_type: StarType = StarType.MAIN_SEQUENCE
-    world_ids: list[UUID] = Field(default_factory=list)
+
+
+class SignificantLocation(Location):
+    """
+    Planets, planes, and other mid-level locations that accumulate
+    domain expression, local footprint, and host civilizations.
+    """
+    domain_expression: dict[str, float] = Field(default_factory=dict)
+    local_footprint: LocFootprint = Field(default_factory=LocFootprint)
+
+    # IDs of entities anchored to this location
+    civilization_ids: list[UUID] = Field(default_factory=list)
+    species_ids: list[UUID] = Field(default_factory=list)
+    proxius_ids: list[UUID] = Field(default_factory=list)
+    herald_ids: list[UUID] = Field(default_factory=list)
+
+    # Physical character tags
+    geo_tags: list[str] = Field(default_factory=list)
+    # e.g. ["geo:terrestrial", "geo:arid"]
+    atmo_tags: list[str] = Field(default_factory=list)
+    # e.g. ["atmo:nitrogen_oxygen"]
+
+    age: float = 0.0    # In-universe time units; scenario defines the scale
+
+
+class PopLocation(Location):
+    """Low-tier locations that house Pops (cities, towns, space stations, etc.)"""
+    pop_ids: list[UUID] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────
@@ -148,75 +202,13 @@ class Species(BaseModel):
     lifespan_min: float  # In universe time units — death checks begin here
     lifespan_max: float  # Full probability reached at this age
 
+    domain_tags: list[str] = Field(default_factory=list)
+    # Innate divine domain affinity, e.g. ["domain:fire", "domain:growth"]
+
     bio_tags: list[str] = Field(default_factory=list)
     # e.g. ["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"]
 
-    cultural_tags: dict[str, float] = Field(default_factory=dict)
-    # e.g. {"culture:nomadism": 0.9, "culture:ancestor_worship": 0.7}
-
     condition: SpeciesCondition = SpeciesCondition.STABLE
-
-
-# ─────────────────────────────────────────
-# WORLD
-# The primary locus of gameplay.
-# ─────────────────────────────────────────
-
-class WorldCondition(str, Enum):
-    """Broad physical/ecological state."""
-    THRIVING   = "thriving"
-    STABLE     = "stable"
-    STRESSED   = "stressed"
-    DYING      = "dying"
-    BARREN     = "barren"
-
-
-class WorldFootprint(BaseModel):
-    """
-    Local divine footprint accumulation on this specific world.
-    Separate from the Demiurge's universe-wide FootprintProfile —
-    a world can be heavily touched without that being
-    universally visible, depending on scenario rules.
-    """
-    overt_miracles: float  = Field(ge=0.0, le=1.0, default=0.0)
-    subtle_influence: float = Field(ge=0.0, le=1.0, default=0.0)
-    proxius_activity: float  = Field(ge=0.0, le=1.0, default=0.0)
-    direct_creation: float  = Field(ge=0.0, le=1.0, default=0.0)
-
-    def aggregate(self) -> float:
-        return (
-            self.overt_miracles +
-            self.subtle_influence +
-            self.proxius_activity +
-            self.direct_creation
-        ) / 4.0
-
-
-class World(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    system_id: UUID
-    condition: WorldCondition = WorldCondition.STABLE
-
-    civilization_ids: list[UUID] = Field(default_factory=list)
-    species_ids: list[UUID] = Field(default_factory=list)
-    proxius_ids: list[UUID] = Field(default_factory=list)
-    herald_ids: list[UUID] = Field(default_factory=list)
-
-    local_footprint: WorldFootprint = Field(default_factory=WorldFootprint)
-
-    # Weighted domain expression for this world — aggregate of its
-    # civilizations' dominant beliefs and any direct shaping actions.
-    # Used for Luminary satisfaction evaluation.
-    # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
-    domain_expression: dict[str, float] = Field(default_factory=dict)
-
-    geo_tags: list[str] = Field(default_factory=list)
-    # e.g. ["geo:terrestrial", "geo:arid"]
-    atmo_tags: list[str] = Field(default_factory=list)
-    # e.g. ["atmo:nitrogen_oxygen"]
-
-    age: float = 0.0        # In-universe time units; scenario defines the scale
 
 
 # ─────────────────────────────────────────
@@ -239,7 +231,7 @@ class Pop(BaseModel):
     civilization_id: Optional[UUID] = None
     species_id: Optional[UUID] = None
     social_class: SocialClass = SocialClass.COMMON
-    current_location: UUID       # World UUID for now; sub-world locations later
+    current_location: UUID       # PopLocation UUID; sub-world location
 
     # Logarithmic size: actual population ≈ 10 ** size_magnitude
     # e.g. 3 → ~1,000 | 6 → ~1,000,000 | 9 → ~1,000,000,000
@@ -286,7 +278,8 @@ class CivilizationHealth(BaseModel):
 class Civilization(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
-    world_id: UUID
+    description: str = ""
+    origin_location_id: Optional[UUID] = None
     scale: CivilizationScale = CivilizationScale.TRIBAL
     health: CivilizationHealth = Field(default_factory=CivilizationHealth)
 
@@ -336,9 +329,8 @@ class MortalProminence(str, Enum):
     MERCHANT = "merchant"  # Economic power
     REBEL    = "rebel"     # Opposed to the current order
     SCHOLAR  = "scholar"   # Keeper of knowledge or arcane lore
-    APEX    =   "apex" # Notable member of non-sapient species
+    APEX     = "apex"      # Notable member of non-sapient species
     NONE     = "none"      # No notable role
-
 
 
 class MortalStatus(str, Enum):
@@ -351,6 +343,7 @@ class MortalStatus(str, Enum):
 class NotableMortal(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
+    description: str = ""
     civilization_id: Optional[UUID] = None
     role: MortalRole = MortalRole.OTHER
     status: MortalStatus = MortalStatus.ACTIVE
@@ -364,6 +357,7 @@ class NotableMortal(BaseModel):
     # Personal domain/value tags — what this mortal
     # actually cares about, which may or may not align
     # with their patron's Domains.
+    belief_tags: dict[str, float] = Field(default_factory=dict)     # Domain beliefs
     personal_tags: list[str] = Field(default_factory=list)
     culture_tags: dict[str, float] = Field(default_factory=dict)
     # Cultural traits inherited from their civilization, e.g. {"culture:hierarchy": 0.8}
@@ -394,7 +388,7 @@ class NotableMortal(BaseModel):
 
     # Where this mortal was born / first recorded (fixed).
     # Where they are now (changes when moved to a new world or sub-world location).
-    # Both hold a world UUID for now; will accommodate sub-world locations later.
+    # Both hold a SignificantLocation UUID for now; will accommodate finer locations later.
     home_location: UUID
     current_location: UUID
 
@@ -403,14 +397,11 @@ class NotableMortal(BaseModel):
 # UNIVERSE — top-level container
 # ─────────────────────────────────────────
 
-class Universe(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
+class Universe(Location):
+    location_type: str = "universe"
     demiurge_id: UUID
     pantheon_id: UUID
     rules: UniverseRules = Field(default_factory=UniverseRules)
-
-    galaxy_ids: list[UUID] = Field(default_factory=list)
 
     # Running clock. Scenario defines what one unit means —
     # could be years, centuries, or abstract "eras."

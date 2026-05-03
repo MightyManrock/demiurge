@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from core.onto_core import (
     Domain, Luminary, Pantheon, Constraint,
@@ -23,8 +23,8 @@ from core.onto_core import (
 )
 from core.universe_core import (
     FootprintTolerances, ProxiiPolicy, UniverseRules,
-    Galaxy, System, CosmicCoordinates, StarType,
-    WorldCondition, WorldFootprint, World,
+    Location, System, CosmicCoordinates, StarType,
+    SignificantLocation, PopLocation, LocCondition, LocFootprint,
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
@@ -90,10 +90,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     lums, constraints_by_owner = _load_luminaries(conn)
     pantheon = _load_pantheon(conn, constraints_by_owner)
     rules    = _load_universe_rules(conn)
-    galaxies = _load_galaxies(conn)
-    systems  = _load_systems(conn)
+    locations = _load_locations(conn)
     species  = _load_species(conn)
-    worlds   = _load_worlds(conn)
     civs     = _load_civilizations(conn)
     mortals  = _load_mortals(conn)
     demiurge = _load_demiurge(conn)
@@ -103,12 +101,24 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
 
+    # Universe ID: stored in scenario_meta if present, else generate one.
+    universe_id_str = meta.get("universe_id", "")
+    universe_id = UUID(universe_id_str) if universe_id_str else uuid4()
+
+    # Universe child_ids are the galaxy UUIDs (locations with no parent).
+    galaxy_ids = [
+        UUID(k) for k, v in locations.items()
+        if v.parent_id is None and v.location_type == "galaxy"
+    ]
+
     universe = Universe(
+        id=universe_id,
         name=meta["universe_name"],
+        description=meta.get("universe_description", ""),
         demiurge_id=demiurge.id,
         pantheon_id=pantheon.id,
         rules=rules,
-        galaxy_ids=[UUID(k) for k in galaxies.keys()],
+        child_ids=galaxy_ids,
         current_age=meta["current_age"],
     )
 
@@ -119,9 +129,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         pantheon=pantheon,
         luminaries={str(l.id): l for l in lums.values()},
         domains=domains,
-        galaxies=galaxies,
-        systems=systems,
-        worlds=worlds,
+        locations=locations,
         civilizations=civs,
         mortals=mortals,
         species=species,
@@ -182,7 +190,6 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
             ),
             constraints=constraints_by_owner.get(lid, []),
             herald_ids=[UUID(x) for x in _j(row["herald_ids"])],
-            # herald_ids=[""]
             status_tags=_j(row.get("status_tags", row.get("speech_tags", "[]"))),
         )
         lums[str(l.id)] = l
@@ -221,6 +228,97 @@ def _load_universe_rules(conn) -> UniverseRules:
     )
 
 
+def _load_locations(conn) -> dict[str, Location]:
+    """Load all locations from the unified locations table."""
+    out: dict[str, Location] = {}
+    try:
+        rows = conn.execute("SELECT * FROM locations").fetchall()
+    except Exception:
+        return out  # table absent in old DBs
+
+    for raw in rows:
+        row = dict(raw)
+        subclass = row.get("subclass", "location")
+        loc_id = UUID(row["id"])
+        parent_id = _uuid(row.get("parent_id"))
+        child_ids = [UUID(x) for x in _j(row.get("child_ids", "[]"))]
+        traits = _j(row.get("traits", "[]"))
+        condition = LocCondition(row.get("condition", "stable"))
+        location_type = row.get("location_type", "location")
+        description = row.get("description", "")
+
+        if subclass == "system":
+            loc = System(
+                id=loc_id,
+                name=row["name"],
+                description=description,
+                location_type=location_type,
+                parent_id=parent_id,
+                child_ids=child_ids,
+                traits=traits,
+                condition=condition,
+                coordinates=CosmicCoordinates(
+                    x=row.get("coordinates_x", 0.0),
+                    y=row.get("coordinates_y", 0.0),
+                    z=row.get("coordinates_z", 0.0),
+                ),
+                star_type=StarType(row.get("star_type", "main_sequence")),
+            )
+        elif subclass == "significant_location":
+            loc = SignificantLocation(
+                id=loc_id,
+                name=row["name"],
+                description=description,
+                location_type=location_type,
+                parent_id=parent_id,
+                child_ids=child_ids,
+                traits=traits,
+                condition=condition,
+                domain_expression=_jd(row.get("domain_expression", "{}")),
+                local_footprint=LocFootprint(
+                    overt_miracles=row.get("lf_overt_miracles", 0.0),
+                    subtle_influence=row.get("lf_subtle_influence", 0.0),
+                    proxius_activity=row.get("lf_proxius_activity", 0.0),
+                    direct_creation=row.get("lf_direct_creation", 0.0),
+                ),
+                civilization_ids=[UUID(x) for x in _j(row.get("civilization_ids", "[]"))],
+                species_ids=[UUID(x) for x in _j(row.get("species_ids", "[]"))],
+                proxius_ids=[UUID(x) for x in _j(row.get("proxius_ids", "[]"))],
+                herald_ids=[UUID(x) for x in _j(row.get("herald_ids_loc", "[]"))],
+                geo_tags=_j(row.get("geo_tags", "[]")),
+                atmo_tags=_j(row.get("atmo_tags", "[]")),
+                age=row.get("age", 0.0),
+            )
+        elif subclass == "pop_location":
+            loc = PopLocation(
+                id=loc_id,
+                name=row["name"],
+                description=description,
+                location_type=location_type,
+                parent_id=parent_id,
+                child_ids=child_ids,
+                traits=traits,
+                condition=condition,
+                pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
+            )
+        else:
+            # Base Location (galaxies and any freeform locations)
+            loc = Location(
+                id=loc_id,
+                name=row["name"],
+                description=description,
+                location_type=location_type,
+                parent_id=parent_id,
+                child_ids=child_ids,
+                traits=traits,
+                condition=condition,
+            )
+
+        out[str(loc.id)] = loc
+
+    return out
+
+
 def _load_species(conn) -> dict[str, Species]:
     out = {}
     for raw in conn.execute("SELECT * FROM species"):
@@ -228,78 +326,17 @@ def _load_species(conn) -> dict[str, Species]:
         sp = Species(
             id=UUID(row["id"]),
             name=row["name"],
-            description=row["description"],
+            description=row.get("description", ""),
             origin_world_id=_uuid(row["origin_world_id"]),
             sapient=bool(row["sapient"]),
             transplanted=bool(row["transplanted"]),
             lifespan_min=row["lifespan_min"],
             lifespan_max=row["lifespan_max"],
+            domain_tags=_j(row.get("domain_tags", "[]")),
             bio_tags=_j(row.get("bio_tags", row.get("trait_tags", "[]"))),
-            cultural_tags=_jd(row.get("cultural_tags", "{}")),
             condition=SpeciesCondition(row["condition"]),
         )
         out[str(sp.id)] = sp
-    return out
-
-
-def _load_galaxies(conn) -> dict[str, Galaxy]:
-    out = {}
-    for row in conn.execute("SELECT * FROM galaxies"):
-        g = Galaxy(
-            id=UUID(row["id"]),
-            name=row["name"],
-            coordinates=CosmicCoordinates(x=row["x"], y=row["y"], z=row["z"]),
-            dominant_domain_tags=_j(row["dominant_domain_tags"]),
-        )
-        # Re-attach system IDs
-        for srow in conn.execute(
-            "SELECT id FROM systems WHERE galaxy_id = ?", (row["id"],)
-        ):
-            g.system_ids.append(UUID(srow["id"]))
-        out[str(g.id)] = g
-    return out
-
-
-def _load_systems(conn) -> dict[str, System]:
-    out = {}
-    for row in conn.execute("SELECT * FROM systems"):
-        s = System(
-            id=UUID(row["id"]),
-            name=row["name"],
-            galaxy_id=UUID(row["galaxy_id"]),
-            coordinates=CosmicCoordinates(x=row["x"], y=row["y"], z=row["z"]),
-            star_type=StarType(row["star_type"]),
-        )
-        # Re-attach world IDs
-        for wrow in conn.execute(
-            "SELECT id FROM worlds WHERE system_id = ?", (row["id"],)
-        ):
-            s.world_ids.append(UUID(wrow["id"]))
-        out[str(s.id)] = s
-    return out
-
-
-def _load_worlds(conn) -> dict[str, World]:
-    out = {}
-    for raw in conn.execute("SELECT * FROM worlds"):
-        row = dict(raw)
-        w = World(
-            id=UUID(row["id"]),
-            name=row["name"],
-            system_id=UUID(row["system_id"]),
-            condition=WorldCondition(row["condition"]),
-            domain_expression=_jd(row["domain_expression"]),
-            geo_tags=_j(row.get("geo_tags", "[]")),
-            atmo_tags=_j(row.get("atmo_tags", "[]")),
-            species_ids=[UUID(x) for x in _j(row["species_ids"])],
-            age=row["age"],
-        )
-        # Re-attach civilization IDs
-        for crow in conn.execute(
-            "SELECT id FROM civilizations WHERE world_id = ?", (row["id"],)
-        ):
-            w.civilization_ids.append(UUID(crow["id"]))
-        out[str(w.id)] = w
     return out
 
 
@@ -307,10 +344,13 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
     out = {}
     for raw in conn.execute("SELECT * FROM civilizations"):
         row = dict(raw)
+        # Handle legacy world_id column for old DBs
+        origin_loc_str = row.get("origin_location_id") or row.get("world_id")
         c = Civilization(
             id=UUID(row["id"]),
             name=row["name"],
-            world_id=UUID(row["world_id"]),
+            description=row.get("description", ""),
+            origin_location_id=_uuid(origin_loc_str),
             scale=CivilizationScale(row["scale"]),
             health=CivilizationHealth(
                 stability=row["health_stability"],
@@ -340,6 +380,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
         m = NotableMortal(
             id=UUID(row["id"]),
             name=row["name"],
+            description=row.get("description", ""),
             civilization_id=_uuid(row["civilization_id"]),
             role=MortalRole(row["role"]),
             status=MortalStatus(row["status"]),
@@ -347,6 +388,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             prominence_roles=[MortalProminence(v) for v in _j(row["prominence_roles"])],
             prominence=row["prominence"],
             visibility=row["visibility"],
+            belief_tags=_jd(row.get("belief_tags", "{}")),
             personal_tags=_j(row["personal_tags"]),
             culture_tags=_jd(row.get("culture_tags", "{}")),
             alignment=row["alignment"],
@@ -354,8 +396,8 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             bio_age=row["bio_age"],
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
-            home_location=_uuid(row.get("home_location")),
-            current_location=_uuid(row.get("current_location")),
+            home_location=UUID(row["home_location"]),
+            current_location=UUID(row["current_location"]),
         )
         out[str(m.id)] = m
     return out

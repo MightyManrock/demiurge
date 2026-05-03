@@ -16,7 +16,9 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS scenario_meta (
     name                TEXT NOT NULL,
     description         TEXT NOT NULL DEFAULT '',
+    universe_id         TEXT NOT NULL DEFAULT '',   -- UUID of the Universe object
     universe_name       TEXT NOT NULL,
+    universe_description TEXT NOT NULL DEFAULT '',
     current_age         REAL NOT NULL DEFAULT 0.0,
     tick_number         INTEGER NOT NULL DEFAULT 0,
     demiurge_id         TEXT NOT NULL,
@@ -89,23 +91,42 @@ CREATE TABLE IF NOT EXISTS universe_rules (
     notes                          TEXT NOT NULL DEFAULT ''
 );
 
-CREATE TABLE IF NOT EXISTS galaxies (
-    id                   TEXT PRIMARY KEY,
-    name                 TEXT NOT NULL,
-    x                    REAL NOT NULL DEFAULT 0.0,
-    y                    REAL NOT NULL DEFAULT 0.0,
-    z                    REAL NOT NULL DEFAULT 0.0,
-    dominant_domain_tags TEXT NOT NULL DEFAULT '[]'  -- JSON array
-);
-
-CREATE TABLE IF NOT EXISTS systems (
-    id        TEXT PRIMARY KEY,
-    name      TEXT NOT NULL,
-    galaxy_id TEXT NOT NULL,
-    star_type TEXT NOT NULL DEFAULT 'main_sequence',
-    x         REAL NOT NULL DEFAULT 0.0,
-    y         REAL NOT NULL DEFAULT 0.0,
-    z         REAL NOT NULL DEFAULT 0.0
+-- Unified locations table: galaxies, systems, planets/planes, pop locations.
+-- The 'subclass' column controls which Python class is instantiated on load:
+--   'location'             → Location (base; used for galaxies and freeform locations)
+--   'system'               → System
+--   'significant_location' → SignificantLocation (planets, planes — collects footprint/domain data)
+--   'pop_location'         → PopLocation (cities, towns, stations — houses Pops)
+CREATE TABLE IF NOT EXISTS locations (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    description   TEXT NOT NULL DEFAULT '',
+    location_type TEXT NOT NULL DEFAULT 'location',  -- free-form label: "galaxy", "planet", "city", etc.
+    subclass      TEXT NOT NULL DEFAULT 'location',  -- Python class discriminator
+    parent_id     TEXT,                              -- NULL for galaxies (universe not in table)
+    child_ids     TEXT NOT NULL DEFAULT '[]',        -- JSON array of child location UUIDs
+    traits        TEXT NOT NULL DEFAULT '[]',        -- JSON array of trait strings
+    condition     TEXT NOT NULL DEFAULT 'stable',
+    -- System-specific (populated for subclass='system')
+    coordinates_x REAL NOT NULL DEFAULT 0.0,
+    coordinates_y REAL NOT NULL DEFAULT 0.0,
+    coordinates_z REAL NOT NULL DEFAULT 0.0,
+    star_type     TEXT NOT NULL DEFAULT 'main_sequence',
+    -- SignificantLocation-specific (populated for subclass='significant_location')
+    domain_expression TEXT NOT NULL DEFAULT '{}',   -- JSON object {tag: strength_float}
+    lf_overt_miracles   REAL NOT NULL DEFAULT 0.0,  -- local_footprint fields (flattened)
+    lf_subtle_influence REAL NOT NULL DEFAULT 0.0,
+    lf_proxius_activity REAL NOT NULL DEFAULT 0.0,
+    lf_direct_creation  REAL NOT NULL DEFAULT 0.0,
+    civilization_ids TEXT NOT NULL DEFAULT '[]',    -- JSON array
+    species_ids      TEXT NOT NULL DEFAULT '[]',    -- JSON array
+    proxius_ids      TEXT NOT NULL DEFAULT '[]',    -- JSON array
+    herald_ids_loc   TEXT NOT NULL DEFAULT '[]',    -- JSON array (disambiguated from luminary herald_ids)
+    geo_tags         TEXT NOT NULL DEFAULT '[]',    -- JSON array
+    atmo_tags        TEXT NOT NULL DEFAULT '[]',    -- JSON array
+    age              REAL NOT NULL DEFAULT 0.0,
+    -- PopLocation-specific (populated for subclass='pop_location')
+    pop_ids          TEXT NOT NULL DEFAULT '[]'     -- JSON array
 );
 
 CREATE TABLE IF NOT EXISTS species (
@@ -117,43 +138,33 @@ CREATE TABLE IF NOT EXISTS species (
     transplanted     INTEGER NOT NULL DEFAULT 0,   -- bool
     lifespan_min     REAL NOT NULL DEFAULT 100.0,
     lifespan_max     REAL NOT NULL DEFAULT 200.0,
+    domain_tags      TEXT NOT NULL DEFAULT '[]',   -- JSON array of domain:... strings (innate affinity)
     bio_tags         TEXT NOT NULL DEFAULT '[]',   -- JSON array
-    cultural_tags    TEXT NOT NULL DEFAULT '{}',   -- JSON object {tag: strength_float}
     condition        TEXT NOT NULL DEFAULT 'stable'
 );
 
-CREATE TABLE IF NOT EXISTS worlds (
-    id                TEXT PRIMARY KEY,
-    name              TEXT NOT NULL,
-    system_id         TEXT NOT NULL,
-    condition         TEXT NOT NULL DEFAULT 'stable',
-    domain_expression TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
-    geo_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    atmo_tags         TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    species_ids       TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    age               REAL NOT NULL DEFAULT 0.0
-);
-
 CREATE TABLE IF NOT EXISTS civilizations (
-    id               TEXT PRIMARY KEY,
-    name             TEXT NOT NULL,
-    world_id         TEXT NOT NULL,
-    scale            TEXT NOT NULL DEFAULT 'tribal',
+    id                  TEXT PRIMARY KEY,
+    name                TEXT NOT NULL,
+    description         TEXT NOT NULL DEFAULT '',
+    origin_location_id  TEXT,                       -- UUID of home SignificantLocation (nullable)
+    scale               TEXT NOT NULL DEFAULT 'tribal',
     -- CivilizationHealth (embedded)
-    health_stability  REAL NOT NULL DEFAULT 0.5,
-    health_prosperity REAL NOT NULL DEFAULT 0.5,
-    health_cohesion   REAL NOT NULL DEFAULT 0.5,
-    primary_species_id TEXT,
-    dominant_beliefs  TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
-    culture_tags      TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
-    theistic          INTEGER NOT NULL DEFAULT 1,  -- bool
-    divine_awareness  REAL NOT NULL DEFAULT 0.3,
-    age               REAL NOT NULL DEFAULT 0.0
+    health_stability    REAL NOT NULL DEFAULT 0.5,
+    health_prosperity   REAL NOT NULL DEFAULT 0.5,
+    health_cohesion     REAL NOT NULL DEFAULT 0.5,
+    primary_species_id  TEXT,
+    dominant_beliefs    TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
+    culture_tags        TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
+    theistic            INTEGER NOT NULL DEFAULT 1,  -- bool
+    divine_awareness    REAL NOT NULL DEFAULT 0.3,
+    age                 REAL NOT NULL DEFAULT 0.0
 );
 
 CREATE TABLE IF NOT EXISTS mortals (
     id                     TEXT PRIMARY KEY,
     name                   TEXT NOT NULL,
+    description            TEXT NOT NULL DEFAULT '',
     civilization_id        TEXT,
     role                   TEXT NOT NULL DEFAULT 'other',
     status                 TEXT NOT NULL DEFAULT 'active',
@@ -161,6 +172,7 @@ CREATE TABLE IF NOT EXISTS mortals (
     prominence_roles       TEXT NOT NULL DEFAULT '[]',  -- JSON array of MortalProminence values
     prominence             REAL NOT NULL DEFAULT 0.5,
     visibility             REAL NOT NULL DEFAULT 0.0,
+    belief_tags            TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
     culture_tags           TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     alignment              REAL NOT NULL DEFAULT 0.8,
@@ -168,8 +180,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     bio_age                REAL NOT NULL DEFAULT 0.0,
     appointed_by_demiurge  TEXT,
     appointed_by_luminary  TEXT,
-    home_location          TEXT NOT NULL,  -- UUID of home world / location (fixed at creation)
-    current_location       TEXT NOT NULL   -- UUID of current world / location (changes on movement)
+    home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
+    current_location       TEXT NOT NULL   -- UUID of current SignificantLocation (changes on movement)
 );
 
 -- ─────────────────────────────────────────
