@@ -295,7 +295,7 @@ class Civilization(BaseModel):
     # read by Luminary evaluation until Pop-based profiling is implemented.
     # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
     dominant_beliefs: dict[str, float] = Field(default_factory=dict)
-    # e.g. {"domain:war": 0.8, "domain:trade": 0.3}
+    # e.g. {"domain:conflict": 0.8, "domain:memory": 0.3}
 
     # Derived aggregate of this civilization's Pops (and eventually Govs).
     culture_tags: dict[str, float] = Field(default_factory=dict)

@@ -186,6 +186,40 @@ class Species(BaseModel):
 
 
 # ─────────────────────────────────────────
+# POPS
+# Sub-civilizational population groups.
+# ─────────────────────────────────────────
+
+class SocialClass(str, Enum):
+    UNDERCLASS = "underclass"   # Slaves, serfs, the dispossessed
+    COMMON     = "common"       # Peasants, laborers, the broad base
+    ARTISAN    = "artisan"      # Skilled specialists and craftspeople
+    MERCHANT   = "merchant"     # Traders and economic actors
+    WARRIOR    = "warrior"      # Martial class
+    PRIEST     = "priest"       # Religious and scholarly class
+    ELITE      = "elite"        # Ruling class and aristocracy
+
+
+class Pop(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    civilization_id: Optional[UUID] = None
+    species_id: Optional[UUID] = None
+    social_class: SocialClass = SocialClass.COMMON
+    current_location: UUID       # World UUID for now; sub-world locations later
+
+    # Logarithmic size: actual population ≈ 10 ** size_magnitude
+    # e.g. 3 → ~1,000 | 6 → ~1,000,000 | 9 → ~1,000,000,000
+    size_magnitude: int = 6
+
+    # Authoritative source of belief/culture data for this group.
+    # Civilization.dominant_beliefs and culture_tags are aggregates derived from Pops (and Govs).
+    dominant_beliefs: dict[str, float] = Field(default_factory=dict)
+    culture_tags: dict[str, float] = Field(default_factory=dict)
+
+    notable_mortal_ids: list[UUID] = Field(default_factory=list)
+
+
+# ─────────────────────────────────────────
 # CIVILIZATION
 # ─────────────────────────────────────────
 
@@ -223,14 +257,14 @@ class Civilization(BaseModel):
     scale: CivilizationScale = CivilizationScale.TRIBAL
     health: CivilizationHealth = Field(default_factory=CivilizationHealth)
 
-    # Weighted Domain beliefs this civilization expresses through
-    # its practices, conflicts, and cultural identity.
-    # This is the primary signal Luminaries read to judge
-    # whether your universe is reflecting their Domains.
+    # Derived aggregate of this civilization's Pops (and eventually Govs).
+    # Authoritative source is Pop.dominant_beliefs; this is a weighted summary
+    # read by Luminary evaluation until Pop-based profiling is implemented.
     # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
     dominant_beliefs: dict[str, float] = Field(default_factory=dict)
-    # e.g. {"domain:war": 0.8, "domain:trade": 0.3}
+    # e.g. {"domain:conflict": 0.8, "domain:memory": 0.3}
 
+    # Derived aggregate of this civilization's Pops (and eventually Govs).
     culture_tags: dict[str, float] = Field(default_factory=dict)
     # e.g. {"culture:hierarchy": 0.85, "culture:science": 0.65}
 
@@ -242,6 +276,7 @@ class Civilization(BaseModel):
     # 0.0 = no concept of gods; 1.0 = constant direct interaction
 
     primary_species_id: Optional[UUID] = None
+    pop_ids: list[UUID] = Field(default_factory=list)
     notable_mortal_ids: list[UUID] = Field(default_factory=list)
     age: float = 0.0
 
@@ -303,6 +338,7 @@ class NotableMortal(BaseModel):
     # Cultural traits inherited from their civilization, e.g. {"culture:hierarchy": 0.8}
 
     species_id: Optional[UUID] = None
+    pop_id: Optional[UUID] = None   # Pop this mortal belongs to; None until Pop system is active
 
     # Discrete social roles — explains in the UI why this mortal is notable.
     # An empty list (or [NONE]) means the mortal has no recognised public role.
