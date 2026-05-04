@@ -88,14 +88,15 @@ def export_scenario(
 def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
     conn.execute(
         """INSERT INTO scenario_meta
-           (name, description, universe_id, universe_name, universe_description,
-            current_age, tick_number, demiurge_id, pantheon_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (name, description, universe_id, universe_name, universe_save_name,
+            universe_description, current_age, tick_number, demiurge_id, pantheon_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
             str(state.universe.id),
             state.universe.name,
+            state.universe.save_name,
             state.universe.description,
             state.universe.current_age,
             state.tick_number,
@@ -921,7 +922,8 @@ def build_scenario_default() -> SimulationState:
     essence = EssenceStockpile(actual=0.0, apparent=0.0, concealment_integrity=1.0)
 
     universe = Universe(
-        name="The Neran Universe",
+        name="Warden's Compact",
+        save_name="WC",
         demiurge_id=demiurge.id,
         pantheon_id=pantheon.id,
         rules=rules,

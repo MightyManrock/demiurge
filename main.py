@@ -1244,7 +1244,9 @@ def _save_game(state: SimulationState) -> None:
     saves_dir = Path(__file__).parent / "saves"
     saves_dir.mkdir(exist_ok=True)
 
-    default_name = f"save_tick{state.tick_number}"
+    dt = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    default_name = f"{state.universe.save_name}_{dt}"
     raw = input(f"  Save name [{default_name}]: ").strip()
     name = raw if raw else default_name
 

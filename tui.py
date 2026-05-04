@@ -928,7 +928,8 @@ class GameScreen(Screen):
     async def _save_game_flow(self) -> None:
         state = self.app.state  # type: ignore[attr-defined]
         _SAVES_DIR.mkdir(exist_ok=True)
-        default = f"save_tick{state.tick_number}"
+        dt      = datetime.now().strftime("%Y%m%d%H%M%S")
+        default = f"{state.universe.save_name}_{dt}"
         form = await self.app.push_screen_wait(
             TextFormModal("Save Game", [("Save name", "name", default)])
         )

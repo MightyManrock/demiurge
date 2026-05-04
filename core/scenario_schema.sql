@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     description         TEXT NOT NULL DEFAULT '',
     universe_id         TEXT NOT NULL DEFAULT '',   -- UUID of the Universe object
     universe_name       TEXT NOT NULL,
+    universe_save_name  TEXT NOT NULL,
     universe_description TEXT NOT NULL DEFAULT '',
     current_age         REAL NOT NULL DEFAULT 0.0,
     tick_number         INTEGER NOT NULL DEFAULT 0,

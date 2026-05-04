@@ -399,6 +399,8 @@ class NotableMortal(BaseModel):
 
 class Universe(Location):
     location_type: str = "universe"
+    name: str = "universe"
+    save_name: str = "U"
     demiurge_id: UUID
     pantheon_id: UUID
     rules: UniverseRules = Field(default_factory=UniverseRules)

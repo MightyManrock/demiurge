@@ -115,6 +115,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         id=universe_id,
         name=meta["universe_name"],
         description=meta.get("universe_description", ""),
+        save_name=meta.get("universe_save_name", ""),
         demiurge_id=demiurge.id,
         pantheon_id=pantheon.id,
         rules=rules,
