@@ -864,6 +864,41 @@ def _render_status(state: SimulationState) -> Text:
 
 
 # ─────────────────────────────────────────
+# LOOPING LIST VIEW
+# ─────────────────────────────────────────
+
+class LoopingListView(ListView):
+    """ListView with wrap-around navigation and Home/End key support."""
+
+    def action_cursor_up(self) -> None:
+        n = len(self._nodes)
+        if n == 0:
+            return
+        if self.index is None or self.index <= 0:
+            self.index = n - 1
+        else:
+            super().action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        n = len(self._nodes)
+        if n == 0:
+            return
+        if self.index is None or self.index >= n - 1:
+            self.index = 0
+        else:
+            super().action_cursor_down()
+
+    def key_home(self) -> None:
+        if self._nodes:
+            self.index = 0
+
+    def key_end(self) -> None:
+        n = len(self._nodes)
+        if n:
+            self.index = n - 1
+
+
+# ─────────────────────────────────────────
 # LOAD SCREEN
 # ─────────────────────────────────────────
 
@@ -879,7 +914,7 @@ class LoadScreen(Screen):
         with Vertical(classes="load-box"):
             yield Label("DEMIURGE", classes="load-title")
             with ScrollableContainer():
-                with ListView(id="load-list"):
+                with LoopingListView(id="load-list"):
                     if saves:
                         yield ListItem(Label("── SAVES ──", classes="load-section"), disabled=True)
                         for path in saves:
@@ -946,9 +981,9 @@ class PickerModal(ModalScreen):
         with Vertical(classes="modal-box-tall"):
             yield Label(self._title, classes="modal-title")
             if self._description:
-                yield Label(self._description, classes="modal-desc")
+                yield Label(_wrap_desc(self._description), classes="modal-desc")
             with ScrollableContainer():
-                with ListView(id="picker-list"):
+                with LoopingListView(id="picker-list"):
                     for i, (key, text) in enumerate(self._items):
                         yield ListItem(Label(text), id=f"pick-{i}")
             with Horizontal(classes="btn-row"):
@@ -1030,7 +1065,7 @@ class TextFormModal(ModalScreen):
         with Vertical(classes="modal-box"):
             yield Label(self._title, classes="modal-title")
             if self._description:
-                yield Label(self._description, classes="modal-desc")
+                yield Label(_wrap_desc(self._description), classes="modal-desc")
             for label, fid, default in self._fields:
                 yield Label(label, classes="field-label")
                 yield Input(value=default, id=f"field-{fid}")
@@ -1257,7 +1292,7 @@ class ImagoCell(Widget):
         classes = [approval_class] if (unlocked and approval_class) else []
         if not unlocked:
             classes.append("inactive")
-        super().__init__(classes=" ".join(classes), disabled=not unlocked)
+        super().__init__(classes=" ".join(classes))
         self._node     = node
         self._unlocked = unlocked
 
@@ -1271,11 +1306,11 @@ class ImagoCell(Widget):
         self.post_message(self.Focused(self._node.node_id))
 
     def on_click(self) -> None:
-        if not self.disabled:
+        if self._unlocked:
             self.post_message(self.Selected(self._node.node_id))
 
     def key_enter(self) -> None:
-        if not self.disabled:
+        if self._unlocked:
             self.post_message(self.Selected(self._node.node_id))
 
 
@@ -1375,10 +1410,10 @@ class ImagoTreeModal(ModalScreen):
                 yield Button("Cancel",    id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
-        for cell in self.query(ImagoCell):
-            if not cell.disabled:
-                cell.focus()
-                break
+        cells = list(self.query(ImagoCell))
+        target = next((c for c in cells if c._unlocked), cells[0] if cells else None)
+        if target:
+            target.focus()
 
     def action_nav(self, direction: str) -> None:
         cells   = list(self.query(ImagoCell))
@@ -1541,7 +1576,7 @@ class ActionBrowserModal(ModalScreen):
         with Vertical(classes="modal-box-tall"):
             yield Label("Queue Action", classes="modal-title")
             with ScrollableContainer():
-                with ListView(id="cat-list"):
+                with LoopingListView(id="cat-list"):
                     for i, (cat, _) in enumerate(self._cat_actions.items()):
                         used    = self._queued_cats.get(cat.value)
                         ongoing = self._state.ongoing_actions.get(cat.value)
