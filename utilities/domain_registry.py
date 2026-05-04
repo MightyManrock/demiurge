@@ -28,32 +28,32 @@ DEMIURGE_UNLOCK_THRESHOLD = 0.50
 # Narrower threshold for access from Demiurge-unlocked (non-Luminary) domains.
 
 # ── Canonical domain data ──────────────────────────────────────────────
-# Each entry: (tag, is_stative, partner_tag)
+# Each entry: (tag, is_stative, partner_tag, icon)
 # Domains are paired stative/dynamic: e.g. Truth (what-is) ↔ Order (what-is-enforced).
-_DOMAIN_DATA: list[tuple[str, bool, str]] = [
+_DOMAIN_DATA: list[tuple[str, bool, str, str]] = [
     # Structure / Stillness
-    ("domain:truth",     True,  "domain:order"),
-    ("domain:order",     False, "domain:truth"),
-    ("domain:silence",   True,  "domain:secrecy"),
+    ("domain:truth",     True,  "domain:order",     "◈"),
+    ("domain:order",     False, "domain:truth",     "⬡"),
+    ("domain:silence",   True,  "domain:secrecy",   "◯"),
     # Upheaval
-    ("domain:change",    True,  "domain:conflict"),
-    ("domain:conflict",  False, "domain:change"),
+    ("domain:change",    True,  "domain:conflict",  "✷"),
+    ("domain:conflict",  False, "domain:change",    "✖"),
     # Elemental
-    ("domain:fire",      False, "domain:light"),
-    ("domain:water",     False, "domain:growth"),
-    ("domain:void",      True,  "domain:decay"),
+    ("domain:fire",      False, "domain:light",     "🜂"),
+    ("domain:water",     False, "domain:growth",    "≋"),
+    ("domain:void",      True,  "domain:decay",     "∅"),
     # Life Cycle
-    ("domain:growth",    True,  "domain:water"),
-    ("domain:decay",     False, "domain:void"),
+    ("domain:growth",    True,  "domain:water",     "✿"),
+    ("domain:decay",     False, "domain:void",      "☋"),
     # Mind / Spirit
-    ("domain:memory",    True,  "domain:mastery"),
-    ("domain:sacrifice", False, "domain:community"),
+    ("domain:memory",    True,  "domain:mastery",   "◉"),
+    ("domain:sacrifice", False, "domain:community", "⚱"),
     # Illumination / Craft
-    ("domain:light",     True,  "domain:fire"),
-    ("domain:mastery",   False, "domain:memory"),
+    ("domain:light",     True,  "domain:fire",      "☼"),
+    ("domain:mastery",   False, "domain:memory",    "⚙"),
     # Social
-    ("domain:secrecy",   False, "domain:silence"),
-    ("domain:community", True,  "domain:sacrifice"),
+    ("domain:secrecy",   False, "domain:silence",   "⛉"),
+    ("domain:community", True,  "domain:sacrifice", "♾"),
 ]
 
 # Derived flat list — preserves call-site compatibility.
@@ -141,6 +141,7 @@ class DomainRegistry:
         self._tag_set: set[str] = set()
         self._is_stative: dict[str, bool] = {}
         self._partner: dict[str, str] = {}
+        self._icon: dict[str, str] = {}
         self._ensure_db()
         self._load()
 
@@ -160,6 +161,10 @@ class DomainRegistry:
     def partner(self, tag: str) -> Optional[str]:
         """The stative↔dynamic counterpart of this domain, or None if unknown."""
         return self._partner.get(tag)
+
+    def icon(self, tag: str) -> str:
+        """Unicode icon for this domain, or empty string if unknown."""
+        return self._icon.get(tag, "")
 
     def similarity(self, tag_a: str, tag_b: str) -> float:
         """
@@ -304,7 +309,8 @@ class DomainRegistry:
                     display_name TEXT NOT NULL,
                     sort_order   INTEGER NOT NULL DEFAULT 0,
                     is_stative   INTEGER NOT NULL DEFAULT 0,
-                    partner_tag  TEXT NOT NULL DEFAULT ''
+                    partner_tag  TEXT NOT NULL DEFAULT '',
+                    icon         TEXT NOT NULL DEFAULT ''
                 );
                 CREATE TABLE IF NOT EXISTS domain_similarity (
                     tag_a      TEXT NOT NULL,
@@ -314,10 +320,11 @@ class DomainRegistry:
                 );
             """)
 
-            # Migrate existing DBs that predate is_stative / partner_tag columns.
+            # Migrate existing DBs that predate these columns.
             for col_def in (
                 "ADD COLUMN is_stative  INTEGER NOT NULL DEFAULT 0",
                 "ADD COLUMN partner_tag TEXT NOT NULL DEFAULT ''",
+                "ADD COLUMN icon        TEXT NOT NULL DEFAULT ''",
             ):
                 try:
                     conn.execute(f"ALTER TABLE domain_registry {col_def}")
@@ -333,13 +340,13 @@ class DomainRegistry:
             )
 
             # Upsert all canonical domains (adds new, updates existing rows).
-            for i, (tag, stative, partner) in enumerate(_DOMAIN_DATA):
+            for i, (tag, stative, partner, icon) in enumerate(_DOMAIN_DATA):
                 display = tag.split(":", 1)[1].replace("_", " ").title()
                 conn.execute(
                     "INSERT OR REPLACE INTO domain_registry "
-                    "(tag, display_name, sort_order, is_stative, partner_tag) "
-                    "VALUES (?,?,?,?,?)",
-                    (tag, display, i, int(stative), partner),
+                    "(tag, display_name, sort_order, is_stative, partner_tag, icon) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (tag, display, i, int(stative), partner, icon),
                 )
 
             # Seed similarity pairs (idempotent — existing values are kept).
@@ -360,11 +367,12 @@ class DomainRegistry:
         try:
             self._all_tags = []
             for row in conn.execute(
-                "SELECT tag, is_stative, partner_tag FROM domain_registry ORDER BY sort_order"
+                "SELECT tag, is_stative, partner_tag, icon FROM domain_registry ORDER BY sort_order"
             ):
                 self._all_tags.append(row["tag"])
                 self._is_stative[row["tag"]] = bool(row["is_stative"])
                 self._partner[row["tag"]] = row["partner_tag"]
+                self._icon[row["tag"]] = row["icon"]
             self._tag_set = set(self._all_tags)
 
             for row in conn.execute("SELECT tag_a, tag_b, similarity FROM domain_similarity"):
