@@ -1076,7 +1076,7 @@ def _prompt_domain_or_imago(
 
 
 def _prompt_framing():
-    from action_core import Framing
+    from core.action_core import Framing
     options = [f.value for f in Framing]
     print(f"  Framing: {', '.join(options)}")
     choice = input("  > ").strip().lower()

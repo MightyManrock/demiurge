@@ -44,10 +44,12 @@ from utilities.imago_registry import get_registry as get_imago_registry
 from main import (
     display_state, display_tick_result, display_briefing,
     _format_beliefs, _name_for_id, _get_lum_domain_context,
+    SessionLog,
 )
 
 _SAVES_DIR    = Path(__file__).parent / "saves"
 _SCENARIOS_DIR = Path(__file__).parent / "scenarios"
+_LOGS_DIR     = Path(__file__).parent / "logs"
 
 _STUB_ACTIONS: frozenset[str] = frozenset({
     "read_divine_traces",
@@ -408,9 +410,7 @@ class LoadScreen(Screen):
             return
         path = Path(path_str)
         state = load_scenario(path)
-        app = self.app
-        app.state = state          # type: ignore[attr-defined]
-        app.push_screen(GameScreen())
+        self.app.push_screen(GameScreen(state))
 
     def action_quit_app(self) -> None:
         self.app.exit()
@@ -838,6 +838,10 @@ class GameScreen(Screen):
         ("q",      "quit_game",       "Quit"),
     ]
 
+    def __init__(self, state: SimulationState):
+        super().__init__()
+        self._state = state
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
         with Horizontal():
@@ -846,11 +850,18 @@ class GameScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        state = self.app.state  # type: ignore[attr-defined]
+        self._last_result = None
+        _LOGS_DIR.mkdir(exist_ok=True)
+        log_path = _LOGS_DIR / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        self._log = SessionLog(log_path)
         self._refresh_status()
-        # Show briefing on first load
-        self._feed(display_briefing(state))
-        self._feed(display_state(state))
+        self._feed_markup(f"[#2a4a6a]Logging to: {log_path}[/]")
+        briefing = display_briefing(state)
+        self._feed(briefing)
+        self._log.write(briefing)
+        state_str = display_state(state)
+        self._feed(state_str)
+        self._log.write(state_str)
 
     # ── Display helpers ───────────────────────
 
@@ -861,19 +872,19 @@ class GameScreen(Screen):
         self.query_one("#main-feed", RichLog).write(Text.from_markup(markup))
 
     def _refresh_status(self) -> None:
-        state = self.app.state  # type: ignore[attr-defined]
+        state = self._state
         self.query_one(StatusPanel).refresh_state(state)
-        self.app.sub_title = (  # type: ignore[attr-defined]
+        self.app.sub_title = (
             f"{state.universe.name}  ·  Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}"
         )
 
     # ── Actions (keyboard bindings) ───────────
 
     def action_briefing(self) -> None:
-        self._feed(display_briefing(self.app.state))  # type: ignore[attr-defined]
+        self._feed(display_briefing(self._state))
 
     def action_show_state(self) -> None:
-        self._feed(display_state(self.app.state))  # type: ignore[attr-defined]
+        self._feed(display_state(self._state))
 
     def action_queue_action(self) -> None:
         self._queue_action_flow()
@@ -883,7 +894,7 @@ class GameScreen(Screen):
 
     @work
     async def _manage_ongoing_flow(self) -> None:
-        state   = self.app.state  # type: ignore[attr-defined]
+        state   = self._state
         library = self.app.loop._action_library  # type: ignore[attr-defined]
         if not state.ongoing_actions:
             self._feed_markup("[#5a7090]No ongoing actions.[/]")
@@ -907,18 +918,27 @@ class GameScreen(Screen):
                 self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}")
                 self._refresh_status()
 
-    async def action_advance_tick(self) -> None:
-        state = self.app.state  # type: ignore[attr-defined]
+    def action_advance_tick(self) -> None:
+        self._advance_tick_work()
+
+    @work(thread=True)
+    def _advance_tick_work(self) -> None:
+        state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
-        self._feed_markup("[#3a6090]Advancing time...[/]")
+        self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]")
         new_state, result = loop.advance(state)
-        self.app.state = new_state  # type: ignore[attr-defined]
-        self._feed(display_tick_result(result))
-        self._refresh_status()
+        self._state = new_state
+        self._last_result = result
+        tick_str = display_tick_result(result)
+        self._log.write_tick(result)
+        self.app.call_from_thread(self._feed, tick_str)
+        self.app.call_from_thread(self._refresh_status)
         if result.terminal.triggered:
-            self._feed_markup(
+            self._log.finalize(new_state, result)
+            self.app.call_from_thread(
+                self._feed_markup,
                 f"[bold #b04050]SCENARIO END: {result.terminal.condition.value.upper()}[/]\n"
-                f"{result.terminal.note}"
+                f"{result.terminal.note}",
             )
 
     def action_save_game(self) -> None:
@@ -926,7 +946,7 @@ class GameScreen(Screen):
 
     @work
     async def _save_game_flow(self) -> None:
-        state = self.app.state  # type: ignore[attr-defined]
+        state = self._state
         _SAVES_DIR.mkdir(exist_ok=True)
         dt      = datetime.now().strftime("%Y%m%d%H%M%S")
         default = f"{state.universe.save_name}_{dt}"
@@ -949,6 +969,7 @@ class GameScreen(Screen):
         self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
 
     def action_quit_game(self) -> None:
+        self._log.finalize(self._state, self._last_result)
         self.app.exit()
 
     # ── Action queue flow ─────────────────────
@@ -956,7 +977,7 @@ class GameScreen(Screen):
     @work
     async def _queue_action_flow(self) -> None:
         app     = self.app
-        state   = app.state    # type: ignore[attr-defined]
+        state   = self._state
         library = app.loop._action_library  # type: ignore[attr-defined]
 
         # Browse and pick action
@@ -990,6 +1011,7 @@ class GameScreen(Screen):
                     ticks_active=0,
                     started_at_tick=state.tick_number,
                 )
+                self._log.write_action(f"[ONGOING SET] {defn.name}")
                 self._feed_markup(f"[#60a870][ONGOING SET][/] {defn.name}")
                 self._refresh_status()
                 return
@@ -998,6 +1020,7 @@ class GameScreen(Screen):
         summary = defn.name
         if instance.target_id:
             summary += f" → {_name_for_id(instance.target_id, state)}"
+        self._log.write_action(summary)
         self._feed_markup(f"[#a0d080]Queued:[/] {summary}")
         self._refresh_status()
 
@@ -1009,7 +1032,7 @@ class GameScreen(Screen):
         defn: ActionDefinition,
     ) -> ActionInstance | None:
         app   = self.app
-        state = app.state  # type: ignore[attr-defined]
+        state = self._state
 
         target_id   = None
         target_type = defn.valid_targets[0] if defn.valid_targets else TargetType.WORLD
@@ -1472,8 +1495,7 @@ class DemiurgeApp(App):
     CSS   = _CSS
     TITLE = "DEMIURGE"
 
-    state: SimulationState | None = None
-    loop:  TickLoop
+    loop: TickLoop
 
     def __init__(self):
         super().__init__()
