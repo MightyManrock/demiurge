@@ -347,6 +347,26 @@ def _peek_db_meta(path: Path) -> dict:
     return {"name": path.stem, "description": "", "tick_number": 0}
 
 
+def _wrap_desc(text: str, width: int = 58, indent: str = "  ") -> str:
+    """Word-wrap description text, indenting continuation lines."""
+    if not text:
+        return ""
+    words = text.split()
+    lines: list[str] = []
+    current = indent
+    for word in words:
+        candidate = current + word if current == indent else current + " " + word
+        if len(candidate) <= width:
+            current = candidate
+        else:
+            if current != indent:
+                lines.append(current)
+            current = indent + word
+    if current != indent:
+        lines.append(current)
+    return "\n".join(lines)
+
+
 def _render_status(state: SimulationState) -> Text:
     """Build a Rich Text object for the status panel."""
     lines: list[str] = []
@@ -446,10 +466,11 @@ class LoadScreen(Screen):
                         yield ListItem(Label("── SAVES ──", classes="load-section"), disabled=True)
                         for path in saves:
                             meta = _peek_db_meta(path)
-                            tick_str = f"  [tick {meta['tick_number']}]" if meta["tick_number"] else ""
-                            desc = f"  {meta['description']}" if meta["description"] else ""
+                            # description already includes tick number ("Tick N  |  Age X")
+                            desc_wrapped = _wrap_desc(meta["description"])
+                            label_text   = f"{meta['name']}\n{desc_wrapped}" if desc_wrapped else meta["name"]
                             yield ListItem(
-                                Label(f"{meta['name']}{tick_str}{desc}"),
+                                Label(label_text),
                                 id=f"file-{path.stem}",
                                 name=str(path),
                             )
@@ -457,14 +478,18 @@ class LoadScreen(Screen):
                         yield ListItem(Label("── SCENARIOS ──", classes="load-section"), disabled=True)
                         for path in scenarios:
                             meta = _peek_db_meta(path)
-                            desc = f"  {meta['description']}" if meta["description"] else ""
+                            desc_wrapped = _wrap_desc(meta["description"])
+                            label_text   = f"{meta['name']}\n{desc_wrapped}" if desc_wrapped else meta["name"]
                             yield ListItem(
-                                Label(f"{meta['name']}{desc}"),
+                                Label(label_text),
                                 id=f"file-{path.stem}",
                                 name=str(path),
                             )
                     if not saves and not scenarios:
                         yield ListItem(Label("(no saves or scenarios found)"), disabled=True)
+
+    def on_mount(self) -> None:
+        self.query_one("#load-list", ListView).focus()
 
     @on(ListView.Selected)
     def _on_selected(self, event: ListView.Selected) -> None:
@@ -510,6 +535,9 @@ class PickerModal(ModalScreen):
                         yield ListItem(Label(text), id=f"pick-{i}")
             with Horizontal(classes="btn-row"):
                 yield Button("Cancel", id="cancel-btn", classes="-danger")
+
+    def on_mount(self) -> None:
+        self.query_one("#picker-list", ListView).focus()
 
     @on(ListView.Selected, "#picker-list")
     def _on_selected(self, event: ListView.Selected) -> None:
@@ -650,6 +678,9 @@ class DomainSquare(Widget):
     def on_focus(self) -> None:
         self.post_message(self.Focused(self._tag))
 
+    def on_enter(self) -> None:
+        self.post_message(self.Focused(self._tag))
+
     def on_click(self) -> None:
         if not self.disabled:
             self.post_message(self.Selected(self._tag))
@@ -662,7 +693,13 @@ class DomainSquare(Widget):
 class DomainPickerModal(ModalScreen):
     """4×4 domain grid picker with Luminary approval coloring."""
 
-    BINDINGS = [("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        ("escape", "cancel",          "Cancel"),
+        ("up",     "nav('up')",       ""),
+        ("down",   "nav('down')",     ""),
+        ("left",   "nav('left')",     ""),
+        ("right",  "nav('right')",    ""),
+    ]
 
     def __init__(self, state: SimulationState, explore_mode: bool = False) -> None:
         super().__init__()
@@ -723,6 +760,25 @@ class DomainPickerModal(ModalScreen):
             with Horizontal(classes="btn-row"):
                 yield Button("Skip Domain", id="skip-btn")
                 yield Button("Cancel",      id="cancel-btn", classes="-danger")
+
+    def on_mount(self) -> None:
+        for sq in self.query(DomainSquare):
+            if not sq.disabled:
+                sq.focus()
+                break
+
+    def action_nav(self, direction: str) -> None:
+        squares = list(self.query(DomainSquare))
+        focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
+        if focused_idx == -1:
+            self.on_mount()
+            return
+        row, col = divmod(focused_idx, 4)
+        delta = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+        new_row = row + delta[0]
+        new_col = col + delta[1]
+        if 0 <= new_row < 4 and 0 <= new_col < 4:
+            squares[new_row * 4 + new_col].focus()
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         tag   = event.tag
@@ -803,6 +859,9 @@ class ActionBrowserModal(ModalScreen):
             with Horizontal(classes="btn-row"):
                 yield Button("Cancel", id="cancel-btn", classes="-danger")
 
+    def on_mount(self) -> None:
+        self.query_one("#cat-list", ListView).focus()
+
     @on(ListView.Selected, "#cat-list")
     def _on_cat_selected(self, event: ListView.Selected) -> None:
         self._handle_cat_selected(event)
@@ -832,6 +891,29 @@ class ActionBrowserModal(ModalScreen):
                 return
             if choice == "stop":
                 del self._state.ongoing_actions[cat.value]
+
+        # If a manually queued action already occupies this category, ask to cancel it
+        if cat.value in self._queued_cats:
+            existing = self._queued_cats[cat.value]
+            cancel_it = await self.app.push_screen_wait(
+                YesNoModal(
+                    f"'{existing}' already queued",
+                    "Cancel it and choose a different action for this category?",
+                )
+            )
+            if not cancel_it:
+                return
+            # Remove that action instance from the queue
+            cat_def_ids = {
+                str(defn.id)
+                for key, defn in self._library.items()
+                if defn.category == cat
+            }
+            self._state.action_queue = [
+                ai for ai in self._state.action_queue
+                if str(ai.action_definition_id) not in cat_def_ids
+            ]
+            del self._queued_cats[cat.value]
 
         # Show action list
         items = []
@@ -865,17 +947,7 @@ class ActionBrowserModal(ModalScreen):
             return
 
         if chosen_key in self._library:
-            defn = self._library[chosen_key]
-            if defn.category.value in self._queued_cats:
-                existing = self._queued_cats[defn.category.value]
-                await self.app.push_screen_wait(
-                    YesNoModal(
-                        "Category already used",
-                        f"'{existing}' is already queued in this category this tick.",
-                    )
-                )
-                return
-            self.dismiss((chosen_key, defn))
+            self.dismiss((chosen_key, self._library[chosen_key]))
 
     @on(Button.Pressed, "#cancel-btn")
     def _cancel(self, _: Button.Pressed) -> None:
@@ -1196,7 +1268,11 @@ class GameScreen(Screen):
 
         # ── Target selection by type ────────────────────
         elif TargetType.MORTAL in defn.valid_targets:
-            mortals = [(mid, m) for mid, m in state.mortals.items() if is_mortal_visible(m)]
+            mortals = [
+                (mid, m) for mid, m in state.mortals.items()
+                if is_mortal_visible(m)
+                and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
+            ]
             if not mortals:
                 self._feed_markup("[#5a7090]No mortals currently within perception.[/]")
                 return None
