@@ -47,7 +47,7 @@ CULTURE_TAGS: list[str] = [
     "culture:charity", "culture:prosperity",
     "culture:ambition", "culture:humility",
     "culture:wit", "culture:sincerity",
-    "culture:patience", "culture:tenacity ",
+    "culture:patience", "culture:tenacity",
     "culture:idealism", "culture:pragmatism",
     "culture:erudition", "culture:folk_wisdom",
 ]
@@ -114,6 +114,91 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     ("culture:diplomacy",        "culture:conquest",          -0.40),
     ("culture:nontheism",        "culture:animism",           -0.35),
     ("culture:polygamy",         "culture:lab_breeding",      -0.30),
+    # ── Values & Virtues — within-cluster ────────────────────────────────
+    # Strong reinforcing pairs
+    ("culture:patience",         "culture:tenacity",           0.70),
+    ("culture:honesty",          "culture:sincerity",          0.70),
+    ("culture:pragmatism",       "culture:adaptability",       0.70),
+    ("culture:erudition",        "culture:idealism",           0.55),
+    ("culture:charity",          "culture:humility",           0.60),
+    ("culture:wit",              "culture:erudition",          0.50),
+    ("culture:ambition",         "culture:tenacity",           0.60),
+    ("culture:prosperity",       "culture:ambition",           0.55),
+    ("culture:folk_wisdom",      "culture:patience",           0.50),
+    ("culture:folk_wisdom",      "culture:sincerity",          0.45),
+    ("culture:idealism",         "culture:charity",            0.45),
+    ("culture:adaptability",     "culture:wit",                0.40),
+    # Weak or neutral reinforcements
+    ("culture:pragmatism",       "culture:tenacity",           0.35),
+    ("culture:erudition",        "culture:sincerity",          0.35),
+    ("culture:prosperity",       "culture:tenacity",           0.30),
+    ("culture:humility",         "culture:sincerity",          0.45),
+    # Conflicts within V&V
+    ("culture:moderation",       "culture:indulgence",        -0.85),
+    ("culture:ambition",         "culture:humility",          -0.70),
+    ("culture:pragmatism",       "culture:idealism",          -0.65),
+    ("culture:erudition",        "culture:folk_wisdom",       -0.50),
+    ("culture:prosperity",       "culture:charity",           -0.50),
+    ("culture:wit",              "culture:sincerity",         -0.35),
+    ("culture:patience",         "culture:ambition",          -0.35),
+    # ── Values & Virtues — cross-cluster (Religious) ──────────────────────
+    ("culture:idealism",         "culture:luminary_worship",   0.45),
+    ("culture:idealism",         "culture:demiurge_worship",   0.40),
+    ("culture:humility",         "culture:luminary_worship",   0.40),
+    ("culture:humility",         "culture:ancestor_worship",   0.40),
+    ("culture:humility",         "culture:animism",            0.35),
+    ("culture:sincerity",        "culture:ancestor_worship",   0.35),
+    ("culture:folk_wisdom",      "culture:ancestor_worship",   0.60),
+    ("culture:folk_wisdom",      "culture:animism",            0.55),
+    ("culture:folk_wisdom",      "culture:nontheism",         -0.35),
+    ("culture:erudition",        "culture:nontheism",          0.40),
+    ("culture:idealism",         "culture:maltheism",         -0.50),
+    ("culture:pragmatism",       "culture:maltheism",          0.30),
+    ("culture:charity",          "culture:void_worship",      -0.45),
+    ("culture:indulgence",       "culture:void_worship",       0.30),
+    # ── Values & Virtues — cross-cluster (Technological) ─────────────────
+    ("culture:erudition",        "culture:science",            0.65),
+    ("culture:erudition",        "culture:magic",              0.45),
+    ("culture:erudition",        "culture:luddism",           -0.55),
+    ("culture:folk_wisdom",      "culture:luddism",            0.40),
+    ("culture:folk_wisdom",      "culture:superstition",       0.45),
+    ("culture:folk_wisdom",      "culture:science",           -0.40),
+    ("culture:pragmatism",       "culture:industrialism",      0.45),
+    ("culture:pragmatism",       "culture:science",            0.40),
+    ("culture:idealism",         "culture:conservationism",    0.45),
+    ("culture:adaptability",     "culture:science",            0.35),
+    ("culture:adaptability",     "culture:industrialism",      0.35),
+    ("culture:moderation",       "culture:conservationism",    0.50),
+    ("culture:indulgence",       "culture:industrialism",      0.30),
+    # ── Values & Virtues — cross-cluster (Societal) ───────────────────────
+    ("culture:idealism",         "culture:egalitarianism",     0.55),
+    ("culture:idealism",         "culture:slavery",           -0.70),
+    ("culture:charity",          "culture:egalitarianism",     0.50),
+    ("culture:charity",          "culture:cooperation",        0.55),
+    ("culture:charity",          "culture:slavery",           -0.65),
+    ("culture:humility",         "culture:cooperation",        0.45),
+    ("culture:ambition",         "culture:competition",        0.55),
+    ("culture:ambition",         "culture:hierarchy",          0.40),
+    ("culture:prosperity",       "culture:commerce",           0.50),
+    ("culture:prosperity",       "culture:competition",        0.45),
+    ("culture:moderation",       "culture:sedentism",          0.35),
+    ("culture:indulgence",       "culture:polygamy",           0.35),
+    ("culture:pragmatism",       "culture:cooperation",        0.35),
+    ("culture:tenacity",         "culture:sedentism",          0.30),
+    ("culture:adaptability",     "culture:nomadism",           0.45),
+    # ── Values & Virtues — cross-cluster (External Relations) ─────────────
+    ("culture:honesty",          "culture:xenophilia",         0.40),
+    ("culture:wit",              "culture:diplomacy",          0.45),
+    ("culture:wit",              "culture:commerce",           0.40),
+    ("culture:ambition",         "culture:imperialism",        0.45),
+    ("culture:ambition",         "culture:conquest",           0.40),
+    ("culture:idealism",         "culture:diplomacy",          0.45),
+    ("culture:idealism",         "culture:conquest",          -0.45),
+    ("culture:pragmatism",       "culture:commerce",           0.40),
+    ("culture:adaptability",     "culture:xenophilia",         0.40),
+    ("culture:adaptability",     "culture:diplomacy",          0.35),
+    ("culture:prosperity",       "culture:imperialism",        0.35),
+    ("culture:moderation",       "culture:isolationism",       0.30),
 ]
 
 
@@ -173,23 +258,19 @@ class CultureRegistry:
                 );
             """)
 
-            count = conn.execute("SELECT COUNT(*) FROM culture_registry").fetchone()[0]
-            if count == 0:
-                for i, tag in enumerate(CULTURE_TAGS):
-                    display = tag.split(":", 1)[1].replace("_", " ").title()
-                    conn.execute(
-                        "INSERT INTO culture_registry (tag, display_name, sort_order) VALUES (?,?,?)",
-                        (tag, display, i),
-                    )
+            for i, tag in enumerate(CULTURE_TAGS):
+                display = tag.split(":", 1)[1].replace("_", " ").title()
+                conn.execute(
+                    "INSERT OR IGNORE INTO culture_registry (tag, display_name, sort_order) VALUES (?,?,?)",
+                    (tag, display, i),
+                )
 
-            count = conn.execute("SELECT COUNT(*) FROM culture_synergy").fetchone()[0]
-            if count == 0:
-                for tag_a, tag_b, syn in _SYNERGY_DATA:
-                    a, b = min(tag_a, tag_b), max(tag_a, tag_b)
-                    conn.execute(
-                        "INSERT OR IGNORE INTO culture_synergy (tag_a, tag_b, synergy) VALUES (?,?,?)",
-                        (a, b, syn),
-                    )
+            for tag_a, tag_b, syn in _SYNERGY_DATA:
+                a, b = min(tag_a, tag_b), max(tag_a, tag_b)
+                conn.execute(
+                    "INSERT OR IGNORE INTO culture_synergy (tag_a, tag_b, synergy) VALUES (?,?,?)",
+                    (a, b, syn),
+                )
 
             conn.commit()
         finally:
