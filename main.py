@@ -40,7 +40,7 @@ from logic.tick_logic import (
 from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
 from utilities.domain_registry import get_registry as get_domain_registry
-from utilities.imago_registry import get_registry as get_imago_registry
+from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
 
 SEP  = "─" * 60
 SEP2 = "═" * 60
@@ -654,6 +654,67 @@ DomainSquare.inactive {
     content-align: left middle;
 }
 
+/* ── Imago Tree Picker ───────────────── */
+
+#imago-grid {
+    grid-size: 3;
+    height: auto;
+    margin: 1 0;
+}
+
+ImagoCell {
+    border: round $border;
+    height: 4;
+    content-align: center middle;
+    text-align: center;
+    padding: 0 1;
+    color: $text;
+}
+
+ImagoCell:focus {
+    border: round $accent;
+}
+
+ImagoCell.good {
+    border: round $good;
+    color: $good;
+}
+
+ImagoCell.good:focus {
+    border: round #70d890;
+}
+
+ImagoCell.danger {
+    border: round $danger;
+    color: $danger;
+}
+
+ImagoCell.danger:focus {
+    border: round #d07080;
+}
+
+ImagoCell.inactive {
+    border: round #2e3d58;
+    color: #4a5a72;
+}
+
+ImagoCell.inactive:focus {
+    border: round #3a4e70;
+}
+
+.imago-spacer {
+    height: 4;
+}
+
+#imago-tooltip {
+    height: 4;
+    background: $bg-panel;
+    border: solid $border;
+    padding: 0 1;
+    margin: 0 0 1 0;
+    content-align: left middle;
+}
+
 /* ── LoadScreen ───────────────────────── */
 
 LoadScreen {
@@ -1131,11 +1192,14 @@ class DomainPickerModal(ModalScreen):
             self.on_mount()
             return
         row, col = divmod(focused_idx, 4)
-        delta = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
-        new_row = row + delta[0]
-        new_col = col + delta[1]
-        if 0 <= new_row < 4 and 0 <= new_col < 4:
-            squares[new_row * 4 + new_col].focus()
+        dr, dc = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+        r, c = row + dr, col + dc
+        while 0 <= r < 4 and 0 <= c < 4:
+            candidate = squares[r * 4 + c]
+            if not candidate.disabled:
+                candidate.focus()
+                return
+            r, c = r + dr, c + dc
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         tag   = event.tag
@@ -1165,6 +1229,284 @@ class DomainPickerModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# IMAGO TREE PICKER
+# Shows all 7 nodes of one tree in a 3-column pyramid layout.
+# Dismisses with a node_id (str), "__manual__" to skip to manual
+# direction, or None to cancel.
+# ─────────────────────────────────────────
+
+class ImagoCell(Widget):
+    """One cell in the Imago tree picker."""
+
+    can_focus = True
+
+    class Focused(Message):
+        def __init__(self, node_id: str) -> None:
+            super().__init__()
+            self.node_id = node_id
+
+    class Selected(Message):
+        def __init__(self, node_id: str) -> None:
+            super().__init__()
+            self.node_id = node_id
+
+    def __init__(self, node: ImagoNode, unlocked: bool, approval_class: str) -> None:
+        classes = [approval_class] if (unlocked and approval_class) else []
+        if not unlocked:
+            classes.append("inactive")
+        super().__init__(classes=" ".join(classes), disabled=not unlocked)
+        self._node     = node
+        self._unlocked = unlocked
+
+    def render(self) -> Text:
+        return Text(self._node.name, justify="center")
+
+    def on_focus(self) -> None:
+        self.post_message(self.Focused(self._node.node_id))
+
+    def on_enter(self) -> None:
+        self.post_message(self.Focused(self._node.node_id))
+
+    def on_click(self) -> None:
+        if not self.disabled:
+            self.post_message(self.Selected(self._node.node_id))
+
+    def key_enter(self) -> None:
+        if not self.disabled:
+            self.post_message(self.Selected(self._node.node_id))
+
+
+class ImagoTreeModal(ModalScreen):
+    """
+    Tree-layout Imago picker. Grid is 3 columns × 4 rows (T4 top, T1 bottom).
+    T4 is centred; each other tier puts its lower-sort node in col 0, higher in col 2.
+    Dismisses with a node_id, '__manual__', or None.
+    """
+
+    BINDINGS = [
+        ("escape", "cancel",       "Cancel"),
+        ("up",     "nav('up')",    ""),
+        ("down",   "nav('down')",  ""),
+        ("left",   "nav('left')",  ""),
+        ("right",  "nav('right')", ""),
+    ]
+
+    # Cell positions in DOM order → (grid_row, grid_col)
+    # Row 0=T4, 1=T3, 2=T2, 3=T1 ; Col 0=left, 1=center, 2=right
+    _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
+
+    def __init__(self, state: SimulationState, tree: str) -> None:
+        super().__init__()
+        self._state = state
+        self._tree  = tree
+
+        ireg         = get_imago_registry()
+        unlocked_set = set(state.demiurge.unlocked_imagines)
+        nodes        = ireg.nodes_for_tree(tree)  # sorted by (tier, sort_order)
+
+        by_tier: dict[int, list[ImagoNode]] = {1: [], 2: [], 3: [], 4: []}
+        for n in nodes:
+            by_tier[n.tier].append(n)
+
+        self._by_tier    = by_tier
+        self._unlocked   = unlocked_set
+        dreg             = get_domain_registry()
+        lum_info, fellow_tags, _ = _get_lum_domain_context(state)
+        self._dreg        = dreg
+        self._lum_info    = lum_info
+        self._fellow_tags = fellow_tags
+
+    def _imago_score(self, node: ImagoNode) -> float:
+        """Weighted sum of (luminary_approval × mechanic_direction) across all Luminaries."""
+        total, count = 0.0, 0
+        for lum, lum_tags in self._lum_info:
+            if not lum_tags:
+                continue
+            lid   = str(lum.id)
+            score = sum(
+                self._dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=self._fellow_tags[lid],
+                    temperament=lum.temperament.value,
+                ) * direction
+                for tag, direction in node.mechanics.items()
+                if tag.startswith("domain:")
+            )
+            total += score
+            count += 1
+        return total / count if count else 0.0
+
+    def _approval_class(self, node: ImagoNode) -> str:
+        s = self._imago_score(node)
+        if s > 0.15:
+            return "good"
+        if s < -0.15:
+            return "danger"
+        return ""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box"):
+            yield Label(f"{self._tree.title()} — Imagines", classes="modal-title")
+            with Grid(id="imago-grid"):
+                for tier in (4, 3, 2, 1):
+                    nodes = self._by_tier[tier]
+                    if tier == 4:
+                        yield Static("", classes="imago-spacer")
+                        node     = nodes[0]
+                        unlocked = node.node_id in self._unlocked
+                        yield ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
+                        yield Static("", classes="imago-spacer")
+                    else:
+                        left, right = nodes[0], nodes[1]
+                        for node in (left, right):
+                            unlocked = node.node_id in self._unlocked
+                            cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
+                            if node is left:
+                                yield cell
+                                yield Static("", classes="imago-spacer")
+                            else:
+                                yield cell
+            yield Static("", id="imago-tooltip")
+            with Horizontal(classes="btn-row"):
+                yield Button("No Imago",  id="manual-btn")
+                yield Button("Cancel",    id="cancel-btn", classes="-danger")
+
+    def on_mount(self) -> None:
+        for cell in self.query(ImagoCell):
+            if not cell.disabled:
+                cell.focus()
+                break
+
+    def action_nav(self, direction: str) -> None:
+        cells   = list(self.query(ImagoCell))
+        pos_map = {p: i for i, p in enumerate(self._POSITIONS)}
+        focused = next((i for i, c in enumerate(cells) if c.has_focus), -1)
+        if focused == -1:
+            self.on_mount()
+            return
+        row, col = self._POSITIONS[focused]
+        new_pos  = None
+        if direction == "up" and row > 0:
+            new_pos = (row - 1, 1 if row - 1 == 0 else col)
+        elif direction == "down" and row < 3:
+            new_pos = (row + 1, 0 if col == 1 else col)
+        elif direction == "left" and col == 2:
+            new_pos = (row, 0)
+        elif direction == "right" and col == 0:
+            new_pos = (row, 2)
+        if new_pos and new_pos in pos_map:
+            cells[pos_map[new_pos]].focus()
+
+    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        tip  = (node.tooltip_blurb or f"Tier {node.tier} apex — cannot be drawn from the Underreal.") if node else ""
+        self.query_one("#imago-tooltip", Static).update(tip)
+
+    def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
+        self.dismiss(event.node_id)
+
+    @on(Button.Pressed, "#manual-btn")
+    def _manual(self, _: Button.Pressed) -> None:
+        self.dismiss("__manual__")
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ImagoDetailModal(ModalScreen):
+    """
+    Confirmation screen for a chosen Imago node.
+    Shows full description, domain/culture effects, and per-Luminary affinity scores.
+    Dismisses with True (confirm) or False (back).
+    """
+
+    BINDINGS = [("escape", "back", "Back")]
+
+    def __init__(self, node: ImagoNode, state: SimulationState) -> None:
+        super().__init__()
+        self._node  = node
+        self._state = state
+
+    def _body(self) -> Text:
+        node = self._node
+        dreg = get_domain_registry()
+        lum_info, fellow_tags, _ = _get_lum_domain_context(self._state)
+
+        lines: list[str] = []
+        lines.append(f"[bold #c0ccdc]{_e(node.name)}[/]")
+        lines.append(f"[#3a5a7a]Tier {node.tier}  ·  {node.tree.title()} tree[/]")
+        lines.append("")
+        lines.append(f"[#9090a8]{_e(node.description)}[/]")
+        lines.append("")
+
+        domain_fx  = [(t, v) for t, v in node.mechanics.items() if t.startswith("domain:")]
+        culture_fx = [(t, v) for t, v in node.mechanics.items() if t.startswith("culture:")]
+
+        if domain_fx:
+            lines.append("[bold #5a7090]DOMAIN EFFECTS[/]")
+            for tag, v in sorted(domain_fx, key=lambda x: -abs(x[1])):
+                short = tag.split(":", 1)[1]
+                col   = "#50b870" if v > 0 else "#b04050"
+                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+            lines.append("")
+
+        if culture_fx:
+            lines.append("[bold #5a7090]CULTURE EFFECTS[/]")
+            for tag, v in sorted(culture_fx, key=lambda x: -abs(x[1])):
+                short = tag.split(":", 1)[1]
+                col   = "#50b870" if v > 0 else "#b04050"
+                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+            lines.append("")
+
+        lines.append("[bold #5a7090]LUMINARY AFFINITIES[/]")
+        for lum, lum_tags in lum_info:
+            if not lum_tags:
+                continue
+            lid   = str(lum.id)
+            score = sum(
+                dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=fellow_tags[lid],
+                    temperament=lum.temperament.value,
+                ) * direction
+                for tag, direction in node.mechanics.items()
+                if tag.startswith("domain:")
+            )
+            col = "#50b870" if score > 0.1 else ("#b04050" if score < -0.1 else "#5a7090")
+            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.2f}[/]")
+
+        return Text.from_markup("\n".join(lines))
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box-tall"):
+            yield Label("Imago — Confirm", classes="modal-title")
+            with ScrollableContainer():
+                yield Static(self._body(), id="imago-detail-body")
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn",    classes="-danger")
+                yield Button("Confirm", id="confirm-btn", classes="-primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-btn", Button).focus()
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
 
 
 # ─────────────────────────────────────────
@@ -1942,43 +2284,43 @@ class GameScreen(Screen):
         explore_mode: bool = False,
     ) -> tuple[list[DomainVector], str | None] | None:
         """
-        Show the domain grid picker, then (if applicable) an Imago picker or
-        manual direction form.  Returns (dvs, imago_id), ([], None) for skip,
-        or None to cancel.
+        Show the domain grid picker, then (if applicable) the Imago tree picker
+        with a confirmation detail screen.
+        Returns (dvs, imago_id), ([], None) for skip, or None to cancel.
         """
         tag = await self.app.push_screen_wait(DomainPickerModal(state, explore_mode=explore_mode))
 
-        if tag is None:        # cancelled
+        if tag is None:
             return None
-        if tag == "":          # skipped
+        if tag == "":
             return ([], None)
 
         if explore_mode:
             return ([DomainVector(domain_tag=tag, direction=1.0)], None)
 
-        # Check for Imagines in this domain's tree
         tree = tag.split(":", 1)[1]
         ireg = get_imago_registry()
-        available_nodes = [
-            ireg.get_node(nid)
-            for nid in state.demiurge.unlocked_imagines
-            if ireg.get_node(nid) and ireg.get_node(nid).tree == tree
-        ]
 
-        if available_nodes:
-            items = [(n.node_id, f"{n.name}  —  {n.tooltip_blurb}") for n in available_nodes]
-            items.append(("__manual__", "No Imago — set direction manually"))
-            chosen_id = await self.app.push_screen_wait(PickerModal("Frame with Imago?", items))
-            if chosen_id and chosen_id != "__manual__":
+        # Show the Imago tree picker if this domain has a tree
+        if ireg.nodes_for_tree(tree):
+            while True:
+                chosen_id = await self.app.push_screen_wait(ImagoTreeModal(state, tree))
+                if chosen_id is None:           # cancelled
+                    return None
+                if chosen_id == "__manual__":   # player wants manual direction
+                    break
                 node = ireg.get_node(chosen_id)
-                dvs  = [
-                    DomainVector(domain_tag=t, direction=v)
-                    for t, v in node.mechanics.items()
-                    if t.startswith("domain:")
-                ]
-                return (dvs, chosen_id)
+                confirmed = await self.app.push_screen_wait(ImagoDetailModal(node, state))
+                if confirmed:
+                    dvs = [
+                        DomainVector(domain_tag=t, direction=v)
+                        for t, v in node.mechanics.items()
+                        if t.startswith("domain:")
+                    ]
+                    return (dvs, chosen_id)
+                # False = back to tree picker; loop continues
 
-        # Manual direction
+        # Manual direction fallback
         form = await self.app.push_screen_wait(
             TextFormModal(
                 "Domain Direction",
