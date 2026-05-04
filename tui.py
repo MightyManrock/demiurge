@@ -16,12 +16,14 @@ from rich.markup import escape as _e
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
+from textual.message import Message
 from textual.screen import Screen, ModalScreen
+from textual.widget import Widget
 from textual.widgets import (
     Button, Footer, Header, Label, ListItem, ListView,
     Input, RichLog, Static,
 )
-from textual.containers import Horizontal, Vertical, ScrollableContainer
+from textual.containers import Grid, Horizontal, Vertical, ScrollableContainer
 
 from core.action_core import (
     ActionCategory, TargetType, ActionDefinition, ActionInstance, OngoingAction,
@@ -58,6 +60,14 @@ _STUB_ACTIONS: frozenset[str] = frozenset({
     "petition_luminary_herald",
     "investigate_underreal",
 })
+
+# Canonical 4×4 grid order for the domain picker (row-major).
+_DOMAIN_GRID_ORDER: list[str] = [
+    "domain:truth",    "domain:light",    "domain:void",      "domain:change",
+    "domain:order",    "domain:fire",     "domain:decay",     "domain:conflict",
+    "domain:memory",   "domain:growth",   "domain:community", "domain:silence",
+    "domain:mastery",  "domain:water",    "domain:sacrifice", "domain:secrecy",
+]
 
 
 # ─────────────────────────────────────────
@@ -232,6 +242,59 @@ ModalScreen {
     height: 3;
     align: right middle;
     padding: 1 0 0 0;
+}
+
+/* ── Domain Picker ───────────────────── */
+
+#domain-grid {
+    grid-size: 4;
+    height: auto;
+    margin: 1 0;
+}
+
+DomainSquare {
+    border: round $border;
+    height: 4;
+    content-align: center middle;
+    text-align: center;
+    padding: 0 1;
+    color: $text;
+}
+
+DomainSquare:focus {
+    border: round $accent;
+}
+
+DomainSquare.good {
+    border: round $good;
+    color: $good;
+}
+
+DomainSquare.good:focus {
+    border: round #70d890;
+}
+
+DomainSquare.danger {
+    border: round $danger;
+    color: $danger;
+}
+
+DomainSquare.danger:focus {
+    border: round #d07080;
+}
+
+DomainSquare.inactive {
+    border: round $muted;
+    color: $muted;
+}
+
+#lum-panel {
+    height: 3;
+    background: $bg-panel;
+    border: solid $border;
+    padding: 0 1;
+    margin: 0 0 1 0;
+    content-align: left middle;
 }
 
 /* ── LoadScreen ───────────────────────── */
@@ -549,131 +612,139 @@ class TextFormModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
-# DOMAIN / IMAGO MODAL
-# Step 1: pick a domain tag (with approval ratings).
-# Step 2: if imagines available for that tree, pick one (or go manual).
-# Dismisses with (dvs, imago_node_id) or None to cancel.
+# DOMAIN PICKER MODAL
+# A 4×4 grid of domain squares with color-coded approval borders
+# and a per-Luminary focus panel.
+# Dismisses with a domain tag (str), "" for skip, or None to cancel.
 # ─────────────────────────────────────────
 
-class DomainImagoModal(ModalScreen):
-    """Domain selection + optional Imago framing."""
+class DomainSquare(Widget):
+    """One cell in the domain picker grid."""
+
+    can_focus = True
+
+    class Focused(Message):
+        def __init__(self, tag: str) -> None:
+            super().__init__()
+            self.tag = tag
+
+    class Selected(Message):
+        def __init__(self, tag: str) -> None:
+            super().__init__()
+            self.tag = tag
+
+    def __init__(self, tag: str, icon: str, name: str, approval_class: str, accessible: bool) -> None:
+        classes = []
+        if approval_class:
+            classes.append(approval_class)
+        if not accessible:
+            classes.append("inactive")
+        super().__init__(classes=" ".join(classes), disabled=not accessible)
+        self._tag  = tag
+        self._icon = icon
+        self._name = name
+
+    def render(self) -> Text:
+        return Text.from_markup(f"{self._icon or '?'}\n{self._name}", justify="center")
+
+    def on_focus(self) -> None:
+        self.post_message(self.Focused(self._tag))
+
+    def on_click(self) -> None:
+        if not self.disabled:
+            self.post_message(self.Selected(self._tag))
+
+    def key_enter(self) -> None:
+        if not self.disabled:
+            self.post_message(self.Selected(self._tag))
+
+
+class DomainPickerModal(ModalScreen):
+    """4×4 domain grid picker with Luminary approval coloring."""
 
     BINDINGS = [("escape", "cancel", "Cancel")]
 
-    def __init__(self, state: SimulationState, explore_mode: bool = False):
+    def __init__(self, state: SimulationState, explore_mode: bool = False) -> None:
         super().__init__()
         self._state        = state
-        self._explore_mode = explore_mode  # True → only show unexplored domains
+        self._explore_mode = explore_mode
+
+        dreg = get_domain_registry()
+        lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
+
+        accessible_set = set(dreg.demiurge_accessible(
+            all_lum_canonical,
+            state.demiurge.unlocked_domain_tags,
+        ))
+        if explore_mode:
+            accessible_set -= set(state.demiurge.unlocked_domain_tags)
+
+        self._dreg          = dreg
+        self._lum_info      = lum_info
+        self._fellow_tags   = fellow_tags
+        self._accessible_set = accessible_set
+
+    def _approval_class(self, tag: str) -> str:
+        """Return 'good', 'danger', or '' based on average Luminary approval."""
+        total, count = 0.0, 0
+        for lum, lum_tags in self._lum_info:
+            if lum_tags:
+                lid = str(lum.id)
+                total += self._dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=self._fellow_tags[lid],
+                    temperament=lum.temperament.value,
+                )
+                count += 1
+        if count == 0:
+            return ""
+        avg = total / count
+        if avg > 0.15:
+            return "good"
+        if avg < -0.15:
+            return "danger"
+        return ""
 
     def compose(self) -> ComposeResult:
-        dreg = get_domain_registry()
-        lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(self._state)
-
-        accessible = dreg.demiurge_accessible(
-            all_lum_canonical,
-            self._state.demiurge.unlocked_domain_tags,
-        )
-
-        if self._explore_mode:
-            already_unlocked = set(self._state.demiurge.unlocked_domain_tags)
-            accessible = [t for t in accessible if t not in already_unlocked]
-
-        unlocked_set = set(self._state.demiurge.unlocked_domain_tags)
-        self._accessible = accessible
-        self._lum_info   = lum_info
-        self._fellow_tags = fellow_tags
-
-        title = "Explore Domain" if self._explore_mode else "Domain Selection"
-        lum_header = "  ".join(f"{l.name[:8]:>8}" for l, _ in lum_info)
-
-        with Vertical(classes="modal-box-tall"):
+        title = "Explore Domain" if self._explore_mode else "Choose Domain"
+        with Vertical(classes="modal-box"):
             yield Label(title, classes="modal-title")
-            yield Label(
-                f"  {'Domain':<18}  {lum_header}",
-                classes="modal-desc",
-            )
-            with ScrollableContainer():
-                with ListView(id="domain-list"):
-                    for i, tag in enumerate(accessible):
-                        short   = tag.split(":", 1)[1]
-                        marker  = "*" if tag in unlocked_set else " "
-                        approvals = []
-                        for lum, lum_tags in lum_info:
-                            lid = str(lum.id)
-                            if not lum_tags:
-                                approvals.append("       ·")
-                            else:
-                                v = dreg.luminary_approval(
-                                    tag, lum_tags,
-                                    fellow_lum_tags=fellow_tags[lid],
-                                    temperament=lum.temperament.value,
-                                )
-                                approvals.append(f"  {v:>+7.2f}" if abs(v) >= 0.01 else "       ·")
-                        row = f"{marker}{short:<18}  {''.join(approvals)}"
-                        yield ListItem(Label(row), id=f"dom-{i}")
+            with Grid(id="domain-grid"):
+                for tag in _DOMAIN_GRID_ORDER:
+                    accessible = tag in self._accessible_set
+                    yield DomainSquare(
+                        tag=tag,
+                        icon=self._dreg.icon(tag),
+                        name=tag.split(":", 1)[1].title(),
+                        approval_class=self._approval_class(tag) if accessible else "",
+                        accessible=accessible,
+                    )
+            yield Static("", id="lum-panel")
             with Horizontal(classes="btn-row"):
                 yield Button("Skip Domain", id="skip-btn")
                 yield Button("Cancel",      id="cancel-btn", classes="-danger")
 
-    @on(ListView.Selected, "#domain-list")
-    def _on_domain_selected(self, event: ListView.Selected) -> None:
-        self._handle_domain_selected(event)
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
+        tag   = event.tag
+        parts = []
+        for lum, lum_tags in self._lum_info:
+            if lum_tags:
+                lid = str(lum.id)
+                v   = self._dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=self._fellow_tags[lid],
+                    temperament=lum.temperament.value,
+                )
+                col = "#50b870" if v > 0.15 else ("#b04050" if v < -0.15 else "#5a7090")
+                parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.2f}[/]")
+        self.query_one("#lum-panel", Static).update("  ".join(parts))
 
-    @work
-    async def _handle_domain_selected(self, event: ListView.Selected) -> None:
-        idx = int(event.item.id.split("-", 1)[1])
-        tag = self._accessible[idx]
-
-        if self._explore_mode:
-            from core.action_core import ExploreBeliefIntent
-            self.dismiss(([DomainVector(domain_tag=tag, direction=1.0)], None))
-            return
-
-        # Check for available imagines in this tree
-        tree = tag.split(":", 1)[1]
-        ireg = get_imago_registry()
-        available_nodes = [
-            ireg.get_node(nid)
-            for nid in self._state.demiurge.unlocked_imagines
-            if ireg.get_node(nid) and ireg.get_node(nid).tree == tree
-        ]
-
-        if available_nodes:
-            items = [(n.node_id, f"{n.name}  —  {n.tooltip_blurb}") for n in available_nodes]
-            items.append(("__manual__", "No Imago — set direction manually"))
-            chosen_id = await self.app.push_screen_wait(
-                PickerModal("Frame with Imago?", items)
-            )
-            if chosen_id and chosen_id != "__manual__":
-                node = ireg.get_node(chosen_id)
-                dvs  = [
-                    DomainVector(domain_tag=t, direction=v)
-                    for t, v in node.mechanics.items()
-                    if t.startswith("domain:")
-                ]
-                self.dismiss((dvs, chosen_id))
-                return
-            # fall through to manual direction
-
-        # Manual direction via form
-        form = await self.app.push_screen_wait(
-            TextFormModal(
-                "Domain Direction",
-                [("Direction  -1.0 suppress  →  +1.0 promote", "dir", "0.5")],
-            )
-        )
-        if form is None:
-            self.dismiss(None)
-            return
-        try:
-            direction = max(-1.0, min(1.0, float(form["dir"])))
-        except ValueError:
-            direction = 0.5
-        self.dismiss(([DomainVector(domain_tag=tag, direction=direction)], None))
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        self.dismiss(event.tag)
 
     @on(Button.Pressed, "#skip-btn")
     def _skip(self, _: Button.Pressed) -> None:
-        self.dismiss(([], None))
+        self.dismiss("")
 
     @on(Button.Pressed, "#cancel-btn")
     def _cancel(self, _: Button.Pressed) -> None:
@@ -856,10 +927,10 @@ class GameScreen(Screen):
         self._log = SessionLog(log_path)
         self._refresh_status()
         self._feed_markup(f"[#2a4a6a]Logging to: {log_path}[/]")
-        briefing = display_briefing(state)
+        briefing = display_briefing(self._state)
         self._feed(briefing)
         self._log.write(briefing)
-        state_str = display_state(state)
+        state_str = display_state(self._state)
         self._feed(state_str)
         self._log.write(state_str)
 
@@ -1075,7 +1146,7 @@ class GameScreen(Screen):
             except ValueError:
                 latitude = 0.5
 
-            domain_result = await app.push_screen_wait(DomainImagoModal(state))
+            domain_result = await self._pick_domain_and_imago(state)
             dvs, imago_id = domain_result if domain_result is not None else ([], None)
 
             target_civ_id = None
@@ -1244,7 +1315,7 @@ class GameScreen(Screen):
                     bio_tags=bio_tags,
                 )
             elif action_key == "uplift_species":
-                domain_result = await app.push_screen_wait(DomainImagoModal(state))
+                domain_result = await self._pick_domain_and_imago(state)
                 if domain_result is None:
                     return None
                 dvs, imago_id = domain_result
@@ -1257,7 +1328,7 @@ class GameScreen(Screen):
         # ── SUBTLE INFLUENCE ─────────────────────────────
         elif cat == ActionCategory.SUBTLE_INFLUENCE:
             if action_key in ("whisper", "shape_dream"):
-                domain_result = await app.push_screen_wait(DomainImagoModal(state))
+                domain_result = await self._pick_domain_and_imago(state)
                 if domain_result is None:
                     return None
                 dvs, imago_id = domain_result
@@ -1293,7 +1364,7 @@ class GameScreen(Screen):
                 )
                 if form is None:
                     return None
-                domain_result = await app.push_screen_wait(DomainImagoModal(state))
+                domain_result = await self._pick_domain_and_imago(state)
                 dvs, imago_id = domain_result if domain_result is not None else ([], None)
                 return ProbabilityNudgeIntent(
                     event_description=form["event"].strip() or "Upcoming succession conflict",
@@ -1310,7 +1381,7 @@ class GameScreen(Screen):
                 )
                 if form is None:
                     return None
-                domain_result = await app.push_screen_wait(DomainImagoModal(state))
+                domain_result = await self._pick_domain_and_imago(state)
                 dvs, imago_id = domain_result if domain_result is not None else ([], None)
                 return DevelopmentIntent(
                     domain_vectors=dvs,
@@ -1332,7 +1403,7 @@ class GameScreen(Screen):
                 )
                 if form is None:
                     return None
-                domain_result = await app.push_screen_wait(DomainImagoModal(state))
+                domain_result = await self._pick_domain_and_imago(state)
                 dvs, imago_id = domain_result if domain_result is not None else ([], None)
                 framing       = await self._pick_framing()
                 civ_scope = None
@@ -1385,7 +1456,7 @@ class GameScreen(Screen):
                 world_id, _ = await self._pick_world(state)
                 if world_id is None:
                     return None
-                domain_result = await app.push_screen_wait(DomainImagoModal(state))
+                domain_result = await self._pick_domain_and_imago(state)
                 dvs, imago_id = domain_result if domain_result is not None else ([], None)
                 return SalvageIntent(
                     desired_concept=form["desired"].strip(),
@@ -1417,9 +1488,7 @@ class GameScreen(Screen):
         # ── SELF REFINEMENT ──────────────────────────────
         elif cat == ActionCategory.SELF_REFINEMENT:
             if action_key == "explore_beliefs":
-                domain_result = await app.push_screen_wait(
-                    DomainImagoModal(state, explore_mode=True)
-                )
+                domain_result = await self._pick_domain_and_imago(state, explore_mode=True)
                 if domain_result is None:
                     return None
                 dvs, _ = domain_result
@@ -1433,6 +1502,63 @@ class GameScreen(Screen):
         return None
 
     # ── Sub-pickers ───────────────────────────
+
+    async def _pick_domain_and_imago(
+        self,
+        state: SimulationState,
+        explore_mode: bool = False,
+    ) -> tuple[list[DomainVector], str | None] | None:
+        """
+        Show the domain grid picker, then (if applicable) an Imago picker or
+        manual direction form.  Returns (dvs, imago_id), ([], None) for skip,
+        or None to cancel.
+        """
+        tag = await self.app.push_screen_wait(DomainPickerModal(state, explore_mode=explore_mode))
+
+        if tag is None:        # cancelled
+            return None
+        if tag == "":          # skipped
+            return ([], None)
+
+        if explore_mode:
+            return ([DomainVector(domain_tag=tag, direction=1.0)], None)
+
+        # Check for Imagines in this domain's tree
+        tree = tag.split(":", 1)[1]
+        ireg = get_imago_registry()
+        available_nodes = [
+            ireg.get_node(nid)
+            for nid in state.demiurge.unlocked_imagines
+            if ireg.get_node(nid) and ireg.get_node(nid).tree == tree
+        ]
+
+        if available_nodes:
+            items = [(n.node_id, f"{n.name}  —  {n.tooltip_blurb}") for n in available_nodes]
+            items.append(("__manual__", "No Imago — set direction manually"))
+            chosen_id = await self.app.push_screen_wait(PickerModal("Frame with Imago?", items))
+            if chosen_id and chosen_id != "__manual__":
+                node = ireg.get_node(chosen_id)
+                dvs  = [
+                    DomainVector(domain_tag=t, direction=v)
+                    for t, v in node.mechanics.items()
+                    if t.startswith("domain:")
+                ]
+                return (dvs, chosen_id)
+
+        # Manual direction
+        form = await self.app.push_screen_wait(
+            TextFormModal(
+                "Domain Direction",
+                [("Direction  -1.0 suppress  →  +1.0 promote", "dir", "0.5")],
+            )
+        )
+        if form is None:
+            return None
+        try:
+            direction = max(-1.0, min(1.0, float(form["dir"])))
+        except ValueError:
+            direction = 0.5
+        return ([DomainVector(domain_tag=tag, direction=direction)], None)
 
     async def _pick_proxius(
         self,
