@@ -6,6 +6,8 @@ Scenario-agnostic canonical domain list and pairwise similarity table.
 Loads from (and bootstraps) core/core.db. Provides:
   - The fixed list of all domain:... tags
   - similarity(tag_a, tag_b) -> float in [-1.0, 1.0]
+  - is_stative(tag) -> bool
+  - partner(tag) -> str  (the paired stative/dynamic counterpart)
   - accessible_from(seed_tags, threshold) -> list of reachable tags
   - luminary_approval(tag, lum_tags, fellow_lum_tags, temperament) -> float
 """
@@ -25,23 +27,37 @@ LUMINARY_ACCESS_THRESHOLD = 0.40
 DEMIURGE_UNLOCK_THRESHOLD = 0.50
 # Narrower threshold for access from Demiurge-unlocked (non-Luminary) domains.
 
-# ── Canonical domain list (order is display order) ────────────────────
-DOMAIN_TAGS: list[str] = [
+# ── Canonical domain data ──────────────────────────────────────────────
+# Each entry: (tag, is_stative, partner_tag)
+# Domains are paired stative/dynamic: e.g. Truth (what-is) ↔ Order (what-is-enforced).
+_DOMAIN_DATA: list[tuple[str, bool, str]] = [
     # Structure / Stillness
-    "domain:order", "domain:silence", "domain:truth",
+    ("domain:truth",     True,  "domain:order"),
+    ("domain:order",     False, "domain:truth"),
+    ("domain:silence",   True,  "domain:secrecy"),
     # Upheaval
-    "domain:chaos", "domain:conflict", "domain:change",
+    ("domain:change",    True,  "domain:conflict"),
+    ("domain:conflict",  False, "domain:change"),
     # Elemental
-    "domain:fire", "domain:water", "domain:void",
+    ("domain:fire",      False, "domain:light"),
+    ("domain:water",     False, "domain:growth"),
+    ("domain:void",      True,  "domain:decay"),
     # Life Cycle
-    "domain:growth", "domain:decay",
+    ("domain:growth",    True,  "domain:water"),
+    ("domain:decay",     False, "domain:void"),
     # Mind / Spirit
-    "domain:memory", "domain:sacrifice",
+    ("domain:memory",    True,  "domain:mastery"),
+    ("domain:sacrifice", False, "domain:community"),
     # Illumination / Craft
-    "domain:light", "domain:mastery", "domain:discovery",
+    ("domain:light",     True,  "domain:fire"),
+    ("domain:mastery",   False, "domain:memory"),
     # Social
-    "domain:secrecy", "domain:community",
+    ("domain:secrecy",   False, "domain:silence"),
+    ("domain:community", True,  "domain:sacrifice"),
 ]
+
+# Derived flat list — preserves call-site compatibility.
+DOMAIN_TAGS: list[str] = [d[0] for d in _DOMAIN_DATA]
 
 # ── Pairwise similarity data ───────────────────────────────────────────
 # Each tuple: (tag_a, tag_b, similarity)
@@ -50,26 +66,21 @@ DOMAIN_TAGS: list[str] = [
 _SIMILARITY_DATA: list[tuple[str, str, float]] = [
     # Positives
     ("domain:light",     "domain:truth",      0.70),
-    ("domain:discovery", "domain:truth",      0.65),
-    ("domain:chaos",     "domain:change",     0.65),
-    ("domain:light",     "domain:discovery",  0.60),
     ("domain:fire",      "domain:light",      0.60),
     ("domain:secrecy",   "domain:silence",    0.60),
     ("domain:order",     "domain:silence",    0.60),
     ("domain:order",     "domain:truth",      0.55),
-    ("domain:chaos",     "domain:conflict",   0.55),
     ("domain:conflict",  "domain:fire",       0.55),
     ("domain:water",     "domain:growth",     0.55),
-    ("domain:mastery",   "domain:discovery",  0.55),
     ("domain:void",      "domain:silence",    0.50),
     ("domain:change",    "domain:growth",     0.50),
     ("domain:change",    "domain:fire",       0.50),
     ("domain:decay",     "domain:sacrifice",  0.50),
     ("domain:memory",    "domain:truth",      0.50),
+    ("domain:mastery",   "domain:truth",      0.45),
     ("domain:order",     "domain:mastery",    0.45),
     ("domain:conflict",  "domain:change",     0.45),
     ("domain:change",    "domain:decay",      0.45),
-    ("domain:change",    "domain:discovery",  0.45),
     ("domain:void",      "domain:decay",      0.45),
     ("domain:growth",    "domain:community",  0.45),
     ("domain:memory",    "domain:sacrifice",  0.45),
@@ -82,27 +93,19 @@ _SIMILARITY_DATA: list[tuple[str, str, float]] = [
     ("domain:memory",    "domain:community",  0.40),
     ("domain:order",     "domain:community",  0.40),
     ("domain:conflict",  "domain:mastery",    0.40),
-    ("domain:mastery",   "domain:truth",      0.45),
     ("domain:memory",    "domain:silence",    0.35),
     ("domain:sacrifice", "domain:light",      0.35),
     # Negatives
-    ("domain:order",     "domain:chaos",      -0.90),
     ("domain:light",     "domain:secrecy",    -0.75),
     ("domain:truth",     "domain:secrecy",    -0.70),
-    ("domain:chaos",     "domain:silence",    -0.65),
     ("domain:conflict",  "domain:silence",    -0.65),
     ("domain:growth",    "domain:void",       -0.65),
-    ("domain:discovery", "domain:secrecy",    -0.60),
     ("domain:light",     "domain:void",       -0.60),
     ("domain:order",     "domain:change",     -0.55),
     ("domain:growth",    "domain:decay",      -0.55),
     ("domain:void",      "domain:community",  -0.55),
-    ("domain:chaos",     "domain:truth",      -0.50),
-    ("domain:chaos",     "domain:community",  -0.50),
-    ("domain:chaos",     "domain:mastery",    -0.50),
     ("domain:fire",      "domain:void",       -0.50),
     ("domain:secrecy",   "domain:community",  -0.45),
-    ("domain:chaos",     "domain:memory",     -0.45),
     ("domain:order",     "domain:conflict",   -0.40),
     ("domain:conflict",  "domain:community",  -0.40),
     ("domain:decay",     "domain:community",  -0.40),
@@ -136,6 +139,8 @@ class DomainRegistry:
         self._similarity: dict[tuple[str, str], float] = {}
         self._all_tags: list[str] = []
         self._tag_set: set[str] = set()
+        self._is_stative: dict[str, bool] = {}
+        self._partner: dict[str, str] = {}
         self._ensure_db()
         self._load()
 
@@ -147,6 +152,14 @@ class DomainRegistry:
 
     def is_canonical(self, tag: str) -> bool:
         return tag in self._tag_set
+
+    def is_stative(self, tag: str) -> bool:
+        """True if this domain is ontological/stative; False if dynamic/practical."""
+        return self._is_stative.get(tag, False)
+
+    def partner(self, tag: str) -> Optional[str]:
+        """The stative↔dynamic counterpart of this domain, or None if unknown."""
+        return self._partner.get(tag)
 
     def similarity(self, tag_a: str, tag_b: str) -> float:
         """
@@ -289,7 +302,9 @@ class DomainRegistry:
                 CREATE TABLE IF NOT EXISTS domain_registry (
                     tag          TEXT PRIMARY KEY,
                     display_name TEXT NOT NULL,
-                    sort_order   INTEGER NOT NULL DEFAULT 0
+                    sort_order   INTEGER NOT NULL DEFAULT 0,
+                    is_stative   INTEGER NOT NULL DEFAULT 0,
+                    partner_tag  TEXT NOT NULL DEFAULT ''
                 );
                 CREATE TABLE IF NOT EXISTS domain_similarity (
                     tag_a      TEXT NOT NULL,
@@ -299,25 +314,41 @@ class DomainRegistry:
                 );
             """)
 
-            # Seed domain_registry if empty
-            count = conn.execute("SELECT COUNT(*) FROM domain_registry").fetchone()[0]
-            if count == 0:
-                for i, tag in enumerate(DOMAIN_TAGS):
-                    display = tag.split(":", 1)[1].replace("_", " ").title()
-                    conn.execute(
-                        "INSERT INTO domain_registry (tag, display_name, sort_order) VALUES (?,?,?)",
-                        (tag, display, i),
-                    )
+            # Migrate existing DBs that predate is_stative / partner_tag columns.
+            for col_def in (
+                "ADD COLUMN is_stative  INTEGER NOT NULL DEFAULT 0",
+                "ADD COLUMN partner_tag TEXT NOT NULL DEFAULT ''",
+            ):
+                try:
+                    conn.execute(f"ALTER TABLE domain_registry {col_def}")
+                except sqlite3.OperationalError:
+                    pass  # column already present
 
-            # Seed domain_similarity if empty
-            count = conn.execute("SELECT COUNT(*) FROM domain_similarity").fetchone()[0]
-            if count == 0:
-                for tag_a, tag_b, sim in _SIMILARITY_DATA:
-                    a, b = min(tag_a, tag_b), max(tag_a, tag_b)
-                    conn.execute(
-                        "INSERT OR IGNORE INTO domain_similarity (tag_a, tag_b, similarity) VALUES (?,?,?)",
-                        (a, b, sim),
-                    )
+            # Remove retired domains.
+            conn.execute("DELETE FROM domain_registry WHERE tag IN ('domain:chaos','domain:discovery')")
+            conn.execute(
+                "DELETE FROM domain_similarity "
+                "WHERE tag_a IN ('domain:chaos','domain:discovery') "
+                "   OR tag_b IN ('domain:chaos','domain:discovery')"
+            )
+
+            # Upsert all canonical domains (adds new, updates existing rows).
+            for i, (tag, stative, partner) in enumerate(_DOMAIN_DATA):
+                display = tag.split(":", 1)[1].replace("_", " ").title()
+                conn.execute(
+                    "INSERT OR REPLACE INTO domain_registry "
+                    "(tag, display_name, sort_order, is_stative, partner_tag) "
+                    "VALUES (?,?,?,?,?)",
+                    (tag, display, i, int(stative), partner),
+                )
+
+            # Seed similarity pairs (idempotent — existing values are kept).
+            for tag_a, tag_b, sim in _SIMILARITY_DATA:
+                a, b = min(tag_a, tag_b), max(tag_a, tag_b)
+                conn.execute(
+                    "INSERT OR IGNORE INTO domain_similarity (tag_a, tag_b, similarity) VALUES (?,?,?)",
+                    (a, b, sim),
+                )
 
             conn.commit()
         finally:
@@ -327,12 +358,13 @@ class DomainRegistry:
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row
         try:
-            self._all_tags = [
-                row["tag"]
-                for row in conn.execute(
-                    "SELECT tag FROM domain_registry ORDER BY sort_order"
-                )
-            ]
+            self._all_tags = []
+            for row in conn.execute(
+                "SELECT tag, is_stative, partner_tag FROM domain_registry ORDER BY sort_order"
+            ):
+                self._all_tags.append(row["tag"])
+                self._is_stative[row["tag"]] = bool(row["is_stative"])
+                self._partner[row["tag"]] = row["partner_tag"]
             self._tag_set = set(self._all_tags)
 
             for row in conn.execute("SELECT tag_a, tag_b, similarity FROM domain_similarity"):

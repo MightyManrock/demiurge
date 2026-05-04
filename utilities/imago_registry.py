@@ -56,7 +56,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "But the wheel also prevents mastery; constant change is the enemy of expertise, "
         "and you never stay anywhere long enough to become truly skilled.",
         {"domain:change": 0.35, "domain:sacrifice": 0.1, "domain:mastery": -0.1,
-         "culture:animism": 0.2},
+         "culture:animism": 0.2, "culture:humility": 0.2},
         0, 0,
     ),
     ImagoNode(
@@ -66,7 +66,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "As the wall crumbles, void opens behind it—not emptiness created by loss, but emptiness "
         "that was always there, concealed by structure. Crumbling structures take communities with them.",
         {"domain:change": 0.3, "domain:void": 0.08, "domain:community": -0.1,
-         "culture:nomadism": 0.1, "culture:nontheism": 0.1},
+         "culture:nomadism": 0.1, "culture:nontheism": 0.1, "culture:pragmatism": 0.15},
         0, 1,
     ),
     ImagoNode(
@@ -77,7 +77,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Light accompanies change not as warmth but as exposure; the dawn destroys secrecy "
         "as a side effect of simply arriving.",
         {"domain:change": 0.55, "domain:light": 0.15, "domain:secrecy": -0.05,
-         "culture:egalitarianism": 0.15, "culture:competition": 0.1},
+         "culture:egalitarianism": 0.15, "culture:competition": 0.1,
+         "culture:idealism": 0.25, "culture:ambition": 0.15},
         1, 2,
     ),
     ImagoNode(
@@ -88,7 +89,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "a discipline that can be learned and refined. But the shapeshifter moves through "
         "communities without belonging to any of them; adaptability precludes rootedness.",
         {"domain:change": 0.5, "domain:mastery": 0.12, "domain:community": -0.04,
-         "culture:nomadism": 0.2},
+         "culture:nomadism": 0.2, "culture:adaptability": 0.2, "culture:pragmatism": 0.15},
         1, 3,
     ),
     ImagoNode(
@@ -99,7 +100,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "collective action. It arises from solidarity, not from lone heroes. But revolution "
         "cannot stay secret; secrecy is its first casualty.",
         {"domain:change": 0.8, "domain:community": 0.45, "domain:secrecy": -0.02,
-         "culture:egalitarianism": 0.5, "culture:maltheism": 0.1},
+         "culture:egalitarianism": 0.5, "culture:maltheism": 0.1,
+         "culture:idealism": 0.3, "culture:tenacity": 0.2, "culture:sincerity": 0.15},
         1, 4,
     ),
     ImagoNode(
@@ -110,7 +112,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "old form must fully dissolve. The chrysalis is also alone; transformation at this "
         "depth is solitary.",
         {"domain:change": 0.75, "domain:void": 0.4, "domain:community": -0.02,
-         "culture:nomadism": 0.45, "culture:animism": 0.2},
+         "culture:nomadism": 0.45, "culture:animism": 0.2,
+         "culture:adaptability": 0.2, "culture:humility": 0.15},
         1, 5,
     ),
     ImagoNode(
@@ -134,7 +137,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "who fight on against impossible odds do so by erasing the memory of what the war "
         "has already cost them.",
         {"domain:conflict": 0.35, "domain:sacrifice": 0.1, "domain:memory": -0.1,
-         "culture:competition": 0.15},
+         "culture:competition": 0.15, "culture:tenacity": 0.2, "culture:sincerity": 0.1},
         0, 7,
     ),
     ImagoNode(
@@ -144,8 +147,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Rivalry drives discovery; you learn your own limits by pushing against another's. "
         "But the rival's eye despises yielding; it has no patience for the flowing, "
         "accommodating path that goes around rather than through.",
-        {"domain:conflict": 0.3, "domain:discovery": 0.08, "domain:water": -0.1,
-         "culture:competition": 0.2},
+        {"domain:conflict": 0.3, "domain:mastery": 0.08, "domain:water": -0.1,
+         "culture:competition": 0.2, "culture:ambition": 0.2},
         0, 8,
     ),
     ImagoNode(
@@ -157,7 +160,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "But the martial life stunts organic development; the blade that is sharpened "
         "cannot also grow.",
         {"domain:conflict": 0.55, "domain:memory": 0.15, "domain:growth": -0.04,
-         "culture:conquest": 0.15, "culture:hierarchy": 0.1},
+         "culture:conquest": 0.15, "culture:hierarchy": 0.1,
+         "culture:tenacity": 0.2, "culture:pragmatism": 0.15},
         1, 9,
     ),
     ImagoNode(
@@ -168,7 +172,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "the territory that exists as absence until someone dies for it. Strangely, the violence "
         "of contestation preserves what it fights over; the fought-over field resists decay.",
         {"domain:conflict": 0.5, "domain:void": 0.12, "domain:decay": -0.05,
-         "culture:nomadism": 0.1, "culture:competition": 0.15},
+         "culture:nomadism": 0.1, "culture:competition": 0.15,
+         "culture:ambition": 0.2, "culture:tenacity": 0.1},
         1, 10,
     ),
     ImagoNode(
@@ -180,7 +185,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "eternal war's true weapon. But the eternal war has no room for growth; it only has "
         "room for more war.",
         {"domain:conflict": 0.85, "domain:memory": 0.4, "domain:growth": -0.02,
-         "culture:conquest": 0.5, "culture:xenophobia": 0.15},
+         "culture:conquest": 0.5, "culture:xenophobia": 0.15,
+         "culture:tenacity": 0.25, "culture:folk_wisdom": 0.15},
         1, 11,
     ),
     ImagoNode(
@@ -191,7 +197,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "devastation and flourishing share a root. What survives is genuinely new. The "
         "crucible does not flow around obstacles; it burns through them.",
         {"domain:conflict": 0.75, "domain:growth": 0.45, "domain:water": -0.02,
-         "culture:competition": 0.45, "culture:hierarchy": 0.15},
+         "culture:competition": 0.45, "culture:hierarchy": 0.15,
+         "culture:ambition": 0.25, "culture:pragmatism": 0.15},
         1, 12,
     ),
     ImagoNode(
@@ -212,7 +219,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Imposed order demands official history over lived memory; the fist that enforces "
         "rewrites what came before it.",
         {"domain:order": 0.35, "domain:fire": 0.08, "domain:memory": -0.1,
-         "culture:hierarchy": 0.15},
+         "culture:hierarchy": 0.2, "culture:tenacity": 0.15, "culture:honesty": 0.1},
         0, 14,
     ),
     ImagoNode(
@@ -222,8 +229,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Maintaining order costs something—of freedom, of exception, of the individual. "
         "But the warden's jurisdiction also resists what disrupts its categories; the new "
         "finding that overturns established truth is unwelcome here.",
-        {"domain:order": 0.3, "domain:sacrifice": 0.1, "domain:discovery": -0.1,
-         "culture:sedentism": 0.15},
+        {"domain:order": 0.3, "domain:sacrifice": 0.1, "domain:truth": -0.1,
+         "culture:sedentism": 0.15, "culture:moderation": 0.15},
         0, 15,
     ),
     ImagoNode(
@@ -234,7 +241,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "the treaty that becomes its own keeper. But compacts resist organic expansion; "
         "the signed border that prevents the natural spread.",
         {"domain:order": 0.55, "domain:memory": 0.15, "domain:growth": -0.05,
-         "culture:diplomacy": 0.15},
+         "culture:diplomacy": 0.15, "culture:honesty": 0.2, "culture:patience": 0.1},
         1, 16,
     ),
     ImagoNode(
@@ -245,7 +252,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "transforms over time into expertise. But the ordered path does not demand sacrifice; "
         "it demands patience. Sacrifice is for those without systems.",
         {"domain:order": 0.5, "domain:mastery": 0.12, "domain:sacrifice": -0.04,
-         "culture:cooperation": 0.2},
+         "culture:cooperation": 0.2, "culture:moderation": 0.2, "culture:pragmatism": 0.15},
         1, 17,
     ),
     ImagoNode(
@@ -256,7 +263,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "validates the throne's permanence. The institution that outlasts civilizations "
         "proves its own necessity by feeding on their ruin. The still water resists flow.",
         {"domain:order": 0.8, "domain:decay": 0.45, "domain:water": -0.02,
-         "culture:hierarchy": 0.5, "culture:luminary_worship": 0.15},
+         "culture:hierarchy": 0.5, "culture:luminary_worship": 0.15,
+         "culture:ambition": 0.2, "culture:humility": 0.1},
         1, 18,
     ),
     ImagoNode(
@@ -267,7 +275,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "categories create void where the uncategorized falls. The architecture of control "
         "does not serve community; it supersedes it.",
         {"domain:order": 0.75, "domain:void": 0.4, "domain:community": -0.02,
-         "culture:hierarchy": 0.45, "culture:isolationism": 0.2},
+         "culture:hierarchy": 0.45, "culture:isolationism": 0.2,
+         "culture:pragmatism": 0.2, "culture:patience": 0.15},
         1, 19,
     ),
     ImagoNode(
@@ -290,7 +299,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "veiled one does not sacrifice themselves; revelation is the deepest sacrifice, "
         "and they refuse it entirely.",
         {"domain:silence": 0.35, "domain:void": 0.1, "domain:sacrifice": -0.1,
-         "culture:nontheism": 0.15},
+         "culture:nontheism": 0.15, "culture:patience": 0.2},
         0, 21,
     ),
     ImagoNode(
@@ -301,7 +310,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "disturbing. But stillness does not grow; the still pool resists the seasonal flood, "
         "the living current.",
         {"domain:silence": 0.3, "domain:memory": 0.08, "domain:growth": -0.1,
-         "culture:isolationism": 0.15},
+         "culture:isolationism": 0.15, "culture:humility": 0.2},
         0, 22,
     ),
     ImagoNode(
@@ -312,18 +321,18 @@ _IMAGO_NODES: list[ImagoNode] = [
         "the empty throne that decays precisely because no one maintains it. And yet the "
         "decay validates the absence; power that rots proves it was real.",
         {"domain:silence": 0.55, "domain:decay": 0.15, "domain:community": -0.05,
-         "culture:hierarchy": 0.15},
+         "culture:hierarchy": 0.15, "culture:pragmatism": 0.2, "culture:patience": 0.15},
         1, 23,
     ),
     ImagoNode(
         "silence:t2:breath", "silence", 2,
-        "The Unheld Breath",
+        "The Withheld Breath",
         "The word kept is the word that wins.",
-        "The fire never lit, potential energy as a kind of burning that doesn't consume. "
+        "The fire never lit—potential energy, a burning that doesn't consume. "
         "The withheld word is a flame kept in the throat. But restraint resists the impulse "
-        "to investigate, to reveal, to find out; the unheld breath does not ask questions.",
-        {"domain:silence": 0.5, "domain:fire": 0.12, "domain:discovery": -0.04,
-         "culture:cooperation": 0.15},
+        "to investigate, to reveal, to find out; the withheld breath does not ask questions.",
+        {"domain:silence": 0.5, "domain:fire": 0.12, "domain:mastery": -0.1,
+         "culture:cooperation": 0.15, "culture:patience": 0.2, "culture:wit": 0.15},
         1, 24,
     ),
     ImagoNode(
@@ -335,7 +344,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "while denying connection. But it cannot survive full revelation; truth is its only "
         "vulnerability.",
         {"domain:silence": 0.8, "domain:community": 0.45, "domain:truth": -0.02,
-         "culture:hierarchy": 0.4, "culture:nontheism": 0.2},
+         "culture:hierarchy": 0.4, "culture:nontheism": 0.2,
+         "culture:pragmatism": 0.25, "culture:wit": 0.15},
         1, 25,
     ),
     ImagoNode(
@@ -346,7 +356,8 @@ _IMAGO_NODES: list[ImagoNode] = [
         "accumulates truth through silence. But the patient watcher gives nothing of themselves; "
         "they do not sacrifice their detachment for the comfort of intervention.",
         {"domain:silence": 0.75, "domain:truth": 0.4, "domain:sacrifice": -0.02,
-         "culture:luminary_worship": 0.45, "culture:nontheism": 0.2},
+         "culture:luminary_worship": 0.45, "culture:nontheism": 0.2,
+         "culture:patience": 0.3, "culture:humility": 0.15},
         1, 26,
     ),
     ImagoNode(
@@ -508,30 +519,26 @@ class ImagoRegistry:
                 );
             """)
 
-            count = conn.execute("SELECT COUNT(*) FROM imago_node").fetchone()[0]
-            if count == 0:
-                for node in _IMAGO_NODES:
-                    conn.execute(
-                        "INSERT INTO imago_node "
-                        "(node_id, tree, tier, name, tooltip_blurb, description, "
-                        " mechanics_json, min_prereqs, sort_order) "
-                        "VALUES (?,?,?,?,?,?,?,?,?)",
-                        (
-                            node.node_id, node.tree, node.tier, node.name,
-                            node.tooltip_blurb, node.description,
-                            json.dumps(node.mechanics),
-                            node.min_prereqs, node.sort_order,
-                        ),
-                    )
+            for node in _IMAGO_NODES:
+                conn.execute(
+                    "INSERT OR REPLACE INTO imago_node "
+                    "(node_id, tree, tier, name, tooltip_blurb, description, "
+                    " mechanics_json, min_prereqs, sort_order) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        node.node_id, node.tree, node.tier, node.name,
+                        node.tooltip_blurb, node.description,
+                        json.dumps(node.mechanics),
+                        node.min_prereqs, node.sort_order,
+                    ),
+                )
 
-            count = conn.execute("SELECT COUNT(*) FROM imago_prerequisite").fetchone()[0]
-            if count == 0:
-                for node_id, required_id in _PREREQ_DATA:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO imago_prerequisite "
-                        "(node_id, required_node_id) VALUES (?,?)",
-                        (node_id, required_id),
-                    )
+            for node_id, required_id in _PREREQ_DATA:
+                conn.execute(
+                    "INSERT OR IGNORE INTO imago_prerequisite "
+                    "(node_id, required_node_id) VALUES (?,?)",
+                    (node_id, required_id),
+                )
 
             conn.commit()
         finally:
