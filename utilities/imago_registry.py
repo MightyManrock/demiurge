@@ -497,6 +497,8 @@ class ImagoRegistry:
     # ── Internal ───────────────────────────────────────────────────────
 
     def _ensure_db(self) -> None:
+        if self._db_path.exists():
+            return
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path)
         try:
