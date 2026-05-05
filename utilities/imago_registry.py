@@ -119,9 +119,9 @@ _IMAGO_NODES: list[ImagoNode] = [
     ImagoNode(
         "change:t4:apex", "change", 4,
         "The Great Dissolution",
-        "",
-        "Pure Change: the force that unmakes and remakes all things, "
+        "Change is the force that unmakes and remakes all things, "
         "the end and beginning that are the same moment.",
+        "The divine concept of Change itself.",
         {"domain:change": 1.0},
         6, 6,
     ),
@@ -204,8 +204,8 @@ _IMAGO_NODES: list[ImagoNode] = [
     ImagoNode(
         "conflict:t4:apex", "conflict", 4,
         "The Unending Struggle",
-        "",
-        "Pure Conflict: the primordial striving that preceded the universe and will outlast it.",
+        "Conflict is the primordial striving that preceded the universe and will outlast it.",
+        "The divine concept of Conflict itself.",
         {"domain:conflict": 1.0},
         6, 13,
     ),
@@ -282,9 +282,9 @@ _IMAGO_NODES: list[ImagoNode] = [
     ImagoNode(
         "order:t4:apex", "order", 4,
         "The First Axiom",
-        "",
-        "Pure Order: the foundational principle preceding all written law, all institution, "
+        "Order is the foundational principle preceding all written law, all institution, "
         "all hierarchy, the divine grammar underlying reality itself.",
+        "The divine concept of Order itself.",
         {"domain:order": 1.0},
         6, 20,
     ),
@@ -363,9 +363,9 @@ _IMAGO_NODES: list[ImagoNode] = [
     ImagoNode(
         "silence:t4:apex", "silence", 4,
         "The Absent God",
-        "",
-        "Pure Silence: supreme divine withdrawal, the god that is everywhere precisely "
+        "Silence is supreme divine withdrawal, the god that is everywhere precisely "
         "because it is nowhere.",
+        "The divine concept of Silence itself.",
         {"domain:silence": 1.0},
         6, 27,
     ),

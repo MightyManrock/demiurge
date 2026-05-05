@@ -384,11 +384,12 @@ class SessionLog:
     def __init__(self, path: Path):
         self.path = path
         self.path.write_text(
-            f"DEMIURGE SESSION LOG\nStarted: {datetime.now().isoformat()}\n{'='*60}\n\n"
+            f"DEMIURGE SESSION LOG\nStarted: {datetime.now().isoformat()}\n{'='*60}\n\n",
+            encoding="utf-8",
         )
 
     def write(self, text: str) -> None:
-        with self.path.open("a") as f:
+        with self.path.open("a", encoding="utf-8") as f:
             f.write(text + "\n")
 
     def write_tick(self, result: "TickResult") -> None:
