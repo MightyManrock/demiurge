@@ -1407,8 +1407,8 @@ class ImagoTreeModal(ModalScreen):
                                 yield cell
             yield Static("", id="imago-tooltip")
             with Horizontal(classes="btn-row"):
-                yield Button("No Imago",  id="manual-btn")
-                yield Button("Cancel",    id="cancel-btn", classes="-danger")
+                yield Button("No Imago",   id="manual-btn")
+                yield Button("← Domain",   id="back-btn",   classes="-danger")
 
     def on_mount(self) -> None:
         cells = list(self.query(ImagoCell))
@@ -1449,12 +1449,12 @@ class ImagoTreeModal(ModalScreen):
     def _manual(self, _: Button.Pressed) -> None:
         self.dismiss("__manual__")
 
-    @on(Button.Pressed, "#cancel-btn")
-    def _cancel(self, _: Button.Pressed) -> None:
-        self.dismiss(None)
+    @on(Button.Pressed, "#back-btn")
+    def _back_btn(self, _: Button.Pressed) -> None:
+        self.dismiss("__back__")
 
     def action_cancel(self) -> None:
-        self.dismiss(None)
+        self.dismiss("__back__")
 
 
 class ImagoDetailModal(ModalScreen):
@@ -2324,52 +2324,59 @@ class GameScreen(Screen):
         with a confirmation detail screen.
         Returns (dvs, imago_id), ([], None) for skip, or None to cancel.
         """
-        tag = await self.app.push_screen_wait(DomainPickerModal(state, explore_mode=explore_mode))
+        while True:
+            tag = await self.app.push_screen_wait(DomainPickerModal(state, explore_mode=explore_mode))
 
-        if tag is None:
-            return None
-        if tag == "":
-            return ([], None)
+            if tag is None:
+                return None
+            if tag == "":
+                return ([], None)
 
-        if explore_mode:
-            return ([DomainVector(domain_tag=tag, direction=1.0)], None)
+            if explore_mode:
+                return ([DomainVector(domain_tag=tag, direction=1.0)], None)
 
-        tree = tag.split(":", 1)[1]
-        ireg = get_imago_registry()
+            tree = tag.split(":", 1)[1]
+            ireg = get_imago_registry()
 
-        # Show the Imago tree picker if this domain has a tree
-        if ireg.nodes_for_tree(tree):
-            while True:
-                chosen_id = await self.app.push_screen_wait(ImagoTreeModal(state, tree))
-                if chosen_id is None:           # cancelled
-                    return None
-                if chosen_id == "__manual__":   # player wants manual direction
-                    break
-                node = ireg.get_node(chosen_id)
-                confirmed = await self.app.push_screen_wait(ImagoDetailModal(node, state))
-                if confirmed:
-                    dvs = [
-                        DomainVector(domain_tag=t, direction=v)
-                        for t, v in node.mechanics.items()
-                        if t.startswith("domain:")
-                    ]
-                    return (dvs, chosen_id)
-                # False = back to tree picker; loop continues
+            # Show the Imago tree picker if this domain has a tree
+            if ireg.nodes_for_tree(tree):
+                back_to_domain = False
+                while True:
+                    chosen_id = await self.app.push_screen_wait(ImagoTreeModal(state, tree))
+                    if chosen_id == "__back__":     # back to domain picker
+                        back_to_domain = True
+                        break
+                    if chosen_id is None:           # cancelled (shouldn't occur now)
+                        return None
+                    if chosen_id == "__manual__":   # player wants manual direction
+                        break
+                    node = ireg.get_node(chosen_id)
+                    confirmed = await self.app.push_screen_wait(ImagoDetailModal(node, state))
+                    if confirmed:
+                        dvs = [
+                            DomainVector(domain_tag=t, direction=v)
+                            for t, v in node.mechanics.items()
+                            if t.startswith("domain:")
+                        ]
+                        return (dvs, chosen_id)
+                    # False = back to tree picker; loop continues
+                if back_to_domain:
+                    continue  # re-show domain picker
 
-        # Manual direction fallback
-        form = await self.app.push_screen_wait(
-            TextFormModal(
-                "Domain Direction",
-                [("Direction  -1.0 suppress  →  +1.0 promote", "dir", "0.5")],
+            # Manual direction fallback
+            form = await self.app.push_screen_wait(
+                TextFormModal(
+                    "Domain Direction",
+                    [("Direction  -1.0 suppress  →  +1.0 promote", "dir", "0.5")],
+                )
             )
-        )
-        if form is None:
-            return None
-        try:
-            direction = max(-1.0, min(1.0, float(form["dir"])))
-        except ValueError:
-            direction = 0.5
-        return ([DomainVector(domain_tag=tag, direction=direction)], None)
+            if form is None:
+                return None
+            try:
+                direction = max(-1.0, min(1.0, float(form["dir"])))
+            except ValueError:
+                direction = 0.5
+            return ([DomainVector(domain_tag=tag, direction=direction)], None)
 
     async def _pick_proxius(
         self,
