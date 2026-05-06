@@ -708,7 +708,7 @@ ImagoCell.inactive:focus {
 }
 
 #imago-tooltip {
-    height: 4;
+    height: 5;
     background: $bg-panel;
     border: solid $border;
     padding: 0 1;
@@ -1203,10 +1203,13 @@ class DomainPickerModal(ModalScreen):
             with Grid(id="domain-grid"):
                 for tag in _DOMAIN_GRID_ORDER:
                     accessible = tag in self._accessible_set
+                    _dname = tag.split(":", 1)[1].title()
+                    if len(_dname) % 2 == 0:
+                        _dname = " " + _dname
                     yield DomainSquare(
                         tag=tag,
                         icon=self._dreg.icon(tag),
-                        name=tag.split(":", 1)[1].title(),
+                        name=_dname,
                         approval_class=self._approval_class(tag) if accessible else "",
                         accessible=accessible,
                     )
