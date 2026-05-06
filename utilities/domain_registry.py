@@ -21,10 +21,10 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 DEFAULT_CORE_DB = _PROJECT_ROOT / "core" / "core.db"
 
 # ── Threshold constants ────────────────────────────────────────────────
-LUMINARY_ACCESS_THRESHOLD = 0.40
+LUMINARY_ACCESS_THRESHOLD = 0.10
 # Tags at or above this similarity to any Luminary domain are accessible.
 
-DEMIURGE_UNLOCK_THRESHOLD = 0.50
+DEMIURGE_UNLOCK_THRESHOLD = 0.25
 # Narrower threshold for access from Demiurge-unlocked (non-Luminary) domains.
 
 # ── Canonical domain data ──────────────────────────────────────────────
@@ -65,51 +65,51 @@ DOMAIN_TAGS: list[str] = [d[0] for d in _DOMAIN_DATA]
 # Unlisted pairs default to 0.0.
 _SIMILARITY_DATA: list[tuple[str, str, float]] = [
     # Positives
-    ("domain:light",     "domain:truth",      0.70),
-    ("domain:fire",      "domain:light",      0.60),
-    ("domain:secrecy",   "domain:silence",    0.60),
-    ("domain:order",     "domain:silence",    0.60),
-    ("domain:order",     "domain:truth",      0.55),
-    ("domain:conflict",  "domain:fire",       0.55),
-    ("domain:water",     "domain:growth",     0.55),
-    ("domain:void",      "domain:silence",    0.50),
-    ("domain:change",    "domain:growth",     0.50),
-    ("domain:change",    "domain:fire",       0.50),
-    ("domain:decay",     "domain:sacrifice",  0.50),
-    ("domain:memory",    "domain:truth",      0.50),
-    ("domain:mastery",   "domain:truth",      0.45),
-    ("domain:order",     "domain:mastery",    0.45),
-    ("domain:conflict",  "domain:change",     0.45),
-    ("domain:change",    "domain:decay",      0.45),
-    ("domain:void",      "domain:decay",      0.45),
-    ("domain:growth",    "domain:community",  0.45),
-    ("domain:memory",    "domain:sacrifice",  0.45),
-    ("domain:sacrifice", "domain:community",  0.45),
-    ("domain:fire",      "domain:sacrifice",  0.45),
-    ("domain:fire",      "domain:mastery",    0.40),
-    ("domain:change",    "domain:water",      0.40),
-    ("domain:void",      "domain:secrecy",    0.40),
-    ("domain:decay",     "domain:memory",     0.40),
-    ("domain:memory",    "domain:community",  0.40),
-    ("domain:order",     "domain:community",  0.40),
-    ("domain:conflict",  "domain:mastery",    0.40),
-    ("domain:memory",    "domain:silence",    0.35),
-    ("domain:sacrifice", "domain:light",      0.35),
+    ("domain:light",     "domain:truth",      0.50),
+    ("domain:fire",      "domain:light",      0.35),
+    ("domain:secrecy",   "domain:silence",    0.35),
+    ("domain:order",     "domain:silence",    0.35),
+    ("domain:order",     "domain:truth",      0.30),
+    ("domain:conflict",  "domain:fire",       0.30),
+    ("domain:water",     "domain:growth",     0.30),
+    ("domain:void",      "domain:silence",    0.25),
+    ("domain:change",    "domain:growth",     0.25),
+    ("domain:change",    "domain:fire",       0.25),
+    ("domain:decay",     "domain:sacrifice",  0.25),
+    ("domain:memory",    "domain:truth",      0.25),
+    ("domain:mastery",   "domain:truth",      0.20),
+    ("domain:order",     "domain:mastery",    0.20),
+    ("domain:conflict",  "domain:change",     0.20),
+    ("domain:change",    "domain:decay",      0.20),
+    ("domain:void",      "domain:decay",      0.20),
+    ("domain:growth",    "domain:community",  0.20),
+    ("domain:memory",    "domain:sacrifice",  0.20),
+    ("domain:sacrifice", "domain:community",  0.20),
+    ("domain:fire",      "domain:sacrifice",  0.20),
+    ("domain:fire",      "domain:mastery",    0.10),
+    ("domain:change",    "domain:water",      0.10),
+    ("domain:void",      "domain:secrecy",    0.10),
+    ("domain:decay",     "domain:memory",     0.10),
+    ("domain:memory",    "domain:community",  0.10),
+    ("domain:order",     "domain:community",  0.10),
+    ("domain:conflict",  "domain:mastery",    0.10),
+    ("domain:memory",    "domain:silence",    0.05),
+    ("domain:sacrifice", "domain:light",      0.05),
     # Negatives
-    ("domain:light",     "domain:secrecy",    -0.75),
-    ("domain:truth",     "domain:secrecy",    -0.70),
-    ("domain:conflict",  "domain:silence",    -0.65),
-    ("domain:growth",    "domain:void",       -0.65),
-    ("domain:light",     "domain:void",       -0.60),
-    ("domain:order",     "domain:change",     -0.55),
-    ("domain:growth",    "domain:decay",      -0.55),
-    ("domain:void",      "domain:community",  -0.55),
-    ("domain:fire",      "domain:void",       -0.50),
-    ("domain:secrecy",   "domain:community",  -0.45),
-    ("domain:order",     "domain:conflict",   -0.40),
-    ("domain:conflict",  "domain:community",  -0.40),
-    ("domain:decay",     "domain:community",  -0.40),
-    ("domain:memory",    "domain:change",     -0.40),
+    ("domain:light",     "domain:secrecy",    -0.50),
+    ("domain:truth",     "domain:secrecy",    -0.45),
+    ("domain:conflict",  "domain:silence",    -0.35),
+    ("domain:growth",    "domain:void",       -0.35),
+    ("domain:light",     "domain:void",       -0.30),
+    ("domain:order",     "domain:change",     -0.25),
+    ("domain:growth",    "domain:decay",      -0.25),
+    ("domain:void",      "domain:community",  -0.25),
+    ("domain:fire",      "domain:void",       -0.20),
+    ("domain:secrecy",   "domain:community",  -0.10),
+    ("domain:order",     "domain:conflict",   -0.05),
+    ("domain:conflict",  "domain:community",  -0.05),
+    ("domain:decay",     "domain:community",  -0.05),
+    ("domain:memory",    "domain:change",     -0.05),
 ]
 
 # ── Realpolitik dampening: how much negative similarity is reduced
@@ -300,8 +300,6 @@ class DomainRegistry:
     # ── Internal ───────────────────────────────────────────────────────
 
     def _ensure_db(self) -> None:
-        if self._db_path.exists():
-            return
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path)
         try:
@@ -351,11 +349,11 @@ class DomainRegistry:
                     (tag, display, i, int(stative), partner, icon),
                 )
 
-            # Seed similarity pairs (idempotent — existing values are kept).
+            # Upsert similarity pairs so rescaled values always take effect.
             for tag_a, tag_b, sim in _SIMILARITY_DATA:
                 a, b = min(tag_a, tag_b), max(tag_a, tag_b)
                 conn.execute(
-                    "INSERT OR IGNORE INTO domain_similarity (tag_a, tag_b, similarity) VALUES (?,?,?)",
+                    "INSERT OR REPLACE INTO domain_similarity (tag_a, tag_b, similarity) VALUES (?,?,?)",
                     (a, b, sim),
                 )
 
