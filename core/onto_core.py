@@ -104,7 +104,7 @@ class Luminary(BaseModel):
     """
     id: UUID = Field(default_factory=uuid4)
     name: str
-    domains: list[UUID]
+    domains: dict[str, float]   # domain:... tag → affinity (0.0–1.0)
     pantheon_id: Optional[UUID] = None
     temperament: Temperament
     disposition: Disposition = Field(default_factory=Disposition)
@@ -160,3 +160,6 @@ class Demiurge(BaseModel):
     # granted domains. Each unlocked tag extends the Demiurge's accessible frontier.
     unlocked_imagines: list[str] = Field(default_factory=list)
     # imago node_ids (e.g. "change:t1:wheel") the Demiurge has purchased or drawn.
+    affiliated_domains: list[str] = Field(default_factory=list)
+    # domain:... tags the Demiurge has claimed as their own conceptual focus.
+    # Default: the 4 domains with highest aggregate affinity sum across all lieges.

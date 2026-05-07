@@ -20,6 +20,7 @@ from core.action_core import (
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+    ChangeAffiliatedDomainsIntent,
     TargetType,
 )
 from core.eval_core import (
@@ -1301,6 +1302,28 @@ class TickLoop:
 
             return mutations, narrative
 
+        # ── Change Affiliated Domain ──────────────────
+        if isinstance(intent, ChangeAffiliatedDomainsIntent):
+            old_tag = intent.old_domain
+            new_tag = intent.new_domain
+            if old_tag not in state.demiurge.affiliated_domains:
+                return mutations, f"{old_tag} is not one of your affiliated domains."
+            if new_tag in state.demiurge.affiliated_domains:
+                return mutations, f"{new_tag} is already one of your affiliated domains."
+            mutations.append(StateMutation(
+                mutation_type=MutationType.AFFILIATED_DOMAIN_CHANGE,
+                target_id=state.demiurge.id,
+                field="affiliated_domains",
+                new_value=f"{old_tag}→{new_tag}",
+                note=f"Demiurge reoriented affiliation: {old_tag} → {new_tag}",
+            ))
+            old_short = old_tag.split(":", 1)[1] if ":" in old_tag else old_tag
+            new_short = new_tag.split(":", 1)[1] if ":" in new_tag else new_tag
+            return mutations, (
+                f"You release your conceptual hold on {old_short} and turn your focus "
+                f"toward {new_short}. The reorientation settles into your nature."
+            )
+
         # ── Explore Beliefs ───────────────────────────
         if isinstance(intent, ExploreBeliefIntent):
             tag = intent.domain_tag
@@ -1814,12 +1837,7 @@ class TickLoop:
         # Map: luminary_id_str -> list[str] of domain tags
         all_lum_domain_tags: dict[str, list[str]] = {}
         for lid_inner, lum_inner in state.luminaries.items():
-            tags_inner: list[str] = []
-            for did in lum_inner.domains:
-                domain = state.domains.get(str(did))
-                if domain:
-                    tags_inner.extend(domain.tags)
-            all_lum_domain_tags[lid_inner] = tags_inner
+            all_lum_domain_tags[lid_inner] = list(lum_inner.domains.keys())
 
         for lid, luminary in state.luminaries.items():
             ticks_since = state.ticks_since_evaluation.get(lid, cfg.evaluation_interval)
@@ -2315,5 +2333,14 @@ class TickLoop:
                 tag = str(m.new_value) if m.new_value else None
                 if tag and tag not in state.demiurge.unlocked_domain_tags:
                     state.demiurge.unlocked_domain_tags.append(tag)
+
+            elif m.mutation_type == MutationType.AFFILIATED_DOMAIN_CHANGE:
+                val = str(m.new_value) if m.new_value else ""
+                if "→" in val:
+                    old_tag, new_tag = val.split("→", 1)
+                    if old_tag in state.demiurge.affiliated_domains:
+                        state.demiurge.affiliated_domains.remove(old_tag)
+                    if new_tag not in state.demiurge.affiliated_domains:
+                        state.demiurge.affiliated_domains.append(new_tag)
 
         return state

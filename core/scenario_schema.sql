@@ -201,7 +201,8 @@ CREATE TABLE IF NOT EXISTS demiurge (
     fp_direct_creation    REAL NOT NULL DEFAULT 0.0,
     proxius_ids           TEXT NOT NULL DEFAULT '[]',  -- JSON array
     unlocked_domain_tags  TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
-    unlocked_imagines     TEXT NOT NULL DEFAULT '[]'   -- JSON array of imago node_id strings
+    unlocked_imagines     TEXT NOT NULL DEFAULT '[]',  -- JSON array of imago node_id strings
+    affiliated_domains    TEXT NOT NULL DEFAULT '[]'   -- JSON array of domain:... strings
 );
 
 CREATE TABLE IF NOT EXISTS essence (

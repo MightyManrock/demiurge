@@ -414,6 +414,18 @@ class ExploreBeliefIntent(BaseModel):
     # Must be within the Demiurge's current accessibility threshold.
 
 
+class ChangeAffiliatedDomainsIntent(BaseModel):
+    """
+    For: change_affiliated_domains
+    The Demiurge swaps one affiliated domain for another.
+    Any canonical domain may be chosen as the replacement.
+    """
+    old_domain: str
+    # The domain:... tag being dropped from affiliated_domains.
+    new_domain: str
+    # The domain:... tag being added to affiliated_domains.
+
+
 # ─────────────────────────────────────────
 # UNIFIED INTENT TYPE
 # ActionInstance.intent replaces .parameters
@@ -431,6 +443,7 @@ ActionIntent = Union[
     SeedWorldIntent,
     UpliftSpeciesIntent,
     ExploreBeliefIntent,
+    ChangeAffiliatedDomainsIntent,
 ]
 
 
@@ -944,6 +957,22 @@ def build_action_library() -> dict[str, ActionDefinition]:
             tags=["zero_footprint", "self_refinement", "can_persist"],
         ),
 
+        "change_affiliated_domains": ActionDefinition(
+            name="Change Affiliated Domain",
+            category=ActionCategory.SELF_REFINEMENT,
+            description=(
+                "Reorient one of your affiliated domain focuses. "
+                "Swap an existing affiliation for any canonical domain. "
+                "Affiliated domains give future bonuses to aligned Imago effects "
+                "and research point generation."
+            ),
+            valid_targets=[TargetType.UNDERREAL],
+            reliability=ActionReliability.CERTAIN,
+            footprint_cost=FootprintCost(),
+            essence_cost=0.15,
+            tags=["zero_footprint", "self_refinement"],
+        ),
+
         "overthrow_luminary": ActionDefinition(
             name="Move Against Luminary",
             category=ActionCategory.UNDERREAL,
@@ -1041,6 +1070,7 @@ class MutationType(str, Enum):
     SPECIES_UPLIFTED       = "species_uplifted"
     SPECIES_CONDITION      = "species_condition"
     DEMIURGE_UNLOCK        = "demiurge_unlock"
+    AFFILIATED_DOMAIN_CHANGE = "affiliated_domain_change"
 
 
 class StateMutation(BaseModel):

@@ -404,8 +404,9 @@ def _write_demiurge(conn, state: SimulationState):
            (id, name, liege_luminary_ids, granted_domains,
             fp_overt_miracles, fp_subtle_influence,
             fp_proxius_activity, fp_direct_creation,
-            proxius_ids, unlocked_domain_tags, unlocked_imagines)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            proxius_ids, unlocked_domain_tags, unlocked_imagines,
+            affiliated_domains)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(d.id),
             d.name,
@@ -418,6 +419,7 @@ def _write_demiurge(conn, state: SimulationState):
             _j(d.proxius_ids),
             _j(d.unlocked_domain_tags),
             _j(d.unlocked_imagines),
+            _j(d.affiliated_domains),
         ),
     )
 
@@ -582,7 +584,7 @@ def build_scenario_default() -> SimulationState:
     # ── Luminaries ───────────────────────────────────
     cassiel = Luminary(
         name="Cassiel",
-        domains=[d_order.id, d_silence.id],
+        domains={"domain:order": 0.8, "domain:silence": 0.8},
         temperament=Temperament.PATIENT,
         disposition=Disposition(results=0.1, methods=0.2),
         constraints=[
@@ -604,7 +606,7 @@ def build_scenario_default() -> SimulationState:
 
     vrath = Luminary(
         name="Vrath",
-        domains=[d_conflict.id, d_change.id],
+        domains={"domain:conflict": 0.8, "domain:change": 0.8},
         temperament=Temperament.WRATHFUL,
         disposition=Disposition(results=0.0, methods=-0.1),
         constraints=[
@@ -906,6 +908,8 @@ def build_scenario_default() -> SimulationState:
     )
 
     # ── Demiurge ─────────────────────────────────────
+    # Affiliated domains: aggregate affinity sum across all lieges.
+    # All 4 liege domains tie at 1.0 each; alphabetical tiebreak.
     demiurge = Demiurge(
         name="The Unnamed",
         liege_luminary_ids=[cassiel.id, vrath.id],
@@ -916,6 +920,9 @@ def build_scenario_default() -> SimulationState:
             "silence:t1:veil",      # Cassiel (Silence) — the concealed god, subtlety mandate
             "conflict:t1:banner",   # Vrath (Conflict) — defiance past the point of hope
             "change:t1:wheel",      # Vrath (Change) — costly, unstoppable transformation
+        ],
+        affiliated_domains=[
+            "domain:change", "domain:conflict", "domain:order", "domain:silence",
         ],
     )
 

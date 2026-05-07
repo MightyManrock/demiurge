@@ -30,6 +30,7 @@ from core.action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+    ChangeAffiliatedDomainsIntent,
     DomainVector, Framing,
 )
 from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation
@@ -92,11 +93,7 @@ def _get_lum_domain_context(state: "SimulationState"):
     lum_info: list[tuple] = []
     per_lum: dict[str, list[str]] = {}
     for lid, lum in state.luminaries.items():
-        tags: list[str] = []
-        for did in lum.domains:
-            d = state.domains.get(str(did))
-            if d:
-                tags.extend(t for t in d.tags if dreg.is_canonical(t))
+        tags = [t for t in lum.domains.keys() if dreg.is_canonical(t)]
         per_lum[lid] = tags
         lum_info.append((lum, tags))
     fellow_tags: dict[str, set[str]] = {}
@@ -623,22 +620,13 @@ DomainSquare:focus {
     border: round $accent;
 }
 
-DomainSquare.good {
+DomainSquare.affiliated {
     border: round $good;
     color: $good;
 }
 
-DomainSquare.good:focus {
+DomainSquare.affiliated:focus {
     border: round #70d890;
-}
-
-DomainSquare.danger {
-    border: round $danger;
-    color: $danger;
-}
-
-DomainSquare.danger:focus {
-    border: round #d07080;
 }
 
 DomainSquare.inactive {
@@ -1115,10 +1103,10 @@ class DomainSquare(Widget):
             super().__init__()
             self.tag = tag
 
-    def __init__(self, tag: str, icon: str, name: str, approval_class: str, accessible: bool) -> None:
+    def __init__(self, tag: str, icon: str, name: str, affiliated: bool, accessible: bool) -> None:
         classes = []
-        if approval_class:
-            classes.append(approval_class)
+        if affiliated and accessible:
+            classes.append("affiliated")
         if not accessible:
             classes.append("inactive")
         super().__init__(classes=" ".join(classes), disabled=not accessible)
@@ -1145,7 +1133,7 @@ class DomainSquare(Widget):
 
 
 class DomainPickerModal(ModalScreen):
-    """4×4 domain grid picker with Luminary approval coloring."""
+    """4×4 domain grid picker with affiliated domain coloring."""
 
     BINDINGS = [
         ("escape", "cancel",          "Cancel"),
@@ -1155,7 +1143,13 @@ class DomainPickerModal(ModalScreen):
         ("right",  "nav('right')",    ""),
     ]
 
-    def __init__(self, state: SimulationState, explore_mode: bool = False) -> None:
+    def __init__(
+        self,
+        state: SimulationState,
+        explore_mode: bool = False,
+        all_access: bool = False,
+        exclude_tags: set | None = None,
+    ) -> None:
         super().__init__()
         self._state        = state
         self._explore_mode = explore_mode
@@ -1163,38 +1157,23 @@ class DomainPickerModal(ModalScreen):
         dreg = get_domain_registry()
         lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
 
-        accessible_set = set(dreg.demiurge_accessible(
-            all_lum_canonical,
-            state.demiurge.unlocked_domain_tags,
-        ))
+        if all_access:
+            accessible_set = set(dreg.all_tags)
+        else:
+            accessible_set = set(dreg.demiurge_accessible(
+                all_lum_canonical,
+                state.demiurge.unlocked_domain_tags,
+            ))
         if explore_mode:
             accessible_set -= set(state.demiurge.unlocked_domain_tags)
+        if exclude_tags:
+            accessible_set -= exclude_tags
 
-        self._dreg          = dreg
-        self._lum_info      = lum_info
-        self._fellow_tags   = fellow_tags
+        self._dreg           = dreg
+        self._lum_info       = lum_info
+        self._fellow_tags    = fellow_tags
         self._accessible_set = accessible_set
-
-    def _approval_class(self, tag: str) -> str:
-        """Return 'good', 'danger', or '' based on average Luminary approval."""
-        total, count = 0.0, 0
-        for lum, lum_tags in self._lum_info:
-            if lum_tags:
-                lid = str(lum.id)
-                total += self._dreg.luminary_approval(
-                    tag, lum_tags,
-                    fellow_lum_tags=self._fellow_tags[lid],
-                    temperament=lum.temperament.value,
-                )
-                count += 1
-        if count == 0:
-            return ""
-        avg = total / count
-        if avg > 0.15:
-            return "good"
-        if avg < -0.15:
-            return "danger"
-        return ""
+        self._affiliated_set = set(state.demiurge.affiliated_domains)
 
     def compose(self) -> ComposeResult:
         title = "Explore Domain" if self._explore_mode else "Choose Domain"
@@ -1203,6 +1182,7 @@ class DomainPickerModal(ModalScreen):
             with Grid(id="domain-grid"):
                 for tag in _DOMAIN_GRID_ORDER:
                     accessible = tag in self._accessible_set
+                    affiliated = tag in self._affiliated_set
                     _dname = tag.split(":", 1)[1].title()
                     if len(_dname) % 2 == 0:
                         _dname = " " + _dname
@@ -1210,7 +1190,7 @@ class DomainPickerModal(ModalScreen):
                         tag=tag,
                         icon=self._dreg.icon(tag),
                         name=_dname,
-                        approval_class=self._approval_class(tag) if accessible else "",
+                        affiliated=affiliated,
                         accessible=accessible,
                     )
             yield Static("", id="lum-panel")
@@ -2310,6 +2290,32 @@ class GameScreen(Screen):
                     return None
                 tag = dvs[0].domain_tag
                 return ExploreBeliefIntent(domain_tag=tag)
+
+            if action_key == "change_affiliated_domains":
+                if not state.demiurge.affiliated_domains:
+                    self.app.notify("No affiliated domains to swap.", severity="warning")
+                    return None
+                # Step 1: pick which affiliated domain to drop
+                old_tag = await self.app.push_screen_wait(
+                    PickerModal(
+                        title="Drop which affiliated domain?",
+                        items=[(t, t.split(":", 1)[1].title()) for t in state.demiurge.affiliated_domains],
+                    )
+                )
+                if old_tag is None:
+                    return None
+                # Step 2: pick any canonical domain that isn't already affiliated
+                exclude = set(state.demiurge.affiliated_domains)
+                new_tag = await self.app.push_screen_wait(
+                    DomainPickerModal(
+                        state,
+                        all_access=True,
+                        exclude_tags=exclude,
+                    )
+                )
+                if not new_tag:
+                    return None
+                return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
 
         # No intent needed (scry, appoint_proxius, audit_proxius,
         # maintain_concealment, empower_proxius, etc.)

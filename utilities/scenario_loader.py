@@ -35,6 +35,7 @@ from core.action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+    ChangeAffiliatedDomainsIntent,
 )
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig, DomainVector,
@@ -46,6 +47,7 @@ _INTENT_CLASSES: dict[str, type] = {
         WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
         ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
         SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+        ChangeAffiliatedDomainsIntent,
     ]
 }
 
@@ -87,7 +89,7 @@ def _uuid(text: str | None) -> UUID | None:
 def _build_state(conn: sqlite3.Connection) -> SimulationState:
     meta    = dict(conn.execute("SELECT * FROM scenario_meta").fetchone())
     domains = _load_domains(conn)
-    lums, constraints_by_owner = _load_luminaries(conn)
+    lums, constraints_by_owner = _load_luminaries(conn, domains)
     pantheon = _load_pantheon(conn, constraints_by_owner)
     rules    = _load_universe_rules(conn)
     locations = _load_locations(conn)
@@ -161,7 +163,31 @@ def _load_domains(conn) -> dict[str, Domain]:
     return out
 
 
-def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constraint]]]:
+def _parse_luminary_domains(raw_json: str, domains: dict[str, Domain]) -> dict[str, float]:
+    """Parse domains column with backward compat for old UUID-list format."""
+    val = json.loads(raw_json) if raw_json else {}
+    if isinstance(val, dict):
+        return val
+    # Legacy list: items are either UUID strings or domain:... tag strings
+    result: dict[str, float] = {}
+    for item in val:
+        item = str(item)
+        if item.startswith("domain:"):
+            result[item] = 1.0
+        else:
+            # UUID reference — look up in domains dict and extract tag
+            dom = domains.get(item)
+            if dom:
+                for tag in dom.tags:
+                    if tag.startswith("domain:"):
+                        result[tag] = 1.0
+    return result
+
+
+def _load_luminaries(
+    conn,
+    domains: dict[str, Domain],
+) -> tuple[dict[str, Luminary], dict[str, list[Constraint]]]:
     """Returns (luminaries dict, constraints_by_owner_id dict)."""
     # Load all constraints first, grouped by owner
     constraints_by_owner: dict[str, list[Constraint]] = {}
@@ -182,7 +208,7 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
         l = Luminary(
             id=UUID(lid),
             name=row["name"],
-            domains=[UUID(x) for x in _j(row["domains"])],
+            domains=_parse_luminary_domains(row["domains"], domains),
             pantheon_id=_uuid(row["pantheon_id"]),
             temperament=Temperament(row["temperament"]),
             disposition=Disposition(
@@ -420,6 +446,7 @@ def _load_demiurge(conn) -> Demiurge:
         proxius_ids=[UUID(x) for x in _j(row["proxius_ids"])],
         unlocked_domain_tags=_j(row.get("unlocked_domain_tags", "[]")),
         unlocked_imagines=_j(row.get("unlocked_imagines", "[]")),
+        affiliated_domains=_j(row.get("affiliated_domains", "[]")),
     )
 
 
