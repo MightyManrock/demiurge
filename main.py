@@ -1147,7 +1147,6 @@ class DomainPickerModal(ModalScreen):
         self,
         state: SimulationState,
         explore_mode: bool = False,
-        all_access: bool = False,
         exclude_tags: set | None = None,
     ) -> None:
         super().__init__()
@@ -1155,15 +1154,9 @@ class DomainPickerModal(ModalScreen):
         self._explore_mode = explore_mode
 
         dreg = get_domain_registry()
-        lum_info, fellow_tags, all_lum_canonical = _get_lum_domain_context(state)
+        lum_info, fellow_tags, _ = _get_lum_domain_context(state)
 
-        if all_access:
-            accessible_set = set(dreg.all_tags)
-        else:
-            accessible_set = set(dreg.demiurge_accessible(
-                all_lum_canonical,
-                state.demiurge.unlocked_domain_tags,
-            ))
+        accessible_set = set(dreg.all_tags)
         if explore_mode:
             accessible_set -= set(state.demiurge.unlocked_domain_tags)
         if exclude_tags:
@@ -2309,7 +2302,6 @@ class GameScreen(Screen):
                 new_tag = await self.app.push_screen_wait(
                     DomainPickerModal(
                         state,
-                        all_access=True,
                         exclude_tags=exclude,
                     )
                 )

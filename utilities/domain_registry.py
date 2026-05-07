@@ -24,9 +24,6 @@ DEFAULT_CORE_DB = _PROJECT_ROOT / "core" / "core.db"
 LUMINARY_ACCESS_THRESHOLD = 0.10
 # Tags at or above this similarity to any Luminary domain are accessible.
 
-DEMIURGE_UNLOCK_THRESHOLD = 0.25
-# Narrower threshold for access from Demiurge-unlocked (non-Luminary) domains.
-
 # ── Canonical domain data ──────────────────────────────────────────────
 # Each entry: (tag, is_stative, partner_tag, icon)
 # Domains are paired stative/dynamic: e.g. Truth (what-is) ↔ Order (what-is-enforced).
@@ -112,6 +109,10 @@ _SIMILARITY_DATA: list[tuple[str, str, float]] = [
     ("domain:memory",    "domain:change",     -0.05),
 ]
 
+# Amplifies raw similarity when a Luminary evaluates a domain outside their own,
+# keeping approval/opposition meaningful against moderate base values.
+LUMINARY_APPROVAL_SCALE = 1.5
+
 # ── Realpolitik dampening: how much negative similarity is reduced
 # when the opposing domain belongs to a fellow Luminary.
 # Lower = more forgiving (the Luminary swallows their distaste).
@@ -194,31 +195,6 @@ class DomainRegistry:
             and any(self.similarity(s, t) >= threshold for s in seed_tags)
         ]
 
-    def demiurge_accessible(
-        self,
-        luminary_domain_tags: list[str],
-        unlocked_tags: list[str],
-    ) -> list[str]:
-        """
-        All domain tags the Demiurge may currently promote.
-        Includes Luminary-origin tags + tags reachable from them at LUMINARY_ACCESS_THRESHOLD,
-        plus tags reachable from unlocked_tags at the narrower DEMIURGE_UNLOCK_THRESHOLD.
-        Does NOT include tags the Demiurge already has access to via Luminary grant.
-        Returns tags in canonical display order, deduplicated.
-        """
-        lum_base = set(luminary_domain_tags)
-        lum_adjacent = set(self.accessible_from(luminary_domain_tags, LUMINARY_ACCESS_THRESHOLD))
-        base_accessible = lum_base | lum_adjacent
-
-        unlock_adjacent: set[str] = set()
-        if unlocked_tags:
-            unlock_adjacent = set(
-                self.accessible_from(unlocked_tags, DEMIURGE_UNLOCK_THRESHOLD)
-            ) - base_accessible
-
-        all_accessible = base_accessible | set(unlocked_tags) | unlock_adjacent
-        return [t for t in self._all_tags if t in all_accessible]
-
     def luminary_approval(
         self,
         tag: str,
@@ -248,7 +224,7 @@ class DomainRegistry:
 
         total = 0.0
         for lum_tag in lum_tags:
-            raw = self.similarity(lum_tag, tag)
+            raw = self.similarity(lum_tag, tag) * LUMINARY_APPROVAL_SCALE
             if raw < 0:
                 if tag in own:
                     raw = 0.0
