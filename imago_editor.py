@@ -35,10 +35,11 @@ from utilities.culture_registry import CULTURE_TAGS
 
 _DB_PATH = Path(__file__).parent / "core" / "core.db"
 
-_TEXT_FIELDS: list[tuple[str, str, bool]] = [
-    ("name",          "Name",        False),
-    ("tooltip_blurb", "Tooltip",     False),
-    ("description",   "Description", True),
+# rows: 1 = single Input, >1 = TextArea that height, -1 = TextArea in full tall modal
+_TEXT_FIELDS: list[tuple[str, str, int]] = [
+    ("name",          "Name",        1),
+    ("tooltip_blurb", "Tooltip",     5),
+    ("description",   "Description", -1),
 ]
 
 # ─────────────────────────────────────────
@@ -496,37 +497,41 @@ class EditTextModal(ModalScreen):
 
     BINDINGS = [("escape", "cancel", "Cancel")]
 
-    def __init__(self, field_label: str, current_value: str, multiline: bool = False) -> None:
+    def __init__(self, field_label: str, current_value: str, rows: int = 1) -> None:
         super().__init__()
-        self._label     = field_label
-        self._value     = current_value
-        self._multiline = multiline
+        self._label = field_label
+        self._value = current_value
+        self._rows  = rows  # 1=Input, >1=TextArea that height, -1=TextArea+tall modal
 
     def compose(self) -> ComposeResult:
-        with Vertical(classes="modal-box-tall"):
+        box_class = "modal-box-tall" if self._rows == -1 else "modal-box"
+        with Vertical(classes=box_class):
             yield Label(f"Edit: {self._label}", classes="modal-title")
-            if self._multiline:
-                yield TextArea(self._value, id="edit-area")
-            else:
+            if self._rows == 1:
                 yield Input(self._value, id="edit-input")
+            else:
+                yield TextArea(self._value, id="edit-area")
             with Horizontal(classes="btn-row"):
                 yield Button("Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
-        if self._multiline:
-            self.query_one("#edit-area", TextArea).focus()
-        else:
+        if self._rows == 1:
             inp = self.query_one("#edit-input", Input)
             inp.focus()
             inp.cursor_position = len(inp.value)
+        else:
+            area = self.query_one("#edit-area", TextArea)
+            if self._rows > 1:
+                area.styles.height = self._rows
+            area.focus()
 
     @on(Button.Pressed, "#confirm-btn")
     def _confirm(self, _: Button.Pressed) -> None:
-        if self._multiline:
-            value = self.query_one("#edit-area", TextArea).text
-        else:
+        if self._rows == 1:
             value = self.query_one("#edit-input", Input).value
+        else:
+            value = self.query_one("#edit-area", TextArea).text
         self.dismiss(value)
 
     @on(Button.Pressed, "#cancel-btn")
@@ -794,9 +799,9 @@ class ImagoEditorApp(App):
         )
         await container.mount(Static(Text.from_markup(header_text), id="node-header"))
 
-        for field, label_text, multiline in _TEXT_FIELDS:
+        for field, label_text, rows in _TEXT_FIELDS:
             val_display = (node[field] or "").replace("\n", " ")
-            row = Horizontal(classes="field-row-tall" if multiline else "field-row")
+            row = Horizontal(classes="field-row-tall" if rows != 1 else "field-row")
             await container.mount(row)
             await row.mount(
                 Label(label_text + ":", classes="field-label-left"),
@@ -840,10 +845,10 @@ class ImagoEditorApp(App):
                 return
             if not self._selected_node_id:
                 return
-            node      = self._ndata[self._selected_node_id]
-            multiline = field == "description"
+            node = self._ndata[self._selected_node_id]
+            rows = next(r for f, _, r in _TEXT_FIELDS if f == field)
             self.push_screen(
-                EditTextModal(field.replace("_", " ").title(), node[field], multiline),
+                EditTextModal(field.replace("_", " ").title(), node[field], rows),
                 lambda val, f=field: self._on_field_edited(f, val),
             )
             return
