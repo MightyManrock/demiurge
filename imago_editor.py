@@ -139,6 +139,11 @@ Footer {
     margin: 0 0 1 0;
 }
 
+.field-row-tall {
+    height: 4;
+    margin: 0 0 1 0;
+}
+
 .field-label-left {
     width: 14;
     color: $muted;
@@ -791,7 +796,7 @@ class ImagoEditorApp(App):
 
         for field, label_text, multiline in _TEXT_FIELDS:
             val_display = (node[field] or "").replace("\n", " ")
-            row = Horizontal(classes="field-row")
+            row = Horizontal(classes="field-row-tall" if multiline else "field-row")
             await container.mount(row)
             await row.mount(
                 Label(label_text + ":", classes="field-label-left"),
@@ -933,7 +938,7 @@ class ImagoEditorApp(App):
 
     def action_quit_app(self) -> None:
         if self._dirty:
-            self.notify(f"{len(self._dirty)} unsaved change(s). Press Ctrl+S to save first.", severity="warning")
+            self.notify(f"{len(self._dirty)} unsaved change(s). Press Ctrl+S to save first. Press Ctrl+Q to discard changes and quit anyway.", severity="warning")
             return
         self.exit()
 
