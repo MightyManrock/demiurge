@@ -10,6 +10,7 @@ logs/*.log
 docs
 saves/*.db
 scenarios/*.bak
+core/*.bak
 
 # Claude Code
 CLAUDE.md
