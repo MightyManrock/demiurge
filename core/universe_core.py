@@ -122,6 +122,7 @@ class Location(BaseModel):
     child_ids: list[UUID] = Field(default_factory=list)
     traits: list[str] = Field(default_factory=list)
     condition: LocCondition = LocCondition.STABLE
+    known: int = 0
 
 
 class CosmicCoordinates(BaseModel):

@@ -45,6 +45,7 @@ from core.universe_core import (
 )
 from utilities.domain_registry import DomainRegistry, get_registry as get_domain_registry
 from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
+from core.event_core import Event, EventType, StrengthCurve
 
 
 # ─────────────────────────────────────────
@@ -356,6 +357,16 @@ class SimulationState(BaseModel):
     # Manually queued actions in the same category take priority and block the ongoing one.
     ongoing_actions: dict[str, OngoingAction] = Field(default_factory=dict)
 
+    # Active events: divine acts that continue to affect the world across multiple ticks.
+    # Keyed by str(Event.id). Populated by EVENT_EMITTED mutations; pruned when expired.
+    active_events: dict[str, Event] = Field(default_factory=dict)
+
+    # Transient per-tick attention triggers accumulated during Phase 1 event processing.
+    # Keyed by str(luminary UUID). Cleared after Phase 4 evaluations. Never persisted.
+    pending_attention_triggers: dict[str, list[AttentionTrigger]] = Field(
+        default_factory=dict
+    )
+
 
 # ─────────────────────────────────────────
 # TICK LOOP
@@ -405,6 +416,12 @@ class TickLoop:
         # ── Phase 1: Passive World ─────────────────────
         passive = self._run_passive_phase(state, cfg, phase_rng)
         result.passive_result = passive
+
+        # ── Active event continuation (Phase 1 extension) ─
+        # Runs at offset ≥ 1; tick-0 effects are applied by the action handler directly.
+        event_mutations = self._process_active_events(state)
+        state = self._apply_mutations(state, event_mutations)
+
         state = self._apply_passive_mutations(state, passive)
         state = self._prune_weak_beliefs(state)
 
@@ -471,6 +488,7 @@ class TickLoop:
         # ── Phase 4: Evaluation ────────────────────────
         evaluations = self._run_evaluations(state, profile, cfg)
         result.evaluations = evaluations
+        state.pending_attention_triggers = {}  # consumed by evaluations; clear for next tick
 
         # ── Phase 5: Disposition Update ───────────────
         state, disposition_changes = self._apply_disposition_deltas(
@@ -1300,6 +1318,58 @@ class TickLoop:
                 )
                 # No mutations — purely observational; they do not know you checked.
 
+            elif defn.name == "Read Divine Traces":
+                target_world_id = str(instance.target_id) if instance.target_id else None
+                world_obj = state.worlds.get(target_world_id) if target_world_id else None
+                if not world_obj:
+                    return mutations, "No world found to read traces on."
+
+                # Find events associated with this world
+                relevant: list[Event] = []
+                for ev in state.active_events.values():
+                    if ev.is_expired(state.tick_number):
+                        continue
+                    if str(ev.target_world_id) == target_world_id:
+                        relevant.append(ev)
+                        continue
+                    if ev.target_civilization_id is not None:
+                        civ = state.civilizations.get(str(ev.target_civilization_id))
+                        if civ and str(civ.origin_location_id) == target_world_id:
+                            relevant.append(ev)
+                            continue
+                    if ev.target_mortal_id is not None:
+                        mortal = state.mortals.get(str(ev.target_mortal_id))
+                        if mortal and str(mortal.current_location) == target_world_id:
+                            relevant.append(ev)
+
+                if not relevant:
+                    narrative = (
+                        f"No divine traces discernible on {world_obj.name}. "
+                        f"The world appears untouched by recent divine influence."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    strongest = max(relevant, key=lambda e: e.current_strength(state.tick_number))
+                    age = state.tick_number - strongest.created_at_tick
+                    narrative = (
+                        f"{len(relevant)} active divine event(s) detected on {world_obj.name}. "
+                        f"Dominant type: {strongest.event_type.value}, "
+                        f"approximately {age} tick(s) old."
+                    )
+                else:
+                    lines = [f"Divine traces on {world_obj.name} ({len(relevant)} active event(s)):"]
+                    for ev in sorted(relevant, key=lambda e: -e.current_strength(state.tick_number)):
+                        age = state.tick_number - ev.created_at_tick
+                        strength = ev.current_strength(state.tick_number)
+                        remaining = ev.duration - age
+                        domains = ", ".join(dv.domain_tag for dv in ev.domain_vectors) or "none"
+                        lines.append(
+                            f"  [{ev.event_type.value}] age {age}, "
+                            f"strength {strength:.2f}, "
+                            f"{remaining} tick(s) remaining — domains: {domains}"
+                        )
+                    narrative = "\n".join(lines)
+                # Purely observational — no mutations.
+
             return mutations, narrative
 
         # ── Change Affiliated Domain ──────────────────
@@ -1375,6 +1445,29 @@ class TickLoop:
                 f"You whispered to {mortal.name}: '{intent.concept}'. "
                 f"Effectiveness: {effectiveness:.0%}."
             )
+
+            # Emit a RAMP_FADE event so the whisper builds then fades over 4 ticks
+            mutations.append(StateMutation(
+                mutation_type=MutationType.EVENT_EMITTED,
+                target_id=None,
+                field="active_events",
+                new_value=Event(
+                    event_type=EventType.WHISPER,
+                    curve=StrengthCurve.RAMP_FADE,
+                    source_action_id=instance.action_definition_id,
+                    created_at_tick=state.tick_number,
+                    duration=4,
+                    base_strength=effectiveness,
+                    peak_offset=1,
+                    target_mortal_id=instance.target_id,
+                    target_civilization_id=mortal.civilization_id,
+                    domain_vectors=intent.domain_vectors,
+                    domain_shift_rate=0.06,
+                    attention_per_tick=0.01,
+                    imago_node_id=getattr(intent, "imago_node_id", None),
+                    concept=intent.concept,
+                ),
+            ))
 
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
@@ -1549,6 +1642,31 @@ class TickLoop:
                 f"Effectiveness: {effectiveness:.0%}."
             )
 
+            # Emit a SPIKE_FADE event so the omen echoes for 4 more ticks
+            omen_world_id = self._resolve_world_id(instance, state)
+            mutations.append(StateMutation(
+                mutation_type=MutationType.EVENT_EMITTED,
+                target_id=None,
+                field="active_events",
+                new_value=Event(
+                    event_type=EventType.OMEN,
+                    curve=StrengthCurve.SPIKE_FADE,
+                    source_action_id=instance.action_definition_id,
+                    created_at_tick=state.tick_number,
+                    duration=5,
+                    base_strength=effectiveness,
+                    decay_rate=0.6,
+                    target_civilization_id=intent.civilization_scope,
+                    target_world_id=omen_world_id,
+                    domain_vectors=intent.domain_vectors,
+                    domain_shift_rate=0.08,
+                    divine_awareness_rate=0.03,
+                    attention_per_tick=0.04,
+                    imago_node_id=getattr(intent, "imago_node_id", None),
+                    sign_description=intent.sign_description,
+                ),
+            ))
+
         # ── Civilizational Development ────────────────
         elif isinstance(intent, DevelopmentIntent):
             if outcome == ActionOutcome.FAILURE:
@@ -1575,13 +1693,197 @@ class TickLoop:
                 f"Effectiveness: {effectiveness:.0%}."
             )
 
+            # Emit a FLAT event for multi-tick continuation.
+            # If an active DEVELOPMENT_NUDGE already targets this civ, give it a
+            # sustained bonus instead of stacking a second event.
+            existing_dev_event: Optional[Event] = None
+            for ev in state.active_events.values():
+                if (
+                    ev.event_type == EventType.DEVELOPMENT_NUDGE
+                    and ev.target_civilization_id == civ_obj.id
+                    and not ev.is_expired(state.tick_number)
+                ):
+                    existing_dev_event = ev
+                    break
+
+            if existing_dev_event is not None:
+                existing_dev_event.base_strength = min(
+                    1.0, existing_dev_event.base_strength + 0.05
+                )
+            else:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.EVENT_EMITTED,
+                    target_id=None,
+                    field="active_events",
+                    new_value=Event(
+                        event_type=EventType.DEVELOPMENT_NUDGE,
+                        curve=StrengthCurve.FLAT,
+                        source_action_id=instance.action_definition_id,
+                        created_at_tick=state.tick_number,
+                        duration=6,
+                        base_strength=effectiveness,
+                        target_civilization_id=civ_obj.id,
+                        domain_vectors=intent.domain_vectors,
+                        domain_shift_rate=0.05,
+                    ),
+                ))
+
         # ── Luminary Petition ─────────────────────────
         elif isinstance(intent, LuminaryPetitionIntent):
             luminary = state.luminaries.get(str(instance.target_id)) if instance.target_id else None
             if not luminary:
                 return mutations, "Target Luminary not found."
 
-            if outcome == ActionOutcome.SUCCESS:
+            if defn.name == "Report to Luminary":
+                if outcome == ActionOutcome.SUCCESS:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="results",
+                        delta=0.05,
+                        note=f"Report to {luminary.name}: favorable reception",
+                    ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=luminary.id,
+                        field="attention",
+                        delta=-0.07,
+                        note=f"Report to {luminary.name}: attention eased",
+                    ))
+                    narrative = (
+                        f"Your report on '{intent.subject}' was well received by {luminary.name}. "
+                        f"Their attention eases slightly."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=luminary.id,
+                        field="attention",
+                        delta=-0.03,
+                        note=f"Report to {luminary.name}: partial acknowledgement",
+                    ))
+                    narrative = (
+                        f"Your report on '{intent.subject}' was received without comment. "
+                        f"{luminary.name} seems mildly satisfied."
+                    )
+                else:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="methods",
+                        delta=-0.02,
+                        note=f"Report to {luminary.name}: poorly received",
+                    ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=luminary.id,
+                        field="attention",
+                        delta=0.05,
+                        note=f"Report to {luminary.name}: raised suspicion",
+                    ))
+                    narrative = (
+                        f"Your report on '{intent.subject}' was poorly received. "
+                        f"{luminary.name} appears displeased."
+                    )
+
+            elif defn.name == "Dispute Demand":
+                if outcome == ActionOutcome.SUCCESS:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="methods",
+                        delta=0.04,
+                        note=f"Dispute with {luminary.name}: argument accepted",
+                    ))
+                    narrative = (
+                        f"Your dispute regarding '{intent.subject}' was acknowledged. "
+                        f"{luminary.name} conceded the point."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="methods",
+                        delta=-0.03,
+                        note=f"Dispute with {luminary.name}: poorly received",
+                    ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=luminary.id,
+                        field="attention",
+                        delta=0.08,
+                        note=f"Dispute with {luminary.name}: attention spike",
+                    ))
+                    narrative = (
+                        f"Your dispute regarding '{intent.subject}' was heard but did not land well. "
+                        f"{luminary.name} is watching more closely."
+                    )
+                else:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="methods",
+                        delta=-0.10,
+                        note=f"Dispute with {luminary.name}: infuriated",
+                    ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=luminary.id,
+                        field="attention",
+                        delta=0.15,
+                        note=f"Dispute with {luminary.name}: severe attention spike",
+                    ))
+                    narrative = (
+                        f"Your dispute regarding '{intent.subject}' infuriated {luminary.name}. "
+                        f"This has consequences."
+                    )
+
+            elif defn.name == "Petition for Constraint Relaxation":
+                if outcome == ActionOutcome.SUCCESS:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="methods",
+                        delta=0.02,
+                        note=f"Constraint petition to {luminary.name}: acknowledged",
+                    ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="results",
+                        delta=-0.02,
+                        note=f"Constraint petition: reveals strain against constraint",
+                    ))
+                    narrative = (
+                        f"Your petition regarding '{intent.subject}' was acknowledged by {luminary.name}. "
+                        f"The latitude may widen — though the petition itself signals you have been straining."
+                    )
+                elif outcome == ActionOutcome.PARTIAL:
+                    narrative = (
+                        f"{luminary.name} heard your petition regarding '{intent.subject}' "
+                        f"but offered no commitments."
+                    )
+                else:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.DISPOSITION_CHANGE,
+                        target_id=luminary.id,
+                        field="methods",
+                        delta=-0.05,
+                        note=f"Constraint petition to {luminary.name}: impertinent",
+                    ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=luminary.id,
+                        field="attention",
+                        delta=0.10,
+                        note=f"Constraint petition rejected: scrutiny raised",
+                    ))
+                    narrative = (
+                        f"{luminary.name} found your petition regarding '{intent.subject}' impertinent. "
+                        f"The request has drawn greater scrutiny."
+                    )
+
+            elif outcome == ActionOutcome.SUCCESS:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.DISPOSITION_CHANGE,
                     target_id=luminary.id,
@@ -1862,8 +2164,10 @@ class TickLoop:
                 if other_lid != lid:
                     fellow_lum_tags.update(other_tags)
 
-            # Attention level
-            attention_triggers: list[AttentionTrigger] = []
+            # Attention level — populated by active event continuation in Phase 1
+            attention_triggers: list[AttentionTrigger] = (
+                state.pending_attention_triggers.get(lid, [])
+            )
             attention_level = engine.compute_attention_level(
                 current_att, attention_triggers
             )
@@ -2095,6 +2399,90 @@ class TickLoop:
                 tag: s for tag, s in world.domain_expression.items() if s > BELIEF_FLOOR
             }
         return state
+
+    def _process_active_events(
+        self,
+        state: SimulationState,
+    ) -> list[StateMutation]:
+        """
+        Apply continuation effects from active_events for the current tick.
+        Skips offset-0 (action handler covers that tick directly).
+        Populates state.pending_attention_triggers for Phase 4 consumption.
+        Prunes expired events.
+        """
+        mutations: list[StateMutation] = []
+        expired_ids: list[str] = []
+
+        for eid, event in state.active_events.items():
+            if event.is_expired(state.tick_number):
+                expired_ids.append(eid)
+                continue
+
+            offset = state.tick_number - event.created_at_tick
+            if offset == 0:
+                continue  # tick-0 handled by the action handler
+
+            strength = event.current_strength(state.tick_number)
+
+            # Resolve target civilization IDs
+            target_civ_ids: list[str] = []
+            if event.target_civilization_id is not None:
+                cid = str(event.target_civilization_id)
+                if cid in state.civilizations:
+                    target_civ_ids.append(cid)
+                else:
+                    expired_ids.append(eid)  # target gone; expire the event
+                    continue
+            elif event.target_mortal_id is not None:
+                mortal = state.mortals.get(str(event.target_mortal_id))
+                if mortal and mortal.civilization_id:
+                    cid = str(mortal.civilization_id)
+                    if cid in state.civilizations:
+                        target_civ_ids.append(cid)
+            elif event.target_world_id is not None:
+                wid = str(event.target_world_id)
+                for cid, civ in state.civilizations.items():
+                    if str(civ.origin_location_id) == wid:
+                        target_civ_ids.append(cid)
+            else:
+                target_civ_ids = list(state.civilizations.keys())
+
+            # Emit belief-shift mutations
+            for cid in target_civ_ids:
+                civ_obj = state.civilizations[cid]
+                for dv in event.domain_vectors:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.BELIEF_SHIFT,
+                        target_id=civ_obj.id,
+                        field="dominant_beliefs",
+                        delta=dv.direction * strength * event.domain_shift_rate,
+                        new_value=dv.domain_tag,
+                        note=f"Event echo ({event.event_type}, offset {offset})",
+                    ))
+                if event.divine_awareness_rate > 0.0:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.CIVILIZATION_STAT,
+                        target_id=civ_obj.id,
+                        field="divine_awareness",
+                        delta=event.divine_awareness_rate * strength,
+                        note=f"Event echo ({event.event_type}) awareness",
+                    ))
+
+            # Populate attention triggers for Phase 4
+            if event.attention_per_tick > 0.0:
+                trigger = AttentionTrigger(
+                    trigger_type=f"event_{event.event_type}",
+                    delta=event.attention_per_tick * strength,
+                    timestamp=float(state.tick_number),
+                    note=f"{event.event_type} echo (offset {offset})",
+                )
+                for lid in state.luminaries:
+                    state.pending_attention_triggers.setdefault(lid, []).append(trigger)
+
+        for eid in expired_ids:
+            state.active_events.pop(eid, None)
+
+        return mutations
 
     def _resolve_world_id(
         self,
@@ -2342,5 +2730,11 @@ class TickLoop:
                         state.demiurge.affiliated_domains.remove(old_tag)
                     if new_tag not in state.demiurge.affiliated_domains:
                         state.demiurge.affiliated_domains.append(new_tag)
+
+            elif m.mutation_type == MutationType.EVENT_EMITTED:
+                if isinstance(m.new_value, Event):
+                    eid = str(m.new_value.id)
+                    if eid not in state.active_events:
+                        state.active_events[eid] = m.new_value
 
         return state

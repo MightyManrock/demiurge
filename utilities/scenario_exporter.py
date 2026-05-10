@@ -31,6 +31,7 @@ from core.universe_core import (
     Universe,
 )
 from core.action_core import EssenceStockpile
+from core.event_core import Event
 from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig
 
 
@@ -75,6 +76,7 @@ def export_scenario(
     _write_civ_momentum(conn, state)
     _write_luminary_state(conn, state)
     _write_ongoing_actions(conn, state)
+    _write_active_events(conn, state)
 
     conn.commit()
     conn.close()
@@ -250,6 +252,7 @@ def _write_locations(conn, state: SimulationState):
         geo_tags = atmo_tags = "[]"
         age = 0.0
         pop_ids = "[]"
+        known = 0
 
         if isinstance(loc, System):
             coords_x, coords_y, coords_z = loc.coordinates.x, loc.coordinates.y, loc.coordinates.z
@@ -280,14 +283,14 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt_miracles, lf_subtle_influence, lf_proxius_activity, lf_direct_creation,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids)
+                pop_ids, known)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?,
                        ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?, ?, ?,
-                       ?)""",
+                       ?, ?)""",
             (
                 str(loc.id),
                 loc.name,
@@ -304,7 +307,7 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt, lf_subtle, lf_proxius, lf_direct,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids,
+                pop_ids, loc.known,
             ),
         )
 
@@ -493,6 +496,46 @@ def _write_luminary_state(conn, state: SimulationState):
         )
 
 
+def _write_active_events(conn, state: SimulationState):
+    for eid, ev in state.active_events.items():
+        dv_json = json.dumps([
+            {"domain_tag": dv.domain_tag, "direction": dv.direction, "notes": dv.notes}
+            for dv in ev.domain_vectors
+        ])
+        conn.execute(
+            """INSERT INTO active_events
+               (id, event_type, curve, source_action_id, created_at_tick,
+                duration, base_strength, peak_offset, decay_rate,
+                target_world_id, target_civilization_id, target_mortal_id,
+                domain_vectors, domain_shift_rate, divine_awareness_rate,
+                attention_per_tick, imago_node_id, framing,
+                sign_description, concept)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                str(ev.id),
+                ev.event_type.value,
+                ev.curve.value,
+                str(ev.source_action_id) if ev.source_action_id else None,
+                ev.created_at_tick,
+                ev.duration,
+                ev.base_strength,
+                ev.peak_offset,
+                ev.decay_rate,
+                str(ev.target_world_id) if ev.target_world_id else None,
+                str(ev.target_civilization_id) if ev.target_civilization_id else None,
+                str(ev.target_mortal_id) if ev.target_mortal_id else None,
+                dv_json,
+                ev.domain_shift_rate,
+                ev.divine_awareness_rate,
+                ev.attention_per_tick,
+                ev.imago_node_id,
+                ev.framing,
+                ev.sign_description,
+                ev.concept,
+            ),
+        )
+
+
 def _write_ongoing_actions(conn, state: SimulationState):
     for cat_val, oa in state.ongoing_actions.items():
         intent_type = type(oa.intent).__name__ if oa.intent is not None else None
@@ -656,13 +699,14 @@ def build_scenario_default() -> SimulationState:
     galaxy = Location(
         name="The Nascent Coil",
         location_type="galaxy",
+        known=1,
     )
 
     system = System(
         name="Ardent System",
-        location_type="system",
         parent_id=galaxy.id,
         star_type=StarType.MAIN_SEQUENCE,
+        known=1,
     )
     neran = SignificantLocation(
         name="Neran",
@@ -673,6 +717,7 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:terrestrial", "geo:temperate"],
         atmo_tags=["atmo:nitrogen_oxygen"],
         age=600.0,
+        known=1,
     )
     vel_arath = SignificantLocation(
         name="Vel Arath",
@@ -682,6 +727,7 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:rocky", "geo:barren"],
         atmo_tags=["atmo:none"],
         age=900.0,
+        known=1,
     )
 
     galaxy.child_ids.append(system.id)
@@ -690,10 +736,10 @@ def build_scenario_default() -> SimulationState:
 
     system_outer = System(
         name="The Outer Reach",
-        location_type="system",
         parent_id=galaxy.id,
         star_type=StarType.DWARF,
         coordinates=CosmicCoordinates(x=12.0, y=3.0, z=-2.0),
+        known=1,
     )
     oros = SignificantLocation(
         name="Oros",
@@ -704,10 +750,34 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:terrestrial", "geo:arid"],
         atmo_tags=["atmo:nitrogen_oxygen"],
         age=275.0,
+        known=1,
     )
 
     galaxy.child_ids.append(system_outer.id)
     system_outer.child_ids.append(oros.id)
+
+    system_hidden = System(
+        name="Irriman System",
+        parent_id=galaxy.id,
+        star_type=StarType.MAIN_SEQUENCE,
+        coordinates=CosmicCoordinates(x=-5.0, y=-2.0, z=1.0),
+        known=0,
+    )
+    kiddis = SignificantLocation(
+        name="Kiddis",
+        location_type="planet",
+        parent_id=system_hidden.id,
+        condition=LocCondition.STABLE,
+        domain_expression={"domain:growth":0.3},
+        geo_tags=["geo:terrestrial", "geo:humid"],
+        atmo_tags=["atmo:nitrogen_oxygen", "atmo:high_co2"],
+        age=248.0,
+        known=0,
+    )
+
+    galaxy.child_ids.append(system_hidden.id)
+    system_hidden.child_ids.append(kiddis.id)
+
 
     # ── Species ───────────────────────────────────────
     naran_species = Species(
@@ -746,6 +816,18 @@ def build_scenario_default() -> SimulationState:
     )
     oros.species_ids.append(keth_species.id)
 
+    damtal_species = Species(
+        name="Damtal",
+        description="",
+        origin_world_id=kiddis.id,
+        sapient=True,
+        lifespan_min=60,
+        lifespan_max=100,
+        bio_tags=["bio:quadripedal", "bio:warm_blooded", "bio:silicon_based"],
+        condition=SpeciesCondition.STABLE,
+    )
+    kiddis.species_ids.append(damtal_species.id)
+
     # ── Civilizations ─────────────────────────────────
     neran_confed = Civilization(
         name="The Neran Confederacy",
@@ -783,6 +865,19 @@ def build_scenario_default() -> SimulationState:
         age=60.0,
     )
     oros.civilization_ids.append(keth_civ.id)
+
+    damtal_civ = Civilization(
+        name="Kingdoms of the Damtal",
+        origin_location_id=kiddis.id,
+        scale=CivilizationScale.CONTINENTAL,
+        health=CivilizationHealth(stability=0.5, prosperity=0.35, cohesion=0.2),
+        primary_species_id=damtal_species.id,
+        dominant_beliefs={},
+        culture_tags={},
+        theistic=False,
+        divine_awareness=0.0,
+        age=260.0,
+    )
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
@@ -946,16 +1041,19 @@ def build_scenario_default() -> SimulationState:
         luminaries=luminaries,
         domains=domains,
         locations={
-            str(galaxy.id):       galaxy,
-            str(system.id):       system,
-            str(system_outer.id): system_outer,
-            str(neran.id):        neran,
-            str(vel_arath.id):    vel_arath,
-            str(oros.id):         oros,
+            str(galaxy.id):        galaxy,
+            str(system.id):        system,
+            str(system_outer.id):  system_outer,
+            str(system_hidden.id): system_hidden,
+            str(neran.id):         neran,
+            str(vel_arath.id):     vel_arath,
+            str(oros.id):          oros,
+            str(kiddis.id):        kiddis,
         },
         civilizations={
             str(neran_confed.id): neran_confed,
             str(keth_civ.id):     keth_civ,
+            str(damtal_civ.id):   damtal_civ,
         },
         mortals={
             str(senna.id):   senna,   str(karath.id): karath,
@@ -966,9 +1064,10 @@ def build_scenario_default() -> SimulationState:
             str(korax.id):   korax,
         },
         species={
-            str(naran_species.id): naran_species,
-            str(ultir_species.id): ultir_species,
-            str(keth_species.id):  keth_species,
+            str(naran_species.id):  naran_species,
+            str(ultir_species.id):  ultir_species,
+            str(keth_species.id):   keth_species,
+            str(damtal_species.id): damtal_species,
         },
         civ_momentum={
             str(neran_confed.id): CivilizationMomentum(

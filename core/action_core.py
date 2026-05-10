@@ -1071,6 +1071,7 @@ class MutationType(str, Enum):
     SPECIES_CONDITION      = "species_condition"
     DEMIURGE_UNLOCK        = "demiurge_unlock"
     AFFILIATED_DOMAIN_CHANGE = "affiliated_domain_change"
+    EVENT_EMITTED          = "event_emitted"
 
 
 class StateMutation(BaseModel):

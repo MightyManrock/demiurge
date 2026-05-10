@@ -127,7 +127,9 @@ CREATE TABLE IF NOT EXISTS locations (
     atmo_tags        TEXT NOT NULL DEFAULT '[]',    -- JSON array
     age              REAL NOT NULL DEFAULT 0.0,
     -- PopLocation-specific (populated for subclass='pop_location')
-    pop_ids          TEXT NOT NULL DEFAULT '[]'     -- JSON array
+    pop_ids          TEXT NOT NULL DEFAULT '[]',     -- JSON array
+    -- Known to Demiurge?
+    known   INTEGER NOT NULL DEFAULT 0      -- bool
 );
 
 CREATE TABLE IF NOT EXISTS species (
@@ -271,4 +273,27 @@ CREATE TABLE IF NOT EXISTS ongoing_actions (
     ticks_active           INTEGER NOT NULL DEFAULT 0,
     executed_ticks         INTEGER NOT NULL DEFAULT 0,
     started_at_tick        INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS active_events (
+    id                     TEXT PRIMARY KEY,
+    event_type             TEXT NOT NULL,
+    curve                  TEXT NOT NULL,
+    source_action_id       TEXT,
+    created_at_tick        INTEGER NOT NULL DEFAULT 0,
+    duration               INTEGER NOT NULL,
+    base_strength          REAL NOT NULL DEFAULT 1.0,
+    peak_offset            INTEGER NOT NULL DEFAULT 0,
+    decay_rate             REAL NOT NULL DEFAULT 0.6,
+    target_world_id        TEXT,
+    target_civilization_id TEXT,
+    target_mortal_id       TEXT,
+    domain_vectors         TEXT NOT NULL DEFAULT '[]',
+    domain_shift_rate      REAL NOT NULL DEFAULT 0.10,
+    divine_awareness_rate  REAL NOT NULL DEFAULT 0.0,
+    attention_per_tick     REAL NOT NULL DEFAULT 0.0,
+    imago_node_id          TEXT,
+    framing                TEXT,
+    sign_description       TEXT NOT NULL DEFAULT '',
+    concept                TEXT NOT NULL DEFAULT ''
 );

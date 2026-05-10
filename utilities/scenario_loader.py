@@ -36,9 +36,11 @@ from core.action_core import (
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     ChangeAffiliatedDomainsIntent,
+    DomainVector,
 )
+from core.event_core import Event, EventType, StrengthCurve
 from logic.tick_logic import (
-    SimulationState, CivilizationMomentum, TickConfig, DomainVector,
+    SimulationState, CivilizationMomentum, TickConfig,
 )
 
 _INTENT_CLASSES: dict[str, type] = {
@@ -102,6 +104,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     civ_momentum = _load_civ_momentum(conn)
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
+    active_events = _load_active_events(conn)
 
     # Universe ID: stored in scenario_meta if present, else generate one.
     universe_id_str = meta.get("universe_id", "")
@@ -141,6 +144,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         ticks_since_evaluation=ticks_since,
         config=cfg,
         ongoing_actions=ongoing_actions,
+        active_events=active_events,
         tick_number=meta.get("tick_number", 0),
     )
 
@@ -273,6 +277,7 @@ def _load_locations(conn) -> dict[str, Location]:
         condition = LocCondition(row.get("condition", "stable"))
         location_type = row.get("location_type", "location")
         description = row.get("description", "")
+        known = row.get("known", 0)
 
         if subclass == "system":
             loc = System(
@@ -284,6 +289,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                known=known,
                 coordinates=CosmicCoordinates(
                     x=row.get("coordinates_x", 0.0),
                     y=row.get("coordinates_y", 0.0),
@@ -301,6 +307,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                known=known,
                 domain_expression=_jd(row.get("domain_expression", "{}")),
                 local_footprint=LocFootprint(
                     overt_miracles=row.get("lf_overt_miracles", 0.0),
@@ -326,6 +333,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                known=known,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
             )
         else:
@@ -339,6 +347,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                known=known,
             )
 
         out[str(loc.id)] = loc
@@ -540,4 +549,46 @@ def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
             executed_ticks=row["executed_ticks"],
             started_at_tick=row["started_at_tick"],
         )
+    return out
+
+
+def _load_active_events(conn) -> dict[str, Event]:
+    out: dict[str, Event] = {}
+    try:
+        rows = conn.execute("SELECT * FROM active_events").fetchall()
+    except Exception:
+        return out  # table absent in old DBs
+    for raw in rows:
+        row = dict(raw)
+        domain_vectors: list[DomainVector] = []
+        dv_data = row.get("domain_vectors", "[]")
+        for dv_dict in json.loads(dv_data) if dv_data else []:
+            domain_vectors.append(DomainVector(
+                domain_tag=dv_dict["domain_tag"],
+                direction=dv_dict["direction"],
+                notes=dv_dict.get("notes", ""),
+            ))
+        event = Event(
+            id=UUID(row["id"]),
+            event_type=EventType(row["event_type"]),
+            curve=StrengthCurve(row["curve"]),
+            source_action_id=_uuid(row.get("source_action_id")),
+            created_at_tick=row["created_at_tick"],
+            duration=row["duration"],
+            base_strength=row.get("base_strength", 1.0),
+            peak_offset=row.get("peak_offset", 0),
+            decay_rate=row.get("decay_rate", 0.6),
+            target_world_id=_uuid(row.get("target_world_id")),
+            target_civilization_id=_uuid(row.get("target_civilization_id")),
+            target_mortal_id=_uuid(row.get("target_mortal_id")),
+            domain_vectors=domain_vectors,
+            domain_shift_rate=row.get("domain_shift_rate", 0.10),
+            divine_awareness_rate=row.get("divine_awareness_rate", 0.0),
+            attention_per_tick=row.get("attention_per_tick", 0.0),
+            imago_node_id=row.get("imago_node_id"),
+            framing=row.get("framing"),
+            sign_description=row.get("sign_description", ""),
+            concept=row.get("concept", ""),
+        )
+        out[row["id"]] = event
     return out
