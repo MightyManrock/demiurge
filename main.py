@@ -2098,6 +2098,10 @@ class GameScreen(Screen):
                 target_id, target_type = await self._pick_system(state)
                 if target_id is None:
                     return None
+            elif chosen_scope == ScryScope.GALAXY:
+                target_id, target_type = await self._pick_galaxy(state)
+                if target_id is None:
+                    return None
             else:
                 target_type = TargetType.UNIVERSE
 
@@ -2502,12 +2506,29 @@ class GameScreen(Screen):
         for sid, s in systems:
             gal_obj  = state.locations.get(str(s.parent_id)) if s.parent_id else None
             gal_name = gal_obj.name if gal_obj else "?"
-            n_worlds = len(s.child_ids)
-            items.append((sid, f"{s.name:<22} [{s.star_type.value}]  {gal_name:<20}  {n_worlds} world(s)"))
+            n_worlds = sum(1 for cid in s.child_ids if cid in state.locations and is_in_window(state.locations[cid]))
+            items.append((sid, f"{s.name:<22} [{s.star_type.value}]  {gal_name:<20}  {n_worlds} world(s) known"))
         picked = await self.app.push_screen_wait(PickerModal("Select System", items))
         if picked is None:
             return None, TargetType.SYSTEM
         return UUID(picked), TargetType.SYSTEM
+
+    async def _pick_galaxy(
+        self,
+        state: SimulationState,
+    ) -> tuple[UUID | None, TargetType]:
+        galaxies = [(gid, g) for gid, g in state.galaxies.items() if is_in_window(g)]
+        if not galaxies:
+            self._feed_markup("[#5a7090]No galaxies available.[/]")
+            return None, TargetType.GALAXY
+        items = []
+        for gid, g in galaxies:
+            n_systems = sum(1 for cid in g.child_ids if cid in state.locations and is_in_window(state.locations[cid]))
+            items.append((gid, f"{g.name:<26}  {n_systems} system(s) known"))
+        picked = await self.app.push_screen_wait(PickerModal("Select Galaxy", items))
+        if picked is None:
+            return None, TargetType.GALAXY
+        return UUID(picked), TargetType.GALAXY
 
     async def _pick_framing(self) -> Framing:
         items = [(f.value, f.value.title()) for f in Framing]

@@ -1478,10 +1478,10 @@ class TickLoop:
                             pz * _GALAXY_SCALE + cz)
                 return (cx, cy, cz)
 
-            # Resolve the focus position for WORLD and SYSTEM scopes.
-            # GALAXY / UNIVERSE have no spatial focus — factor is always 1.0.
+            # Resolve the focus position for WORLD, SYSTEM, and GALAXY scopes.
+            # UNIVERSE has no spatial focus — factor is always 1.0.
             _focus_pos: Optional[tuple[float, float, float]] = None
-            if scope in (ScryScope.WORLD, ScryScope.SYSTEM) and instance.target_id:
+            if scope in (ScryScope.WORLD, ScryScope.SYSTEM, ScryScope.GALAXY) and instance.target_id:
                 target_loc = state.locations.get(str(instance.target_id))
                 if target_loc is not None:
                     if scope == ScryScope.WORLD and target_loc.parent_id is not None:
@@ -1746,7 +1746,7 @@ class TickLoop:
             ))
             short = tag.split(":", 1)[1] if ":" in tag else tag
             return mutations, (
-                f"You turn your awareness inward and contemplate {short}. "
+                f"You turn your awareness inward and contemplate {short.title()}. "
                 f"The domain takes shape in your understanding — "
                 f"a new frontier, not yet manifested in the world."
             )
