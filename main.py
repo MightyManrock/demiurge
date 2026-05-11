@@ -2078,32 +2078,34 @@ class GameScreen(Screen):
             target_type = TargetType.SPECIES
 
         elif action_key == "scry":
-            # Scry uses a scope picker; target is optional depending on scope.
+            # Scope picker loops so cancelling a target picker returns here.
             scope_items = [
                 (ScryScope.WORLD.value,    "World       — deep mortal/civ detail  (0.05 subtle)"),
                 (ScryScope.SYSTEM.value,   "System      — reveals worlds & civs   (0.10 subtle)"),
                 (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle)"),
                 (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle)"),
             ]
-            picked_scope = await app.push_screen_wait(PickerModal("Scry Scope", scope_items))
-            if picked_scope is None:
-                return None
-            chosen_scope = ScryScope(picked_scope)
+            while True:
+                picked_scope = await app.push_screen_wait(PickerModal("Scry Scope", scope_items))
+                if picked_scope is None:
+                    return None
+                chosen_scope = ScryScope(picked_scope)
+                if chosen_scope == ScryScope.WORLD:
+                    target_id, target_type = await self._pick_world(state)
+                    if target_id is None:
+                        continue
+                elif chosen_scope == ScryScope.SYSTEM:
+                    target_id, target_type = await self._pick_system(state)
+                    if target_id is None:
+                        continue
+                elif chosen_scope == ScryScope.GALAXY:
+                    target_id, target_type = await self._pick_galaxy(state)
+                    if target_id is None:
+                        continue
+                else:
+                    target_type = TargetType.UNIVERSE
+                break
             intent = ScryIntent(scope=chosen_scope)
-            if chosen_scope == ScryScope.WORLD:
-                target_id, target_type = await self._pick_world(state)
-                if target_id is None:
-                    return None
-            elif chosen_scope == ScryScope.SYSTEM:
-                target_id, target_type = await self._pick_system(state)
-                if target_id is None:
-                    return None
-            elif chosen_scope == ScryScope.GALAXY:
-                target_id, target_type = await self._pick_galaxy(state)
-                if target_id is None:
-                    return None
-            else:
-                target_type = TargetType.UNIVERSE
 
         elif TargetType.WORLD in defn.valid_targets and state.worlds:
             target_id, target_type = await self._pick_world(state)
@@ -2486,8 +2488,8 @@ class GameScreen(Screen):
         for wid, w in worlds:
             sys_obj  = state.locations.get(str(w.parent_id)) if w.parent_id else None
             sys_name = sys_obj.name if sys_obj else "?"
-            n_civs   = len(w.civilization_ids)
-            life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
+            n_civs   = sum(1 for cid in w.civilization_ids if str(cid) in state.civilizations and is_in_window(state.civilizations[str(cid)]))
+            life_str = f"{n_civs} civilization(s) known" if n_civs else "no life known"
             items.append((wid, f"{w.name:<16} [{w.condition.value}]  {sys_name:<20}  {life_str}"))
         picked = await self.app.push_screen_wait(PickerModal("Select World", items))
         if picked is None:
@@ -2506,7 +2508,7 @@ class GameScreen(Screen):
         for sid, s in systems:
             gal_obj  = state.locations.get(str(s.parent_id)) if s.parent_id else None
             gal_name = gal_obj.name if gal_obj else "?"
-            n_worlds = sum(1 for cid in s.child_ids if cid in state.locations and is_in_window(state.locations[cid]))
+            n_worlds = sum(1 for cid in s.child_ids if str(cid) in state.locations and is_in_window(state.locations[str(cid)]))
             items.append((sid, f"{s.name:<22} [{s.star_type.value}]  {gal_name:<20}  {n_worlds} world(s) known"))
         picked = await self.app.push_screen_wait(PickerModal("Select System", items))
         if picked is None:
@@ -2523,7 +2525,7 @@ class GameScreen(Screen):
             return None, TargetType.GALAXY
         items = []
         for gid, g in galaxies:
-            n_systems = sum(1 for cid in g.child_ids if cid in state.locations and is_in_window(state.locations[cid]))
+            n_systems = sum(1 for cid in g.child_ids if str(cid) in state.locations and is_in_window(state.locations[str(cid)]))
             items.append((gid, f"{g.name:<26}  {n_systems} system(s) known"))
         picked = await self.app.push_screen_wait(PickerModal("Select Galaxy", items))
         if picked is None:
