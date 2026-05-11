@@ -305,3 +305,19 @@ def get_registry(db_path: Path = DEFAULT_CORE_DB) -> CultureRegistry:
     if _registry is None:
         _registry = CultureRegistry(db_path)
     return _registry
+
+
+def reinstate(db_path: Path = DEFAULT_CORE_DB) -> CultureRegistry:
+    """Drop and recreate culture tables from Python source data, then reload the singleton."""
+    global _registry
+    _registry = None
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript("""
+            DROP TABLE IF EXISTS culture_synergy;
+            DROP TABLE IF EXISTS culture_registry;
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+    return get_registry(db_path)

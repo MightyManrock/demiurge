@@ -1725,3 +1725,19 @@ def get_registry(db_path: Path = DEFAULT_CORE_DB) -> ImagoRegistry:
     if _registry is None:
         _registry = ImagoRegistry(db_path)
     return _registry
+
+
+def reinstate(db_path: Path = DEFAULT_CORE_DB) -> ImagoRegistry:
+    """Drop and recreate imago tables from Python source data, then reload the singleton."""
+    global _registry
+    _registry = None
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript("""
+            DROP TABLE IF EXISTS imago_prerequisite;
+            DROP TABLE IF EXISTS imago_node;
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+    return get_registry(db_path)
