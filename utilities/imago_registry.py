@@ -1668,7 +1668,7 @@ class ImagoRegistry:
 
             for node in _IMAGO_NODES:
                 conn.execute(
-                    "INSERT OR REPLACE INTO imago_node "
+                    "INSERT OR IGNORE INTO imago_node "
                     "(node_id, tree, tier, name, tooltip_blurb, description, "
                     " mechanics_json, min_prereqs, sort_order) "
                     "VALUES (?,?,?,?,?,?,?,?,?)",
