@@ -923,6 +923,7 @@ def build_scenario_default() -> SimulationState:
         age=260.0,
         visibility=0.0, pinned=False,
     )
+    kiddis.civilization_ids.append(damtal_civ.id)
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
