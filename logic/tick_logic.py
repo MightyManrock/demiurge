@@ -2849,7 +2849,8 @@ class TickLoop:
                 if tid in state.mortals:
                     mortal = state.mortals[tid]
                     mortal.role = MortalRole.PROXIUS
-                    mortal.visibility = 1.0  # Appointing means you now fully see them
+                    mortal.visibility = 1.0
+                    mortal.pinned = True
                     if mortal.id not in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.append(mortal.id)
                     loc_id_str = str(mortal.current_location)
@@ -2862,6 +2863,7 @@ class TickLoop:
                 if tid in state.mortals:
                     mortal = state.mortals[tid]
                     mortal.role = MortalRole.OTHER
+                    mortal.pinned = False
                     if mortal.id in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.remove(mortal.id)
                     loc_id_str = str(mortal.current_location)
