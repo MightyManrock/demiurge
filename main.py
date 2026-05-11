@@ -43,6 +43,7 @@ from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
+from utilities.culture_registry import is_culture_tag
 
 SEP  = "─" * 60
 SEP2 = "═" * 60
@@ -1476,7 +1477,7 @@ class ImagoDetailModal(ModalScreen):
         lines.append("")
 
         domain_fx  = [(t, v) for t, v in node.mechanics.items() if t.startswith("domain:")]
-        culture_fx = [(t, v) for t, v in node.mechanics.items() if t.startswith("culture:")]
+        culture_fx = [(t, v) for t, v in node.mechanics.items() if is_culture_tag(t)]
 
         if domain_fx:
             lines.append("[bold #5a7090]DOMAIN EFFECTS[/]")

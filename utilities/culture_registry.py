@@ -4,7 +4,10 @@ culture_registry.py
 Scenario-agnostic canonical culture trait list and pairwise synergy table.
 
 Loads from (and bootstraps) core/core.db. Provides:
-  - The fixed list of all culture:... tags
+  - Per-category tag lists (RELIGION_TAGS, TECHNO_TAGS, etc.)
+  - ALL_CULTURE_TAGS: combined list in display order
+  - CULTURE_CATEGORIES: dict mapping category label → tag list (for editor UI)
+  - is_culture_tag(tag) -> bool
   - synergy(tag_a, tag_b) -> float in [-1.0, 1.0]
   - is_canonical(tag) -> bool
 """
@@ -18,39 +21,65 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 DEFAULT_CORE_DB = _PROJECT_ROOT / "core" / "core.db"
 
 
-# ── Canonical culture trait list (order is display order) ────────────
-CULTURE_TAGS: list[str] = [
-    # Religious Practices
-    "culture:ancestor_worship", "culture:animism",
-    "culture:luminary_worship", "culture:demiurge_worship",
-    "culture:nontheism", "culture:maltheism", "culture:void_worship",
-    # Technological
-    "culture:science", "culture:luddism",
-    "culture:magic", "culture:superstition",
-    "culture:industrialism", "culture:conservationism",
-    # Rights and Internal Structure
-    "culture:egalitarianism", "culture:hierarchy",
-    "culture:cooperation", "culture:competition",
-    # Societal Practices
-    "culture:monogamy", "culture:polygamy", "culture:lab_breeding",
-    "culture:slavery",
-    "culture:sedentism", "culture:nomadism",
-    "culture:agriculture", "culture:foraging",
-    # External Relations
-    "culture:conquest", "culture:isolationism",
-    "culture:diplomacy", "culture:imperialism",
-    "culture:xenophilia", "culture:xenophobia",
-    "culture:commerce", "culture:protectionism",
-    # Values & Virtues
-    "culture:honesty", "culture:adaptability",
-    "culture:moderation", "culture:indulgence",
-    "culture:charity", "culture:prosperity",
-    "culture:ambition", "culture:humility",
-    "culture:wit", "culture:sincerity",
-    "culture:patience", "culture:tenacity",
-    "culture:idealism", "culture:pragmatism",
-    "culture:erudition", "culture:folk_wisdom",
+# ── Per-category tag lists (order is display order) ──────────────────
+RELIGION_TAGS: list[str] = [
+    "religion:ancestor_worship", "religion:animism",
+    "religion:luminary_worship", "religion:demiurge_worship",
+    "religion:nontheism", "religion:maltheism", "religion:void_worship",
 ]
+TECHNO_TAGS: list[str] = [
+    "techno:science", "techno:luddism",
+    "techno:magic", "techno:superstition",
+    "techno:industrialism", "techno:conservationism",
+]
+STRUCTURE_TAGS: list[str] = [
+    "structure:egalitarianism", "structure:hierarchy",
+    "structure:cooperation", "structure:competition",
+]
+PRACTICE_TAGS: list[str] = [
+    "practice:monogamy", "practice:polygamy", "practice:lab_breeding",
+    "practice:slavery",
+    "practice:sedentism", "practice:nomadism",
+    "practice:agriculture", "practice:foraging",
+]
+RELATIONS_TAGS: list[str] = [
+    "relations:conquest", "relations:isolationism",
+    "relations:diplomacy", "relations:imperialism",
+    "relations:xenophilia", "relations:xenophobia",
+    "relations:commerce", "relations:protectionism",
+]
+VALUES_TAGS: list[str] = [
+    "values:honesty", "values:adaptability",
+    "values:moderation", "values:indulgence",
+    "values:charity", "values:prosperity",
+    "values:ambition", "values:humility",
+    "values:wit", "values:sincerity",
+    "values:patience", "values:tenacity",
+    "values:idealism", "values:pragmatism",
+    "values:erudition", "values:folk_wisdom",
+]
+
+ALL_CULTURE_TAGS: list[str] = [
+    *RELIGION_TAGS, *TECHNO_TAGS, *STRUCTURE_TAGS,
+    *PRACTICE_TAGS, *RELATIONS_TAGS, *VALUES_TAGS,
+]
+
+# For editor UI: category label → tag list
+CULTURE_CATEGORIES: dict[str, list[str]] = {
+    "Religion":          RELIGION_TAGS,
+    "Technology":        TECHNO_TAGS,
+    "Structure":         STRUCTURE_TAGS,
+    "Societal Practices": PRACTICE_TAGS,
+    "Relations":         RELATIONS_TAGS,
+    "Values & Virtues":  VALUES_TAGS,
+}
+
+_ALL_TAG_SET: set[str] = set(ALL_CULTURE_TAGS)
+
+
+def is_culture_tag(tag: str) -> bool:
+    return tag in _ALL_TAG_SET
+
 
 # ── Pairwise synergy data ─────────────────────────────────────────────
 # Each tuple: (tag_a, tag_b, synergy)
@@ -58,153 +87,153 @@ CULTURE_TAGS: list[str] = [
 # Unlisted pairs default to 0.0.
 _SYNERGY_DATA: list[tuple[str, str, float]] = [
     # Positives — reinforcing combinations
-    ("culture:egalitarianism",   "culture:cooperation",       0.80),
-    ("culture:sedentism",        "culture:agriculture",       0.80),
-    ("culture:nomadism",         "culture:foraging",          0.75),
-    ("culture:conquest",         "culture:imperialism",       0.70),
-    ("culture:isolationism",     "culture:protectionism",     0.70),
-    ("culture:diplomacy",        "culture:xenophilia",        0.65),
-    ("culture:sedentism",        "culture:industrialism",     0.65),
-    ("culture:diplomacy",        "culture:commerce",          0.60),
-    ("culture:xenophobia",       "culture:isolationism",      0.60),
-    ("culture:science",          "culture:industrialism",     0.60),
-    ("culture:luminary_worship", "culture:demiurge_worship",  0.55),
-    ("culture:egalitarianism",   "culture:diplomacy",         0.55),
-    ("culture:cooperation",      "culture:diplomacy",         0.55),
-    ("culture:hierarchy",        "culture:slavery",           0.55),
-    ("culture:void_worship",     "culture:maltheism",         0.50),
-    ("culture:ancestor_worship", "culture:animism",           0.50),
-    ("culture:xenophilia",       "culture:commerce",          0.50),
-    ("culture:honesty",          "culture:cooperation",       0.50),
-    ("culture:industrialism",    "culture:commerce",          0.50),
-    ("culture:hierarchy",        "culture:sedentism",         0.50),
-    ("culture:luminary_worship", "culture:ancestor_worship",  0.45),
-    ("culture:egalitarianism",   "culture:xenophilia",        0.45),
-    ("culture:hierarchy",        "culture:conquest",          0.40),
-    ("culture:nomadism",         "culture:conquest",          0.40),
-    ("culture:nomadism",         "culture:animism",           0.40),
-    ("culture:hierarchy",        "culture:commerce",          0.40),
-    ("culture:honesty",          "culture:diplomacy",         0.40),
-    ("culture:nontheism",        "culture:science",           0.40),
-    ("culture:competition",      "culture:conquest",          0.40),
-    ("culture:competition",      "culture:commerce",          0.40),
-    ("culture:xenophobia",       "culture:protectionism",     0.40),
+    ("structure:egalitarianism",   "structure:cooperation",       0.80),
+    ("practice:sedentism",         "practice:agriculture",        0.80),
+    ("practice:nomadism",          "practice:foraging",           0.75),
+    ("relations:conquest",         "relations:imperialism",       0.70),
+    ("relations:isolationism",     "relations:protectionism",     0.70),
+    ("relations:diplomacy",        "relations:xenophilia",        0.65),
+    ("practice:sedentism",         "techno:industrialism",        0.65),
+    ("relations:diplomacy",        "relations:commerce",          0.60),
+    ("relations:xenophobia",       "relations:isolationism",      0.60),
+    ("techno:science",             "techno:industrialism",        0.60),
+    ("religion:luminary_worship",  "religion:demiurge_worship",   0.55),
+    ("structure:egalitarianism",   "relations:diplomacy",         0.55),
+    ("structure:cooperation",      "relations:diplomacy",         0.55),
+    ("structure:hierarchy",        "practice:slavery",            0.55),
+    ("religion:void_worship",      "religion:maltheism",          0.50),
+    ("religion:ancestor_worship",  "religion:animism",            0.50),
+    ("relations:xenophilia",       "relations:commerce",          0.50),
+    ("values:honesty",             "structure:cooperation",       0.50),
+    ("techno:industrialism",       "relations:commerce",          0.50),
+    ("structure:hierarchy",        "practice:sedentism",          0.50),
+    ("religion:luminary_worship",  "religion:ancestor_worship",   0.45),
+    ("structure:egalitarianism",   "relations:xenophilia",        0.45),
+    ("structure:hierarchy",        "relations:conquest",          0.40),
+    ("practice:nomadism",          "relations:conquest",          0.40),
+    ("practice:nomadism",          "religion:animism",            0.40),
+    ("structure:hierarchy",        "relations:commerce",          0.40),
+    ("values:honesty",             "relations:diplomacy",         0.40),
+    ("religion:nontheism",         "techno:science",              0.40),
+    ("structure:competition",      "relations:conquest",          0.40),
+    ("structure:competition",      "relations:commerce",          0.40),
+    ("relations:xenophobia",       "relations:protectionism",     0.40),
     # Negatives — conflicting combinations
-    ("culture:luminary_worship", "culture:maltheism",         -0.90),
-    ("culture:demiurge_worship", "culture:maltheism",         -0.90),
-    ("culture:egalitarianism",   "culture:hierarchy",         -0.90),
-    ("culture:egalitarianism",   "culture:slavery",           -0.90),
-    ("culture:xenophilia",       "culture:xenophobia",        -0.90),
-    ("culture:science",          "culture:luddism",           -0.90),
-    ("culture:industrialism",    "culture:conservationism",   -0.80),
-    ("culture:sedentism",        "culture:nomadism",          -0.80),
-    ("culture:commerce",         "culture:protectionism",     -0.80),
-    ("culture:luminary_worship", "culture:nontheism",         -0.80),
-    ("culture:demiurge_worship", "culture:nontheism",         -0.80),
-    ("culture:cooperation",      "culture:competition",       -0.75),
-    ("culture:monogamy",         "culture:polygamy",          -0.70),
-    ("culture:imperialism",      "culture:isolationism",      -0.70),
-    ("culture:agriculture",      "culture:foraging",          -0.60),
-    ("culture:conquest",         "culture:isolationism",      -0.60),
-    ("culture:science",          "culture:superstition",      -0.60),
-    ("culture:science",          "culture:magic",             -0.50),
-    ("culture:monogamy",         "culture:lab_breeding",      -0.50),
-    ("culture:protectionism",    "culture:xenophilia",        -0.50),
-    ("culture:diplomacy",        "culture:imperialism",       -0.45),
-    ("culture:diplomacy",        "culture:conquest",          -0.40),
-    ("culture:nontheism",        "culture:animism",           -0.35),
-    ("culture:polygamy",         "culture:lab_breeding",      -0.30),
+    ("religion:luminary_worship",  "religion:maltheism",          -0.90),
+    ("religion:demiurge_worship",  "religion:maltheism",          -0.90),
+    ("structure:egalitarianism",   "structure:hierarchy",         -0.90),
+    ("structure:egalitarianism",   "practice:slavery",            -0.90),
+    ("relations:xenophilia",       "relations:xenophobia",        -0.90),
+    ("techno:science",             "techno:luddism",              -0.90),
+    ("techno:industrialism",       "techno:conservationism",      -0.80),
+    ("practice:sedentism",         "practice:nomadism",           -0.80),
+    ("relations:commerce",         "relations:protectionism",     -0.80),
+    ("religion:luminary_worship",  "religion:nontheism",          -0.80),
+    ("religion:demiurge_worship",  "religion:nontheism",          -0.80),
+    ("structure:cooperation",      "structure:competition",       -0.75),
+    ("practice:monogamy",          "practice:polygamy",           -0.70),
+    ("relations:imperialism",      "relations:isolationism",      -0.70),
+    ("practice:agriculture",       "practice:foraging",           -0.60),
+    ("relations:conquest",         "relations:isolationism",      -0.60),
+    ("techno:science",             "techno:superstition",         -0.60),
+    ("techno:science",             "techno:magic",                -0.50),
+    ("practice:monogamy",          "practice:lab_breeding",       -0.50),
+    ("relations:protectionism",    "relations:xenophilia",        -0.50),
+    ("relations:diplomacy",        "relations:imperialism",       -0.45),
+    ("relations:diplomacy",        "relations:conquest",          -0.40),
+    ("religion:nontheism",         "religion:animism",            -0.35),
+    ("practice:polygamy",          "practice:lab_breeding",       -0.30),
     # ── Values & Virtues — within-cluster ────────────────────────────────
     # Strong reinforcing pairs
-    ("culture:patience",         "culture:tenacity",           0.70),
-    ("culture:honesty",          "culture:sincerity",          0.70),
-    ("culture:pragmatism",       "culture:adaptability",       0.70),
-    ("culture:erudition",        "culture:idealism",           0.55),
-    ("culture:charity",          "culture:humility",           0.60),
-    ("culture:wit",              "culture:erudition",          0.50),
-    ("culture:ambition",         "culture:tenacity",           0.60),
-    ("culture:prosperity",       "culture:ambition",           0.55),
-    ("culture:folk_wisdom",      "culture:patience",           0.50),
-    ("culture:folk_wisdom",      "culture:sincerity",          0.45),
-    ("culture:idealism",         "culture:charity",            0.45),
-    ("culture:adaptability",     "culture:wit",                0.40),
+    ("values:patience",            "values:tenacity",              0.70),
+    ("values:honesty",             "values:sincerity",             0.70),
+    ("values:pragmatism",          "values:adaptability",          0.70),
+    ("values:erudition",           "values:idealism",              0.55),
+    ("values:charity",             "values:humility",              0.60),
+    ("values:wit",                 "values:erudition",             0.50),
+    ("values:ambition",            "values:tenacity",              0.60),
+    ("values:prosperity",          "values:ambition",              0.55),
+    ("values:folk_wisdom",         "values:patience",              0.50),
+    ("values:folk_wisdom",         "values:sincerity",             0.45),
+    ("values:idealism",            "values:charity",               0.45),
+    ("values:adaptability",        "values:wit",                   0.40),
     # Weak or neutral reinforcements
-    ("culture:pragmatism",       "culture:tenacity",           0.35),
-    ("culture:erudition",        "culture:sincerity",          0.35),
-    ("culture:prosperity",       "culture:tenacity",           0.30),
-    ("culture:humility",         "culture:sincerity",          0.45),
+    ("values:pragmatism",          "values:tenacity",              0.35),
+    ("values:erudition",           "values:sincerity",             0.35),
+    ("values:prosperity",          "values:tenacity",              0.30),
+    ("values:humility",            "values:sincerity",             0.45),
     # Conflicts within V&V
-    ("culture:moderation",       "culture:indulgence",        -0.85),
-    ("culture:ambition",         "culture:humility",          -0.70),
-    ("culture:pragmatism",       "culture:idealism",          -0.65),
-    ("culture:erudition",        "culture:folk_wisdom",       -0.50),
-    ("culture:prosperity",       "culture:charity",           -0.50),
-    ("culture:wit",              "culture:sincerity",         -0.35),
-    ("culture:patience",         "culture:ambition",          -0.35),
+    ("values:moderation",          "values:indulgence",           -0.85),
+    ("values:ambition",            "values:humility",             -0.70),
+    ("values:pragmatism",          "values:idealism",             -0.65),
+    ("values:erudition",           "values:folk_wisdom",          -0.50),
+    ("values:prosperity",          "values:charity",              -0.50),
+    ("values:wit",                 "values:sincerity",            -0.35),
+    ("values:patience",            "values:ambition",             -0.35),
     # ── Values & Virtues — cross-cluster (Religious) ──────────────────────
-    ("culture:idealism",         "culture:luminary_worship",   0.45),
-    ("culture:idealism",         "culture:demiurge_worship",   0.40),
-    ("culture:humility",         "culture:luminary_worship",   0.40),
-    ("culture:humility",         "culture:ancestor_worship",   0.40),
-    ("culture:humility",         "culture:animism",            0.35),
-    ("culture:sincerity",        "culture:ancestor_worship",   0.35),
-    ("culture:folk_wisdom",      "culture:ancestor_worship",   0.60),
-    ("culture:folk_wisdom",      "culture:animism",            0.55),
-    ("culture:folk_wisdom",      "culture:nontheism",         -0.35),
-    ("culture:erudition",        "culture:nontheism",          0.40),
-    ("culture:idealism",         "culture:maltheism",         -0.50),
-    ("culture:pragmatism",       "culture:maltheism",          0.30),
-    ("culture:charity",          "culture:void_worship",      -0.45),
-    ("culture:indulgence",       "culture:void_worship",       0.30),
+    ("values:idealism",            "religion:luminary_worship",    0.45),
+    ("values:idealism",            "religion:demiurge_worship",    0.40),
+    ("values:humility",            "religion:luminary_worship",    0.40),
+    ("values:humility",            "religion:ancestor_worship",    0.40),
+    ("values:humility",            "religion:animism",             0.35),
+    ("values:sincerity",           "religion:ancestor_worship",    0.35),
+    ("values:folk_wisdom",         "religion:ancestor_worship",    0.60),
+    ("values:folk_wisdom",         "religion:animism",             0.55),
+    ("values:folk_wisdom",         "religion:nontheism",          -0.35),
+    ("values:erudition",           "religion:nontheism",           0.40),
+    ("values:idealism",            "religion:maltheism",          -0.50),
+    ("values:pragmatism",          "religion:maltheism",           0.30),
+    ("values:charity",             "religion:void_worship",       -0.45),
+    ("values:indulgence",          "religion:void_worship",        0.30),
     # ── Values & Virtues — cross-cluster (Technological) ─────────────────
-    ("culture:erudition",        "culture:science",            0.65),
-    ("culture:erudition",        "culture:magic",              0.45),
-    ("culture:erudition",        "culture:luddism",           -0.55),
-    ("culture:folk_wisdom",      "culture:luddism",            0.40),
-    ("culture:folk_wisdom",      "culture:superstition",       0.45),
-    ("culture:folk_wisdom",      "culture:science",           -0.40),
-    ("culture:pragmatism",       "culture:industrialism",      0.45),
-    ("culture:pragmatism",       "culture:science",            0.40),
-    ("culture:idealism",         "culture:conservationism",    0.45),
-    ("culture:adaptability",     "culture:science",            0.35),
-    ("culture:adaptability",     "culture:industrialism",      0.35),
-    ("culture:moderation",       "culture:conservationism",    0.50),
-    ("culture:indulgence",       "culture:industrialism",      0.30),
+    ("values:erudition",           "techno:science",               0.65),
+    ("values:erudition",           "techno:magic",                 0.45),
+    ("values:erudition",           "techno:luddism",              -0.55),
+    ("values:folk_wisdom",         "techno:luddism",               0.40),
+    ("values:folk_wisdom",         "techno:superstition",          0.45),
+    ("values:folk_wisdom",         "techno:science",              -0.40),
+    ("values:pragmatism",          "techno:industrialism",         0.45),
+    ("values:pragmatism",          "techno:science",               0.40),
+    ("values:idealism",            "techno:conservationism",       0.45),
+    ("values:adaptability",        "techno:science",               0.35),
+    ("values:adaptability",        "techno:industrialism",         0.35),
+    ("values:moderation",          "techno:conservationism",       0.50),
+    ("values:indulgence",          "techno:industrialism",         0.30),
     # ── Values & Virtues — cross-cluster (Societal) ───────────────────────
-    ("culture:idealism",         "culture:egalitarianism",     0.55),
-    ("culture:idealism",         "culture:slavery",           -0.70),
-    ("culture:charity",          "culture:egalitarianism",     0.50),
-    ("culture:charity",          "culture:cooperation",        0.55),
-    ("culture:charity",          "culture:slavery",           -0.65),
-    ("culture:humility",         "culture:cooperation",        0.45),
-    ("culture:ambition",         "culture:competition",        0.55),
-    ("culture:ambition",         "culture:hierarchy",          0.40),
-    ("culture:prosperity",       "culture:commerce",           0.50),
-    ("culture:prosperity",       "culture:competition",        0.45),
-    ("culture:moderation",       "culture:sedentism",          0.35),
-    ("culture:indulgence",       "culture:polygamy",           0.35),
-    ("culture:pragmatism",       "culture:cooperation",        0.35),
-    ("culture:tenacity",         "culture:sedentism",          0.30),
-    ("culture:adaptability",     "culture:nomadism",           0.45),
+    ("values:idealism",            "structure:egalitarianism",     0.55),
+    ("values:idealism",            "practice:slavery",            -0.70),
+    ("values:charity",             "structure:egalitarianism",     0.50),
+    ("values:charity",             "structure:cooperation",        0.55),
+    ("values:charity",             "practice:slavery",            -0.65),
+    ("values:humility",            "structure:cooperation",        0.45),
+    ("values:ambition",            "structure:competition",        0.55),
+    ("values:ambition",            "structure:hierarchy",          0.40),
+    ("values:prosperity",          "relations:commerce",           0.50),
+    ("values:prosperity",          "structure:competition",        0.45),
+    ("values:moderation",          "practice:sedentism",           0.35),
+    ("values:indulgence",          "practice:polygamy",            0.35),
+    ("values:pragmatism",          "structure:cooperation",        0.35),
+    ("values:tenacity",            "practice:sedentism",           0.30),
+    ("values:adaptability",        "practice:nomadism",            0.45),
     # ── Values & Virtues — cross-cluster (External Relations) ─────────────
-    ("culture:honesty",          "culture:xenophilia",         0.40),
-    ("culture:wit",              "culture:diplomacy",          0.45),
-    ("culture:wit",              "culture:commerce",           0.40),
-    ("culture:ambition",         "culture:imperialism",        0.45),
-    ("culture:ambition",         "culture:conquest",           0.40),
-    ("culture:idealism",         "culture:diplomacy",          0.45),
-    ("culture:idealism",         "culture:conquest",          -0.45),
-    ("culture:pragmatism",       "culture:commerce",           0.40),
-    ("culture:adaptability",     "culture:xenophilia",         0.40),
-    ("culture:adaptability",     "culture:diplomacy",          0.35),
-    ("culture:prosperity",       "culture:imperialism",        0.35),
-    ("culture:moderation",       "culture:isolationism",       0.30),
+    ("values:honesty",             "relations:xenophilia",         0.40),
+    ("values:wit",                 "relations:diplomacy",          0.45),
+    ("values:wit",                 "relations:commerce",           0.40),
+    ("values:ambition",            "relations:imperialism",        0.45),
+    ("values:ambition",            "relations:conquest",           0.40),
+    ("values:idealism",            "relations:diplomacy",          0.45),
+    ("values:idealism",            "relations:conquest",          -0.45),
+    ("values:pragmatism",          "relations:commerce",           0.40),
+    ("values:adaptability",        "relations:xenophilia",         0.40),
+    ("values:adaptability",        "relations:diplomacy",          0.35),
+    ("values:prosperity",          "relations:imperialism",        0.35),
+    ("values:moderation",          "relations:isolationism",       0.30),
 ]
 
 
 class CultureRegistry:
     """
-    Canonical, scenario-agnostic source of truth for culture:... tags
+    Canonical, scenario-agnostic source of truth for culture trait tags
     and their pairwise synergy values.
 
     On first instantiation, bootstraps core/core.db tables if absent.
@@ -258,7 +287,7 @@ class CultureRegistry:
                 );
             """)
 
-            for i, tag in enumerate(CULTURE_TAGS):
+            for i, tag in enumerate(ALL_CULTURE_TAGS):
                 display = tag.split(":", 1)[1].replace("_", " ").title()
                 conn.execute(
                     "INSERT OR IGNORE INTO culture_registry (tag, display_name, sort_order) VALUES (?,?,?)",

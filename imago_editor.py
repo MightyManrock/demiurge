@@ -31,9 +31,30 @@ from textual.containers import Grid, Horizontal, ScrollableContainer, Vertical, 
 
 from utilities.imago_registry import ImagoNode, get_registry as get_imago_registry
 from utilities.domain_registry import DOMAIN_TAGS
-from utilities.culture_registry import CULTURE_TAGS
+from utilities.culture_registry import (
+    ALL_CULTURE_TAGS,
+    RELIGION_TAGS, TECHNO_TAGS, STRUCTURE_TAGS,
+    PRACTICE_TAGS, RELATIONS_TAGS, VALUES_TAGS,
+)
 
 _DB_PATH = Path(__file__).parent / "core" / "core.db"
+
+# (cat_id, label, tag_list) — drives the Status tab culture sections
+_STAT_CATEGORIES: list[tuple[str, str, list[str]]] = [
+    ("religion",   "Religion",           RELIGION_TAGS),
+    ("techno",     "Technology",         TECHNO_TAGS),
+    ("structure",  "Structure",          STRUCTURE_TAGS),
+    ("practices",  "Societal Practices", PRACTICE_TAGS),
+    ("relations",  "Relations",          RELATIONS_TAGS),
+    ("values",     "Values & Virtues",   VALUES_TAGS),
+]
+
+# Groups shown under the "Other" section in AddMechanicModal
+_OTHER_GROUPS: list[tuple[str, list[str]]] = [
+    ("Technology", TECHNO_TAGS),
+    ("Structure",  STRUCTURE_TAGS),
+    ("Relations",  RELATIONS_TAGS),
+]
 
 # rows: 1 = single Input, >1 = TextArea that height, -1 = TextArea in full tall modal
 _TEXT_FIELDS: list[tuple[str, str, int]] = [
@@ -266,8 +287,13 @@ ModalScreen {
     height: 3;
     margin: 0 0 1 0;
 }
+#type-btn-row-2 {
+    height: 3;
+    margin: 0 0 1 0;
+}
 #add-tag-list { height: 12; }
 #add-value-label { padding: 0 0 0 0; }
+.sep-item { color: $muted; }
 
 /* ── Imago pyramid picker ────────────── */
 
@@ -315,14 +341,15 @@ def _node_to_dict(node: ImagoNode) -> dict:
     }
 
 
-def _compute_culture_stats(nodes: dict[str, dict]) -> tuple[list[tuple], list[str]]:
-    """Returns (rows, missing_tags). Rows sorted by total descending."""
+def _compute_category_stats(nodes: dict[str, dict], tag_list: list[str]) -> tuple[list[tuple], list[str]]:
+    """Returns (rows, missing_tags) for the given tag list. Rows sorted by total descending."""
+    tag_set = set(tag_list)
     counts: dict[str, int]   = defaultdict(int)
     totals: dict[str, float] = defaultdict(float)
 
     for node in nodes.values():
         for tag, val in node["mechanics"].items():
-            if tag.startswith("culture:"):
+            if tag in tag_set:
                 counts[tag] += 1
                 totals[tag] += val
 
@@ -332,7 +359,7 @@ def _compute_culture_stats(nodes: dict[str, dict]) -> tuple[list[tuple], list[st
         rows.append((short, str(counts[tag]), f"{totals[tag]:+.2f}", f"{totals[tag] / 16:+.2f}"))
 
     present = set(counts.keys())
-    missing = sorted(t.split(":", 1)[1] for t in CULTURE_TAGS if t not in present)
+    missing = sorted(t.split(":", 1)[1] for t in tag_list if t not in present)
     return rows, missing
 
 
@@ -547,9 +574,15 @@ class EditTextModal(ModalScreen):
 # ─────────────────────────────────────────
 
 class AddMechanicModal(ModalScreen):
-    """Pick a tag (domain or culture) and a float value. Dismisses with (tag, float) or None."""
+    """Pick a tag and a float value. Dismisses with (tag, float) or None.
+
+    Sections: Domain Expression | Religion | Societal Practices | Values & Virtues | Other
+    "Other" covers Technology, Structure, and Relations tags grouped with dim separators.
+    """
 
     BINDINGS = [("escape", "cancel", "Cancel")]
+
+    _SECTION_IDS = ("domain", "religion", "practices", "values", "other")
 
     def __init__(self, existing_tags: set[str]) -> None:
         super().__init__()
@@ -562,8 +595,12 @@ class AddMechanicModal(ModalScreen):
         with Vertical(classes="modal-box-tall"):
             yield Label("Add Mechanic", classes="modal-title")
             with Horizontal(id="type-btn-row"):
-                yield Button("Domain",  id="type-domain-btn",  classes="-primary")
-                yield Button("Culture", id="type-culture-btn")
+                yield Button("Domain",   id="type-domain-btn",    classes="-primary")
+                yield Button("Religion", id="type-religion-btn")
+            with Horizontal(id="type-btn-row-2"):
+                yield Button("Practices", id="type-practices-btn")
+                yield Button("Values",    id="type-values-btn")
+                yield Button("Other",     id="type-other-btn")
             with ScrollableContainer():
                 yield ListView(id="add-tag-list")
             yield Label("Value:", id="add-value-label", classes="field-label")
@@ -575,35 +612,89 @@ class AddMechanicModal(ModalScreen):
     async def on_mount(self) -> None:
         await self._reload_list()
 
+    async def _set_section(self, section: str) -> None:
+        self._tag_type = section
+        for sid in self._SECTION_IDS:
+            btn = self.query_one(f"#type-{sid}-btn", Button)
+            if sid == section:
+                btn.add_class("-primary")
+            else:
+                btn.remove_class("-primary")
+        await self._reload_list()
+
     async def _reload_list(self) -> None:
-        all_tags = DOMAIN_TAGS if self._tag_type == "domain" else CULTURE_TAGS
-        self._cur_tags = [t for t in all_tags if t not in self._existing]
-        self._sel_tag  = self._cur_tags[0] if self._cur_tags else None
         lv = self.query_one("#add-tag-list", ListView)
         await lv.clear()
-        for i, tag in enumerate(self._cur_tags):
-            await lv.append(ListItem(Label(tag), id=f"addtag-{i}"))
+        self._cur_tags = []
+        self._sel_tag = None
+
+        if self._tag_type == "domain":
+            tags = [t for t in DOMAIN_TAGS if t not in self._existing]
+            self._cur_tags = tags
+            for i, tag in enumerate(tags):
+                await lv.append(ListItem(Label(tag), id=f"addtag-{i}"))
+        elif self._tag_type == "religion":
+            tags = [t for t in RELIGION_TAGS if t not in self._existing]
+            self._cur_tags = tags
+            for i, tag in enumerate(tags):
+                await lv.append(ListItem(Label(tag), id=f"addtag-{i}"))
+        elif self._tag_type == "practices":
+            tags = [t for t in PRACTICE_TAGS if t not in self._existing]
+            self._cur_tags = tags
+            for i, tag in enumerate(tags):
+                await lv.append(ListItem(Label(tag), id=f"addtag-{i}"))
+        elif self._tag_type == "values":
+            tags = [t for t in VALUES_TAGS if t not in self._existing]
+            self._cur_tags = tags
+            for i, tag in enumerate(tags):
+                await lv.append(ListItem(Label(tag), id=f"addtag-{i}"))
+        elif self._tag_type == "other":
+            for group_label, group_tags in _OTHER_GROUPS:
+                sep = f"__sep__{group_label}"
+                self._cur_tags.append(sep)
+                idx = len(self._cur_tags) - 1
+                await lv.append(ListItem(
+                    Label(f"[dim]── {group_label} ──[/]"),
+                    id=f"addtag-{idx}",
+                    classes="sep-item",
+                ))
+                for tag in group_tags:
+                    if tag not in self._existing:
+                        self._cur_tags.append(tag)
+                        idx = len(self._cur_tags) - 1
+                        await lv.append(ListItem(Label(tag), id=f"addtag-{idx}"))
+
+        if self._cur_tags:
+            first_real = next((t for t in self._cur_tags if not t.startswith("__sep__")), None)
+            self._sel_tag = first_real
 
     @on(Button.Pressed, "#type-domain-btn")
     async def _set_domain(self, _: Button.Pressed) -> None:
-        self._tag_type = "domain"
-        self.query_one("#type-domain-btn",  Button).add_class("-primary")
-        self.query_one("#type-culture-btn", Button).remove_class("-primary")
-        await self._reload_list()
+        await self._set_section("domain")
 
-    @on(Button.Pressed, "#type-culture-btn")
-    async def _set_culture(self, _: Button.Pressed) -> None:
-        self._tag_type = "culture"
-        self.query_one("#type-culture-btn", Button).add_class("-primary")
-        self.query_one("#type-domain-btn",  Button).remove_class("-primary")
-        await self._reload_list()
+    @on(Button.Pressed, "#type-religion-btn")
+    async def _set_religion(self, _: Button.Pressed) -> None:
+        await self._set_section("religion")
+
+    @on(Button.Pressed, "#type-practices-btn")
+    async def _set_practices(self, _: Button.Pressed) -> None:
+        await self._set_section("practices")
+
+    @on(Button.Pressed, "#type-values-btn")
+    async def _set_values(self, _: Button.Pressed) -> None:
+        await self._set_section("values")
+
+    @on(Button.Pressed, "#type-other-btn")
+    async def _set_other(self, _: Button.Pressed) -> None:
+        await self._set_section("other")
 
     @on(ListView.Highlighted, "#add-tag-list")
     def _tag_highlighted(self, event: ListView.Highlighted) -> None:
         if event.item and event.item.id:
             try:
                 idx = int(event.item.id.split("-", 1)[1])
-                self._sel_tag = self._cur_tags[idx]
+                tag = self._cur_tags[idx]
+                self._sel_tag = None if tag.startswith("__sep__") else tag
             except (ValueError, IndexError):
                 pass
 
@@ -721,9 +812,10 @@ class ImagoEditorApp(App):
             with TabbedContent(id="main-panel", initial="tab-status"):
                 with TabPane("Status", id="tab-status"):
                     with VerticalScroll(id="status-scroll"):
-                        yield Label("Culture Traits", classes="section-header")
-                        yield Static("", id="culture-missing", classes="missing-label")
-                        yield DataTable(id="culture-table", cursor_type="row")
+                        for cat_id, cat_label, _ in _STAT_CATEGORIES:
+                            yield Label(cat_label, classes="section-header")
+                            yield Static("", id=f"missing-{cat_id}", classes="missing-label")
+                            yield DataTable(id=f"table-{cat_id}", cursor_type="row")
                         yield Label("Domain Riders", classes="section-header")
                         yield DataTable(id="domain-table", cursor_type="row")
                 with TabPane("Node", id="tab-node"):
@@ -735,25 +827,27 @@ class ImagoEditorApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        # Set up culture table columns
-        ct = self.query_one("#culture-table", DataTable)
-        ct.add_columns("Tag", "Count", "Total", "Avg/Tree")
-        # Set up domain rider table columns
-        dt = self.query_one("#domain-table", DataTable)
-        dt.add_columns("Tag", "Count", "Pos Total", "Neg Total", "Net/Tree")
+        for cat_id, _, _ in _STAT_CATEGORIES:
+            self.query_one(f"#table-{cat_id}", DataTable).add_columns(
+                "Tag", "Count", "Total", "Avg/Tree"
+            )
+        self.query_one("#domain-table", DataTable).add_columns(
+            "Tag", "Count", "Pos Total", "Neg Total", "Net/Tree"
+        )
         self._refresh_status_tables()
         self.query_one("#tree-list", ListView).focus()
 
     # ── Status tables ────────────────────────────────────────────────────
 
     def _refresh_status_tables(self) -> None:
-        rows, missing = _compute_culture_stats(self._ndata)
-        ct = self.query_one("#culture-table", DataTable)
-        ct.clear()
-        for row in rows:
-            ct.add_row(*row)
-        miss_text = "Missing: " + ", ".join(missing) if missing else "All culture tags represented."
-        self.query_one("#culture-missing", Static).update(miss_text)
+        for cat_id, _, tag_list in _STAT_CATEGORIES:
+            rows, missing = _compute_category_stats(self._ndata, tag_list)
+            tbl = self.query_one(f"#table-{cat_id}", DataTable)
+            tbl.clear()
+            for row in rows:
+                tbl.add_row(*row)
+            miss_text = "Missing: " + ", ".join(missing) if missing else "All tags represented."
+            self.query_one(f"#missing-{cat_id}", Static).update(miss_text)
 
         rider_rows = _compute_domain_rider_stats(self._ndata)
         dt = self.query_one("#domain-table", DataTable)
