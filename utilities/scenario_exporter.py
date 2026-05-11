@@ -242,8 +242,12 @@ def _write_locations(conn, state: SimulationState):
         # Common fields
         parent_id_str = str(loc.parent_id) if loc.parent_id else None
 
+        # Coordinates — present on all location types
+        coords_x = loc.coordinates.x
+        coords_y = loc.coordinates.y
+        coords_z = loc.coordinates.z
+
         # Type-specific field defaults
-        coords_x = coords_y = coords_z = 0.0
         star_type = "main_sequence"
         domain_expression = "{}"
         lf_overt = lf_subtle = lf_proxius = lf_direct = 0.0
@@ -253,7 +257,6 @@ def _write_locations(conn, state: SimulationState):
         pop_ids = "[]"
 
         if isinstance(loc, System):
-            coords_x, coords_y, coords_z = loc.coordinates.x, loc.coordinates.y, loc.coordinates.z
             star_type = loc.star_type.value
         elif isinstance(loc, SignificantLocation):
             domain_expression = _j(loc.domain_expression)
@@ -714,6 +717,7 @@ def build_scenario_default() -> SimulationState:
     galaxy = Location(
         name="The Nascent Coil",
         location_type="galaxy",
+        coordinates=CosmicCoordinates(x=0.0, y=0.0, z=0.0),
         visibility=1.0, pinned=True,
     )
 
@@ -815,6 +819,47 @@ def build_scenario_default() -> SimulationState:
     galaxy.child_ids.append(system_colony.id)
     system_colony.child_ids.append(sethis.id)
 
+    # ── Second galaxy: The Pale Margin ────────────────
+    # A distant, lightless cluster of spent stars —
+    # coordinates at (3, 1, 0) in galaxy-space, putting
+    # it ~3162 effective units from the Nascent Coil.
+    galaxy_b = Location(
+        name="The Pale Margin",
+        location_type="galaxy",
+        description="A ragged cluster of dimming stars at the edge of known space. No sapient life has been detected.",
+        coordinates=CosmicCoordinates(x=3.0, y=1.0, z=0.0),
+        visibility=0.0, pinned=False,
+    )
+
+    system_b1 = System(
+        name="Sullen Eye",
+        parent_id=galaxy_b.id,
+        star_type=StarType.GIANT,
+        coordinates=CosmicCoordinates(x=2.0, y=-1.0, z=0.5),
+        visibility=0.0, pinned=False,
+    )
+    cinder = SignificantLocation(
+        name="Cinder",
+        description="A scorched, airless rock. Whatever once lived here left no trace.",
+        location_type="planet",
+        parent_id=system_b1.id,
+        condition=LocCondition.BARREN,
+        geo_tags=["geo:rocky", "geo:barren"],
+        atmo_tags=["atmo:none"],
+        age=1800.0,
+        visibility=0.0, pinned=False,
+    )
+
+    system_b2 = System(
+        name="The Drift",
+        parent_id=galaxy_b.id,
+        star_type=StarType.DWARF,
+        coordinates=CosmicCoordinates(x=-1.0, y=2.0, z=-1.0),
+        visibility=0.0, pinned=False,
+    )
+
+    galaxy_b.child_ids.extend([system_b1.id, system_b2.id])
+    system_b1.child_ids.append(cinder.id)
 
     # ── Species ───────────────────────────────────────
     naran_species = Species(
@@ -1080,7 +1125,7 @@ def build_scenario_default() -> SimulationState:
         demiurge_id=demiurge.id,
         pantheon_id=pantheon.id,
         rules=rules,
-        child_ids=[galaxy.id],
+        child_ids=[galaxy.id, galaxy_b.id],
         current_age=600.0,
     )
 
@@ -1102,6 +1147,10 @@ def build_scenario_default() -> SimulationState:
             str(oros.id):          oros,
             str(kiddis.id):        kiddis,
             str(sethis.id):        sethis,
+            str(galaxy_b.id):      galaxy_b,
+            str(system_b1.id):     system_b1,
+            str(system_b2.id):     system_b2,
+            str(cinder.id):        cinder,
         },
         civilizations={
             str(neran_confed.id): neran_confed,

@@ -1458,6 +1458,60 @@ class TickLoop:
                 if delta == 4: return 0.02
                 return 0.005
 
+            # ── Spatial proximity ──────────────────────────────────────
+            # Galaxy coordinates are multiplied by this factor so that
+            # cross-galaxy distances dwarf intra-galaxy ones automatically.
+            _GALAXY_SCALE = 1000.0
+            # Distance at which the proximity factor drops to 0.5.
+            _SPATIAL_SCALE = 8.0
+
+            def _effective_pos(loc_id: str) -> tuple[float, float, float]:
+                """Effective 3-D position accounting for galaxy-level offset."""
+                loc = state.locations.get(loc_id)
+                if loc is None:
+                    return (0.0, 0.0, 0.0)
+                cx, cy, cz = loc.coordinates.x, loc.coordinates.y, loc.coordinates.z
+                if loc.parent_id is not None:
+                    px, py, pz = _effective_pos(str(loc.parent_id))
+                    return (px * _GALAXY_SCALE + cx,
+                            py * _GALAXY_SCALE + cy,
+                            pz * _GALAXY_SCALE + cz)
+                return (cx, cy, cz)
+
+            # Resolve the focus position for WORLD and SYSTEM scopes.
+            # GALAXY / UNIVERSE have no spatial focus — factor is always 1.0.
+            _focus_pos: Optional[tuple[float, float, float]] = None
+            if scope in (ScryScope.WORLD, ScryScope.SYSTEM) and instance.target_id:
+                target_loc = state.locations.get(str(instance.target_id))
+                if target_loc is not None:
+                    if scope == ScryScope.WORLD and target_loc.parent_id is not None:
+                        # Focus on the parent system of the targeted world
+                        _focus_pos = _effective_pos(str(target_loc.parent_id))
+                    else:
+                        _focus_pos = _effective_pos(str(instance.target_id))
+
+            def _spatial_factor(candidate_loc_id: str) -> float:
+                """
+                Distance-based multiplier on discovery probability.
+                Returns 1.0 when there is no spatial focus (galaxy/universe scope).
+                Uses the candidate's effective position at the system level —
+                i.e., if the candidate is a world, its parent system's position.
+                """
+                if _focus_pos is None:
+                    return 1.0
+                loc = state.locations.get(candidate_loc_id)
+                if loc is None:
+                    return 1.0
+                # Walk up to system level for the distance calculation
+                if loc.location_type not in ("galaxy", "system"):
+                    ref_id = str(loc.parent_id) if loc.parent_id else candidate_loc_id
+                else:
+                    ref_id = candidate_loc_id
+                rx, ry, rz = _effective_pos(ref_id)
+                fx, fy, fz = _focus_pos
+                dist = math.sqrt((rx - fx) ** 2 + (ry - fy) ** 2 + (rz - fz) ** 2)
+                return 1.0 / (1.0 + dist / _SPATIAL_SCALE)
+
             dreg = self._domain_registry
             affiliated = state.demiurge.affiliated_domains
 
@@ -1531,8 +1585,9 @@ class TickLoop:
                         continue
                     delta = abs(depth - anchor)
                     base = _depth_chance(delta)
+                    sf = _spatial_factor(lid)
                     expr_tags = list(getattr(loc, "domain_expression", {}).keys())
-                    p = max(0.0, min(1.0, base + _domain_bonus(expr_tags + loc.traits, base)))
+                    p = max(0.0, min(1.0, (base + _domain_bonus(expr_tags + loc.traits, base)) * sf))
                     if rng.random() < p:
                         was_visible = is_in_window(loc)
                         new_vis = max(loc.visibility, start_vis)
@@ -1558,13 +1613,14 @@ class TickLoop:
                     continue
                 delta = abs(depth - anchor)
                 base = _depth_chance(delta)
+                sf = _spatial_factor(anchor_id) if anchor_id else 1.0
                 # Extra bonus if homeworld is already known, even for high-scale civs
                 origin_prox = 0.0
                 if depth < 4 and civ.origin_location_id is not None:
                     if str(civ.origin_location_id) in eligible_locs:
                         origin_prox = 0.15 * min(1.0, base / 0.55)
                 p = max(0.0, min(1.0,
-                    base + _domain_bonus(list(civ.dominant_beliefs.keys()), base) + origin_prox
+                    (base + _domain_bonus(list(civ.dominant_beliefs.keys()), base) + origin_prox) * sf
                 ))
                 if rng.random() < p:
                     was_visible = is_in_window(civ)
@@ -1590,7 +1646,8 @@ class TickLoop:
                     continue
                 delta = abs(4 - anchor)
                 base = _depth_chance(delta)
-                p = max(0.0, min(1.0, base + _domain_bonus(sp.domain_tags, base)))
+                sf = _spatial_factor(origin_id) if origin_id else 1.0
+                p = max(0.0, min(1.0, (base + _domain_bonus(sp.domain_tags, base)) * sf))
                 if rng.random() < p:
                     was_visible = is_in_window(sp)
                     new_vis = max(sp.visibility, start_vis)
@@ -1615,8 +1672,9 @@ class TickLoop:
                     continue
                 delta = abs(5 - anchor)
                 base = _depth_chance(delta)
+                sf = _spatial_factor(str(mortal.current_location))
                 p = max(0.0, min(1.0,
-                    base + _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags, base)
+                    (base + _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags, base)) * sf
                 ))
                 if rng.random() < p:
                     was_visible = mortal.visibility > VISIBILITY_FLOOR

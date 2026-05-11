@@ -115,6 +115,20 @@ class LocFootprint(BaseModel):
         ) / 4.0
 
 
+class CosmicCoordinates(BaseModel):
+    """
+    Relative position within the universe.
+    Not a hard physics simulation — used for
+    determining isolation, travel time between
+    civilizations, and regional Luminary influence gradients.
+    Galaxy-level coordinates use a much larger effective scale
+    than system-level coordinates (see _GALAXY_SCALE in tick_logic).
+    """
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+
+
 class Location(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
@@ -124,20 +138,9 @@ class Location(BaseModel):
     child_ids: list[UUID] = Field(default_factory=list)
     traits: list[str] = Field(default_factory=list)
     condition: LocCondition = LocCondition.STABLE
+    coordinates: CosmicCoordinates = Field(default_factory=CosmicCoordinates)
     visibility: float = 0.0   # 0.0 = unknown; 1.0 = fully in-window
     pinned: bool = False       # True = never decays (all starting-scenario locations)
-
-
-class CosmicCoordinates(BaseModel):
-    """
-    Relative position within the universe.
-    Not a hard physics simulation — used for
-    determining isolation, travel time between
-    civilizations, and regional Luminary influence gradients.
-    """
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
 
 
 class StarType(str, Enum):
@@ -150,7 +153,6 @@ class StarType(str, Enum):
 
 class System(Location):
     location_type: str = "system"
-    coordinates: CosmicCoordinates = Field(default_factory=CosmicCoordinates)
     star_type: StarType = StarType.MAIN_SEQUENCE
 
 

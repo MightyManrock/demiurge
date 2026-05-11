@@ -280,6 +280,11 @@ def _load_locations(conn) -> dict[str, Location]:
         description = row.get("description", "")
         visibility = float(row.get("visibility", 0.0))
         pinned = bool(row.get("pinned", 0))
+        coordinates = CosmicCoordinates(
+            x=row.get("coordinates_x", 0.0),
+            y=row.get("coordinates_y", 0.0),
+            z=row.get("coordinates_z", 0.0),
+        )
 
         if subclass == "system":
             loc = System(
@@ -291,13 +296,9 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
-                coordinates=CosmicCoordinates(
-                    x=row.get("coordinates_x", 0.0),
-                    y=row.get("coordinates_y", 0.0),
-                    z=row.get("coordinates_z", 0.0),
-                ),
                 star_type=StarType(row.get("star_type", "main_sequence")),
             )
         elif subclass == "significant_location":
@@ -310,6 +311,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
                 domain_expression=_jd(row.get("domain_expression", "{}")),
@@ -337,6 +339,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
@@ -352,6 +355,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
+                coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
             )
