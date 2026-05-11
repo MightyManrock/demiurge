@@ -2021,10 +2021,12 @@ class GameScreen(Screen):
 
         # ── Target selection by type ────────────────────
         elif TargetType.MORTAL in defn.valid_targets:
+            _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
             mortals = [
                 (mid, m) for mid, m in state.mortals.items()
                 if is_mortal_visible(m)
                 and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
+                and mid not in _proxius_ids
             ]
             if not mortals:
                 self._feed_markup("[#5a7090]No mortals currently within perception.[/]")
