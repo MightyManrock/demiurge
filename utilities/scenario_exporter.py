@@ -18,7 +18,7 @@ from pathlib import Path
 from uuid import UUID
 
 from core.onto_core import (
-    Power, Domain, Temperament, Disposition, Constraint,
+    Power, Domain, Disposition, Constraint,
     Luminary, Pantheon, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
@@ -142,15 +142,14 @@ def _write_luminaries(conn, state: SimulationState):
     for luminary in state.luminaries.values():
         conn.execute(
             """INSERT INTO luminaries
-               (id, name, domains, pantheon_id, temperament,
+               (id, name, domains, pantheon_id,
                 disposition_results, disposition_methods, herald_ids, status_tags)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(luminary.id),
                 luminary.name,
                 _j(luminary.domains),
                 str(luminary.pantheon_id) if luminary.pantheon_id else None,
-                luminary.temperament.value,
                 luminary.disposition.results,
                 luminary.disposition.methods,
                 _j(luminary.herald_ids),
@@ -376,8 +375,9 @@ def _write_mortals(conn, state: SimulationState):
                 belief_tags, personal_tags, culture_tags,
                 alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary,
-                home_location, current_location, starting_visible, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                home_location, current_location, starting_visible, pinned,
+                active_goal_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -401,6 +401,7 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.current_location),
                 int(m.starting_visible),
                 int(m.pinned),
+                m.active_goal.model_dump_json() if m.active_goal else None,
             ),
         )
 
@@ -585,9 +586,9 @@ def build_scenario_default() -> SimulationState:
 
     You are Demiurge of a young universe with two inhabited worlds and one
     barren candidate for seeding. Your two liege Luminaries have contradictory
-    temperaments:
-      - Cassiel, Luminary of Order and Silence — patient, demands subtlety
-      - Vrath, Luminary of Conflict and Change — wrathful, demands results fast
+    natures:
+      - Cassiel, Luminary of Order and Silence — stable, authoritative, demands subtlety
+      - Vrath, Luminary of Conflict and Change — volatile, harsh, demands results fast
 
     The Pantheon expects subtlety. Vrath privately does not care,
     but expects civilizational Domain alignment toward conflict within
@@ -596,10 +597,14 @@ def build_scenario_default() -> SimulationState:
     Spatial layout:
       The Nascent Coil (galaxy)
         Ardent System
-          Neran          — stable, continental civilization (domain:order)
+          Neran          — stable, interstellar civilization (domain:order)
           Vel Arath      — barren, no life; candidate for seed_world
         The Outer Reach (system)
           Oros           — stable, nascent tribal society (domain:conflict seeds)
+        Irriman System   [hidden]
+          Kiddis         — stable world, Damtal species
+        The Velar Corridor [hidden, dwarf star]
+          Sethis         — Neran Confederacy frontier colony
     """
 
     # ── Powers ──────────────────────────────────────
@@ -640,7 +645,6 @@ def build_scenario_default() -> SimulationState:
     cassiel = Luminary(
         name="Cassiel",
         domains={"domain:order": 0.8, "domain:silence": 0.8},
-        temperament=Temperament.PATIENT,
         disposition=Disposition(results=0.1, methods=0.2),
         constraints=[
             Constraint(
@@ -662,7 +666,6 @@ def build_scenario_default() -> SimulationState:
     vrath = Luminary(
         name="Vrath",
         domains={"domain:conflict": 0.8, "domain:change": 0.8},
-        temperament=Temperament.WRATHFUL,
         disposition=Disposition(results=0.0, methods=-0.1),
         constraints=[
             Constraint(
@@ -790,6 +793,28 @@ def build_scenario_default() -> SimulationState:
     galaxy.child_ids.append(system_hidden.id)
     system_hidden.child_ids.append(kiddis.id)
 
+    system_colony = System(
+        name="The Velar Corridor",
+        parent_id=galaxy.id,
+        star_type=StarType.DWARF,
+        coordinates=CosmicCoordinates(x=8.0, y=4.0, z=-2.0),
+        visibility=0.0, pinned=False,
+    )
+    sethis = SignificantLocation(
+        name="Sethis",
+        description="A frontier colony established by the Neran Confederacy. Order-aligned but still finding its footing.",
+        location_type="planet",
+        parent_id=system_colony.id,
+        condition=LocCondition.STABLE,
+        domain_expression={"domain:order": 0.2},
+        geo_tags=["geo:terrestrial", "geo:arid"],
+        atmo_tags=["atmo:nitrogen_oxygen"],
+        age=60.0,
+        visibility=0.0, pinned=False,
+    )
+    galaxy.child_ids.append(system_colony.id)
+    system_colony.child_ids.append(sethis.id)
+
 
     # ── Species ───────────────────────────────────────
     naran_species = Species(
@@ -864,6 +889,7 @@ def build_scenario_default() -> SimulationState:
         visibility=1.0, pinned=True,
     )
     neran.civilization_ids.append(neran_confed.id)
+    sethis.civilization_ids.append(neran_confed.id)
 
     keth_civ = Civilization(
         name="The Keth Wanderers",
@@ -1069,10 +1095,12 @@ def build_scenario_default() -> SimulationState:
             str(system.id):        system,
             str(system_outer.id):  system_outer,
             str(system_hidden.id): system_hidden,
+            str(system_colony.id): system_colony,
             str(neran.id):         neran,
             str(vel_arath.id):     vel_arath,
             str(oros.id):          oros,
             str(kiddis.id):        kiddis,
+            str(sethis.id):        sethis,
         },
         civilizations={
             str(neran_confed.id): neran_confed,

@@ -10,6 +10,8 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
+from core.agent_core import ProxiusGoal
+
 # ─────────────────────────────────────────
 # UNIVERSE RULES
 # Scenario-level mechanical contract.
@@ -262,6 +264,7 @@ class CivilizationScale(str, Enum):
     PLANETARY     = "planetary"
     INTERPLANETARY = "interplanetary"
     INTERSTELLAR  = "interstellar"
+    INTERGALACTIC  = "intergalactic"
 
 
 class CivilizationHealth(BaseModel):
@@ -401,6 +404,8 @@ class NotableMortal(BaseModel):
     # Both hold a SignificantLocation UUID for now; will accommodate finer locations later.
     home_location: UUID
     current_location: UUID
+
+    active_goal: Optional["ProxiusGoal"] = None
 
 
 # ─────────────────────────────────────────

@@ -53,6 +53,26 @@ SEP2 = "═" * 60
 # DISPLAY / FORMATTING HELPERS
 # ─────────────────────────────────────────
 
+def _personality_label(lum: "Luminary") -> str:
+    """Short personality descriptor derived from domain affinities."""
+    dreg = get_domain_registry()
+    p = dreg.compute_personality(lum.domains)
+    parts = []
+    if p.harshness > 0.3:
+        parts.append("harsh")
+    elif p.harshness < -0.3:
+        parts.append("gentle")
+    if p.capriciousness > 0.3:
+        parts.append("mercurial")
+    elif p.capriciousness < -0.3:
+        parts.append("stable")
+    if p.reactivity > 0.3:
+        parts.append("auth.")
+    elif p.reactivity < -0.4:
+        parts.append("perm.")
+    return "/".join(parts) if parts else "neutral"
+
+
 def _format_beliefs(beliefs: "dict[str, float]") -> str:
     if not beliefs:
         return ""
@@ -138,7 +158,7 @@ def display_state(state: "SimulationState") -> str:
         d   = lum.disposition
         lines.append(
             f"  {lum.name:12s}  results:{d.results:+.2f}  methods:{d.methods:+.2f}  "
-            f"attention:{att:.2f}  [{lum.temperament.value}]"
+            f"attention:{att:.2f}  [{_personality_label(lum)}]"
         )
     lines.append(SEP)
     lines.append("WORLDS")
@@ -250,7 +270,7 @@ def display_briefing(state: "SimulationState") -> str:
         if not lum:
             continue
         lines.append("")
-        lines.append(f"  {lum.name.upper()}  [{lum.temperament.value}]")
+        lines.append(f"  {lum.name.upper()}  [{_personality_label(lum)}]")
         domain_names = [
             state.domains[str(did)].name
             for did in lum.domains if str(did) in state.domains
@@ -824,7 +844,7 @@ def _render_status(state: SimulationState) -> Text:
         rc  = "#50b870" if d.results >= 0 else "#b04050"
         mc  = "#50b870" if d.methods  >= 0 else "#b04050"
         ac  = "#c09030" if att > 0.5       else "#2a4a6a"
-        a(f"  [bold #c0ccdc]{_e(lum.name)}[/] [#3a5a7a]({_e(lum.temperament.value)})[/]")
+        a(f"  [bold #c0ccdc]{_e(lum.name)}[/] [#3a5a7a]({_e(_personality_label(lum))})[/]")
         a(f"    R[{rc}]{d.results:+.2f}[/] "
           f"M[{mc}]{d.methods:+.2f}[/] "
           f"att[{ac}]{att:.2f}[/]")
@@ -1239,7 +1259,7 @@ class DomainPickerModal(ModalScreen):
                 v   = self._dreg.luminary_approval(
                     tag, lum_tags,
                     fellow_lum_tags=self._fellow_tags[lid],
-                    temperament=lum.temperament.value,
+                    personality=self._dreg.compute_personality(lum.domains),
                 )
                 col = "#50b870" if v > 0.15 else ("#b04050" if v < -0.15 else "#5a7090")
                 parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.2f}[/]")
@@ -1359,7 +1379,7 @@ class ImagoTreeModal(ModalScreen):
                 self._dreg.luminary_approval(
                     tag, lum_tags,
                     fellow_lum_tags=self._fellow_tags[lid],
-                    temperament=lum.temperament.value,
+                    personality=self._dreg.compute_personality(lum.domains),
                 ) * direction
                 for tag, direction in node.mechanics.items()
                 if tag.startswith("domain:")
@@ -1504,7 +1524,7 @@ class ImagoDetailModal(ModalScreen):
                 dreg.luminary_approval(
                     tag, lum_tags,
                     fellow_lum_tags=fellow_tags[lid],
-                    temperament=lum.temperament.value,
+                    personality=dreg.compute_personality(lum.domains),
                 ) * direction
                 for tag, direction in node.mechanics.items()
                 if tag.startswith("domain:")
@@ -1786,6 +1806,11 @@ class GameScreen(Screen):
                 oa   = state.ongoing_actions.pop(chosen)
                 defn = library.get(oa.action_key)
                 name = defn.name if defn else oa.action_key
+                # Clear the Proxius's active goal when an issue_directive is stopped
+                if oa.action_key == "issue_directive" and oa.proxius_id:
+                    proxius = state.mortals.get(str(oa.proxius_id))
+                    if proxius:
+                        proxius.active_goal = None
                 self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}")
                 self._refresh_status()
 
@@ -2031,7 +2056,7 @@ class GameScreen(Screen):
 
         elif TargetType.LUMINARY in defn.valid_targets:
             lums  = list(state.luminaries.items())
-            items = [(lid, f"{l.name}  [{l.temperament.value}]") for lid, l in lums]
+            items = [(lid, f"{l.name}  [{_personality_label(l)}]") for lid, l in lums]
             picked_id = await app.push_screen_wait(PickerModal("Select Luminary", items))
             if picked_id is None:
                 return None

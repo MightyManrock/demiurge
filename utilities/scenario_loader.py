@@ -15,11 +15,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import Optional
 from uuid import UUID, uuid4
 
 from core.onto_core import (
     Domain, Luminary, Pantheon, Constraint,
-    Temperament, Disposition, FootprintProfile, Demiurge,
+    Disposition, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
     FootprintTolerances, ProxiiPolicy, UniverseRules,
@@ -39,6 +40,7 @@ from core.action_core import (
     DomainVector,
 )
 from core.event_core import Event, EventType, StrengthCurve
+from core.agent_core import ProxiusGoal, AgentActionChoice
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
 )
@@ -214,7 +216,6 @@ def _load_luminaries(
             name=row["name"],
             domains=_parse_luminary_domains(row["domains"], domains),
             pantheon_id=_uuid(row["pantheon_id"]),
-            temperament=Temperament(row["temperament"]),
             disposition=Disposition(
                 results=row["disposition_results"],
                 methods=row["disposition_methods"],
@@ -445,9 +446,22 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             current_location=UUID(row["current_location"]),
             starting_visible=bool(row.get("starting_visible", 0)),
             pinned=bool(row.get("pinned", 0)),
+            active_goal=_load_proxius_goal(row.get("active_goal_json")),
         )
         out[str(m.id)] = m
     return out
+
+
+def _load_proxius_goal(raw: Optional[str]) -> Optional[ProxiusGoal]:
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        if "last_action" in data and data["last_action"] is not None:
+            data["last_action"] = AgentActionChoice(data["last_action"])
+        return ProxiusGoal.model_validate(data)
+    except Exception:
+        return None
 
 
 def _load_demiurge(conn) -> Demiurge:

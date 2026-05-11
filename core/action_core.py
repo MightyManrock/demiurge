@@ -1090,6 +1090,8 @@ class MutationType(str, Enum):
     AFFILIATED_DOMAIN_CHANGE = "affiliated_domain_change"
     EVENT_EMITTED          = "event_emitted"
     ENTITY_VISIBILITY      = "entity_visibility"   # locations, civilizations, species
+    PROXIUS_GOAL_SET       = "proxius_goal_set"    # new_value = ProxiusGoal instance
+    PROXIUS_GOAL_CLEARED   = "proxius_goal_cleared"
 
 
 class StateMutation(BaseModel):

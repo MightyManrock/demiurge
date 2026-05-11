@@ -43,9 +43,10 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
 )
-from utilities.domain_registry import DomainRegistry, get_registry as get_domain_registry
+from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
 from core.event_core import Event, EventType, StrengthCurve
+from core.agent_core import ProxiusGoal, AgentActionChoice
 
 
 # ─────────────────────────────────────────
@@ -498,6 +499,10 @@ class TickLoop:
             state.ticks_without_essence_gain = 0
         else:
             state.ticks_without_essence_gain += 1
+
+        # ── Phase 2.5: Proxius Agent Actions ───────────
+        agent_mutations = self._resolve_proxius_agents(state, phase_rng)
+        state = self._apply_mutations(state, agent_mutations)
 
         # ── Phase 3: Domain Profiling ──────────────────
         profile = self._build_domain_profile(state)
@@ -1331,11 +1336,27 @@ class TickLoop:
                     "significantly divergent"
                 )
                 tags = ", ".join(mortal.personal_tags) if mortal.personal_tags else "none"
+                goal_section = ""
+                if mortal.active_goal:
+                    g = mortal.active_goal
+                    ticks_active = state.tick_number - g.started_at_tick
+                    last_act = g.last_action.value.replace("_", " ") if g.last_action else "none yet"
+                    goal_section = (
+                        f" Active directive: imago [{g.imago_node_id}], "
+                        f"{ticks_active} tick(s) active, "
+                        f"last action: {last_act}"
+                        + (f", streak: {g.consecutive_promote_count}" if g.consecutive_promote_count > 0 else "")
+                        + (" [PETITION PENDING]" if g.petition_pending else "")
+                        + ("." if not g.report_log else f". Last report: {g.report_log[-1]}")
+                    )
+                else:
+                    goal_section = " No active directive."
                 narrative = (
                     f"Silent audit of {mortal.name} complete. "
                     f"Alignment: {mortal.alignment:.2f} ({alignment_desc}). "
                     f"Status: {mortal.status.value}. "
                     f"Personal convictions: {tags}."
+                    + goal_section
                 )
                 # No mutations — purely observational; they do not know you checked.
 
@@ -1433,42 +1454,32 @@ class TickLoop:
                 if delta == 0: return 0.85
                 if delta == 1: return 0.55
                 if delta == 2: return 0.30
-                return 0.10
-
-            visible_parent_ids: set[str] = set()
-            visible_gp_ids: set[str] = set()
-            for loc in state.locations.values():
-                if is_in_window(loc):
-                    if loc.parent_id:
-                        pid = str(loc.parent_id)
-                        visible_parent_ids.add(pid)
-                        p_obj = state.locations.get(pid)
-                        if p_obj and p_obj.parent_id:
-                            visible_gp_ids.add(str(p_obj.parent_id))
-
-            def _proximity_bonus(parent_id: Optional[UUID],
-                                 grandparent_id: Optional[UUID]) -> float:
-                if parent_id and str(parent_id) in visible_parent_ids:
-                    return 0.15
-                if grandparent_id and str(grandparent_id) in visible_gp_ids:
-                    return 0.05
-                return 0.0
+                if delta == 3: return 0.06
+                if delta == 4: return 0.02
+                return 0.005
 
             dreg = self._domain_registry
             affiliated = state.demiurge.affiliated_domains
 
-            def _domain_bonus(entity_tags: list[str]) -> float:
+            def _domain_bonus(entity_tags: list[str], base: float) -> float:
+                """Domain affinity bonus, scaled down proportionally at high depths."""
                 if not dreg or not affiliated or not entity_tags:
                     return 0.0
                 total = 0.0
                 for etag in entity_tags:
                     for atag in affiliated:
                         try:
-                            sim = dreg.similarity(etag, atag)
-                            total += max(0.0, sim) * 0.05
+                            total += max(0.0, dreg.similarity(etag, atag)) * 0.05
                         except Exception:
                             pass
-                return min(0.20, total)
+                bonus_scale = min(1.0, base / 0.55)
+                return min(0.20, total) * bonus_scale
+
+            # eligible_locs: location IDs that are already in window OR discovered
+            # this tick. Entities can only be found if their container is eligible.
+            eligible_locs: set[str] = {
+                lid for lid, loc in state.locations.items() if is_in_window(loc)
+            }
 
             discovered_locs:  list[str] = []
             discovered_civs:  list[str] = []
@@ -1479,47 +1490,82 @@ class TickLoop:
             refreshed_sp:     list[str] = []
             refreshed_mort:   list[str] = []
 
-            loc_depth: dict[str, int] = {"galaxy": 1, "system": 2}
-            for lid, loc in state.locations.items():
-                if getattr(loc, "pinned", False):
-                    continue
-                depth = loc_depth.get(loc.location_type, 3)
-                delta = abs(depth - anchor)
-                p = _depth_chance(delta)
-                p += _proximity_bonus(loc.parent_id, None)
-                expr_tags = list(getattr(loc, "domain_expression", {}).keys())
-                p += _domain_bonus(expr_tags + loc.traits)
-                p = min(1.0, max(0.0, p))
-                if rng.random() < p:
-                    was_visible = is_in_window(loc)
-                    new_vis = max(loc.visibility, start_vis)
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.ENTITY_VISIBILITY,
-                        target_id=UUID(lid),
-                        field="visibility",
-                        new_value=new_vis,
-                        note=f"Scry ({scope.value}): {loc.name} sighted",
-                    ))
-                    if was_visible:
-                        refreshed_locs.append(loc.name)
-                    else:
-                        discovered_locs.append(loc.name)
+            # Civilization scale → effective discovery depth
+            _CIV_SCALE_DEPTH: dict[str, int] = {
+                "nascent": 4, "tribal": 4, "city_state": 4,
+                "regional": 4, "continental": 4, "planetary": 4,
+                "interplanetary": 3,
+                "interstellar": 2,
+                "intergalactic": 1,
+            }
 
+            def _civ_anchor(civ: "Civilization") -> tuple[Optional[str], int]:
+                """Returns (anchor_location_id, depth) for a civilization."""
+                depth = _CIV_SCALE_DEPTH.get(civ.scale.value, 4)
+                if civ.origin_location_id is None:
+                    return (None, depth)
+                loc_id = str(civ.origin_location_id)
+                # Walk up the hierarchy the required number of steps above the world
+                for _ in range(4 - depth):
+                    loc = state.locations.get(loc_id)
+                    if loc is None or loc.parent_id is None:
+                        break
+                    loc_id = str(loc.parent_id)
+                return (loc_id, depth)
+
+            # ── Locations: process galaxy → system → world/plane to build eligible_locs
+            # incrementally so container prerequisites cascade within a single tick.
+            loc_passes = (
+                [(lid, loc) for lid, loc in state.locations.items()
+                 if loc.location_type == "galaxy"   and not getattr(loc, "pinned", False)],
+                [(lid, loc) for lid, loc in state.locations.items()
+                 if loc.location_type == "system"   and not getattr(loc, "pinned", False)],
+                [(lid, loc) for lid, loc in state.locations.items()
+                 if loc.location_type not in ("galaxy", "system") and not getattr(loc, "pinned", False)],
+            )
+            for pass_items in loc_passes:
+                for lid, loc in pass_items:
+                    depth = 1 if loc.location_type == "galaxy" else (2 if loc.location_type == "system" else 3)
+                    # Galaxies have no parent entity; deeper locations require parent in window.
+                    if depth > 1 and (loc.parent_id is None or str(loc.parent_id) not in eligible_locs):
+                        continue
+                    delta = abs(depth - anchor)
+                    base = _depth_chance(delta)
+                    expr_tags = list(getattr(loc, "domain_expression", {}).keys())
+                    p = max(0.0, min(1.0, base + _domain_bonus(expr_tags + loc.traits, base)))
+                    if rng.random() < p:
+                        was_visible = is_in_window(loc)
+                        new_vis = max(loc.visibility, start_vis)
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(lid),
+                            field="visibility",
+                            new_value=new_vis,
+                            note=f"Scry ({scope.value}): {loc.name} sighted",
+                        ))
+                        eligible_locs.add(lid)
+                        if was_visible:
+                            refreshed_locs.append(loc.name)
+                        else:
+                            discovered_locs.append(loc.name)
+
+            # ── Civilizations
             for cid, civ in state.civilizations.items():
                 if civ.pinned:
                     continue
-                delta = abs(4 - anchor)
-                p = _depth_chance(delta)
-                home = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
-                home_parent = home.parent_id if home else None
-                home_gp: Optional[UUID] = None
-                if home_parent:
-                    hp_obj = state.locations.get(str(home_parent))
-                    if hp_obj:
-                        home_gp = hp_obj.parent_id
-                p += _proximity_bonus(home_parent, home_gp)
-                p += _domain_bonus(list(civ.dominant_beliefs.keys()))
-                p = min(1.0, max(0.0, p))
+                anchor_id, depth = _civ_anchor(civ)
+                if anchor_id is not None and anchor_id not in eligible_locs:
+                    continue
+                delta = abs(depth - anchor)
+                base = _depth_chance(delta)
+                # Extra bonus if homeworld is already known, even for high-scale civs
+                origin_prox = 0.0
+                if depth < 4 and civ.origin_location_id is not None:
+                    if str(civ.origin_location_id) in eligible_locs:
+                        origin_prox = 0.15 * min(1.0, base / 0.55)
+                p = max(0.0, min(1.0,
+                    base + _domain_bonus(list(civ.dominant_beliefs.keys()), base) + origin_prox
+                ))
                 if rng.random() < p:
                     was_visible = is_in_window(civ)
                     new_vis = max(civ.visibility, start_vis)
@@ -1535,21 +1581,16 @@ class TickLoop:
                     else:
                         discovered_civs.append(civ.name)
 
+            # ── Species
             for sid, sp in state.species.items():
                 if sp.pinned:
                     continue
+                origin_id = str(sp.origin_world_id) if sp.origin_world_id else None
+                if origin_id is not None and origin_id not in eligible_locs:
+                    continue
                 delta = abs(4 - anchor)
-                p = _depth_chance(delta)
-                home = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
-                home_parent = home.parent_id if home else None
-                home_gp = None
-                if home_parent:
-                    hp_obj = state.locations.get(str(home_parent))
-                    if hp_obj:
-                        home_gp = hp_obj.parent_id
-                p += _proximity_bonus(home_parent, home_gp)
-                p += _domain_bonus(sp.domain_tags)
-                p = min(1.0, max(0.0, p))
+                base = _depth_chance(delta)
+                p = max(0.0, min(1.0, base + _domain_bonus(sp.domain_tags, base)))
                 if rng.random() < p:
                     was_visible = is_in_window(sp)
                     new_vis = max(sp.visibility, start_vis)
@@ -1565,22 +1606,18 @@ class TickLoop:
                     else:
                         discovered_sp.append(sp.name)
 
+            # ── Mortals
             for mid, mortal in state.mortals.items():
                 if (mortal.status == MortalStatus.DECEASED
                         or mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD):
                     continue
+                if str(mortal.current_location) not in eligible_locs:
+                    continue
                 delta = abs(5 - anchor)
-                p = _depth_chance(delta)
-                home = state.locations.get(str(mortal.current_location))
-                home_parent = home.parent_id if home else None
-                home_gp = None
-                if home_parent:
-                    hp_obj = state.locations.get(str(home_parent))
-                    if hp_obj:
-                        home_gp = hp_obj.parent_id
-                p += _proximity_bonus(home_parent, home_gp)
-                p += _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags)
-                p = min(1.0, max(0.0, p))
+                base = _depth_chance(delta)
+                p = max(0.0, min(1.0,
+                    base + _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags, base)
+                ))
                 if rng.random() < p:
                     was_visible = mortal.visibility > VISIBILITY_FLOOR
                     new_vis = max(mortal.visibility, start_vis)
@@ -1598,7 +1635,7 @@ class TickLoop:
 
             parts = [f"You scryed at {scope.value} scope."]
             all_discovered = discovered_locs + discovered_civs + discovered_sp + discovered_mort
-            all_refreshed = refreshed_locs + refreshed_civs + refreshed_sp + refreshed_mort
+            all_refreshed  = refreshed_locs  + refreshed_civs  + refreshed_sp  + refreshed_mort
             if discovered_locs:
                 parts.append(f"Locations sighted: {', '.join(discovered_locs)}.")
             if discovered_civs:
@@ -1757,52 +1794,43 @@ class TickLoop:
                     note=f"{proxius.name} reactivated by directive",
                 ))
 
-            # How faithfully they interpret the directive
-            # depends on alignment and how much latitude you gave
-            interpretation_fidelity = (
-                proxius.alignment * (1.0 - intent.latitude * 0.5)
-            )
-            if outcome == ActionOutcome.PARTIAL:
-                interpretation_fidelity *= 0.6
-
-            # Narrative note about fidelity
-            if interpretation_fidelity > 0.7:
-                fidelity_note = "faithfully"
-            elif interpretation_fidelity > 0.4:
-                fidelity_note = "with some personal interpretation"
+            if outcome == ActionOutcome.FAILURE:
+                narrative = (
+                    f"The directive did not reach {proxius.name} clearly. "
+                    f"They remain without guidance."
+                )
             else:
-                fidelity_note = "with significant deviation from your intent"
+                # Set goal on the Proxius — they will act autonomously each tick
+                imago_id = intent.imago_node_id or ""
+                goal = ProxiusGoal(
+                    imago_node_id=imago_id,
+                    target_location_id=proxius.current_location,
+                    target_civilization_id=intent.target_civilization_id,
+                    domain_vectors=list(intent.domain_vectors),
+                    latitude=intent.latitude,
+                    constraints=list(intent.constraints),
+                    started_at_tick=state.tick_number,
+                )
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.PROXIUS_GOAL_SET,
+                    target_id=proxius.id,
+                    field="active_goal",
+                    new_value=goal,
+                    note=f"Directive set: '{intent.goal_statement[:60]}'",
+                ))
 
-            # Resistance to alignment drift while directive is active
-            # — temporary alignment boost toward 1.0
-            alignment_boost = interpretation_fidelity * 0.2
-            mutations.append(StateMutation(
-                mutation_type=MutationType.MORTAL_ALIGNMENT,
-                target_id=proxius.id,
-                field="alignment",
-                delta=alignment_boost,
-                note=f"Directive received: '{intent.goal_statement[:40]}'",
-            ))
-
-            # Domain belief shift into the target civilization
-            if intent.domain_vectors and intent.target_civilization_id:
-                civ_obj = state.civilizations.get(str(intent.target_civilization_id))
-                if civ_obj:
-                    for dv in intent.domain_vectors:
-                        mutations.append(StateMutation(
-                            mutation_type=MutationType.BELIEF_SHIFT,
-                            target_id=civ_obj.id,
-                            field="dominant_beliefs",
-                            delta=dv.direction * interpretation_fidelity * 0.08,
-                            new_value=dv.domain_tag,
-                            note=f"Proxius {proxius.name} promoting {dv.domain_tag} {fidelity_note}",
-                        ))
-
-            narrative = (
-                f"Proxius {proxius.name} received directive: "
-                f"'{intent.goal_statement}'. "
-                f"They are likely to act {fidelity_note}."
-            )
+                dedication = proxius.alignment * (1.0 - intent.latitude * 0.3)
+                if dedication > 0.7:
+                    dedication_note = "with clear purpose"
+                elif dedication > 0.4:
+                    dedication_note = "with some reservation"
+                else:
+                    dedication_note = "reluctantly"
+                narrative = (
+                    f"Proxius {proxius.name} has been given a directive: "
+                    f"'{intent.goal_statement}'. "
+                    f"They will pursue it {dedication_note}."
+                )
 
         # ── Essence Harvest ───────────────────────────
         elif isinstance(intent, EssenceHarvestIntent):
@@ -2388,10 +2416,23 @@ class TickLoop:
             ticks_since = state.ticks_since_evaluation.get(lid, cfg.evaluation_interval)
             current_att = state.luminary_attention.get(lid, 0.2)
 
-            # Evaluate if: interval elapsed, attention is high, or constraint breach
+            personality = (
+                self._domain_registry.compute_personality(luminary.domains)
+                if self._domain_registry else LuminaryPersonality()
+            )
+
+            # Evaluation interval scaled by reactivity: [5, 15]
+            effective_interval = cfg.evaluation_interval * (1.0 - personality.reactivity * 0.5)
+            if personality.capriciousness > 0:
+                effective_interval += self._rng.gauss(0, personality.capriciousness * 1.5)
+            effective_interval = max(5.0, effective_interval)
+
+            # Attention threshold scaled by reactivity: [0.4, 0.8]
+            effective_attention_threshold = 0.6 - personality.reactivity * 0.2
+
             should_evaluate = (
-                ticks_since >= cfg.evaluation_interval
-                or current_att > 0.6
+                ticks_since >= effective_interval
+                or current_att > effective_attention_threshold
             )
             if not should_evaluate:
                 state.ticks_since_evaluation[lid] = ticks_since + 1
@@ -2468,7 +2509,7 @@ class TickLoop:
             delta = DispositionDelta()
 
             results_reason = engine.domain_alignment_to_results_delta(
-                overall_alignment, prev_overall, luminary.temperament.value
+                overall_alignment, prev_overall, personality
             )
             delta.results += results_reason.delta
             delta.reasons.append(results_reason)
@@ -2478,7 +2519,7 @@ class TickLoop:
                 luminary_domain_tags=luminary_domain_tags,
                 fellow_luminary_tags=fellow_lum_tags,
                 current_profile=profile,
-                temperament=luminary.temperament.value,
+                personality=personality,
                 registry=self._domain_registry,
             )
             if abs(sim_modifier) > 0.001:
@@ -2490,9 +2531,10 @@ class TickLoop:
                     note="Expressed domains adjacent or opposing to Luminary domains",
                 ))
 
-            # Capricious temperament: random amplification
-            if luminary.temperament.value == "capricious":
-                capricious_swing = self._rng.gauss(0, 0.1)
+            # Capriciousness: mercurial Luminaries add random variance to evaluations
+            sigma = max(0.0, personality.capriciousness) * 0.1
+            if sigma > 0.01:
+                capricious_swing = self._rng.gauss(0, sigma)
                 delta.results += capricious_swing
                 delta.methods += capricious_swing * 0.5
 
@@ -2511,7 +2553,7 @@ class TickLoop:
             triggers = engine.generate_dialogue_triggers(
                 luminary_id=luminary.id,
                 luminary_domain_tags=luminary_domain_tags,
-                temperament=luminary.temperament.value,
+                personality=personality,
                 current_disposition=luminary.disposition,
                 delta=delta,
                 constraint_evals=constraint_evals,
@@ -2724,6 +2766,159 @@ class TickLoop:
 
         for eid in expired_ids:
             state.active_events.pop(eid, None)
+
+        return mutations
+
+    def _resolve_proxius_agents(
+        self,
+        state: SimulationState,
+        phase_rng: random.Random,
+    ) -> list[StateMutation]:
+        """
+        Phase 2.5 — autonomous Proxius agent actions.
+        Each active Proxius with an active_goal chooses and executes one
+        action per tick, weighted by dedication (alignment × leeway).
+        Generates StateMutations directly; does not go through ActionInstance machinery.
+        """
+        mutations: list[StateMutation] = []
+
+        for mortal in state.mortals.values():
+            if mortal.role != MortalRole.PROXIUS:
+                continue
+            if mortal.status != MortalStatus.ACTIVE:
+                continue
+            goal = mortal.active_goal
+            if goal is None:
+                continue
+
+            # Dedication: high alignment + low latitude → near-certain, frequent action
+            dedication = mortal.alignment * (1.0 - goal.latitude * 0.3)
+            dedication = max(0.0, min(1.0, dedication))
+
+            # Frequency gate — probabilistic skip
+            if phase_rng.random() > dedication:
+                goal.last_action = AgentActionChoice.NOTHING
+                goal.last_action_tick = state.tick_number
+                goal.consecutive_promote_count = 0
+                goal.effectiveness_bonus = max(0.0, goal.effectiveness_bonus - 0.05)
+                continue
+
+            # Action weight table
+            promote_w    = 0.60
+            take_stock_w = 0.10
+            report_w     = 0.10 + (1.0 - goal.latitude) * 0.15
+            petition_w   = 0.05 if not goal.petition_pending else 0.0
+            nothing_w    = max(0.0, 0.15 - dedication * 0.10)
+
+            weights = [promote_w, take_stock_w, report_w, petition_w, nothing_w]
+            choices = [
+                AgentActionChoice.PROMOTE_DOMAIN,
+                AgentActionChoice.TAKE_STOCK,
+                AgentActionChoice.REPORT_TO_DEMIURGE,
+                AgentActionChoice.PETITION_FOR_RELIEF,
+                AgentActionChoice.NOTHING,
+            ]
+            chosen = phase_rng.choices(choices, weights=weights, k=1)[0]
+            goal.last_action = chosen
+            goal.last_action_tick = state.tick_number
+
+            if chosen == AgentActionChoice.PROMOTE_DOMAIN and goal.domain_vectors:
+                # Belief shift per domain vector, boosted by streak and Proxius's own beliefs
+                goal.consecutive_promote_count += 1
+                goal.effectiveness_bonus = min(
+                    0.30,
+                    goal.consecutive_promote_count * 0.05,
+                )
+                base_rate = 0.06
+                target_civ_ids: list[str] = []
+                if goal.target_civilization_id:
+                    cid = str(goal.target_civilization_id)
+                    if cid in state.civilizations:
+                        target_civ_ids.append(cid)
+                else:
+                    loc_id = str(goal.target_location_id)
+                    target_civ_ids = [
+                        cid for cid, civ in state.civilizations.items()
+                        if str(civ.origin_location_id) == loc_id
+                    ]
+
+                for cid in target_civ_ids:
+                    for dv in goal.domain_vectors:
+                        # Proxius's own belief_tags augment aligned vectors
+                        belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
+                        rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.BELIEF_SHIFT,
+                            target_id=UUID(cid),
+                            field="dominant_beliefs",
+                            delta=dv.direction * rate,
+                            new_value=dv.domain_tag,
+                            note=f"Proxius {mortal.name} promoting {dv.domain_tag} (streak {goal.consecutive_promote_count})",
+                        ))
+                # Passive proxius footprint for the work done
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.FOOTPRINT_CHANGE,
+                    target_id=state.demiurge.id,
+                    field="proxius_activity",
+                    delta=0.02,
+                    note=f"Proxius {mortal.name} promoting domain",
+                ))
+
+            elif chosen == AgentActionChoice.TAKE_STOCK:
+                goal.consecutive_promote_count = 0
+                goal.effectiveness_bonus = max(0.0, goal.effectiveness_bonus - 0.02)
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_ALIGNMENT,
+                    target_id=mortal.id,
+                    field="alignment",
+                    delta=0.01,
+                    note=f"{mortal.name} taking stock of their work",
+                ))
+
+            elif chosen == AgentActionChoice.REPORT_TO_DEMIURGE:
+                tick = state.tick_number + 1  # tick_number increments after Phase 2.5
+                streak = goal.consecutive_promote_count
+                ticks_active = state.tick_number + 1 - goal.started_at_tick
+                imago_short = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
+                if streak >= 3:
+                    progress = f"momentum is building — {streak} consecutive pushes of [{imago_short}]"
+                elif streak > 0:
+                    progress = f"work on [{imago_short}] is underway, {streak} push(es) this stretch"
+                elif goal.effectiveness_bonus > 0:
+                    progress = f"[{imago_short}] work has stalled momentarily; prior gains hold"
+                else:
+                    progress = f"no meaningful progress on [{imago_short}] yet"
+                entry = (
+                    f"[Tick {tick}] {mortal.name} reports after {ticks_active} tick(s): "
+                    + progress
+                    + (f"; effectiveness at +{goal.effectiveness_bonus:.0%}" if goal.effectiveness_bonus > 0 else "")
+                    + "."
+                )
+                goal.report_log = (goal.report_log + [entry])[-5:]
+
+            elif chosen == AgentActionChoice.PETITION_FOR_RELIEF:
+                goal.petition_pending = True
+                goal.consecutive_promote_count = 0
+                goal.effectiveness_bonus = 0.0
+                tick = state.tick_number + 1
+                ticks_active = state.tick_number + 1 - goal.started_at_tick
+                imago_short = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
+                entry = (
+                    f"[Tick {tick}] {mortal.name} petitions after {ticks_active} tick(s): "
+                    f"[{imago_short}] directive yields diminishing returns. Requesting new orders."
+                )
+                goal.report_log = (goal.report_log + [entry])[-5:]
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_ALIGNMENT,
+                    target_id=mortal.id,
+                    field="alignment",
+                    delta=-0.02,
+                    note=f"{mortal.name} frustrated with current directive",
+                ))
+
+            elif chosen == AgentActionChoice.NOTHING:
+                goal.consecutive_promote_count = 0
+                goal.effectiveness_bonus = max(0.0, goal.effectiveness_bonus - 0.05)
 
         return mutations
 
@@ -2993,5 +3188,13 @@ class TickLoop:
                     eid = str(m.new_value.id)
                     if eid not in state.active_events:
                         state.active_events[eid] = m.new_value
+
+            elif m.mutation_type == MutationType.PROXIUS_GOAL_SET:
+                if tid in state.mortals and isinstance(m.new_value, ProxiusGoal):
+                    state.mortals[tid].active_goal = m.new_value
+
+            elif m.mutation_type == MutationType.PROXIUS_GOAL_CLEARED:
+                if tid in state.mortals:
+                    state.mortals[tid].active_goal = None
 
         return state

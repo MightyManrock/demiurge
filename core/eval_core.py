@@ -7,9 +7,14 @@ the actions of the Demiurge.
 
 from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from enum import Enum
 from uuid import UUID, uuid4
+
+from utilities.domain_registry import LuminaryPersonality
+
+if TYPE_CHECKING:
+    from utilities.domain_registry import DomainRegistry
 
 
 # ─────────────────────────────────────────
@@ -258,9 +263,9 @@ class DialogueTrigger(BaseModel):
 
     context_tags: list[str] = Field(default_factory=list)
     # Tags the speech act query will filter on.
-    # Built from: Luminary domain tags + temperament +
+    # Built from: Luminary domain tags + personality-derived tags +
     # current disposition bracket + trigger type
-    # e.g. ["domain:war", "temperament:wrathful",
+    # e.g. ["domain:conflict", "personality:wrathful",
     #        "disposition:displeased", "trigger:constraint_warning"]
 
     subject_ref: Optional[str] = None
@@ -391,7 +396,7 @@ class EvaluationEngine:
         luminary_domain_tags: list[str],
         fellow_luminary_tags: set[str],
         current_profile: UniverseDomainProfile,
-        temperament: str,
+        personality: Optional[LuminaryPersonality] = None,
         registry: Optional["DomainRegistry"] = None,
     ) -> float:
         """
@@ -402,7 +407,7 @@ class EvaluationEngine:
           - Internal contradiction bypass: opposing domains within the same
             Luminary's set don't penalize each other.
           - Realpolitik: opposing domains held by fellow Luminaries receive
-            temperament-scaled dampening.
+            harshness-scaled dampening.
 
         Returns a delta in roughly [-0.3, 0.3] to add to the primary alignment.
         Returns 0.0 if no registry is available (graceful degradation).
@@ -414,31 +419,23 @@ class EvaluationEngine:
             lum_tags=luminary_domain_tags,
             fellow_lum_tags=fellow_luminary_tags,
             profile_scores=current_profile.scores,
-            temperament=temperament,
+            personality=personality or LuminaryPersonality(),
         )
 
     @staticmethod
     def domain_alignment_to_results_delta(
         overall_alignment: float,
         previous_alignment: float,
-        temperament: str,
+        personality: Optional[LuminaryPersonality] = None,
     ) -> DispositionDeltaReason:
         """
         Convert domain alignment into a results disposition delta.
-        Temperament affects sensitivity — a zealous Luminary
-        swings harder on both improvement and decline.
+        A stative-focused Luminary (dynamic < 0) is more sensitive to results;
+        a dynamic-focused one (dynamic > 0) is less so.
         """
-        raw_delta = (overall_alignment - previous_alignment)
-
-        temperament_multipliers = {
-            "zealous":    2.0,
-            "wrathful":   1.5,
-            "orderly":    1.2,
-            "patient":    0.7,
-            "indifferent": 0.3,
-            "capricious": 1.0,   # High variance applied separately
-        }
-        multiplier = temperament_multipliers.get(temperament, 1.0)
+        p = personality or LuminaryPersonality()
+        raw_delta = overall_alignment - previous_alignment
+        multiplier = max(0.3, min(2.0, 1.0 - p.dynamic))
 
         return DispositionDeltaReason(
             axis="results",
@@ -583,7 +580,7 @@ class EvaluationEngine:
     def generate_dialogue_triggers(
         luminary_id: UUID,
         luminary_domain_tags: list[str],
-        temperament: str,
+        personality: Optional[LuminaryPersonality],
         current_disposition: "Disposition",
         delta: DispositionDelta,
         constraint_evals: list[ConstraintEvaluation],
@@ -595,11 +592,24 @@ class EvaluationEngine:
         Not every evaluation produces dialogue —
         only meaningful changes or thresholds crossed.
         """
+        p = personality or LuminaryPersonality()
         triggers = []
-        base_tags = (
-            luminary_domain_tags
-            + [f"temperament:{temperament}"]
-        )
+
+        personality_tags: list[str] = []
+        if p.harshness > 0.4:
+            personality_tags.append("personality:wrathful")
+        elif p.harshness < -0.4:
+            personality_tags.append("personality:sympathetic")
+        if p.capriciousness > 0.3:
+            personality_tags.append("personality:mercurial")
+        elif p.capriciousness < -0.3:
+            personality_tags.append("personality:stable")
+        if p.reactivity > 0.3:
+            personality_tags.append("personality:authoritative")
+        elif p.reactivity < -0.4:
+            personality_tags.append("personality:permissive")
+
+        base_tags = luminary_domain_tags + personality_tags
 
         # Disposition bracket tag
         overall = current_disposition.overall
@@ -678,7 +688,7 @@ class EvaluationEngine:
                 timestamp=timestamp,
                 urgency=0.5,
                 context_tags=base_tags + ["trigger:essence_inquiry"],
-                suppressed=(temperament == "indifferent"),
+                suppressed=(p.reactivity < -0.4),
             ))
 
         return triggers

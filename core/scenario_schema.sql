@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS luminaries (
     name                 TEXT NOT NULL,
     domains              TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain UUIDs
     pantheon_id          TEXT,
-    temperament          TEXT NOT NULL,
     -- Disposition (embedded)
     disposition_results  REAL NOT NULL DEFAULT 0.0,
     disposition_methods  REAL NOT NULL DEFAULT 0.0,
@@ -191,7 +190,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
     current_location       TEXT NOT NULL,  -- UUID of current SignificantLocation (changes on movement)
     starting_visible       INTEGER NOT NULL DEFAULT 0,  -- bool; decays at slow rate instead of normal
-    pinned                     INTEGER NOT NULL DEFAULT 0 -- bool; mortal stays at max visibility
+    pinned                 INTEGER NOT NULL DEFAULT 0,  -- bool; mortal stays at max visibility
+    active_goal_json       TEXT DEFAULT NULL            -- JSON of ProxiusGoal, or NULL
 );
 
 -- ─────────────────────────────────────────

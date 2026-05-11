@@ -8,7 +8,6 @@ divine hierarchy.
 from __future__ import annotations
 from pydantic import BaseModel, Field
 from typing import Optional
-from enum import Enum
 from uuid import UUID, uuid4
 
 
@@ -45,21 +44,6 @@ class Domain(BaseModel):
 # ─────────────────────────────────────────
 # OVERREAL
 # ─────────────────────────────────────────
-
-class Temperament(str, Enum):
-    """
-    Broad behavioral disposition of a Luminary.
-    Shapes how they respond to the same disposition score
-    — a wrathful Luminary and a patient one react differently
-    to identical footprint readings.
-    """
-    WRATHFUL   = "wrathful"
-    PATIENT    = "patient"
-    CAPRICIOUS = "capricious"
-    ORDERLY    = "orderly"
-    INDIFFERENT = "indifferent"
-    ZEALOUS    = "zealous"
-
 
 class Disposition(BaseModel):
     """
@@ -106,7 +90,6 @@ class Luminary(BaseModel):
     name: str
     domains: dict[str, float]   # domain:... tag → affinity (0.0–1.0)
     pantheon_id: Optional[UUID] = None
-    temperament: Temperament
     disposition: Disposition = Field(default_factory=Disposition)
     constraints: list[Constraint] = Field(default_factory=list)
     herald_ids: list[UUID] = Field(default_factory=list)        # Mortal Heralds assigned to the Demiurge's universe
