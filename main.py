@@ -48,6 +48,8 @@ from utilities.culture_registry import is_culture_tag
 SEP  = "─" * 60
 SEP2 = "═" * 60
 
+BACK = "__back__"   # sentinel: dismiss with this to go one step back
+
 
 # ─────────────────────────────────────────
 # DISPLAY / FORMATTING HELPERS
@@ -990,18 +992,23 @@ class LoadScreen(Screen):
 # ─────────────────────────────────────────
 
 class PickerModal(ModalScreen):
-    BINDINGS = [("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        ("escape",     "go_back",       "Back"),
+        ("ctrl+escape","force_cancel",  "Cancel"),
+    ]
 
     def __init__(
         self,
         title: str,
         items: list[tuple[str, str]],  # (key, display_text)
         description: str = "",
+        show_back: bool = False,
     ):
         super().__init__()
         self._title       = title
         self._items       = items
         self._description = description
+        self._show_back   = show_back
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box-tall"):
@@ -1013,6 +1020,8 @@ class PickerModal(ModalScreen):
                     for i, (key, text) in enumerate(self._items):
                         yield ListItem(Label(text), id=f"pick-{i}")
             with Horizontal(classes="btn-row"):
+                if self._show_back:
+                    yield Button("← Back",  id="back-btn")
                 yield Button("Cancel", id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
@@ -1023,11 +1032,18 @@ class PickerModal(ModalScreen):
         idx = int(event.item.id.split("-", 1)[1])
         self.dismiss(self._items[idx][0])
 
+    @on(Button.Pressed, "#back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
     @on(Button.Pressed, "#cancel-btn")
     def _on_cancel(self, _: Button.Pressed) -> None:
         self.dismiss(None)
 
-    def action_cancel(self) -> None:
+    def action_go_back(self) -> None:
+        self.dismiss(BACK if self._show_back else None)
+
+    def action_force_cancel(self) -> None:
         self.dismiss(None)
 
 
@@ -1072,8 +1088,9 @@ class YesNoModal(ModalScreen):
 
 class TextFormModal(ModalScreen):
     BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("ctrl+enter", "confirm", "Confirm"),
+        ("escape",      "go_back",      "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("ctrl+enter",  "confirm",      "Confirm"),
     ]
 
     def __init__(
@@ -1081,11 +1098,13 @@ class TextFormModal(ModalScreen):
         title: str,
         fields: list[tuple[str, str, str]],  # (label, id, default)
         description: str = "",
+        show_back: bool = False,
     ):
         super().__init__()
         self._title       = title
         self._fields      = fields
         self._description = description
+        self._show_back   = show_back
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
@@ -1096,8 +1115,14 @@ class TextFormModal(ModalScreen):
                 yield Label(label, classes="field-label")
                 yield Input(value=default, id=f"field-{fid}")
             with Horizontal(classes="btn-row"):
+                if self._show_back:
+                    yield Button("← Back",  id="back-btn")
                 yield Button("Cancel",  id="cancel-btn", classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
 
     @on(Button.Pressed, "#confirm-btn")
     def _confirm(self, _: Button.Pressed) -> None:
@@ -1114,7 +1139,10 @@ class TextFormModal(ModalScreen):
             result[fid] = widget.value
         self.dismiss(result)
 
-    def action_cancel(self) -> None:
+    def action_go_back(self) -> None:
+        self.dismiss(BACK if self._show_back else None)
+
+    def action_force_cancel(self) -> None:
         self.dismiss(None)
 
 
@@ -1173,11 +1201,12 @@ class DomainPickerModal(ModalScreen):
     """4×4 domain grid picker with affiliated domain coloring."""
 
     BINDINGS = [
-        ("escape", "cancel",          "Cancel"),
-        ("up",     "nav('up')",       ""),
-        ("down",   "nav('down')",     ""),
-        ("left",   "nav('left')",     ""),
-        ("right",  "nav('right')",    ""),
+        ("escape",      "go_back",      "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("up",          "nav('up')",    ""),
+        ("down",        "nav('down')",  ""),
+        ("left",        "nav('left')",  ""),
+        ("right",       "nav('right')", ""),
     ]
 
     def __init__(
@@ -1226,6 +1255,7 @@ class DomainPickerModal(ModalScreen):
             yield Static("", id="lum-panel")
             with Horizontal(classes="btn-row"):
                 yield Button("Skip Domain", id="skip-btn")
+                yield Button("← Back",      id="back-btn")
                 yield Button("Cancel",      id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
@@ -1272,11 +1302,18 @@ class DomainPickerModal(ModalScreen):
     def _skip(self, _: Button.Pressed) -> None:
         self.dismiss("")
 
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
     @on(Button.Pressed, "#cancel-btn")
     def _cancel(self, _: Button.Pressed) -> None:
         self.dismiss(None)
 
-    def action_cancel(self) -> None:
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
         self.dismiss(None)
 
 
@@ -1336,11 +1373,12 @@ class ImagoTreeModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape", "cancel",       "Cancel"),
-        ("up",     "nav('up')",    ""),
-        ("down",   "nav('down')",  ""),
-        ("left",   "nav('left')",  ""),
-        ("right",  "nav('right')", ""),
+        ("escape",      "cancel",       "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("up",          "nav('up')",    ""),
+        ("down",        "nav('down')",  ""),
+        ("left",        "nav('left')",  ""),
+        ("right",       "nav('right')", ""),
     ]
 
     # Cell positions in DOM order → (grid_row, grid_col)
@@ -1420,8 +1458,9 @@ class ImagoTreeModal(ModalScreen):
                                 yield cell
             yield Static("", id="imago-tooltip")
             with Horizontal(classes="btn-row"):
-                yield Button("No Imago",   id="manual-btn")
-                yield Button("← Domain",   id="back-btn",   classes="-danger")
+                yield Button("No Imago",  id="manual-btn")
+                yield Button("← Domain",  id="back-btn")
+                yield Button("Cancel",    id="cancel-btn",  classes="-danger")
 
     def on_mount(self) -> None:
         cells = list(self.query(ImagoCell))
@@ -1464,20 +1503,30 @@ class ImagoTreeModal(ModalScreen):
 
     @on(Button.Pressed, "#back-btn")
     def _back_btn(self, _: Button.Pressed) -> None:
-        self.dismiss("__back__")
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
 
     def action_cancel(self) -> None:
-        self.dismiss("__back__")
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class ImagoDetailModal(ModalScreen):
     """
     Confirmation screen for a chosen Imago node.
     Shows full description, domain/culture effects, and per-Luminary affinity scores.
-    Dismisses with True (confirm) or False (back).
+    Dismisses with True (confirm), False (back one step), or None (cancel entirely).
     """
 
-    BINDINGS = [("escape", "back", "Back")]
+    BINDINGS = [
+        ("escape",      "back",         "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+    ]
 
     def __init__(self, node: ImagoNode, state: SimulationState) -> None:
         super().__init__()
@@ -1540,7 +1589,8 @@ class ImagoDetailModal(ModalScreen):
             with ScrollableContainer():
                 yield Static(self._body(), id="imago-detail-body")
             with Horizontal(classes="btn-row"):
-                yield Button("← Back",  id="back-btn",    classes="-danger")
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -1554,8 +1604,15 @@ class ImagoDetailModal(ModalScreen):
     def _back(self, _: Button.Pressed) -> None:
         self.dismiss(False)
 
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel_btn(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
     def action_back(self) -> None:
         self.dismiss(False)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
 
 
 # ─────────────────────────────────────────
@@ -1565,7 +1622,10 @@ class ImagoDetailModal(ModalScreen):
 # ─────────────────────────────────────────
 
 class ActionBrowserModal(ModalScreen):
-    BINDINGS = [("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        ("escape",      "cancel",       "Cancel"),
+        ("ctrl+escape", "cancel",       ""),
+    ]
 
     def __init__(self, state: SimulationState, library: dict):
         super().__init__()
@@ -1676,12 +1736,10 @@ class ActionBrowserModal(ModalScreen):
             items.append(
                 (key, f"{defn.name:<34}  FP:{fp_total:.2f}{essence_str}{persist}{stub}")
             )
-        items.append(("__back__", "← Back"))
-
         chosen_key = await self.app.push_screen_wait(
-            PickerModal(cat.value.replace("_", " ").title(), items)
+            PickerModal(cat.value.replace("_", " ").title(), items, show_back=True)
         )
-        if chosen_key is None or chosen_key == "__back__":
+        if chosen_key is None or chosen_key == BACK:
             return
 
         if chosen_key in _STUB_ACTIONS:
@@ -1796,9 +1854,8 @@ class GameScreen(Screen):
             name  = defn.name if defn else oa.action_key
             label = cat_val.replace("_", " ").title()
             items.append((cat_val, f"[{label}] {name}  ({oa.executed_ticks}/{oa.ticks_active})"))
-        items.append(("__back__", "← Back"))
         chosen = await self.app.push_screen_wait(PickerModal("Ongoing Actions", items))
-        if chosen and chosen != "__back__" and chosen in state.ongoing_actions:
+        if chosen and chosen in state.ongoing_actions:
             confirmed = await self.app.push_screen_wait(
                 YesNoModal(f"Stop this ongoing action?")
             )
@@ -1876,17 +1933,21 @@ class GameScreen(Screen):
         state   = self._state
         library = app.loop._action_library  # type: ignore[attr-defined]
 
-        # Browse and pick action
-        picked = await app.push_screen_wait(ActionBrowserModal(state, library))
-        if picked is None:
-            return
-        action_key, defn = picked
+        while True:
+            # Browse and pick action
+            picked = await app.push_screen_wait(ActionBrowserModal(state, library))
+            if picked is None:
+                return
+            action_key, defn = picked
 
-        # Build intent
-        instance = await self._build_intent(action_key, defn)
-        if instance is None:
-            self._feed_markup("[#5a7090]Cancelled.[/]")
-            return
+            # Build intent; BACK means "re-show action browser"
+            instance = await self._build_intent(action_key, defn)
+            if instance is None:
+                self._feed_markup("[#5a7090]Cancelled.[/]")
+                return
+            if instance == BACK:
+                continue
+            break
 
         # Offer persistence for eligible actions
         if "can_persist" in defn.tags:
@@ -1926,16 +1987,16 @@ class GameScreen(Screen):
         self,
         action_key: str,
         defn: ActionDefinition,
-    ) -> ActionInstance | None:
+    ) -> "ActionInstance | str | None":
+        """
+        Returns ActionInstance on success, BACK to re-show action browser, or None to cancel.
+        """
         app   = self.app
         state = self._state
 
-        target_id   = None
         target_type = defn.valid_targets[0] if defn.valid_targets else TargetType.WORLD
-        proxius_id  = None
-        intent      = None
 
-        # ── issue_directive: proxius IS the target ──────
+        # ── issue_directive: full multi-step (proxius → form → domain → civ) ──
         if action_key == "issue_directive":
             already_directed = {
                 str(ai.proxius_id)
@@ -1943,84 +2004,155 @@ class GameScreen(Screen):
                 if isinstance(ai.intent, ProxiusDirectiveIntent)
                 and ai.proxius_id is not None
             }
-            pid = await self._pick_proxius(
-                state,
-                include_dormant=True,
-                already_directed=already_directed,
-            )
-            if pid is None:
-                return None
-            target_id  = UUID(pid)
-            proxius_id = target_id
-
-            form = await app.push_screen_wait(
-                TextFormModal(
-                    "Directive",
-                    [
-                        ("Goal statement", "goal", "Strengthen the reformist faction"),
-                        ("Latitude  0.0 strict → 1.0 open", "lat", "0.5"),
-                    ],
-                    description=defn.description,
-                )
-            )
-            if form is None:
-                return None
-            goal = form["goal"].strip() or "Strengthen the reformist faction"
+            step = 0
+            pid = None; form_data = None
+            dvs: list = []; imago_id = None
+            while True:
+                if step == 0:
+                    result = await self._pick_proxius(
+                        state, include_dormant=True, already_directed=already_directed,
+                    )
+                    if result is None: return None
+                    if result == BACK: return BACK
+                    pid = result; step = 1
+                if step == 1:
+                    form = await app.push_screen_wait(
+                        TextFormModal(
+                            "Directive",
+                            [
+                                ("Goal statement", "goal", "Strengthen the reformist faction"),
+                                ("Latitude  0.0 strict → 1.0 open", "lat", "0.5"),
+                            ],
+                            description=defn.description,
+                            show_back=True,
+                        )
+                    )
+                    if form is None: return None
+                    if form == BACK: step = 0; continue
+                    form_data = form; step = 2
+                if step == 2:
+                    domain_result = await self._pick_domain_and_imago(state)
+                    if domain_result is None: return None
+                    if domain_result == BACK: step = 1; continue
+                    dvs, imago_id = domain_result; step = 3
+                if step == 3:
+                    target_civ_id = None
+                    if dvs:
+                        proxius_obj = state.mortals.get(pid)
+                        loc_id      = str(proxius_obj.current_location) if proxius_obj else None
+                        civs_here   = [
+                            (cid, c) for cid, c in state.civilizations.items()
+                            if str(c.origin_location_id) == loc_id
+                        ] if loc_id else []
+                        if not civs_here:
+                            self._feed_markup(
+                                "[#5a7090](No civilizations at Proxius's location — domain vectors discarded.)[/]"
+                            )
+                            dvs = []
+                        elif len(civs_here) == 1:
+                            target_civ_id = UUID(civs_here[0][0])
+                        else:
+                            civ_items = [(cid, f"{c.name}  [{c.scale.value}]") for cid, c in civs_here]
+                            civ_items.append(("__discard__", "Discard domain vectors"))
+                            chosen_civ = await app.push_screen_wait(
+                                PickerModal("Promote belief in which civilization?", civ_items, show_back=True)
+                            )
+                            if chosen_civ == BACK: step = 2; continue
+                            if chosen_civ is None: return None
+                            if chosen_civ != "__discard__":
+                                target_civ_id = UUID(chosen_civ)
+                            else:
+                                dvs = []
+                    break
+            goal = form_data["goal"].strip() or "Strengthen the reformist faction"
             try:
-                latitude = max(0.0, min(1.0, float(form["lat"])))
+                latitude = max(0.0, min(1.0, float(form_data["lat"])))
             except ValueError:
                 latitude = 0.5
-
-            domain_result = await self._pick_domain_and_imago(state)
-            dvs, imago_id = domain_result if domain_result is not None else ([], None)
-
-            target_civ_id = None
-            if dvs:
-                proxius_obj = state.mortals.get(pid)
-                loc_id      = str(proxius_obj.current_location) if proxius_obj else None
-                civs_here   = [
-                    (cid, c) for cid, c in state.civilizations.items()
-                    if str(c.origin_location_id) == loc_id
-                ] if loc_id else []
-                if not civs_here:
-                    self._feed_markup("[#5a7090](No civilizations at Proxius's location — domain vectors discarded.)[/]")
-                    dvs = []
-                elif len(civs_here) == 1:
-                    target_civ_id = UUID(civs_here[0][0])
-                else:
-                    civ_items = [(cid, f"{c.name}  [{c.scale.value}]") for cid, c in civs_here]
-                    civ_items.append(("__discard__", "Discard domain vectors"))
-                    chosen_civ = await app.push_screen_wait(
-                        PickerModal("Promote belief in which civilization?", civ_items)
-                    )
-                    if chosen_civ and chosen_civ != "__discard__":
-                        target_civ_id = UUID(chosen_civ)
-                    else:
-                        dvs = []
-
-            intent      = ProxiusDirectiveIntent(
+            intent = ProxiusDirectiveIntent(
                 goal_statement=goal,
                 domain_vectors=dvs,
                 latitude=latitude,
                 target_civilization_id=target_civ_id,
                 imago_node_id=imago_id,
             )
-            target_type = TargetType.MORTAL
+            return ActionInstance(
+                action_definition_id=defn.id,
+                target_type=TargetType.MORTAL,
+                target_id=UUID(pid),
+                timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id,
+                proxius_id=UUID(pid),
+                intent=intent,
+            )
 
-        # ── Other proxius-targeted actions ──────────────
-        elif defn.requires_proxius:
-            pid = await self._pick_proxius(
+        # ── Other proxius-targeted actions (no intent params) ──
+        if defn.requires_proxius:
+            result = await self._pick_proxius(
                 state,
                 include_dormant="include_dormant_proxius" in defn.tags,
             )
-            if pid is None:
-                return None
-            proxius_id  = UUID(pid)
-            target_id   = proxius_id
-            target_type = TargetType.MORTAL
+            if result is None: return None
+            if result == BACK: return BACK
+            proxius_id = UUID(result)
+            return ActionInstance(
+                action_definition_id=defn.id,
+                target_type=TargetType.MORTAL,
+                target_id=proxius_id,
+                timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id,
+                proxius_id=proxius_id,
+                intent=None,
+            )
 
-        # ── Target selection by type ────────────────────
-        elif TargetType.MORTAL in defn.valid_targets:
+        # ── Scry: scope → target picker loop ──
+        if action_key == "scry":
+            scope_items = [
+                (ScryScope.WORLD.value,    "World       — deep mortal/civ detail  (0.05 subtle)"),
+                (ScryScope.SYSTEM.value,   "System      — reveals worlds & civs   (0.10 subtle)"),
+                (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle)"),
+                (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle)"),
+            ]
+            target_id = None
+            while True:
+                picked_scope = await app.push_screen_wait(
+                    PickerModal("Scry Scope", scope_items, show_back=True)
+                )
+                if picked_scope is None: return None
+                if picked_scope == BACK: return BACK
+                chosen_scope = ScryScope(picked_scope)
+                if chosen_scope == ScryScope.WORLD:
+                    target_id, target_type = await self._pick_world(state)
+                    if target_id is None: return None
+                    if target_id == BACK: continue
+                elif chosen_scope == ScryScope.SYSTEM:
+                    target_id, target_type = await self._pick_system(state)
+                    if target_id is None: return None
+                    if target_id == BACK: continue
+                elif chosen_scope == ScryScope.GALAXY:
+                    target_id, target_type = await self._pick_galaxy(state)
+                    if target_id is None: return None
+                    if target_id == BACK: continue
+                else:
+                    target_type = TargetType.UNIVERSE
+                break
+            return ActionInstance(
+                action_definition_id=defn.id,
+                target_type=target_type,
+                target_id=target_id,
+                timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id,
+                proxius_id=None,
+                intent=ScryIntent(scope=chosen_scope),
+            )
+
+        # ── Target selection by type, with back-from-params loop ──
+        _NO_PARAMS = (
+            "appoint_proxius", "empower_proxius", "dismiss_proxius",
+            "go_quiet_proxius", "audit_proxius", "maintain_concealment",
+        )
+
+        if TargetType.MORTAL in defn.valid_targets:
             _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
             mortals = [
                 (mid, m) for mid, m in state.mortals.items()
@@ -2031,110 +2163,156 @@ class GameScreen(Screen):
             if not mortals:
                 self._feed_markup("[#5a7090]No mortals currently within perception.[/]")
                 return None
-            items = []
+            mortal_items = []
             for mid, m in mortals:
                 w_obj    = state.locations.get(str(m.current_location))
                 loc      = w_obj.name if w_obj else "?"
                 role_str = m.role.value if m.role != MortalRole.OTHER else "mortal"
-                items.append((mid, f"{m.name:<18} [{role_str}]  align:{m.alignment:.2f}  {loc}"))
-            picked_id = await app.push_screen_wait(PickerModal("Select Mortal", items))
-            if picked_id is None:
-                return None
-            target_id   = UUID(picked_id)
-            target_type = TargetType.MORTAL
+                mortal_items.append((mid, f"{m.name:<18} [{role_str}]  align:{m.alignment:.2f}  {loc}"))
+            intent = None
+            while True:
+                picked_id = await app.push_screen_wait(PickerModal("Select Mortal", mortal_items, show_back=True))
+                if picked_id is None: return None
+                if picked_id == BACK: return BACK
+                target_id = UUID(picked_id)
+                if action_key in _NO_PARAMS:
+                    break
+                intent = await self._build_intent_params(action_key, defn, target_id, state)
+                if intent is None: return None
+                if intent == BACK: continue
+                break
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=TargetType.MORTAL,
+                target_id=target_id, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None,
+                intent=None if action_key in _NO_PARAMS else intent,
+            )
 
-        elif TargetType.CIVILIZATION in defn.valid_targets:
-            civs  = list(state.civilizations.items())
-            items = []
-            for cid, c in civs:
+        if TargetType.CIVILIZATION in defn.valid_targets:
+            civ_items = []
+            for cid, c in state.civilizations.items():
                 w_obj = state.locations.get(str(c.origin_location_id)) if c.origin_location_id else None
                 loc   = w_obj.name if w_obj else "?"
-                items.append((cid, f"{c.name:<30} [{c.scale.value}]  {loc}"))
-            picked_id = await app.push_screen_wait(PickerModal("Select Civilization", items))
-            if picked_id is None:
-                return None
-            target_id   = UUID(picked_id)
-            target_type = TargetType.CIVILIZATION
+                civ_items.append((cid, f"{c.name:<30} [{c.scale.value}]  {loc}"))
+            intent = None
+            while True:
+                picked_id = await app.push_screen_wait(PickerModal("Select Civilization", civ_items, show_back=True))
+                if picked_id is None: return None
+                if picked_id == BACK: return BACK
+                target_id = UUID(picked_id)
+                if action_key in _NO_PARAMS:
+                    break
+                intent = await self._build_intent_params(action_key, defn, target_id, state)
+                if intent is None: return None
+                if intent == BACK: continue
+                break
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=TargetType.CIVILIZATION,
+                target_id=target_id, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None,
+                intent=None if action_key in _NO_PARAMS else intent,
+            )
 
-        elif TargetType.LUMINARY in defn.valid_targets:
-            lums  = list(state.luminaries.items())
-            items = [(lid, f"{l.name}  [{_personality_label(l)}]") for lid, l in lums]
-            picked_id = await app.push_screen_wait(PickerModal("Select Luminary", items))
-            if picked_id is None:
-                return None
-            target_id   = UUID(picked_id)
-            target_type = TargetType.LUMINARY
+        if TargetType.LUMINARY in defn.valid_targets:
+            lum_items = [
+                (lid, f"{l.name}  [{_personality_label(l)}]")
+                for lid, l in state.luminaries.items()
+            ]
+            intent = None
+            while True:
+                picked_id = await app.push_screen_wait(PickerModal("Select Luminary", lum_items, show_back=True))
+                if picked_id is None: return None
+                if picked_id == BACK: return BACK
+                target_id = UUID(picked_id)
+                if action_key in _NO_PARAMS:
+                    break
+                intent = await self._build_intent_params(action_key, defn, target_id, state)
+                if intent is None: return None
+                if intent == BACK: continue
+                break
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=TargetType.LUMINARY,
+                target_id=target_id, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None,
+                intent=None if action_key in _NO_PARAMS else intent,
+            )
 
-        elif TargetType.SPECIES in defn.valid_targets:
-            species_list = list(state.species.items())
-            items        = []
-            for sid, sp in species_list:
+        if TargetType.SPECIES in defn.valid_targets:
+            species_items = []
+            for sid, sp in state.species.items():
                 w_obj  = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
                 origin = w_obj.name if w_obj else "unknown"
                 sap    = "sapient" if sp.sapient else "non-sapient"
-                items.append((sid, f"{sp.name:<18} [{sap}]  origin: {origin}"))
-            picked_id = await app.push_screen_wait(PickerModal("Select Species", items))
-            if picked_id is None:
-                return None
-            target_id   = UUID(picked_id)
-            target_type = TargetType.SPECIES
-
-        elif action_key == "scry":
-            # Scope picker loops so cancelling a target picker returns here.
-            scope_items = [
-                (ScryScope.WORLD.value,    "World       — deep mortal/civ detail  (0.05 subtle)"),
-                (ScryScope.SYSTEM.value,   "System      — reveals worlds & civs   (0.10 subtle)"),
-                (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle)"),
-                (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle)"),
-            ]
+                species_items.append((sid, f"{sp.name:<18} [{sap}]  origin: {origin}"))
+            intent = None
             while True:
-                picked_scope = await app.push_screen_wait(PickerModal("Scry Scope", scope_items))
-                if picked_scope is None:
-                    return None
-                chosen_scope = ScryScope(picked_scope)
-                if chosen_scope == ScryScope.WORLD:
-                    target_id, target_type = await self._pick_world(state)
-                    if target_id is None:
-                        continue
-                elif chosen_scope == ScryScope.SYSTEM:
-                    target_id, target_type = await self._pick_system(state)
-                    if target_id is None:
-                        continue
-                elif chosen_scope == ScryScope.GALAXY:
-                    target_id, target_type = await self._pick_galaxy(state)
-                    if target_id is None:
-                        continue
-                else:
-                    target_type = TargetType.UNIVERSE
+                picked_id = await app.push_screen_wait(PickerModal("Select Species", species_items, show_back=True))
+                if picked_id is None: return None
+                if picked_id == BACK: return BACK
+                target_id = UUID(picked_id)
+                if action_key in _NO_PARAMS:
+                    break
+                intent = await self._build_intent_params(action_key, defn, target_id, state)
+                if intent is None: return None
+                if intent == BACK: continue
                 break
-            intent = ScryIntent(scope=chosen_scope)
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=TargetType.SPECIES,
+                target_id=target_id, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None,
+                intent=None if action_key in _NO_PARAMS else intent,
+            )
 
-        elif TargetType.WORLD in defn.valid_targets and state.worlds:
-            target_id, target_type = await self._pick_world(state)
-            if target_id is None:
-                return None
+        if TargetType.WORLD in defn.valid_targets and state.worlds:
+            intent = None
+            while True:
+                target_id, target_type = await self._pick_world(state)
+                if target_id is None: return None
+                if target_id == BACK: return BACK
+                if action_key in _NO_PARAMS:
+                    break
+                intent = await self._build_intent_params(action_key, defn, target_id, state)
+                if intent is None: return None
+                if intent == BACK: continue
+                break
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=target_type,
+                target_id=target_id, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None,
+                intent=None if action_key in _NO_PARAMS else intent,
+            )
 
-        elif TargetType.UNDERREAL in defn.valid_targets:
+        if TargetType.UNDERREAL in defn.valid_targets:
             target_type = TargetType.UNDERREAL
+            if action_key in _NO_PARAMS:
+                return ActionInstance(
+                    action_definition_id=defn.id, target_type=target_type,
+                    target_id=None, timestamp=state.universe.current_age,
+                    demiurge_id=state.demiurge.id, proxius_id=None, intent=None,
+                )
+            intent = await self._build_intent_params(action_key, defn, None, state)
+            if intent is None: return None
+            if intent == BACK: return BACK
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=target_type,
+                target_id=None, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None, intent=intent,
+            )
 
-        # ── Intent params by action ─────────────────────
-        if intent is None:
-            intent = await self._build_intent_params(action_key, defn, target_id, state)
-            if intent is None and action_key not in (
-                "appoint_proxius", "empower_proxius",
-                "dismiss_proxius", "go_quiet_proxius", "audit_proxius",
-                "maintain_concealment",
-            ):
-                return None  # Cancelled during intent building
-
+        # ── No target / self-actions (SELF_REFINEMENT etc.) ──
+        if action_key in _NO_PARAMS:
+            return ActionInstance(
+                action_definition_id=defn.id, target_type=target_type,
+                target_id=None, timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id, proxius_id=None, intent=None,
+            )
+        intent = await self._build_intent_params(action_key, defn, None, state)
+        if intent is None: return None
+        if intent == BACK: return BACK
         return ActionInstance(
-            action_definition_id=defn.id,
-            target_type=target_type,
-            target_id=target_id,
-            timestamp=state.universe.current_age,
-            demiurge_id=state.demiurge.id,
-            proxius_id=proxius_id,
-            intent=intent,
+            action_definition_id=defn.id, target_type=target_type,
+            target_id=None, timestamp=state.universe.current_age,
+            demiurge_id=state.demiurge.id, proxius_id=None, intent=intent,
         )
 
     async def _build_intent_params(
@@ -2144,9 +2322,11 @@ class GameScreen(Screen):
         target_id,
         state: SimulationState,
     ):
-        """Return the typed intent object (or None to cancel), or the sentinel None for no-intent actions."""
+        """
+        Return the typed intent, BACK (go to previous step), or None (cancel).
+        For no-param actions returns None without meaning cancel.
+        """
         app = self.app
-
         cat = defn.category
 
         # ── DIRECT CREATION ──────────────────────────────
@@ -2156,17 +2336,18 @@ class GameScreen(Screen):
                     TextFormModal(
                         "Seed World — New Species",
                         [
-                            ("Species name",          "name",        "Life-Form Alpha"),
-                            ("Lifespan min",          "lmin",        "100.0"),
-                            ("Lifespan max",          "lmax",        "200.0"),
-                            ("Sapient from start? y/n","sapient",    "n"),
+                            ("Species name",          "name",    "Life-Form Alpha"),
+                            ("Lifespan min",          "lmin",    "100.0"),
+                            ("Lifespan max",          "lmax",    "200.0"),
+                            ("Sapient from start? y/n","sapient","n"),
                             ("Bio tags (comma-separated, e.g. bio:bipedal)", "tags", ""),
                         ],
                         description=defn.description,
+                        show_back=True,
                     )
                 )
-                if form is None:
-                    return None
+                if form is None: return None
+                if form == BACK: return BACK
                 bio_tags = [t.strip() for t in form["tags"].split(",") if t.strip()]
                 return SeedWorldIntent(
                     species_name=form["name"].strip() or "Life-Form Alpha",
@@ -2175,98 +2356,136 @@ class GameScreen(Screen):
                     sapient=form["sapient"].strip().lower() == "y",
                     bio_tags=bio_tags,
                 )
-            elif action_key == "uplift_species":
+            if action_key == "uplift_species":
                 domain_result = await self._pick_domain_and_imago(state)
-                if domain_result is None:
-                    return None
+                if domain_result is None: return None
+                if domain_result == BACK: return BACK
                 dvs, imago_id = domain_result
-                return UpliftSpeciesIntent(
-                    species_id=target_id,
-                    domain_vectors=dvs,
-                    imago_node_id=imago_id,
-                )
+                return UpliftSpeciesIntent(species_id=target_id, domain_vectors=dvs, imago_node_id=imago_id)
 
         # ── SUBTLE INFLUENCE ─────────────────────────────
         elif cat == ActionCategory.SUBTLE_INFLUENCE:
             if action_key in ("whisper", "shape_dream"):
-                domain_result = await self._pick_domain_and_imago(state)
-                if domain_result is None:
-                    return None
-                dvs, imago_id = domain_result
                 ireg = get_imago_registry()
-                if imago_id:
-                    concept = ireg.get_node(imago_id).name
-                else:
-                    form = await app.push_screen_wait(
-                        TextFormModal(
-                            "Whisper",
-                            [("Concept to plant", "concept", "You could shape the future.")],
-                        )
-                    )
-                    if form is None:
-                        return None
-                    concept = form["concept"].strip() or "You could shape the future."
-                framing = await self._pick_framing()
+                step = 0
+                dvs: list = []; imago_id = None; concept = None
+                while True:
+                    if step == 0:
+                        domain_result = await self._pick_domain_and_imago(state)
+                        if domain_result is None: return None
+                        if domain_result == BACK: return BACK
+                        dvs, imago_id = domain_result
+                        concept = ireg.get_node(imago_id).name if imago_id else None
+                        step = 1
+                    if step == 1:
+                        if not imago_id:
+                            form = await app.push_screen_wait(
+                                TextFormModal(
+                                    "Whisper",
+                                    [("Concept to plant", "concept", "You could shape the future.")],
+                                    show_back=True,
+                                )
+                            )
+                            if form is None: return None
+                            if form == BACK: step = 0; continue
+                            concept = form["concept"].strip() or "You could shape the future."
+                        step = 2
+                    if step == 2:
+                        framing = await self._pick_framing()
+                        if framing is None: return None
+                        if framing == BACK:
+                            step = 1 if not imago_id else 0
+                            continue
+                        break
                 return WhisperIntent(
-                    concept=concept,
-                    domain_vectors=dvs,
-                    framing=framing,
-                    imago_node_id=imago_id,
+                    concept=concept, domain_vectors=dvs, framing=framing, imago_node_id=imago_id,
                 )
-            elif action_key == "nudge_probability":
-                form = await app.push_screen_wait(
-                    TextFormModal(
-                        "Nudge Probability",
-                        [
-                            ("Event to nudge",    "event",   "Upcoming succession conflict"),
-                            ("Desired outcome",   "outcome", "The reformist faction prevails"),
-                        ],
-                    )
-                )
-                if form is None:
-                    return None
-                domain_result = await self._pick_domain_and_imago(state)
-                dvs, imago_id = domain_result if domain_result is not None else ([], None)
+
+            if action_key == "nudge_probability":
+                step = 0; form_data = None
+                dvs = []; imago_id = None
+                while True:
+                    if step == 0:
+                        form = await app.push_screen_wait(
+                            TextFormModal(
+                                "Nudge Probability",
+                                [
+                                    ("Event to nudge",  "event",   "Upcoming succession conflict"),
+                                    ("Desired outcome", "outcome", "The reformist faction prevails"),
+                                ],
+                                show_back=True,
+                            )
+                        )
+                        if form is None: return None
+                        if form == BACK: return BACK
+                        form_data = form; step = 1
+                    if step == 1:
+                        domain_result = await self._pick_domain_and_imago(state)
+                        if domain_result is None: return None
+                        if domain_result == BACK: step = 0; continue
+                        dvs, imago_id = domain_result; break
                 return ProbabilityNudgeIntent(
-                    event_description=form["event"].strip() or "Upcoming succession conflict",
-                    desired_outcome=form["outcome"].strip() or "The reformist faction prevails",
-                    domain_vectors=dvs,
-                    imago_node_id=imago_id,
+                    event_description=form_data["event"].strip() or "Upcoming succession conflict",
+                    desired_outcome=form_data["outcome"].strip() or "The reformist faction prevails",
+                    domain_vectors=dvs, imago_node_id=imago_id,
                 )
-            elif action_key == "accelerate_development":
-                form = await app.push_screen_wait(
-                    TextFormModal(
-                        "Accelerate Development",
-                        [("Aspect to develop", "aspect", "military doctrine")],
-                    )
-                )
-                if form is None:
-                    return None
-                domain_result = await self._pick_domain_and_imago(state)
-                dvs, imago_id = domain_result if domain_result is not None else ([], None)
+
+            if action_key == "accelerate_development":
+                step = 0; form_data = None
+                dvs = []; imago_id = None
+                while True:
+                    if step == 0:
+                        form = await app.push_screen_wait(
+                            TextFormModal(
+                                "Accelerate Development",
+                                [("Aspect to develop", "aspect", "military doctrine")],
+                                show_back=True,
+                            )
+                        )
+                        if form is None: return None
+                        if form == BACK: return BACK
+                        form_data = form; step = 1
+                    if step == 1:
+                        domain_result = await self._pick_domain_and_imago(state)
+                        if domain_result is None: return None
+                        if domain_result == BACK: step = 0; continue
+                        dvs, imago_id = domain_result; break
                 return DevelopmentIntent(
                     domain_vectors=dvs,
-                    target_aspect=form["aspect"].strip() or "military doctrine",
+                    target_aspect=form_data["aspect"].strip() or "military doctrine",
                     imago_node_id=imago_id,
                 )
 
         # ── OVERT MIRACLE ────────────────────────────────
         elif cat == ActionCategory.OVERT_MIRACLE:
             if action_key in ("manifest_omen", "divine_manifestation"):
-                form = await app.push_screen_wait(
-                    TextFormModal(
-                        "Manifest Omen",
-                        [
-                            ("Sign description",      "sign",   "A celestial anomaly appears"),
-                            ("Intended interpretation","interp", "The gods demand action"),
-                        ],
-                    )
-                )
-                if form is None:
-                    return None
-                domain_result = await self._pick_domain_and_imago(state)
-                dvs, imago_id = domain_result if domain_result is not None else ([], None)
-                framing       = await self._pick_framing()
+                step = 0; form_data = None
+                dvs = []; imago_id = None
+                while True:
+                    if step == 0:
+                        form = await app.push_screen_wait(
+                            TextFormModal(
+                                "Manifest Omen",
+                                [
+                                    ("Sign description",       "sign",   "A celestial anomaly appears"),
+                                    ("Intended interpretation","interp", "The gods demand action"),
+                                ],
+                                show_back=True,
+                            )
+                        )
+                        if form is None: return None
+                        if form == BACK: return BACK
+                        form_data = form; step = 1
+                    if step == 1:
+                        domain_result = await self._pick_domain_and_imago(state)
+                        if domain_result is None: return None
+                        if domain_result == BACK: step = 0; continue
+                        dvs, imago_id = domain_result; step = 2
+                    if step == 2:
+                        framing = await self._pick_framing()
+                        if framing is None: return None
+                        if framing == BACK: step = 1; continue
+                        break
                 civ_scope = None
                 if target_id:
                     tid_str = str(target_id)
@@ -2275,11 +2494,9 @@ class GameScreen(Screen):
                     elif tid_str in state.mortals:
                         civ_scope = state.mortals[tid_str].civilization_id
                 return OmenIntent(
-                    sign_description=form["sign"].strip() or "A celestial anomaly appears",
-                    intended_interpretation=form["interp"].strip() or "The gods demand action",
-                    domain_vectors=dvs,
-                    framing=framing,
-                    civilization_scope=civ_scope,
+                    sign_description=form_data["sign"].strip() or "A celestial anomaly appears",
+                    intended_interpretation=form_data["interp"].strip() or "The gods demand action",
+                    domain_vectors=dvs, framing=framing, civilization_scope=civ_scope,
                     imago_node_id=imago_id,
                 )
 
@@ -2293,10 +2510,11 @@ class GameScreen(Screen):
                             ("Target concept type (optional)", "concept", ""),
                             ("Concealment priority  0.0 risky → 1.0 safe", "conc", "0.7"),
                         ],
+                        show_back=True,
                     )
                 )
-                if form is None:
-                    return None
+                if form is None: return None
+                if form == BACK: return BACK
                 try:
                     conc = max(0.0, min(1.0, float(form["conc"] or 0.7)))
                 except ValueError:
@@ -2305,25 +2523,35 @@ class GameScreen(Screen):
                     target_concept_type=form["concept"].strip() or None,
                     concealment_priority=conc,
                 )
-            elif action_key == "salvage_concept":
-                form = await app.push_screen_wait(
-                    TextFormModal(
-                        "Salvage Concept",
-                        [("What are you hoping to find?", "desired", "")],
-                    )
-                )
-                if form is None:
-                    return None
-                world_id, _ = await self._pick_world(state)
-                if world_id is None:
-                    return None
-                domain_result = await self._pick_domain_and_imago(state)
-                dvs, imago_id = domain_result if domain_result is not None else ([], None)
+            if action_key == "salvage_concept":
+                step = 0; form_data = None; world_id = None
+                dvs = []; imago_id = None
+                while True:
+                    if step == 0:
+                        form = await app.push_screen_wait(
+                            TextFormModal(
+                                "Salvage Concept",
+                                [("What are you hoping to find?", "desired", "")],
+                                show_back=True,
+                            )
+                        )
+                        if form is None: return None
+                        if form == BACK: return BACK
+                        form_data = form; step = 1
+                    if step == 1:
+                        world_id, _ = await self._pick_world(state)
+                        if world_id is None: return None
+                        if world_id == BACK: step = 0; continue
+                        step = 2
+                    if step == 2:
+                        domain_result = await self._pick_domain_and_imago(state)
+                        if domain_result is None: return None
+                        if domain_result == BACK: step = 1; continue
+                        dvs, imago_id = domain_result; break
                 return SalvageIntent(
-                    desired_concept=form["desired"].strip(),
+                    desired_concept=form_data["desired"].strip(),
                     target_world_id=world_id,
-                    domain_vectors=dvs,
-                    imago_node_id=imago_id,
+                    domain_vectors=dvs, imago_node_id=imago_id,
                 )
 
         # ── LUMINARY RELATIONS ───────────────────────────
@@ -2336,12 +2564,13 @@ class GameScreen(Screen):
                         ("Your position",     "position", "Continued patience"),
                         ("Tone (deferential/confident/urgent/firm)", "tone", "deferential"),
                     ],
+                    show_back=True,
                 )
             )
-            if form is None:
-                return None
+            if form is None: return None
+            if form == BACK: return BACK
             return LuminaryPetitionIntent(
-                subject=form["subject"].strip()   or "Current universe state",
+                subject=form["subject"].strip() or "Current universe state",
                 your_position=form["position"].strip() or "Continued patience",
                 tone=form["tone"].strip() or "deferential",
             )
@@ -2350,41 +2579,42 @@ class GameScreen(Screen):
         elif cat == ActionCategory.SELF_REFINEMENT:
             if action_key == "explore_beliefs":
                 domain_result = await self._pick_domain_and_imago(state, explore_mode=True)
-                if domain_result is None:
-                    return None
+                if domain_result is None: return None
+                if domain_result == BACK: return BACK
                 dvs, _ = domain_result
                 if not dvs:
                     return None
-                tag = dvs[0].domain_tag
-                return ExploreBeliefIntent(domain_tag=tag)
+                return ExploreBeliefIntent(domain_tag=dvs[0].domain_tag)
 
             if action_key == "change_affiliated_domains":
                 if not state.demiurge.affiliated_domains:
                     self.app.notify("No affiliated domains to swap.", severity="warning")
                     return None
-                # Step 1: pick which affiliated domain to drop
-                old_tag = await self.app.push_screen_wait(
-                    PickerModal(
-                        title="Drop which affiliated domain?",
-                        items=[(t, t.split(":", 1)[1].title()) for t in state.demiurge.affiliated_domains],
-                    )
-                )
-                if old_tag is None:
-                    return None
-                # Step 2: pick any canonical domain that isn't already affiliated
-                exclude = set(state.demiurge.affiliated_domains)
-                new_tag = await self.app.push_screen_wait(
-                    DomainPickerModal(
-                        state,
-                        exclude_tags=exclude,
-                    )
-                )
-                if not new_tag:
-                    return None
+                step = 0; old_tag = None
+                while True:
+                    if step == 0:
+                        result = await self.app.push_screen_wait(
+                            PickerModal(
+                                title="Drop which affiliated domain?",
+                                items=[(t, t.split(":", 1)[1].title()) for t in state.demiurge.affiliated_domains],
+                                show_back=True,
+                            )
+                        )
+                        if result is None: return None
+                        if result == BACK: return BACK
+                        old_tag = result; step = 1
+                    if step == 1:
+                        exclude = set(state.demiurge.affiliated_domains)
+                        new_tag = await self.app.push_screen_wait(
+                            DomainPickerModal(state, exclude_tags=exclude)
+                        )
+                        if new_tag is None: return None
+                        if new_tag == BACK: step = 0; continue
+                        if not new_tag: step = 0; continue  # skip domain = redo drop picker
+                        break
                 return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
 
-        # No intent needed (scry, appoint_proxius, audit_proxius,
-        # maintain_concealment, empower_proxius, etc.)
+        # No intent needed
         return None
 
     # ── Sub-pickers ───────────────────────────
@@ -2393,19 +2623,17 @@ class GameScreen(Screen):
         self,
         state: SimulationState,
         explore_mode: bool = False,
-    ) -> tuple[list[DomainVector], str | None] | None:
+    ) -> "tuple[list[DomainVector], str | None] | str | None":
         """
-        Show the domain grid picker, then (if applicable) the Imago tree picker
-        with a confirmation detail screen.
-        Returns (dvs, imago_id), ([], None) for skip, or None to cancel.
+        Show the domain grid picker, then (if applicable) the Imago tree picker.
+        Returns (dvs, imago_id), ([], None) for skip, BACK to go one level back, or None to cancel.
         """
         while True:
             tag = await self.app.push_screen_wait(DomainPickerModal(state, explore_mode=explore_mode))
 
-            if tag is None:
-                return None
-            if tag == "":
-                return ([], None)
+            if tag is None: return None   # Cancel
+            if tag == BACK: return BACK   # Back
+            if tag == "":   return ([], None)  # Skip Domain
 
             if explore_mode:
                 return ([DomainVector(domain_tag=tag, direction=1.0)], None)
@@ -2413,20 +2641,18 @@ class GameScreen(Screen):
             tree = tag.split(":", 1)[1]
             ireg = get_imago_registry()
 
-            # Show the Imago tree picker if this domain has a tree
             if ireg.nodes_for_tree(tree):
-                back_to_domain = False
                 while True:
                     chosen_id = await self.app.push_screen_wait(ImagoTreeModal(state, tree))
-                    if chosen_id == "__back__":     # back to domain picker
-                        back_to_domain = True
+                    if chosen_id == BACK:       # ← Domain: back to domain picker
                         break
-                    if chosen_id is None:           # cancelled (shouldn't occur now)
+                    if chosen_id is None:       # Cancel: propagate up
                         return None
-                    if chosen_id == "__manual__":   # player wants manual direction
+                    if chosen_id == "__manual__":
                         break
-                    node = ireg.get_node(chosen_id)
+                    node      = ireg.get_node(chosen_id)
                     confirmed = await self.app.push_screen_wait(ImagoDetailModal(node, state))
+                    if confirmed is None: return None  # Cancel from detail
                     if confirmed:
                         dvs = [
                             DomainVector(domain_tag=t, direction=v)
@@ -2435,18 +2661,20 @@ class GameScreen(Screen):
                         ]
                         return (dvs, chosen_id)
                     # False = back to tree picker; loop continues
-                if back_to_domain:
+                if chosen_id == BACK:
                     continue  # re-show domain picker
+                # fell through with __manual__
 
             # Manual direction fallback
             form = await self.app.push_screen_wait(
                 TextFormModal(
                     "Domain Direction",
                     [("Direction  -1.0 suppress  →  +1.0 promote", "dir", "0.5")],
+                    show_back=True,
                 )
             )
-            if form is None:
-                return None
+            if form is None: return None
+            if form == BACK: continue   # back to domain picker
             try:
                 direction = max(-1.0, min(1.0, float(form["dir"])))
             except ValueError:
@@ -2458,7 +2686,7 @@ class GameScreen(Screen):
         state: SimulationState,
         include_dormant: bool = False,
         already_directed: set | None = None,
-    ) -> str | None:
+    ) -> "str | None":
         already_directed = already_directed or set()
         proxii = [
             (mid, m) for mid, m in state.mortals.items()
@@ -2472,16 +2700,16 @@ class GameScreen(Screen):
             return None
         items = []
         for mid, m in proxii:
-            w_obj    = state.locations.get(str(m.current_location))
-            loc      = w_obj.name if w_obj else "?"
+            w_obj     = state.locations.get(str(m.current_location))
+            loc       = w_obj.name if w_obj else "?"
             dorm_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             items.append((mid, f"{m.name:<18}  align:{m.alignment:.2f}  {loc}{dorm_note}"))
-        return await self.app.push_screen_wait(PickerModal("Select Proxius", items))
+        return await self.app.push_screen_wait(PickerModal("Select Proxius", items, show_back=True))
 
     async def _pick_world(
         self,
         state: SimulationState,
-    ) -> tuple[UUID | None, TargetType]:
+    ) -> "tuple[UUID | str | None, TargetType]":
         worlds = [(wid, w) for wid, w in state.worlds.items() if is_in_window(w)]
         if not worlds:
             self._feed_markup("[#5a7090]No worlds available.[/]")
@@ -2493,15 +2721,15 @@ class GameScreen(Screen):
             n_civs   = sum(1 for cid in w.civilization_ids if str(cid) in state.civilizations and is_in_window(state.civilizations[str(cid)]))
             life_str = f"{n_civs} civilization(s) known" if n_civs else "no life known"
             items.append((wid, f"{w.name:<16} [{w.condition.value}]  {sys_name:<20}  {life_str}"))
-        picked = await self.app.push_screen_wait(PickerModal("Select World", items))
-        if picked is None:
-            return None, TargetType.WORLD
+        picked = await self.app.push_screen_wait(PickerModal("Select World", items, show_back=True))
+        if picked is None:  return None, TargetType.WORLD
+        if picked == BACK:  return BACK, TargetType.WORLD
         return UUID(picked), TargetType.WORLD
 
     async def _pick_system(
         self,
         state: SimulationState,
-    ) -> tuple[UUID | None, TargetType]:
+    ) -> "tuple[UUID | str | None, TargetType]":
         systems = [(sid, s) for sid, s in state.systems.items() if is_in_window(s)]
         if not systems:
             self._feed_markup("[#5a7090]No systems available.[/]")
@@ -2512,15 +2740,15 @@ class GameScreen(Screen):
             gal_name = gal_obj.name if gal_obj else "?"
             n_worlds = sum(1 for cid in s.child_ids if str(cid) in state.locations and is_in_window(state.locations[str(cid)]))
             items.append((sid, f"{s.name:<22} [{s.star_type.value}]  {gal_name:<20}  {n_worlds} world(s) known"))
-        picked = await self.app.push_screen_wait(PickerModal("Select System", items))
-        if picked is None:
-            return None, TargetType.SYSTEM
+        picked = await self.app.push_screen_wait(PickerModal("Select System", items, show_back=True))
+        if picked is None:  return None, TargetType.SYSTEM
+        if picked == BACK:  return BACK, TargetType.SYSTEM
         return UUID(picked), TargetType.SYSTEM
 
     async def _pick_galaxy(
         self,
         state: SimulationState,
-    ) -> tuple[UUID | None, TargetType]:
+    ) -> "tuple[UUID | str | None, TargetType]":
         galaxies = [(gid, g) for gid, g in state.galaxies.items() if is_in_window(g)]
         if not galaxies:
             self._feed_markup("[#5a7090]No galaxies available.[/]")
@@ -2529,16 +2757,18 @@ class GameScreen(Screen):
         for gid, g in galaxies:
             n_systems = sum(1 for cid in g.child_ids if str(cid) in state.locations and is_in_window(state.locations[str(cid)]))
             items.append((gid, f"{g.name:<26}  {n_systems} system(s) known"))
-        picked = await self.app.push_screen_wait(PickerModal("Select Galaxy", items))
-        if picked is None:
-            return None, TargetType.GALAXY
+        picked = await self.app.push_screen_wait(PickerModal("Select Galaxy", items, show_back=True))
+        if picked is None:  return None, TargetType.GALAXY
+        if picked == BACK:  return BACK, TargetType.GALAXY
         return UUID(picked), TargetType.GALAXY
 
-    async def _pick_framing(self) -> Framing:
-        items = [(f.value, f.value.title()) for f in Framing]
-        picked = await self.app.push_screen_wait(PickerModal("Framing", items))
-        if picked is None or picked not in {f.value for f in Framing}:
-            return Framing.INSPIRATIONAL
+    async def _pick_framing(self) -> "Framing | str | None":
+        """Returns a Framing value, BACK sentinel, or None to cancel."""
+        items  = [(f.value, f.value.title()) for f in Framing]
+        picked = await self.app.push_screen_wait(PickerModal("Framing", items, show_back=True))
+        if picked is None:                          return None
+        if picked == BACK:                          return BACK
+        if picked not in {f.value for f in Framing}: return Framing.INSPIRATIONAL
         return Framing(picked)
 
 
