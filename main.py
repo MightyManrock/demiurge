@@ -2448,7 +2448,7 @@ class GameScreen(Screen):
         self,
         state: SimulationState,
     ) -> tuple[UUID | None, TargetType]:
-        worlds = list(state.worlds.items())
+        worlds = [(wid, w) for wid, w in state.worlds.items() if is_in_window(w)]
         if not worlds:
             self._feed_markup("[#5a7090]No worlds available.[/]")
             return None, TargetType.WORLD
@@ -2468,7 +2468,7 @@ class GameScreen(Screen):
         self,
         state: SimulationState,
     ) -> tuple[UUID | None, TargetType]:
-        systems = list(state.systems.items())
+        systems = [(sid, s) for sid, s in state.systems.items() if is_in_window(s)]
         if not systems:
             self._feed_markup("[#5a7090]No systems available.[/]")
             return None, TargetType.SYSTEM
