@@ -842,7 +842,7 @@ def _render_status(state: SimulationState) -> Text:
         if not is_in_window(world):
             continue
         cc = cond_colors.get(world.condition.value, "#707070")
-        vis_tag = f" [#5a7090][vis:{world.visibility:.2f}][/]" if not world.pinned else ""
+        vis_tag = f" [#5a7090]\\[vis:{world.visibility:.2f}][/]" if not world.pinned else ""
         a(f"  [{cc}]●[/] [bold]{_e(world.name)}[/] [{cc}]{_e(world.condition.value)}[/]{vis_tag}")
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
