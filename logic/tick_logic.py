@@ -1278,245 +1278,6 @@ class TickLoop:
                         f"They are now aware of your intent."
                     )
 
-            elif defn.name == "Scry":
-                intent_obj = instance.intent
-                if not isinstance(intent_obj, ScryIntent):
-                    return mutations, "Scry requires a ScryIntent."
-
-                scope = intent_obj.scope
-
-                # Scope-dependent footprint cost (overrides the definition's default)
-                scope_fp: dict[ScryScope, float] = {
-                    ScryScope.WORLD:    0.05,
-                    ScryScope.SYSTEM:   0.10,
-                    ScryScope.GALAXY:   0.20,
-                    ScryScope.UNIVERSE: 0.35,
-                }
-                fp_delta = scope_fp[scope] - 0.05  # definition already adds 0.05
-                if fp_delta > 0.0:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.FOOTPRINT_CHANGE,
-                        target_id=state.demiurge.id,
-                        field="subtle_influence",
-                        delta=fp_delta,
-                        note=f"Scry ({scope.value}) extra footprint",
-                    ))
-
-                # Anchor depth: what scope "natively" sees most clearly
-                # Galaxy=1, System=2, World=3, Civ/Species=4, Mortal=5
-                scope_anchor: dict[ScryScope, int] = {
-                    ScryScope.WORLD:    3,
-                    ScryScope.SYSTEM:   2,
-                    ScryScope.GALAXY:   1,
-                    ScryScope.UNIVERSE: 0,
-                }
-                anchor = scope_anchor[scope]
-
-                # Visibility granted to newly discovered entities
-                scope_start_vis: dict[ScryScope, float] = {
-                    ScryScope.WORLD:    0.70,
-                    ScryScope.SYSTEM:   0.60,
-                    ScryScope.GALAXY:   0.45,
-                    ScryScope.UNIVERSE: 0.30,
-                }
-                start_vis = scope_start_vis[scope]
-
-                def _depth_chance(delta: int) -> float:
-                    if delta == 0: return 0.85
-                    if delta == 1: return 0.55
-                    if delta == 2: return 0.30
-                    return 0.10
-
-                # Pre-compute parent/grandparent IDs of all currently visible locations
-                visible_parent_ids: set[str] = set()
-                visible_gp_ids: set[str] = set()
-                for loc in state.locations.values():
-                    if is_in_window(loc):
-                        if loc.parent_id:
-                            pid = str(loc.parent_id)
-                            visible_parent_ids.add(pid)
-                            p_obj = state.locations.get(pid)
-                            if p_obj and p_obj.parent_id:
-                                visible_gp_ids.add(str(p_obj.parent_id))
-
-                def _proximity_bonus(parent_id: Optional[UUID],
-                                     grandparent_id: Optional[UUID]) -> float:
-                    if parent_id and str(parent_id) in visible_parent_ids:
-                        return 0.15
-                    if grandparent_id and str(grandparent_id) in visible_gp_ids:
-                        return 0.05
-                    return 0.0
-
-                dreg = self._domain_registry
-                affiliated = state.demiurge.affiliated_domains  # list[str]
-
-                def _domain_bonus(entity_tags: list[str]) -> float:
-                    if not dreg or not affiliated or not entity_tags:
-                        return 0.0
-                    total = 0.0
-                    for etag in entity_tags:
-                        for atag in affiliated:
-                            try:
-                                sim = dreg.similarity(etag, atag)
-                                total += max(0.0, sim) * 0.05
-                            except Exception:
-                                pass
-                    return min(0.20, total)
-
-                discovered_locs:  list[str] = []
-                discovered_civs:  list[str] = []
-                discovered_sp:    list[str] = []
-                discovered_mort:  list[str] = []
-                refreshed_locs:   list[str] = []
-                refreshed_civs:   list[str] = []
-                refreshed_sp:     list[str] = []
-                refreshed_mort:   list[str] = []
-
-                # ── Locations ───────────────────────────────
-                loc_depth: dict[str, int] = {
-                    "galaxy": 1, "system": 2,
-                }
-                for lid, loc in state.locations.items():
-                    if getattr(loc, "pinned", False):
-                        continue
-                    depth = loc_depth.get(loc.location_type, 3)
-                    delta = abs(depth - anchor)
-                    p = _depth_chance(delta)
-                    p += _proximity_bonus(loc.parent_id, None)
-                    expr_tags = list(getattr(loc, "domain_expression", {}).keys())
-                    p += _domain_bonus(expr_tags + loc.traits)
-                    p = min(1.0, max(0.0, p))
-                    if rng.random() < p:
-                        was_visible = is_in_window(loc)
-                        new_vis = max(loc.visibility, start_vis)
-                        mutations.append(StateMutation(
-                            mutation_type=MutationType.ENTITY_VISIBILITY,
-                            target_id=UUID(lid),
-                            field="visibility",
-                            new_value=new_vis,
-                            note=f"Scry ({scope.value}): {loc.name} sighted",
-                        ))
-                        if was_visible:
-                            refreshed_locs.append(loc.name)
-                        else:
-                            discovered_locs.append(loc.name)
-
-                # ── Civilizations ───────────────────────────
-                for cid, civ in state.civilizations.items():
-                    if civ.pinned:
-                        continue
-                    delta = abs(4 - anchor)
-                    p = _depth_chance(delta)
-                    home = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
-                    home_parent = home.parent_id if home else None
-                    home_gp: Optional[UUID] = None
-                    if home_parent:
-                        hp_obj = state.locations.get(str(home_parent))
-                        if hp_obj:
-                            home_gp = hp_obj.parent_id
-                    p += _proximity_bonus(home_parent, home_gp)
-                    p += _domain_bonus(list(civ.dominant_beliefs.keys()))
-                    p = min(1.0, max(0.0, p))
-                    if rng.random() < p:
-                        was_visible = is_in_window(civ)
-                        new_vis = max(civ.visibility, start_vis)
-                        mutations.append(StateMutation(
-                            mutation_type=MutationType.ENTITY_VISIBILITY,
-                            target_id=UUID(cid),
-                            field="visibility",
-                            new_value=new_vis,
-                            note=f"Scry ({scope.value}): {civ.name} sighted",
-                        ))
-                        if was_visible:
-                            refreshed_civs.append(civ.name)
-                        else:
-                            discovered_civs.append(civ.name)
-
-                # ── Species ─────────────────────────────────
-                for sid, sp in state.species.items():
-                    if sp.pinned:
-                        continue
-                    delta = abs(4 - anchor)
-                    p = _depth_chance(delta)
-                    home = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
-                    home_parent = home.parent_id if home else None
-                    home_gp = None
-                    if home_parent:
-                        hp_obj = state.locations.get(str(home_parent))
-                        if hp_obj:
-                            home_gp = hp_obj.parent_id
-                    p += _proximity_bonus(home_parent, home_gp)
-                    p += _domain_bonus(sp.domain_tags)
-                    p = min(1.0, max(0.0, p))
-                    if rng.random() < p:
-                        was_visible = is_in_window(sp)
-                        new_vis = max(sp.visibility, start_vis)
-                        mutations.append(StateMutation(
-                            mutation_type=MutationType.ENTITY_VISIBILITY,
-                            target_id=UUID(sid),
-                            field="visibility",
-                            new_value=new_vis,
-                            note=f"Scry ({scope.value}): {sp.name} sighted",
-                        ))
-                        if was_visible:
-                            refreshed_sp.append(sp.name)
-                        else:
-                            discovered_sp.append(sp.name)
-
-                # ── Mortals ──────────────────────────────────
-                for mid, mortal in state.mortals.items():
-                    if (mortal.status == MortalStatus.DECEASED
-                            or mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD):
-                        continue
-                    delta = abs(5 - anchor)
-                    p = _depth_chance(delta)
-                    home = state.locations.get(str(mortal.current_location))
-                    home_parent = home.parent_id if home else None
-                    home_gp = None
-                    if home_parent:
-                        hp_obj = state.locations.get(str(home_parent))
-                        if hp_obj:
-                            home_gp = hp_obj.parent_id
-                    p += _proximity_bonus(home_parent, home_gp)
-                    p += _domain_bonus(
-                        list(mortal.belief_tags.keys()) + mortal.personal_tags
-                    )
-                    p = min(1.0, max(0.0, p))
-                    if rng.random() < p:
-                        was_visible = mortal.visibility > VISIBILITY_FLOOR
-                        new_vis = max(mortal.visibility, start_vis)
-                        mutations.append(StateMutation(
-                            mutation_type=MutationType.MORTAL_VISIBILITY,
-                            target_id=UUID(mid),
-                            field="visibility",
-                            new_value=new_vis,
-                            note=f"Scry ({scope.value}): {mortal.name} sighted",
-                        ))
-                        if was_visible:
-                            refreshed_mort.append(mortal.name)
-                        else:
-                            discovered_mort.append(mortal.name)
-
-                # ── Narrative ────────────────────────────────
-                parts = [f"You scryed at {scope.value} scope."]
-                all_discovered = discovered_locs + discovered_civs + discovered_sp + discovered_mort
-                all_refreshed = refreshed_locs + refreshed_civs + refreshed_sp + refreshed_mort
-                if discovered_locs:
-                    parts.append(f"Locations sighted: {', '.join(discovered_locs)}.")
-                if discovered_civs:
-                    parts.append(f"Civilizations sighted: {', '.join(discovered_civs)}.")
-                if discovered_sp:
-                    parts.append(f"Species sighted: {', '.join(discovered_sp)}.")
-                if discovered_mort:
-                    parts.append(f"Mortals sighted: {', '.join(discovered_mort)}.")
-                if all_refreshed and not all_discovered:
-                    parts.append(f"Sight maintained on: {', '.join(all_refreshed)}.")
-                elif all_refreshed:
-                    parts.append(f"Also maintained: {', '.join(all_refreshed)}.")
-                if not all_discovered and not all_refreshed:
-                    parts.append("Nothing new came into view.")
-                narrative = " ".join(parts)
-
             elif defn.name == "Maintain Concealment":
                 if outcome == ActionOutcome.FAILURE:
                     return mutations, "The concealment maintenance failed to take hold."
@@ -1631,6 +1392,228 @@ class TickLoop:
                 # Purely observational — no mutations.
 
             return mutations, narrative
+
+        # ── Scry ─────────────────────────────────────
+        if isinstance(intent, ScryIntent):
+            scope = intent.scope
+
+            scope_fp: dict[ScryScope, float] = {
+                ScryScope.WORLD:    0.05,
+                ScryScope.SYSTEM:   0.10,
+                ScryScope.GALAXY:   0.20,
+                ScryScope.UNIVERSE: 0.35,
+            }
+            fp_delta = scope_fp[scope] - 0.05  # definition already adds 0.05
+            if fp_delta > 0.0:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.FOOTPRINT_CHANGE,
+                    target_id=state.demiurge.id,
+                    field="subtle_influence",
+                    delta=fp_delta,
+                    note=f"Scry ({scope.value}) extra footprint",
+                ))
+
+            scope_anchor: dict[ScryScope, int] = {
+                ScryScope.WORLD:    3,
+                ScryScope.SYSTEM:   2,
+                ScryScope.GALAXY:   1,
+                ScryScope.UNIVERSE: 0,
+            }
+            anchor = scope_anchor[scope]
+
+            scope_start_vis: dict[ScryScope, float] = {
+                ScryScope.WORLD:    0.70,
+                ScryScope.SYSTEM:   0.60,
+                ScryScope.GALAXY:   0.45,
+                ScryScope.UNIVERSE: 0.30,
+            }
+            start_vis = scope_start_vis[scope]
+
+            def _depth_chance(delta: int) -> float:
+                if delta == 0: return 0.85
+                if delta == 1: return 0.55
+                if delta == 2: return 0.30
+                return 0.10
+
+            visible_parent_ids: set[str] = set()
+            visible_gp_ids: set[str] = set()
+            for loc in state.locations.values():
+                if is_in_window(loc):
+                    if loc.parent_id:
+                        pid = str(loc.parent_id)
+                        visible_parent_ids.add(pid)
+                        p_obj = state.locations.get(pid)
+                        if p_obj and p_obj.parent_id:
+                            visible_gp_ids.add(str(p_obj.parent_id))
+
+            def _proximity_bonus(parent_id: Optional[UUID],
+                                 grandparent_id: Optional[UUID]) -> float:
+                if parent_id and str(parent_id) in visible_parent_ids:
+                    return 0.15
+                if grandparent_id and str(grandparent_id) in visible_gp_ids:
+                    return 0.05
+                return 0.0
+
+            dreg = self._domain_registry
+            affiliated = state.demiurge.affiliated_domains
+
+            def _domain_bonus(entity_tags: list[str]) -> float:
+                if not dreg or not affiliated or not entity_tags:
+                    return 0.0
+                total = 0.0
+                for etag in entity_tags:
+                    for atag in affiliated:
+                        try:
+                            sim = dreg.similarity(etag, atag)
+                            total += max(0.0, sim) * 0.05
+                        except Exception:
+                            pass
+                return min(0.20, total)
+
+            discovered_locs:  list[str] = []
+            discovered_civs:  list[str] = []
+            discovered_sp:    list[str] = []
+            discovered_mort:  list[str] = []
+            refreshed_locs:   list[str] = []
+            refreshed_civs:   list[str] = []
+            refreshed_sp:     list[str] = []
+            refreshed_mort:   list[str] = []
+
+            loc_depth: dict[str, int] = {"galaxy": 1, "system": 2}
+            for lid, loc in state.locations.items():
+                if getattr(loc, "pinned", False):
+                    continue
+                depth = loc_depth.get(loc.location_type, 3)
+                delta = abs(depth - anchor)
+                p = _depth_chance(delta)
+                p += _proximity_bonus(loc.parent_id, None)
+                expr_tags = list(getattr(loc, "domain_expression", {}).keys())
+                p += _domain_bonus(expr_tags + loc.traits)
+                p = min(1.0, max(0.0, p))
+                if rng.random() < p:
+                    was_visible = is_in_window(loc)
+                    new_vis = max(loc.visibility, start_vis)
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_VISIBILITY,
+                        target_id=UUID(lid),
+                        field="visibility",
+                        new_value=new_vis,
+                        note=f"Scry ({scope.value}): {loc.name} sighted",
+                    ))
+                    if was_visible:
+                        refreshed_locs.append(loc.name)
+                    else:
+                        discovered_locs.append(loc.name)
+
+            for cid, civ in state.civilizations.items():
+                if civ.pinned:
+                    continue
+                delta = abs(4 - anchor)
+                p = _depth_chance(delta)
+                home = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
+                home_parent = home.parent_id if home else None
+                home_gp: Optional[UUID] = None
+                if home_parent:
+                    hp_obj = state.locations.get(str(home_parent))
+                    if hp_obj:
+                        home_gp = hp_obj.parent_id
+                p += _proximity_bonus(home_parent, home_gp)
+                p += _domain_bonus(list(civ.dominant_beliefs.keys()))
+                p = min(1.0, max(0.0, p))
+                if rng.random() < p:
+                    was_visible = is_in_window(civ)
+                    new_vis = max(civ.visibility, start_vis)
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_VISIBILITY,
+                        target_id=UUID(cid),
+                        field="visibility",
+                        new_value=new_vis,
+                        note=f"Scry ({scope.value}): {civ.name} sighted",
+                    ))
+                    if was_visible:
+                        refreshed_civs.append(civ.name)
+                    else:
+                        discovered_civs.append(civ.name)
+
+            for sid, sp in state.species.items():
+                if sp.pinned:
+                    continue
+                delta = abs(4 - anchor)
+                p = _depth_chance(delta)
+                home = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
+                home_parent = home.parent_id if home else None
+                home_gp = None
+                if home_parent:
+                    hp_obj = state.locations.get(str(home_parent))
+                    if hp_obj:
+                        home_gp = hp_obj.parent_id
+                p += _proximity_bonus(home_parent, home_gp)
+                p += _domain_bonus(sp.domain_tags)
+                p = min(1.0, max(0.0, p))
+                if rng.random() < p:
+                    was_visible = is_in_window(sp)
+                    new_vis = max(sp.visibility, start_vis)
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_VISIBILITY,
+                        target_id=UUID(sid),
+                        field="visibility",
+                        new_value=new_vis,
+                        note=f"Scry ({scope.value}): {sp.name} sighted",
+                    ))
+                    if was_visible:
+                        refreshed_sp.append(sp.name)
+                    else:
+                        discovered_sp.append(sp.name)
+
+            for mid, mortal in state.mortals.items():
+                if (mortal.status == MortalStatus.DECEASED
+                        or mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD):
+                    continue
+                delta = abs(5 - anchor)
+                p = _depth_chance(delta)
+                home = state.locations.get(str(mortal.current_location))
+                home_parent = home.parent_id if home else None
+                home_gp = None
+                if home_parent:
+                    hp_obj = state.locations.get(str(home_parent))
+                    if hp_obj:
+                        home_gp = hp_obj.parent_id
+                p += _proximity_bonus(home_parent, home_gp)
+                p += _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags)
+                p = min(1.0, max(0.0, p))
+                if rng.random() < p:
+                    was_visible = mortal.visibility > VISIBILITY_FLOOR
+                    new_vis = max(mortal.visibility, start_vis)
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.MORTAL_VISIBILITY,
+                        target_id=UUID(mid),
+                        field="visibility",
+                        new_value=new_vis,
+                        note=f"Scry ({scope.value}): {mortal.name} sighted",
+                    ))
+                    if was_visible:
+                        refreshed_mort.append(mortal.name)
+                    else:
+                        discovered_mort.append(mortal.name)
+
+            parts = [f"You scryed at {scope.value} scope."]
+            all_discovered = discovered_locs + discovered_civs + discovered_sp + discovered_mort
+            all_refreshed = refreshed_locs + refreshed_civs + refreshed_sp + refreshed_mort
+            if discovered_locs:
+                parts.append(f"Locations sighted: {', '.join(discovered_locs)}.")
+            if discovered_civs:
+                parts.append(f"Civilizations sighted: {', '.join(discovered_civs)}.")
+            if discovered_sp:
+                parts.append(f"Species sighted: {', '.join(discovered_sp)}.")
+            if discovered_mort:
+                parts.append(f"Mortals sighted: {', '.join(discovered_mort)}.")
+            if all_refreshed and not all_discovered:
+                parts.append(f"Sight maintained on: {', '.join(all_refreshed)}.")
+            elif all_refreshed:
+                parts.append(f"Also maintained: {', '.join(all_refreshed)}.")
+            if not all_discovered and not all_refreshed:
+                parts.append("Nothing new came into view.")
+            return mutations, " ".join(parts)
 
         # ── Change Affiliated Domain ──────────────────
         if isinstance(intent, ChangeAffiliatedDomainsIntent):
