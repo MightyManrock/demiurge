@@ -128,8 +128,9 @@ CREATE TABLE IF NOT EXISTS locations (
     age              REAL NOT NULL DEFAULT 0.0,
     -- PopLocation-specific (populated for subclass='pop_location')
     pop_ids          TEXT NOT NULL DEFAULT '[]',     -- JSON array
-    -- Known to Demiurge?
-    known   INTEGER NOT NULL DEFAULT 0      -- bool
+    -- Window visibility
+    visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
+    pinned      INTEGER NOT NULL DEFAULT 0       -- bool; 1 = never decays (all starting locations)
 );
 
 CREATE TABLE IF NOT EXISTS species (
@@ -143,7 +144,9 @@ CREATE TABLE IF NOT EXISTS species (
     lifespan_max     REAL NOT NULL DEFAULT 200.0,
     domain_tags      TEXT NOT NULL DEFAULT '[]',   -- JSON array of domain:... strings (innate affinity)
     bio_tags         TEXT NOT NULL DEFAULT '[]',   -- JSON array
-    condition        TEXT NOT NULL DEFAULT 'stable'
+    condition        TEXT NOT NULL DEFAULT 'stable',
+    visibility       REAL    NOT NULL DEFAULT 0.0,
+    pinned           INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS civilizations (
@@ -161,7 +164,9 @@ CREATE TABLE IF NOT EXISTS civilizations (
     culture_tags        TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     theistic            INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness    REAL NOT NULL DEFAULT 0.3,
-    age                 REAL NOT NULL DEFAULT 0.0
+    age                 REAL NOT NULL DEFAULT 0.0,
+    visibility          REAL    NOT NULL DEFAULT 0.0,
+    pinned              INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS mortals (
@@ -184,7 +189,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     appointed_by_demiurge  TEXT,
     appointed_by_luminary  TEXT,
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
-    current_location       TEXT NOT NULL   -- UUID of current SignificantLocation (changes on movement)
+    current_location       TEXT NOT NULL,  -- UUID of current SignificantLocation (changes on movement)
+    starting_visible       INTEGER NOT NULL DEFAULT 0  -- bool; decays at slow rate instead of normal
 );
 
 -- ─────────────────────────────────────────
@@ -233,8 +239,12 @@ CREATE TABLE IF NOT EXISTS tick_config (
     alignment_drift_rate               REAL NOT NULL DEFAULT 0.01,
     attention_decay_rate               REAL NOT NULL DEFAULT 0.03,
     evaluation_interval                REAL NOT NULL DEFAULT 10.0,
-    mortal_visibility_decay_rate       REAL NOT NULL DEFAULT 0.03,
-    proxius_passive_footprint_rate     REAL NOT NULL DEFAULT 0.03
+    mortal_visibility_decay_rate            REAL NOT NULL DEFAULT 0.03,
+    proxius_passive_footprint_rate          REAL NOT NULL DEFAULT 0.03,
+    location_visibility_decay_rate          REAL NOT NULL DEFAULT 0.01,
+    civ_visibility_decay_rate               REAL NOT NULL DEFAULT 0.01,
+    species_visibility_decay_rate           REAL NOT NULL DEFAULT 0.01,
+    starting_visible_decay_rate             REAL NOT NULL DEFAULT 0.005
 );
 
 -- Per-civilization natural momentum at scenario start.

@@ -122,7 +122,8 @@ class Location(BaseModel):
     child_ids: list[UUID] = Field(default_factory=list)
     traits: list[str] = Field(default_factory=list)
     condition: LocCondition = LocCondition.STABLE
-    known: int = 0
+    visibility: float = 0.0   # 0.0 = unknown; 1.0 = fully in-window
+    pinned: bool = False       # True = never decays (all starting-scenario locations)
 
 
 class CosmicCoordinates(BaseModel):
@@ -210,6 +211,8 @@ class Species(BaseModel):
     # e.g. ["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"]
 
     condition: SpeciesCondition = SpeciesCondition.STABLE
+    visibility: float = 0.0
+    pinned: bool = False
 
 
 # ─────────────────────────────────────────
@@ -306,6 +309,8 @@ class Civilization(BaseModel):
     pop_ids: list[UUID] = Field(default_factory=list)
     notable_mortal_ids: list[UUID] = Field(default_factory=list)
     age: float = 0.0
+    visibility: float = 0.0
+    pinned: bool = False
 
 
 # ─────────────────────────────────────────
@@ -379,6 +384,9 @@ class NotableMortal(BaseModel):
     # Decays passively; refreshed by scrying their world or taking direct action.
     # Ignored when prominence >= ALWAYS_VISIBLE_THRESHOLD.
     visibility: float = Field(ge=0.0, le=1.0, default=0.0)
+    # Mortals visible at scenario start decay at starting_visible_decay_rate (slow) instead
+    # of mortal_visibility_decay_rate. Distinct from the always-visible prominence threshold.
+    starting_visible: bool = False
 
     # How faithfully they're currently pursuing their
     # patron's agenda vs. their own. 1.0 = fully aligned.

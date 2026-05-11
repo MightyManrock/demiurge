@@ -426,6 +426,22 @@ class ChangeAffiliatedDomainsIntent(BaseModel):
     # The domain:... tag being added to affiliated_domains.
 
 
+class ScryScope(str, Enum):
+    WORLD    = "world"
+    SYSTEM   = "system"
+    GALAXY   = "galaxy"
+    UNIVERSE = "universe"
+
+
+class ScryIntent(BaseModel):
+    """
+    For: scry
+    The scope at which the Demiurge surveys the cosmos.
+    Broader scopes cost more footprint but can reveal more entity types.
+    """
+    scope: ScryScope = ScryScope.WORLD
+
+
 # ─────────────────────────────────────────
 # UNIFIED INTENT TYPE
 # ActionInstance.intent replaces .parameters
@@ -444,6 +460,7 @@ ActionIntent = Union[
     UpliftSpeciesIntent,
     ExploreBeliefIntent,
     ChangeAffiliatedDomainsIntent,
+    ScryIntent,
 ]
 
 
@@ -725,13 +742,13 @@ def build_action_library() -> dict[str, ActionDefinition]:
             name="Scry",
             category=ActionCategory.OBSERVATION,
             description=(
-                "Survey a world to read its current state and bring "
-                "low-prominence mortals into view. The only way to discover "
-                "mortals who are not automatically perceived."
+                "Survey the cosmos at the chosen scope. World-scope reveals mortal detail "
+                "with minimal footprint. Broader scopes (system, galaxy, universe) reveal "
+                "locations, civilizations, and species at increasing footprint cost."
             ),
-            valid_targets=[TargetType.WORLD],
+            valid_targets=[TargetType.WORLD, TargetType.SYSTEM, TargetType.GALAXY, TargetType.UNIVERSE],
             reliability=ActionReliability.CERTAIN,
-            footprint_cost=FootprintCost(subtle_influence=0.05),
+            footprint_cost=FootprintCost(subtle_influence=0.05),  # minimum; scope overrides at resolve time
             tags=["observation", "low_footprint", "intelligence", "can_persist"],
         ),
 
@@ -1072,6 +1089,7 @@ class MutationType(str, Enum):
     DEMIURGE_UNLOCK        = "demiurge_unlock"
     AFFILIATED_DOMAIN_CHANGE = "affiliated_domain_change"
     EVENT_EMITTED          = "event_emitted"
+    ENTITY_VISIBILITY      = "entity_visibility"   # locations, civilizations, species
 
 
 class StateMutation(BaseModel):

@@ -36,8 +36,9 @@ from core.action_core import (
 from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation
 from logic.tick_logic import (
     SimulationState, TickLoop, TickResult,
-    is_mortal_visible, ALWAYS_VISIBLE_THRESHOLD,
+    is_mortal_visible, is_in_window, ALWAYS_VISIBLE_THRESHOLD, ENTITY_VISIBILITY_FLOOR,
 )
+from core.action_core import ScryScope, ScryIntent
 from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -141,14 +142,18 @@ def display_state(state: "SimulationState") -> str:
     lines.append(SEP)
     lines.append("WORLDS")
     for wid, world in state.worlds.items():
+        if not is_in_window(world):
+            continue
         domain_str = _format_beliefs(world.domain_expression) or "none"
-        lines.append(f"  {world.name}  [{world.condition.value}]  domain: {domain_str}")
+        vis_note = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
+        lines.append(f"  {world.name}  [{world.condition.value}]{vis_note}  domain: {domain_str}")
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
-            if civ:
+            if civ and is_in_window(civ):
                 h = civ.health
+                civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
                 lines.append(
-                    f"    └─ {civ.name} [{civ.scale.value}]  "
+                    f"    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
                     f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
                 )
                 lines.append(f"       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}")
@@ -288,21 +293,26 @@ def display_briefing(state: "SimulationState") -> str:
     lines.append(SEP)
     lines.append("YOUR UNIVERSE")
     for gid, galaxy in state.galaxies.items():
-        lines += ["", f"  Galaxy: {galaxy.name}"]
+        if not is_in_window(galaxy):
+            continue
+        gal_vis = f"  [vis:{galaxy.visibility:.2f}]" if not galaxy.pinned else ""
+        lines += ["", f"  Galaxy: {galaxy.name}{gal_vis}"]
         for sid in galaxy.child_ids:
             sys_obj  = state.locations.get(str(sid))
-            if not sys_obj:
+            if not sys_obj or not is_in_window(sys_obj):
                 continue
             star_str = f"  [{sys_obj.star_type.value}]" if hasattr(sys_obj, "star_type") else ""
-            lines.append(f"    System: {sys_obj.name}{star_str}")
+            sys_vis  = f"  [vis:{sys_obj.visibility:.2f}]" if not sys_obj.pinned else ""
+            lines.append(f"    System: {sys_obj.name}{star_str}{sys_vis}")
             for wid in sys_obj.child_ids:
                 world = state.worlds.get(str(wid))
-                if not world:
+                if not world or not is_in_window(world):
                     continue
                 n_civs   = len(world.civilization_ids)
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
+                w_vis    = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
                 lines.append(
-                    f"      {world.name}  [{world.condition.value}]  age:{world.age:.0f}  {life_str}"
+                    f"      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:.0f}  {life_str}"
                 )
                 if world.domain_expression:
                     lines.append(f"        domain expression: {_format_beliefs(world.domain_expression)}")
@@ -315,10 +325,11 @@ def display_briefing(state: "SimulationState") -> str:
                     lines.append(f"        {' · '.join(parts)}")
                 for cid in world.civilization_ids:
                     civ = state.civilizations.get(str(cid))
-                    if civ:
+                    if civ and is_in_window(civ):
                         h = civ.health
+                        civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
                         lines.append(
-                            f"        └─ {civ.name}  [{civ.scale.value}]  "
+                            f"        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
                             f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
                         )
                         if civ.dominant_beliefs:
@@ -326,15 +337,17 @@ def display_briefing(state: "SimulationState") -> str:
                         if civ.culture_tags:
                             lines.append(f"           culture: {_format_culture(civ.culture_tags)}")
     lines += ["", SEP]
-    if state.species:
+    visible_species = [(sid, sp) for sid, sp in state.species.items() if is_in_window(sp)]
+    if visible_species:
         lines.append("SPECIES")
-        for sid, sp in state.species.items():
+        for sid, sp in visible_species:
             w_obj   = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
             origin  = w_obj.name if w_obj else "unknown"
             sap_str = "sapient" if sp.sapient else "non-sapient"
             xp_str  = "  [transplanted]" if sp.transplanted else ""
+            sp_vis  = f"  [vis:{sp.visibility:.2f}]" if not sp.pinned else ""
             lines.append(
-                f"  {sp.name:16s} [{sap_str}]  origin:{origin}  "
+                f"  {sp.name:16s} [{sap_str}]{sp_vis}  origin:{origin}  "
                 f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  [{sp.condition.value}]{xp_str}"
             )
             if sp.bio_tags or sp.domain_tags:
@@ -826,11 +839,14 @@ def _render_status(state: SimulationState) -> Text:
         "barren":   "#604040",
     }
     for wid, world in state.worlds.items():
+        if not is_in_window(world):
+            continue
         cc = cond_colors.get(world.condition.value, "#707070")
-        a(f"  [{cc}]●[/] [bold]{_e(world.name)}[/] [{cc}]{_e(world.condition.value)}[/]")
+        vis_tag = f" [#5a7090][vis:{world.visibility:.2f}][/]" if not world.pinned else ""
+        a(f"  [{cc}]●[/] [bold]{_e(world.name)}[/] [{cc}]{_e(world.condition.value)}[/]{vis_tag}")
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
-            if civ:
+            if civ and is_in_window(civ):
                 h = civ.health
                 a(f"    [#2a4060]└[/] [#8090a0]{_e(civ.name)}[/]")
                 a(f"      [#2a4060]S{h.stability:.1f} P{h.prosperity:.1f} C{h.cohesion:.1f}[/]")
@@ -2035,6 +2051,30 @@ class GameScreen(Screen):
             target_id   = UUID(picked_id)
             target_type = TargetType.SPECIES
 
+        elif action_key == "scry":
+            # Scry uses a scope picker; target is optional depending on scope.
+            scope_items = [
+                (ScryScope.WORLD.value,    "World       — deep mortal/civ detail  (0.05 subtle)"),
+                (ScryScope.SYSTEM.value,   "System      — reveals worlds & civs   (0.10 subtle)"),
+                (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle)"),
+                (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle)"),
+            ]
+            picked_scope = await app.push_screen_wait(PickerModal("Scry Scope", scope_items))
+            if picked_scope is None:
+                return None
+            chosen_scope = ScryScope(picked_scope)
+            intent = ScryIntent(scope=chosen_scope)
+            if chosen_scope == ScryScope.WORLD:
+                target_id, target_type = await self._pick_world(state)
+                if target_id is None:
+                    return None
+            elif chosen_scope == ScryScope.SYSTEM:
+                target_id, target_type = await self._pick_system(state)
+                if target_id is None:
+                    return None
+            else:
+                target_type = TargetType.UNIVERSE
+
         elif TargetType.WORLD in defn.valid_targets and state.worlds:
             target_id, target_type = await self._pick_world(state)
             if target_id is None:
@@ -2047,7 +2087,7 @@ class GameScreen(Screen):
         if intent is None:
             intent = await self._build_intent_params(action_key, defn, target_id, state)
             if intent is None and action_key not in (
-                "scry", "appoint_proxius", "empower_proxius",
+                "appoint_proxius", "empower_proxius",
                 "dismiss_proxius", "go_quiet_proxius", "audit_proxius",
                 "maintain_concealment",
             ):
@@ -2423,6 +2463,25 @@ class GameScreen(Screen):
         if picked is None:
             return None, TargetType.WORLD
         return UUID(picked), TargetType.WORLD
+
+    async def _pick_system(
+        self,
+        state: SimulationState,
+    ) -> tuple[UUID | None, TargetType]:
+        systems = list(state.systems.items())
+        if not systems:
+            self._feed_markup("[#5a7090]No systems available.[/]")
+            return None, TargetType.SYSTEM
+        items = []
+        for sid, s in systems:
+            gal_obj  = state.locations.get(str(s.parent_id)) if s.parent_id else None
+            gal_name = gal_obj.name if gal_obj else "?"
+            n_worlds = len(s.child_ids)
+            items.append((sid, f"{s.name:<22} [{s.star_type.value}]  {gal_name:<20}  {n_worlds} world(s)"))
+        picked = await self.app.push_screen_wait(PickerModal("Select System", items))
+        if picked is None:
+            return None, TargetType.SYSTEM
+        return UUID(picked), TargetType.SYSTEM
 
     async def _pick_framing(self) -> Framing:
         items = [(f.value, f.value.title()) for f in Framing]

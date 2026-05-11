@@ -252,7 +252,6 @@ def _write_locations(conn, state: SimulationState):
         geo_tags = atmo_tags = "[]"
         age = 0.0
         pop_ids = "[]"
-        known = 0
 
         if isinstance(loc, System):
             coords_x, coords_y, coords_z = loc.coordinates.x, loc.coordinates.y, loc.coordinates.z
@@ -283,14 +282,14 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt_miracles, lf_subtle_influence, lf_proxius_activity, lf_direct_creation,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids, known)
+                pop_ids, visibility, pinned)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?,
                        ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?, ?, ?,
-                       ?, ?)""",
+                       ?, ?, ?)""",
             (
                 str(loc.id),
                 loc.name,
@@ -307,7 +306,7 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt, lf_subtle, lf_proxius, lf_direct,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids, loc.known,
+                pop_ids, loc.visibility, int(loc.pinned),
             ),
         )
 
@@ -317,8 +316,9 @@ def _write_species(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO species
                (id, name, description, origin_world_id, sapient, transplanted,
-                lifespan_min, lifespan_max, domain_tags, bio_tags, condition)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                lifespan_min, lifespan_max, domain_tags, bio_tags, condition,
+                visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(sp.id),
                 sp.name,
@@ -331,6 +331,8 @@ def _write_species(conn, state: SimulationState):
                 _j(sp.domain_tags),
                 _j(sp.bio_tags),
                 sp.condition.value,
+                sp.visibility,
+                int(sp.pinned),
             ),
         )
 
@@ -342,8 +344,8 @@ def _write_civilizations(conn, state: SimulationState):
                (id, name, description, origin_location_id, scale,
                 health_stability, health_prosperity, health_cohesion,
                 primary_species_id, dominant_beliefs, culture_tags,
-                theistic, divine_awareness, age)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                theistic, divine_awareness, age, visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -359,6 +361,8 @@ def _write_civilizations(conn, state: SimulationState):
                 int(c.theistic),
                 c.divine_awareness,
                 c.age,
+                c.visibility,
+                int(c.pinned),
             ),
         )
 
@@ -372,8 +376,8 @@ def _write_mortals(conn, state: SimulationState):
                 belief_tags, personal_tags, culture_tags,
                 alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary,
-                home_location, current_location)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                home_location, current_location, starting_visible)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -395,6 +399,7 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.appointed_by_luminary) if m.appointed_by_luminary else None,
                 str(m.home_location),
                 str(m.current_location),
+                int(m.starting_visible),
             ),
         )
 
@@ -445,8 +450,10 @@ def _write_tick_config(conn, state: SimulationState):
             decay_mult_proxius_activity, decay_mult_direct_creation,
             concealment_decay_rate, civ_momentum_rate, civ_noise_factor,
             alignment_drift_rate, attention_decay_rate, evaluation_interval,
-            mortal_visibility_decay_rate, proxius_passive_footprint_rate)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            mortal_visibility_decay_rate, proxius_passive_footprint_rate,
+            location_visibility_decay_rate, civ_visibility_decay_rate,
+            species_visibility_decay_rate, starting_visible_decay_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cfg.tick_duration,
             cfg.footprint_decay_rate,
@@ -462,6 +469,10 @@ def _write_tick_config(conn, state: SimulationState):
             cfg.evaluation_interval,
             cfg.mortal_visibility_decay_rate,
             cfg.proxius_passive_footprint_rate,
+            cfg.location_visibility_decay_rate,
+            cfg.civ_visibility_decay_rate,
+            cfg.species_visibility_decay_rate,
+            cfg.starting_visible_decay_rate,
         ),
     )
 
@@ -699,14 +710,14 @@ def build_scenario_default() -> SimulationState:
     galaxy = Location(
         name="The Nascent Coil",
         location_type="galaxy",
-        known=1,
+        visibility=1.0, pinned=True,
     )
 
     system = System(
         name="Ardent System",
         parent_id=galaxy.id,
         star_type=StarType.MAIN_SEQUENCE,
-        known=1,
+        visibility=1.0, pinned=True,
     )
     neran = SignificantLocation(
         name="Neran",
@@ -717,7 +728,7 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:terrestrial", "geo:temperate"],
         atmo_tags=["atmo:nitrogen_oxygen"],
         age=600.0,
-        known=1,
+        visibility=1.0, pinned=True,
     )
     vel_arath = SignificantLocation(
         name="Vel Arath",
@@ -727,7 +738,7 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:rocky", "geo:barren"],
         atmo_tags=["atmo:none"],
         age=900.0,
-        known=1,
+        visibility=1.0, pinned=True,
     )
 
     galaxy.child_ids.append(system.id)
@@ -739,7 +750,7 @@ def build_scenario_default() -> SimulationState:
         parent_id=galaxy.id,
         star_type=StarType.DWARF,
         coordinates=CosmicCoordinates(x=12.0, y=3.0, z=-2.0),
-        known=1,
+        visibility=1.0, pinned=True,
     )
     oros = SignificantLocation(
         name="Oros",
@@ -750,7 +761,7 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:terrestrial", "geo:arid"],
         atmo_tags=["atmo:nitrogen_oxygen"],
         age=275.0,
-        known=1,
+        visibility=1.0, pinned=True,
     )
 
     galaxy.child_ids.append(system_outer.id)
@@ -761,7 +772,7 @@ def build_scenario_default() -> SimulationState:
         parent_id=galaxy.id,
         star_type=StarType.MAIN_SEQUENCE,
         coordinates=CosmicCoordinates(x=-5.0, y=-2.0, z=1.0),
-        known=0,
+        visibility=0.0, pinned=False,
     )
     kiddis = SignificantLocation(
         name="Kiddis",
@@ -772,7 +783,7 @@ def build_scenario_default() -> SimulationState:
         geo_tags=["geo:terrestrial", "geo:humid"],
         atmo_tags=["atmo:nitrogen_oxygen", "atmo:high_co2"],
         age=248.0,
-        known=0,
+        visibility=0.0, pinned=False,
     )
 
     galaxy.child_ids.append(system_hidden.id)
@@ -789,6 +800,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_max=340,
         bio_tags=["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"],
         condition=SpeciesCondition.STABLE,
+        visibility=1.0, pinned=True,
     )
     neran.species_ids.append(naran_species.id)
 
@@ -801,6 +813,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_max=860,
         bio_tags=["bio:water-breathing", "bio:radial_symm", "bio:carbon_based"],
         condition=SpeciesCondition.ENDANGERED,
+        visibility=1.0, pinned=True,
     )
     neran.species_ids.append(ultir_species.id)
 
@@ -813,6 +826,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_max=280,
         bio_tags=["bio:bipedal", "bio:nocturnal", "bio:carbon_based"],
         condition=SpeciesCondition.STABLE,
+        visibility=1.0, pinned=True,
     )
     oros.species_ids.append(keth_species.id)
 
@@ -825,6 +839,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_max=100,
         bio_tags=["bio:quadripedal", "bio:warm_blooded", "bio:silicon_based"],
         condition=SpeciesCondition.STABLE,
+        visibility=0.0, pinned=False,
     )
     kiddis.species_ids.append(damtal_species.id)
 
@@ -845,6 +860,7 @@ def build_scenario_default() -> SimulationState:
         theistic=True,
         divine_awareness=0.25,
         age=400.0,
+        visibility=1.0, pinned=True,
     )
     neran.civilization_ids.append(neran_confed.id)
 
@@ -863,6 +879,7 @@ def build_scenario_default() -> SimulationState:
         theistic=True,
         divine_awareness=0.10,
         age=60.0,
+        visibility=1.0, pinned=True,
     )
     oros.civilization_ids.append(keth_civ.id)
 
@@ -877,6 +894,7 @@ def build_scenario_default() -> SimulationState:
         theistic=False,
         divine_awareness=0.0,
         age=260.0,
+        visibility=0.0, pinned=False,
     )
 
     # ── Notable Mortals ───────────────────────────────
@@ -888,6 +906,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"culture:hierarchy": 0.80, "culture:diplomacy": 0.80, "culture:sedentism": 0.80},
         alignment=0.75, chrono_age=170.0, bio_age=170.0,
         home_location=neran.id, current_location=neran.id,
+        starting_visible=True,
     )
     neran_confed.notable_mortal_ids.append(senna.id)
 
@@ -899,6 +918,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"culture:hierarchy": 0.90, "culture:sedentism": 0.80, "culture:industrialism": 0.70},
         alignment=0.45, chrono_age=205.0, bio_age=205.0,
         home_location=neran.id, current_location=neran.id,
+        starting_visible=True,
     )
     neran_confed.notable_mortal_ids.append(karath.id)
 
@@ -910,6 +930,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"culture:luminary_worship": 0.90, "culture:ancestor_worship": 0.80, "culture:sedentism": 0.80},
         alignment=0.85, chrono_age=260.0, bio_age=260.0,
         home_location=neran.id, current_location=neran.id,
+        starting_visible=True,
     )
     neran_confed.notable_mortal_ids.append(veth.id)
 
@@ -921,6 +942,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"culture:commerce": 0.85, "culture:sedentism": 0.80, "culture:hierarchy": 0.70},
         alignment=0.35, chrono_age=235.0, bio_age=235.0,
         home_location=neran.id, current_location=neran.id,
+        starting_visible=True,
     )
     neran_confed.notable_mortal_ids.append(durenn.id)
 
@@ -933,6 +955,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"culture:nomadism": 0.90, "culture:animism": 0.85, "culture:conquest": 0.80},
         alignment=0.60, chrono_age=145.0, bio_age=145.0,
         home_location=oros.id, current_location=oros.id,
+        starting_visible=True,
     )
     keth_civ.notable_mortal_ids.append(asha.id)
 

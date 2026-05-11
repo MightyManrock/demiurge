@@ -35,7 +35,7 @@ from core.action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
-    ChangeAffiliatedDomainsIntent,
+    ChangeAffiliatedDomainsIntent, ScryIntent,
     DomainVector,
 )
 from core.event_core import Event, EventType, StrengthCurve
@@ -49,7 +49,7 @@ _INTENT_CLASSES: dict[str, type] = {
         WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
         ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
         SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
-        ChangeAffiliatedDomainsIntent,
+        ChangeAffiliatedDomainsIntent, ScryIntent,
     ]
 }
 
@@ -277,7 +277,8 @@ def _load_locations(conn) -> dict[str, Location]:
         condition = LocCondition(row.get("condition", "stable"))
         location_type = row.get("location_type", "location")
         description = row.get("description", "")
-        known = row.get("known", 0)
+        visibility = float(row.get("visibility", 0.0))
+        pinned = bool(row.get("pinned", 0))
 
         if subclass == "system":
             loc = System(
@@ -289,7 +290,8 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
-                known=known,
+                visibility=visibility,
+                pinned=pinned,
                 coordinates=CosmicCoordinates(
                     x=row.get("coordinates_x", 0.0),
                     y=row.get("coordinates_y", 0.0),
@@ -307,7 +309,8 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
-                known=known,
+                visibility=visibility,
+                pinned=pinned,
                 domain_expression=_jd(row.get("domain_expression", "{}")),
                 local_footprint=LocFootprint(
                     overt_miracles=row.get("lf_overt_miracles", 0.0),
@@ -333,7 +336,8 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
-                known=known,
+                visibility=visibility,
+                pinned=pinned,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
             )
         else:
@@ -347,7 +351,8 @@ def _load_locations(conn) -> dict[str, Location]:
                 child_ids=child_ids,
                 traits=traits,
                 condition=condition,
-                known=known,
+                visibility=visibility,
+                pinned=pinned,
             )
 
         out[str(loc.id)] = loc
@@ -371,6 +376,8 @@ def _load_species(conn) -> dict[str, Species]:
             domain_tags=_j(row.get("domain_tags", "[]")),
             bio_tags=_j(row.get("bio_tags", row.get("trait_tags", "[]"))),
             condition=SpeciesCondition(row["condition"]),
+            visibility=float(row.get("visibility", 0.0)),
+            pinned=bool(row.get("pinned", 0)),
         )
         out[str(sp.id)] = sp
     return out
@@ -399,6 +406,8 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
             age=row["age"],
+            visibility=float(row.get("visibility", 0.0)),
+            pinned=bool(row.get("pinned", 0)),
         )
         # Re-attach mortal IDs
         for mrow in conn.execute(
@@ -434,6 +443,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
             home_location=UUID(row["home_location"]),
             current_location=UUID(row["current_location"]),
+            starting_visible=bool(row.get("starting_visible", 0)),
         )
         out[str(m.id)] = m
     return out
@@ -487,6 +497,10 @@ def _load_tick_config(conn) -> TickConfig:
         evaluation_interval=row["evaluation_interval"],
         mortal_visibility_decay_rate=row["mortal_visibility_decay_rate"],
         proxius_passive_footprint_rate=row.get("proxius_passive_footprint_rate", 0.03),
+        location_visibility_decay_rate=row.get("location_visibility_decay_rate", 0.01),
+        civ_visibility_decay_rate=row.get("civ_visibility_decay_rate", 0.01),
+        species_visibility_decay_rate=row.get("species_visibility_decay_rate", 0.01),
+        starting_visible_decay_rate=row.get("starting_visible_decay_rate", 0.005),
     )
 
 
