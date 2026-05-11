@@ -884,7 +884,7 @@ def build_scenario_default() -> SimulationState:
         lifespan_max=860,
         bio_tags=["bio:water-breathing", "bio:radial_symm", "bio:carbon_based"],
         condition=SpeciesCondition.ENDANGERED,
-        visibility=1.0, pinned=True,
+        visibility=0.0, pinned=False,
     )
     neran.species_ids.append(ultir_species.id)
 
