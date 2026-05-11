@@ -376,8 +376,8 @@ def _write_mortals(conn, state: SimulationState):
                 belief_tags, personal_tags, culture_tags,
                 alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary,
-                home_location, current_location, starting_visible)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                home_location, current_location, starting_visible, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -400,6 +400,7 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.home_location),
                 str(m.current_location),
                 int(m.starting_visible),
+                int(m.pinned),
             ),
         )
 

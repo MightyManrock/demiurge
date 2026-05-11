@@ -387,6 +387,7 @@ class NotableMortal(BaseModel):
     # Mortals visible at scenario start decay at starting_visible_decay_rate (slow) instead
     # of mortal_visibility_decay_rate. Distinct from the always-visible prominence threshold.
     starting_visible: bool = False
+    pinned: bool = False
 
     # How faithfully they're currently pursuing their
     # patron's agenda vs. their own. 1.0 = fully aligned.

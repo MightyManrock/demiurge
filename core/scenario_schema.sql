@@ -190,7 +190,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     appointed_by_luminary  TEXT,
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
     current_location       TEXT NOT NULL,  -- UUID of current SignificantLocation (changes on movement)
-    starting_visible       INTEGER NOT NULL DEFAULT 0  -- bool; decays at slow rate instead of normal
+    starting_visible       INTEGER NOT NULL DEFAULT 0,  -- bool; decays at slow rate instead of normal
+    pinned                     INTEGER NOT NULL DEFAULT 0 -- bool; mortal stays at max visibility
 );
 
 -- ─────────────────────────────────────────

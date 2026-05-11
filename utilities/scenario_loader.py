@@ -444,6 +444,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             home_location=UUID(row["home_location"]),
             current_location=UUID(row["current_location"]),
             starting_visible=bool(row.get("starting_visible", 0)),
+            pinned=bool(row.get("pinned", 0)),
         )
         out[str(m.id)] = m
     return out

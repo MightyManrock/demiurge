@@ -169,7 +169,7 @@ def display_state(state: "SimulationState") -> str:
         prom_str = _prominence_label(mortal)
         vis_note = (
             f"  vis:{mortal.visibility:.2f}"
-            if mortal.prominence < ALWAYS_VISIBLE_THRESHOLD else ""
+            if mortal.prominence < ALWAYS_VISIBLE_THRESHOLD or mortal.pinned == False else ""
         )
         lines.append(
             f"  {mortal.name:16s} [{role_str}]  align:{mortal.alignment:.2f}  "
