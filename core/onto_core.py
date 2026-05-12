@@ -95,6 +95,15 @@ class Luminary(BaseModel):
     herald_ids: list[UUID] = Field(default_factory=list)        # Mortal Heralds assigned to the Demiurge's universe
     status_tags: list[str] = Field(default_factory=list)
     # e.g. ["status:liege"]
+    essence_received_log: list[float] = Field(default_factory=list)
+    # Weighted domain production per evaluation period; last 2 entries retained.
+    # Used to assess whether the Luminary's Essence intake is above threshold and growing.
+    essence_expectation_raised: float = 0.0
+    # Additive bonus above the base threshold, accrued when the Luminary sees excess production.
+    # Decays by 0.10 per two consecutive shortfall periods; floored at 0.0 (never below base).
+    consecutive_essence_shortfalls: int = 0
+    # Tracks back-to-back evaluation periods where production fell short of the raised threshold.
+    # Resets to 0 on any above-threshold period or after triggering a 0.10 expectation reduction.
 
 
 class Pantheon(BaseModel):
@@ -146,3 +155,6 @@ class Demiurge(BaseModel):
     affiliated_domains: list[str] = Field(default_factory=list)
     # domain:... tags the Demiurge has claimed as their own conceptual focus.
     # Default: the 4 domains with highest aggregate affinity sum across all lieges.
+    tracked_essence_domains: list[str] = Field(default_factory=list)
+    # Subset of domain:... tags for which per-tick Demiurge Essence claims are
+    # recorded in SimulationState.domain_essence_claimed. Empty by default.

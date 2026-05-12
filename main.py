@@ -39,7 +39,7 @@ from logic.tick_logic import (
     is_mortal_visible, is_in_window, ALWAYS_VISIBLE_THRESHOLD, ENTITY_VISIBILITY_FLOOR,
 )
 from core.action_core import ScryScope, ScryIntent
-from utilities.scenario_loader import load_scenario
+from utilities.scenario_loader import load_scenario, validate_luminary_affinities
 from utilities.scenario_exporter import export_scenario
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
@@ -979,10 +979,39 @@ class LoadScreen(Screen):
             return
         path = Path(path_str)
         state = load_scenario(path)
+        violations = validate_luminary_affinities(state)
+        if violations:
+            msg = "Scenario rejected — Luminary affinity constraints violated:\n\n"
+            msg += "\n".join(f"  • {v}" for v in violations)
+            self.app.push_screen(ErrorModal(msg))
+            return
         self.app.push_screen(GameScreen(state))
 
     def action_quit_app(self) -> None:
         self.app.exit()
+
+
+# ─────────────────────────────────────────
+# ERROR MODAL
+# Displays a blocking error message; dismissed with Enter or Escape.
+# ─────────────────────────────────────────
+
+class ErrorModal(ModalScreen):
+    BINDINGS = [("escape", "dismiss", "OK"), ("enter", "dismiss", "OK")]
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="picker-box"):
+            yield Label("ERROR", classes="picker-title")
+            yield Label(self._message)
+            yield Button("OK", variant="error", id="ok-btn")
+
+    @on(Button.Pressed, "#ok-btn")
+    def _ok(self) -> None:
+        self.dismiss()
 
 
 # ─────────────────────────────────────────

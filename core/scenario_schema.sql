@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     current_age         REAL NOT NULL DEFAULT 0.0,
     tick_number         INTEGER NOT NULL DEFAULT 0,
     demiurge_id         TEXT NOT NULL,
-    pantheon_id         TEXT NOT NULL
+    pantheon_id         TEXT NOT NULL,
+    luminary_production_accum TEXT NOT NULL DEFAULT '{}',  -- JSON {luminary_id: float} weighted-production accumulator
+    domain_essence_claimed  TEXT NOT NULL DEFAULT '{}'   -- JSON {domain_tag: float} cumulative Demiurge claim
 );
 
 -- ─────────────────────────────────────────
@@ -53,7 +55,10 @@ CREATE TABLE IF NOT EXISTS luminaries (
     disposition_results  REAL NOT NULL DEFAULT 0.0,
     disposition_methods  REAL NOT NULL DEFAULT 0.0,
     herald_ids           TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    status_tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array
+    status_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    essence_received_log         TEXT NOT NULL DEFAULT '[]',  -- JSON array of floats (last 2 evaluation totals)
+    essence_expectation_raised   REAL NOT NULL DEFAULT 0.0,   -- additive bonus above base threshold
+    consecutive_essence_shortfalls INTEGER NOT NULL DEFAULT 0  -- back-to-back shortfall counter
 );
 
 -- Constraints belong to either a Luminary or a Pantheon.
@@ -210,8 +215,9 @@ CREATE TABLE IF NOT EXISTS demiurge (
     fp_direct_creation    REAL NOT NULL DEFAULT 0.0,
     proxius_ids           TEXT NOT NULL DEFAULT '[]',  -- JSON array
     unlocked_domain_tags  TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
-    unlocked_imagines     TEXT NOT NULL DEFAULT '[]',  -- JSON array of imago node_id strings
-    affiliated_domains    TEXT NOT NULL DEFAULT '[]'   -- JSON array of domain:... strings
+    unlocked_imagines         TEXT NOT NULL DEFAULT '[]',  -- JSON array of imago node_id strings
+    affiliated_domains        TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
+    tracked_essence_domains   TEXT NOT NULL DEFAULT '[]'   -- JSON array of domain:... strings
 );
 
 CREATE TABLE IF NOT EXISTS essence (

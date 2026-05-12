@@ -31,6 +31,8 @@ from core.eval_core import (
     AttentionTrigger,
     FootprintAssessment,
     EssenceSuspicion,
+    EssenceSatisfaction,
+    evaluate_essence_satisfaction,
     DispositionDelta,
     DispositionDeltaReason,
 )
@@ -76,6 +78,20 @@ BELIEF_FLOOR = 0.02
 # ghost residue from many tiny-delta actions.
 # Mortals at or above this prominence are always perceived —
 # no visibility tracking needed.
+
+# Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
+# Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
+_CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
+    "nascent":        0.05,
+    "tribal":         0.10,
+    "city_state":     0.20,
+    "regional":       0.35,
+    "continental":    0.50,
+    "planetary":      0.70,
+    "interplanetary": 0.90,
+    "interstellar":   1.20,
+    "intergalactic":  1.60,
+}
 
 VISIBILITY_FLOOR = 0.1
 # Below this value a mortal has slipped from the Demiurge's awareness.
@@ -174,6 +190,39 @@ class TickConfig(BaseModel):
     # Evaluation happens when: attention crosses a threshold,
     # a constraint is breached, or this many ticks have elapsed.
     evaluation_interval: float = 10.0
+
+    # Essence generation weights (tuning targets; adjust after playtesting)
+    essence_location_weight: float = 3.0
+    # Multiplier for SignificantLocation.domain_expression contributions.
+    # Intentionally higher than the max civ scale multiplier so a world's
+    # inherent character outweighs any single civilization.
+
+    essence_mortal_weight: float = 0.05
+    # Multiplier for NotableMortal.belief_tags contributions.
+
+    essence_claiming_exponent: float = 0.40
+    # Exponent applied to total pantheon affinity to derive the Luminary group's
+    # claim fraction: lum_fraction = lum_total_aff ** essence_claiming_exponent.
+    # At 0.40: aff=0.2→52.5%, aff=0.5→75.8%, aff=0.8→91.5%, aff=0.9→95.9%.
+    # Demiurge gets 1 − lum_fraction of any affiliated domain pool.
+
+    luminary_essence_baseline_rate: float = 1.0
+    # Expected weighted domain production per effective-affinity-point per tick.
+    # Threshold = effective_affinity × baseline_rate × ticks_since_last_eval,
+    # where effective_affinity uses diminishing returns (see luminary_essence_decay).
+
+    luminary_essence_decay: float = 0.65
+    # Geometric decay applied to each successive domain affinity when computing
+    # a Luminary's effective affinity for the satisfaction threshold.
+    # Affinities are sorted descending (ties broken alphabetically); each rank i
+    # is multiplied by decay**i.  At 0.65: a 3-domain Luminary at [0.7,0.7,0.5]
+    # scores 0.700 + 0.455 + 0.211 = 1.366 instead of the raw sum 1.90.
+
+    luminary_essence_recall: float = 0.20
+    # Fraction of last-period excess above base threshold that persists as a raised
+    # expectation this period.  At 0.20: giving a Luminary 14 units above their base
+    # of 6 (excess=8) adds 8×0.20=1.6 to their expectation floor next period.
+    # Raised expectations decay by 0.10 per two consecutive shortfall periods.
 
 
 # ─────────────────────────────────────────
@@ -386,6 +435,15 @@ class SimulationState(BaseModel):
         default_factory=dict
     )
 
+    # Weighted domain production accumulated per Luminary since their last evaluation.
+    # Each tick adds sum(lum.domains[D] × universe_pool[D]) for that Luminary.
+    # Keyed by str(luminary UUID). Reset per Luminary at evaluation time. Persisted.
+    luminary_production_this_eval: dict[str, float] = Field(default_factory=dict)
+
+    # Cumulative Demiurge Essence claimed per tracked domain (see Demiurge.tracked_essence_domains).
+    # Persisted so the player can see long-run domain income.
+    domain_essence_claimed: dict[str, float] = Field(default_factory=dict)
+
 
 # ─────────────────────────────────────────
 # TICK LOOP
@@ -443,6 +501,10 @@ class TickLoop:
 
         state = self._apply_passive_mutations(state, passive)
         state = self._prune_weak_beliefs(state)
+
+        # ── Essence generation (Phase 1 tail) ─────────
+        essence_gen_mutations = self._process_essence_generation(state, cfg)
+        state = self._apply_mutations(state, essence_gen_mutations)
 
         # ── Inject ongoing actions (appended after manual queue) ──────────
         # Manually queued actions in the same category take priority;
@@ -846,6 +908,122 @@ class TickLoop:
                 ))
 
         return result
+
+    def _process_essence_generation(
+        self,
+        state: SimulationState,
+        cfg: TickConfig,
+    ) -> list["StateMutation"]:
+        """
+        Compute per-domain world pools → universe pool → claiming fractions.
+        Adds Demiurge's share to essence.actual (no apparent/concealment impact).
+        Accumulates each Luminary's share into state.luminary_essence_this_eval.
+        Returns ESSENCE_CHANGE mutations for the Demiurge's claim.
+        """
+        # Build per-domain universe pool by summing across all SignificantLocations.
+        universe_pool: dict[str, float] = {}
+
+        # Build index: world_id → list of civilizations present there
+        civs_by_world: dict[str, list["Civilization"]] = {}
+        for civ in state.civilizations.values():
+            for wid, world in state.worlds.items():
+                if str(civ.id) in [str(x) for x in world.civilization_ids]:
+                    civs_by_world.setdefault(wid, []).append(civ)
+
+        # Build index: world_id → list of mortals currently there
+        mortals_by_world: dict[str, list["NotableMortal"]] = {}
+        for mortal in state.mortals.values():
+            if mortal.status == "active":
+                wid = str(mortal.current_location)
+                mortals_by_world.setdefault(wid, []).append(mortal)
+
+        for wid, world in state.worlds.items():
+            domain_tags: set[str] = set()
+            # Collect all domain tags that appear on this world
+            domain_tags.update(world.domain_expression.keys())
+            for civ in civs_by_world.get(wid, []):
+                domain_tags.update(civ.dominant_beliefs.keys())
+            for mortal in mortals_by_world.get(wid, []):
+                domain_tags.update(mortal.belief_tags.keys())
+
+            for tag in domain_tags:
+                amount = (
+                    world.domain_expression.get(tag, 0.0) * cfg.essence_location_weight
+                    + sum(
+                        civ.dominant_beliefs.get(tag, 0.0)
+                        * _CIV_SCALE_ESSENCE_MULT.get(civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1)
+                        for civ in civs_by_world.get(wid, [])
+                    )
+                    + sum(
+                        mortal.belief_tags.get(tag, 0.0) * cfg.essence_mortal_weight
+                        for mortal in mortals_by_world.get(wid, [])
+                    )
+                )
+                if amount > 0.0:
+                    universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
+
+        if not universe_pool:
+            return []
+
+        luminaries = list(state.luminaries.values())
+        demiurge_affiliated = set(state.demiurge.affiliated_domains)
+        tracked = set(state.demiurge.tracked_essence_domains)
+        EXP = cfg.essence_claiming_exponent
+
+        mutations: list[StateMutation] = []
+        demiurge_total_claim = 0.0
+
+        for tag, pool in universe_pool.items():
+            if pool <= 0.0:
+                continue
+
+            lum_total_aff = min(
+                0.9, sum(lum.domains.get(tag, 0.0) for lum in luminaries)
+            )
+
+            # Accumulate weighted production for each Luminary that has affinity here.
+            # This is the satisfaction metric: how much of their domain is being expressed.
+            for lum in luminaries:
+                lum_aff = min(0.8, lum.domains.get(tag, 0.0))
+                if lum_aff <= 0.0:
+                    continue
+                lid = str(lum.id)
+                state.luminary_production_this_eval[lid] = (
+                    state.luminary_production_this_eval.get(lid, 0.0) + lum_aff * pool
+                )
+
+            if lum_total_aff == 0.0:
+                # No Luminary claims this domain — Demiurge gets 100% if affiliated
+                if tag in demiurge_affiliated:
+                    demiurge_total_claim += pool
+                    if tag in tracked:
+                        state.domain_essence_claimed[tag] = (
+                            state.domain_essence_claimed.get(tag, 0.0) + pool
+                        )
+                # else sinks to Underreal
+                continue
+
+            # lum_fraction = lum_total_aff ** EXP (concave curve; see TickConfig comment)
+            lum_fraction = lum_total_aff ** EXP
+            dem_fraction = 1.0 - lum_fraction
+
+            dem_claim = pool * dem_fraction if tag in demiurge_affiliated else 0.0
+            demiurge_total_claim += dem_claim
+            if tag in tracked and dem_claim > 0.0:
+                state.domain_essence_claimed[tag] = (
+                    state.domain_essence_claimed.get(tag, 0.0) + dem_claim
+                )
+
+        if demiurge_total_claim > 0.001:
+            mutations.append(StateMutation(
+                mutation_type=MutationType.ESSENCE_CHANGE,
+                target_id=state.demiurge.id,
+                field="actual",
+                delta=demiurge_total_claim,
+                note=f"Domain-based Essence claim (+{demiurge_total_claim:.3f})",
+            ))
+
+        return mutations
 
     def _apply_passive_mutations(
         self,
@@ -2563,6 +2741,39 @@ class TickLoop:
                 attention_level=attention_level,
             )
 
+            # Essence satisfaction — record period weighted production, reset accumulator
+            domain_production = state.luminary_production_this_eval.get(lid, 0.0)
+            sorted_affs = [
+                min(0.8, v)
+                for _, v in sorted(luminary.domains.items(), key=lambda x: (-x[1], x[0]))
+            ]
+            effective_affinity = sum(aff * (cfg.luminary_essence_decay ** i) for i, aff in enumerate(sorted_affs))
+            base_threshold = effective_affinity * cfg.luminary_essence_baseline_rate * ticks_since
+            lum_threshold = base_threshold + luminary.essence_expectation_raised
+            essence_satisfaction = evaluate_essence_satisfaction(
+                luminary_id=luminary.id,
+                domain_production=domain_production,
+                production_log=luminary.essence_received_log,
+                threshold=lum_threshold,
+            )
+            luminary.essence_received_log.append(domain_production)
+            if len(luminary.essence_received_log) > 2:
+                luminary.essence_received_log = luminary.essence_received_log[-2:]
+            state.luminary_production_this_eval[lid] = 0.0
+
+            # Update raised expectations and shortfall counter
+            if essence_satisfaction.above_threshold:
+                excess = max(0.0, domain_production - base_threshold)
+                luminary.essence_expectation_raised = excess * cfg.luminary_essence_recall
+                luminary.consecutive_essence_shortfalls = 0
+            else:
+                luminary.consecutive_essence_shortfalls += 1
+                if luminary.consecutive_essence_shortfalls >= 2:
+                    luminary.essence_expectation_raised = max(
+                        0.0, luminary.essence_expectation_raised - 0.10
+                    )
+                    luminary.consecutive_essence_shortfalls = 0
+
             # Disposition delta assembly
             delta = DispositionDelta()
 
@@ -2607,6 +2818,20 @@ class TickLoop:
                 source="footprint_and_essence",
             ))
 
+            # Essence satisfaction feeds results disposition
+            if abs(essence_satisfaction.disposition_delta) > 0.001:
+                delta.results += essence_satisfaction.disposition_delta
+                delta.reasons.append(DispositionDeltaReason(
+                    axis="results",
+                    delta=essence_satisfaction.disposition_delta,
+                    source="essence_satisfaction",
+                    note=(
+                        f"Domain production {domain_production:.2f} "
+                        f"({'above' if essence_satisfaction.above_threshold else 'below'} threshold, "
+                        f"{'growing' if essence_satisfaction.growing else 'flat/declining'})"
+                    ),
+                ))
+
             # Dialogue triggers
             triggers = engine.generate_dialogue_triggers(
                 luminary_id=luminary.id,
@@ -2629,6 +2854,7 @@ class TickLoop:
                 constraint_evaluations=constraint_evals,
                 footprint_assessment=fp_assessment,
                 essence_suspicion=essence_suspicion,
+                essence_satisfaction=essence_satisfaction,
                 disposition_delta=delta,
                 dialogue_triggers=triggers,
                 summary_note=self._summarize_evaluation(

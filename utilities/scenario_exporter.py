@@ -91,8 +91,9 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
     conn.execute(
         """INSERT INTO scenario_meta
            (name, description, universe_id, universe_name, universe_save_name,
-            universe_description, current_age, tick_number, demiurge_id, pantheon_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            universe_description, current_age, tick_number, demiurge_id, pantheon_id,
+            luminary_production_accum, domain_essence_claimed)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -104,6 +105,8 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             state.tick_number,
             str(state.demiurge.id),
             str(state.pantheon.id),
+            json.dumps(state.luminary_production_this_eval),
+            json.dumps(state.domain_essence_claimed),
         ),
     )
 
@@ -143,8 +146,10 @@ def _write_luminaries(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO luminaries
                (id, name, domains, pantheon_id,
-                disposition_results, disposition_methods, herald_ids, status_tags)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                disposition_results, disposition_methods, herald_ids, status_tags,
+                essence_received_log, essence_expectation_raised,
+                consecutive_essence_shortfalls)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(luminary.id),
                 luminary.name,
@@ -154,6 +159,9 @@ def _write_luminaries(conn, state: SimulationState):
                 luminary.disposition.methods,
                 _j(luminary.herald_ids),
                 _j(luminary.status_tags),
+                json.dumps(luminary.essence_received_log),
+                luminary.essence_expectation_raised,
+                luminary.consecutive_essence_shortfalls,
             ),
         )
         for c in luminary.constraints:
@@ -418,8 +426,8 @@ def _write_demiurge(conn, state: SimulationState):
             fp_overt_miracles, fp_subtle_influence,
             fp_proxius_activity, fp_direct_creation,
             proxius_ids, unlocked_domain_tags, unlocked_imagines,
-            affiliated_domains)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            affiliated_domains, tracked_essence_domains)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(d.id),
             d.name,
@@ -433,6 +441,7 @@ def _write_demiurge(conn, state: SimulationState):
             _j(d.unlocked_domain_tags),
             _j(d.unlocked_imagines),
             _j(d.affiliated_domains),
+            _j(d.tracked_essence_domains),
         ),
     )
 

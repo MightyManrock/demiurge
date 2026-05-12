@@ -58,6 +58,42 @@ _INTENT_CLASSES: dict[str, type] = {
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
 
 
+_MAX_INDIVIDUAL_AFFINITY = 0.8   # no single Luminary may exceed this for any one domain
+_MAX_PANTHEON_AFFINITY   = 0.9   # combined Luminary affinity across all Luminaries for one domain
+_MAX_LUMINARY_AFFINITY   = 2.0   # sum of all domain affinities for a single Luminary
+
+
+def validate_luminary_affinities(state: SimulationState) -> list[str]:
+    """
+    Check that all Luminary domain affinities satisfy the three design invariants.
+    Returns a list of human-readable violation strings (empty = valid).
+    """
+    violations: list[str] = []
+    pantheon_totals: dict[str, float] = {}
+
+    for lum in state.luminaries.values():
+        lum_sum = 0.0
+        for domain, aff in lum.domains.items():
+            if aff > _MAX_INDIVIDUAL_AFFINITY:
+                violations.append(
+                    f"{lum.name}: {domain} affinity {aff:.3f} exceeds {_MAX_INDIVIDUAL_AFFINITY}"
+                )
+            lum_sum += aff
+            pantheon_totals[domain] = pantheon_totals.get(domain, 0.0) + aff
+        if lum_sum > _MAX_LUMINARY_AFFINITY:
+            violations.append(
+                f"{lum.name}: total domain affinity {lum_sum:.3f} exceeds {_MAX_LUMINARY_AFFINITY}"
+            )
+
+    for domain, total in pantheon_totals.items():
+        if total > _MAX_PANTHEON_AFFINITY:
+            violations.append(
+                f"Pantheon total for {domain}: {total:.3f} exceeds {_MAX_PANTHEON_AFFINITY}"
+            )
+
+    return violations
+
+
 def load_scenario(db_path: str | Path) -> SimulationState:
     """Open a scenario .db file and return the initial SimulationState."""
     db_path = Path(db_path)
@@ -86,6 +122,12 @@ def _jd(text: str) -> dict[str, float]:
     return val
 
 
+def _jd_str(text: str) -> dict[str, float]:
+    """Parse a JSON dict of str→float with no legacy list handling."""
+    val = json.loads(text) if text else {}
+    return {str(k): float(v) for k, v in val.items()} if isinstance(val, dict) else {}
+
+
 def _uuid(text: str | None) -> UUID | None:
     return UUID(text) if text else None
 
@@ -107,6 +149,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
     active_events = _load_active_events(conn)
+    luminary_production_accum = _jd_str(meta.get("luminary_production_accum", "{}"))
+    domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
 
     # Universe ID: stored in scenario_meta if present, else generate one.
     universe_id_str = meta.get("universe_id", "")
@@ -147,6 +191,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         config=cfg,
         ongoing_actions=ongoing_actions,
         active_events=active_events,
+        luminary_production_this_eval=luminary_production_accum,
+        domain_essence_claimed=domain_essence_claimed,
         tick_number=meta.get("tick_number", 0),
     )
 
@@ -223,6 +269,9 @@ def _load_luminaries(
             constraints=constraints_by_owner.get(lid, []),
             herald_ids=[UUID(x) for x in _j(row["herald_ids"])],
             status_tags=_j(row.get("status_tags", row.get("speech_tags", "[]"))),
+            essence_received_log=[float(x) for x in _j(row.get("essence_received_log", "[]"))],
+            essence_expectation_raised=float(row.get("essence_expectation_raised", 0.0)),
+            consecutive_essence_shortfalls=int(row.get("consecutive_essence_shortfalls", 0)),
         )
         lums[str(l.id)] = l
 
@@ -485,6 +534,7 @@ def _load_demiurge(conn) -> Demiurge:
         unlocked_domain_tags=_j(row.get("unlocked_domain_tags", "[]")),
         unlocked_imagines=_j(row.get("unlocked_imagines", "[]")),
         affiliated_domains=_j(row.get("affiliated_domains", "[]")),
+        tracked_essence_domains=_j(row.get("tracked_essence_domains", "[]")),
     )
 
 

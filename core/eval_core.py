@@ -198,6 +198,59 @@ class EssenceSuspicion(BaseModel):
 
 
 # ─────────────────────────────────────────
+# ESSENCE SATISFACTION
+# How pleased a Luminary is with their Essence intake.
+# ─────────────────────────────────────────
+
+class EssenceSatisfaction(BaseModel):
+    """
+    Evaluated at each Luminary evaluation from the accumulated weighted domain
+    production (sum of affinity × universe_pool per domain) since the previous
+    evaluation. Higher affinity Luminaries care more about their domains' output.
+    """
+    luminary_id: UUID
+    domain_production: float = 0.0
+    # Sum of (affinity × universe_pool) across this Luminary's domains for the period.
+    above_threshold: bool = False
+    # Whether domain_production met the luminary_essence_threshold.
+    growing: bool = False
+    # Whether this period's production exceeds the previous period's.
+    disposition_delta: float = 0.0
+    # Contribution to results disposition. Positive when both conditions met;
+    # negative when neither; zero when only one is met.
+
+
+def evaluate_essence_satisfaction(
+    luminary_id: UUID,
+    domain_production: float,
+    production_log: list[float],
+    threshold: float,
+) -> EssenceSatisfaction:
+    """
+    Compute satisfaction from current-period weighted production and historical log.
+    production_log should contain the *previous* periods' totals (before appending this one).
+    """
+    above = domain_production >= threshold
+    growing = bool(production_log) and domain_production > production_log[-1]
+
+    if above and growing:
+        delta = 0.05
+    elif above or growing:
+        delta = 0.0
+    else:
+        deficit = max(0.0, threshold - domain_production)
+        delta = -min(0.10, deficit * 0.05)
+
+    return EssenceSatisfaction(
+        luminary_id=luminary_id,
+        domain_production=domain_production,
+        above_threshold=above,
+        growing=growing,
+        disposition_delta=delta,
+    )
+
+
+# ─────────────────────────────────────────
 # DISPOSITION DELTA
 # The actual change in a Luminary's stance this tick.
 # ─────────────────────────────────────────
@@ -307,6 +360,8 @@ class LuminaryEvaluation(BaseModel):
     footprint_assessment: FootprintAssessment
 
     essence_suspicion: EssenceSuspicion
+
+    essence_satisfaction: Optional["EssenceSatisfaction"] = None
 
     disposition_delta: DispositionDelta = Field(
         default_factory=DispositionDelta
