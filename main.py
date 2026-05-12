@@ -649,6 +649,14 @@ ModalScreen {
     padding: 1 0 0 0;
 }
 
+.toast-box {
+    background: $bg-modal;
+    border: solid $border;
+    width: 52;
+    height: auto;
+    padding: 1 2;
+}
+
 /* ── Domain Picker ───────────────────── */
 
 #domain-grid {
@@ -1022,6 +1030,29 @@ class ErrorModal(ModalScreen):
             yield Label("ERROR", classes="picker-title")
             yield Label(self._message)
             yield Button("OK", variant="error", id="ok-btn")
+
+    @on(Button.Pressed, "#ok-btn")
+    def _ok(self) -> None:
+        self.dismiss()
+
+
+# ─────────────────────────────────────────
+# TOAST MODAL
+# Compact dismissible notice — for non-critical warnings
+# like affordability blocks. Dismiss with Enter, Esc, or OK.
+# ─────────────────────────────────────────
+
+class ToastModal(ModalScreen):
+    BINDINGS = [("escape", "dismiss", "OK"), ("enter", "dismiss", "OK")]
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="toast-box"):
+            yield Label(self._message)
+            yield Button("OK", id="ok-btn")
 
     @on(Button.Pressed, "#ok-btn")
     def _ok(self) -> None:
@@ -1983,6 +2014,32 @@ class GameScreen(Screen):
                 return
             action_key, defn = picked
 
+            # Essence affordability check — before submenus
+            if defn.essence_cost > 0:
+                key_by_id = app.loop._action_key_by_id  # type: ignore[attr-defined]
+                committed = sum(
+                    library[key].essence_cost
+                    for ai in state.action_queue
+                    if (key := key_by_id.get(str(ai.action_definition_id)))
+                    and library.get(key) is not None
+                    and library[key].essence_cost > 0
+                ) + sum(
+                    library[oa.action_key].essence_cost
+                    for oa in state.ongoing_actions.values()
+                    if library.get(oa.action_key) is not None
+                    and library[oa.action_key].essence_cost > 0
+                )
+                available = state.essence.actual - committed
+                if defn.essence_cost > available:
+                    committed_str = f" − {committed:.2f} committed" if committed > 0 else ""
+                    await app.push_screen_wait(ToastModal(
+                        f"Insufficient Essence.\n\n"
+                        f"  Cost:      {defn.essence_cost:.1f}\n"
+                        f"  Available: {available:.2f}"
+                        f"  (stockpile {state.essence.actual:.2f}{committed_str})"
+                    ))
+                    continue
+
             # Build intent; BACK means "re-show action browser"
             instance = await self._build_intent(action_key, defn)
             if instance is None:
@@ -1991,32 +2048,6 @@ class GameScreen(Screen):
             if instance == BACK:
                 continue
             break
-
-        # Essence affordability check
-        if defn.essence_cost > 0:
-            key_by_id = app.loop._action_key_by_id  # type: ignore[attr-defined]
-            committed = sum(
-                library[key].essence_cost
-                for ai in state.action_queue
-                if (key := key_by_id.get(str(ai.action_definition_id)))
-                and library.get(key) is not None
-                and library[key].essence_cost > 0
-            ) + sum(
-                library[oa.action_key].essence_cost
-                for oa in state.ongoing_actions.values()
-                if library.get(oa.action_key) is not None
-                and library[oa.action_key].essence_cost > 0
-            )
-            available = state.essence.actual - committed
-            if defn.essence_cost > available:
-                committed_str = f" − {committed:.2f} committed" if committed > 0 else ""
-                await app.push_screen_wait(ErrorModal(
-                    f"Insufficient Essence.\n\n"
-                    f"  Cost:      {defn.essence_cost:.1f}\n"
-                    f"  Available: {available:.2f}"
-                    f"  (stockpile {state.essence.actual:.2f}{committed_str})"
-                ))
-                return
 
         # Offer persistence for eligible actions
         if "can_persist" in defn.tags:
