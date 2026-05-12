@@ -20,7 +20,7 @@ from core.action_core import (
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
-    ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope,
+    ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope, WeighCivilizationIntent,
     TargetType,
 )
 from core.eval_core import (
@@ -1598,7 +1598,178 @@ class TickLoop:
                     narrative = "\n".join(lines)
                 # Purely observational — no mutations.
 
+            elif defn.name == "Ask for Orders":
+                luminary = state.luminaries.get(str(instance.target_id)) if instance.target_id else None
+                if not luminary:
+                    return mutations, "No Luminary found to petition."
+
+                lid = str(luminary.id)
+                cfg = state.config
+
+                # Raise attention — asking for orders reminds them you're here
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.FOOTPRINT_CHANGE,
+                    target_id=luminary.id,
+                    field="attention",
+                    delta=0.06,
+                    note=f"Ask for Orders: {luminary.name} attention raised",
+                ))
+
+                # Compute threshold parameters
+                sorted_affs = [
+                    min(0.8, v)
+                    for _, v in sorted(luminary.domains.items(), key=lambda x: (-x[1], x[0]))
+                ]
+                effective_affinity = sum(
+                    aff * (cfg.luminary_essence_decay ** i)
+                    for i, aff in enumerate(sorted_affs)
+                )
+                ticks_since = state.ticks_since_evaluation.get(lid, cfg.evaluation_interval)
+                base_threshold_so_far = effective_affinity * cfg.luminary_essence_baseline_rate * ticks_since
+                raised = luminary.essence_expectation_raised
+                threshold_so_far = base_threshold_so_far + raised
+
+                # Project threshold at next evaluation (use eval_interval ticks as horizon)
+                eval_interval = max(5.0, cfg.evaluation_interval)
+                projected_threshold = effective_affinity * cfg.luminary_essence_baseline_rate * eval_interval + raised
+
+                domain_production = state.luminary_production_this_eval.get(lid, 0.0)
+                surplus = domain_production - threshold_so_far
+
+                # Per-domain contribution from current universe expression
+                profile = state.previous_domain_profile
+                report = [f"Orders from {luminary.name}"]
+
+                # Essence expectations section
+                report.append("  Essence Expectations:")
+                for tag, aff in sorted(luminary.domains.items(), key=lambda x: (-x[1], x[0])):
+                    universe_pool = profile.scores.get(tag, 0.0) if profile else 0.0
+                    short = tag.split(":", 1)[1] if ":" in tag else tag
+                    report.append(f"    {short:<14} affinity {aff:.2f}  universe expression {universe_pool:.3f}")
+
+                report.append(f"  Effective affinity: {effective_affinity:.3f}")
+                report.append(
+                    f"  Threshold so far:   {threshold_so_far:.3f}  "
+                    f"(over {ticks_since:.0f} tick(s), +{raised:.3f} raised expectation)"
+                )
+                report.append(f"  Projected at eval:  {projected_threshold:.3f}")
+                report.append(
+                    f"  Produced this period: {domain_production:.3f}  "
+                    f"({'above' if surplus >= 0 else 'below'} threshold by {abs(surplus):.3f})"
+                )
+
+                # Previous period trend
+                if luminary.essence_received_log:
+                    prev = luminary.essence_received_log[-1]
+                    trend = "improving" if domain_production >= prev else "declining"
+                    report.append(f"  Last period: {prev:.3f}  (trend: {trend})")
+
+                # Disposition section
+                disp = luminary.disposition
+                def _disp_label(v: float, axis: str) -> str:
+                    if axis == "results":
+                        if v >= 0.4:   return "very pleased"
+                        if v >= 0.15:  return "satisfied"
+                        if v >= -0.15: return "neutral"
+                        if v >= -0.4:  return "dissatisfied"
+                        return "deeply displeased"
+                    else:  # methods
+                        if v >= 0.4:   return "fully approving"
+                        if v >= 0.15:  return "comfortable"
+                        if v >= -0.15: return "neutral"
+                        if v >= -0.4:  return "uneasy"
+                        return "strongly opposed"
+
+                report.append("  Disposition:")
+                report.append(
+                    f"    Results:  {disp.results:+.3f}  ({_disp_label(disp.results, 'results')})"
+                )
+                report.append(
+                    f"    Methods:  {disp.methods:+.3f}  ({_disp_label(disp.methods, 'methods')})"
+                )
+                report.append(
+                    f"    Overall:  {disp.overall:+.3f}"
+                )
+
+                # Constraints context
+                if luminary.constraints:
+                    report.append(f"  Active Constraints: {len(luminary.constraints)}")
+                    for con in luminary.constraints:
+                        weight_str = f"weight {con.enforcement_weight:.2f}"
+                        report.append(f"    · {con.name}  ({weight_str})")
+
+                narrative = "\n".join(report)
+
             return mutations, narrative
+
+        # ── Weigh Civilization ────────────────────────
+        if isinstance(intent, WeighCivilizationIntent):
+            civ = state.civilizations.get(str(instance.target_id)) if instance.target_id else None
+            if not civ:
+                return mutations, "No civilization found to weigh."
+
+            snap = intent
+
+            def _snap_delta(cur: float, prev: float) -> str:
+                d = cur - prev
+                return f"  ({d:+.3f})" if abs(d) >= 0.001 else ""
+
+            theistic_str = "Yes" if civ.theistic else "No"
+            da_d = _snap_delta(civ.divine_awareness, snap.divine_awareness_snapshot)
+            report = [
+                f"Civilization Report: {civ.name}",
+                f"  Scale: {civ.scale.value}  |  Age: {civ.age:.0f}  |  Theistic: {theistic_str}",
+                f"  Divine Awareness: {civ.divine_awareness:.2f}{da_d}",
+            ]
+
+            # Worlds
+            origin_world = state.worlds.get(str(civ.origin_location_id)) if civ.origin_location_id else None
+            if origin_world:
+                report.append(f"  Origin: {origin_world.name}")
+            present_elsewhere = [
+                w for wid, w in state.worlds.items()
+                if any(str(x) == str(civ.id) for x in w.civilization_ids)
+                and wid != str(civ.origin_location_id)
+            ]
+            for w in present_elsewhere:
+                win_note = "" if is_in_window(w) else "  [not in Window]"
+                report.append(f"  Also present: {w.name}{win_note}")
+
+            # Health
+            report.append("  Health (delta from last tick):")
+            for field_name in ("stability", "prosperity", "cohesion"):
+                cur_val = getattr(civ.health, field_name)
+                d = _snap_delta(cur_val, snap.health_snapshot.get(field_name, cur_val))
+                report.append(f"    {field_name.capitalize():<12} {cur_val:.2f}{d}")
+
+            # Domain beliefs
+            all_belief_tags = sorted(set(civ.dominant_beliefs) | set(snap.beliefs_snapshot))
+            if all_belief_tags:
+                report.append("  Domain Beliefs:")
+                for tag in all_belief_tags:
+                    cur_val = civ.dominant_beliefs.get(tag, 0.0)
+                    short = tag.split(":", 1)[1] if ":" in tag else tag
+                    if cur_val < 0.001:
+                        report.append(f"    {short:<16} (removed this tick)")
+                    else:
+                        d = _snap_delta(cur_val, snap.beliefs_snapshot.get(tag, 0.0))
+                        report.append(f"    {short:<16} {cur_val:.3f}{d}")
+
+            # Cultural profile
+            all_culture_tags = sorted(set(civ.culture_tags) | set(snap.culture_snapshot))
+            if all_culture_tags:
+                report.append("  Cultural Profile:")
+                for tag in all_culture_tags:
+                    cur_val = civ.culture_tags.get(tag, 0.0)
+                    short = tag.split(":", 1)[1] if ":" in tag else tag
+                    if cur_val < 0.001:
+                        report.append(f"    {short:<16} (removed this tick)")
+                    else:
+                        d = _snap_delta(cur_val, snap.culture_snapshot.get(tag, 0.0))
+                        report.append(f"    {short:<16} {cur_val:.3f}{d}")
+
+            return mutations, "\n".join(report)
+            # Purely observational — no mutations.
 
         # ── Scry ─────────────────────────────────────
         if isinstance(intent, ScryIntent):

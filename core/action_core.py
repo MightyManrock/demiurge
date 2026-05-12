@@ -442,6 +442,18 @@ class ScryIntent(BaseModel):
     scope: ScryScope = ScryScope.WORLD
 
 
+class WeighCivilizationIntent(BaseModel):
+    """
+    For: weigh_civilization
+    Snapshot of civilization state at queue time; used to compute per-field
+    deltas in the tick-log report.
+    """
+    beliefs_snapshot: dict[str, float] = Field(default_factory=dict)
+    culture_snapshot: dict[str, float] = Field(default_factory=dict)
+    health_snapshot: dict[str, float] = Field(default_factory=dict)
+    divine_awareness_snapshot: float = 0.0
+
+
 # ─────────────────────────────────────────
 # UNIFIED INTENT TYPE
 # ActionInstance.intent replaces .parameters
@@ -461,6 +473,7 @@ ActionIntent = Union[
     ExploreBeliefIntent,
     ChangeAffiliatedDomainsIntent,
     ScryIntent,
+    WeighCivilizationIntent,
 ]
 
 
@@ -780,6 +793,19 @@ def build_action_library() -> dict[str, ActionDefinition]:
                   "include_dormant_proxius"],
         ),
 
+        "weigh_civilization": ActionDefinition(
+            name="Weigh Civilization",
+            category=ActionCategory.OBSERVATION,
+            description=(
+                "Produce a detailed report on a civilization: domain beliefs, cultural profile, "
+                "health, spatial presence, and per-field deltas from the previous tick."
+            ),
+            valid_targets=[TargetType.CIVILIZATION],
+            reliability=ActionReliability.CERTAIN,
+            footprint_cost=FootprintCost(),
+            tags=["observation", "zero_footprint", "intelligence"],
+        ),
+
         # ── Herald Interaction ───────────────────────────
 
         "negotiate_herald": ActionDefinition(
@@ -865,6 +891,20 @@ def build_action_library() -> dict[str, ActionDefinition]:
             reliability=ActionReliability.UNCERTAIN,
             footprint_cost=FootprintCost(),
             tags=["luminary_relations", "risky", "disposition_shift", "conflict"],
+        ),
+
+        "ask_for_orders": ActionDefinition(
+            name="Ask for Orders",
+            category=ActionCategory.LUMINARY_RELATIONS,
+            description=(
+                "Petition a Luminary for guidance. Produces a detailed report next tick: "
+                "Essence expectations by domain, accumulated production vs. threshold, "
+                "and a full read of their current satisfaction. Raises their attention."
+            ),
+            valid_targets=[TargetType.LUMINARY],
+            reliability=ActionReliability.CERTAIN,
+            footprint_cost=FootprintCost(),
+            tags=["luminary_relations", "observation", "intelligence"],
         ),
 
         # ── Underreal ────────────────────────────────────

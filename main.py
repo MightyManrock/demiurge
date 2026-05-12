@@ -30,7 +30,7 @@ from core.action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
-    ChangeAffiliatedDomainsIntent,
+    ChangeAffiliatedDomainsIntent, WeighCivilizationIntent,
     DomainVector, Framing,
 )
 from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation
@@ -245,7 +245,12 @@ def display_tick_result(result: "TickResult") -> str:
         for lid, (r, m) in result.disposition_changes.items():
             ev   = next((e for e in result.evaluations if str(e.luminary_id) == lid), None)
             name = ev.summary_note.split(":")[0] if ev else lid[:8]
-            lines.append(f"  {name:12s}  results→{r:+.2f}  methods→{m:+.2f}")
+            dr   = ev.disposition_delta.results if ev else 0.0
+            dm   = ev.disposition_delta.methods if ev else 0.0
+            lines.append(
+                f"  {name:12s}  results {r:+.2f} ({dr:+.3f})"
+                f"  methods {m:+.2f} ({dm:+.3f})"
+            )
         lines.append("")
     if result.dialogue_triggers:
         lines.append("DIVINE COMMUNICATIONS")
@@ -2188,6 +2193,7 @@ class GameScreen(Screen):
         _NO_PARAMS = (
             "appoint_proxius", "empower_proxius", "dismiss_proxius",
             "go_quiet_proxius", "audit_proxius", "maintain_concealment",
+            "ask_for_orders",
         )
 
         if TargetType.MORTAL in defn.valid_targets:
@@ -2653,6 +2659,23 @@ class GameScreen(Screen):
                         if not new_tag: step = 0; continue  # skip domain = redo drop picker
                         break
                 return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
+
+        # ── OBSERVATION ──────────────────────────────
+        elif cat == ActionCategory.OBSERVATION:
+            if action_key == "weigh_civilization":
+                civ = state.civilizations.get(str(target_id)) if target_id else None
+                if not civ:
+                    return None
+                return WeighCivilizationIntent(
+                    beliefs_snapshot=dict(civ.dominant_beliefs),
+                    culture_snapshot=dict(civ.culture_tags),
+                    health_snapshot={
+                        "stability": civ.health.stability,
+                        "prosperity": civ.health.prosperity,
+                        "cohesion": civ.health.cohesion,
+                    },
+                    divine_awareness_snapshot=civ.divine_awareness,
+                )
 
         # No intent needed
         return None
