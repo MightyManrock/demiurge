@@ -1992,6 +1992,32 @@ class GameScreen(Screen):
                 continue
             break
 
+        # Essence affordability check
+        if defn.essence_cost > 0:
+            key_by_id = app.loop._action_key_by_id  # type: ignore[attr-defined]
+            committed = sum(
+                library[key].essence_cost
+                for ai in state.action_queue
+                if (key := key_by_id.get(str(ai.action_definition_id)))
+                and library.get(key) is not None
+                and library[key].essence_cost > 0
+            ) + sum(
+                library[oa.action_key].essence_cost
+                for oa in state.ongoing_actions.values()
+                if library.get(oa.action_key) is not None
+                and library[oa.action_key].essence_cost > 0
+            )
+            available = state.essence.actual - committed
+            if defn.essence_cost > available:
+                committed_str = f" − {committed:.2f} committed" if committed > 0 else ""
+                await app.push_screen_wait(ErrorModal(
+                    f"Insufficient Essence.\n\n"
+                    f"  Cost:      {defn.essence_cost:.1f}\n"
+                    f"  Available: {available:.2f}"
+                    f"  (stockpile {state.essence.actual:.2f}{committed_str})"
+                ))
+                return
+
         # Offer persistence for eligible actions
         if "can_persist" in defn.tags:
             make_persistent = await app.push_screen_wait(
@@ -2153,8 +2179,8 @@ class GameScreen(Screen):
             scope_items = [
                 (ScryScope.WORLD.value,    "World       — deep mortal/civ detail  (0.05 subtle)"),
                 (ScryScope.SYSTEM.value,   "System      — reveals worlds & civs   (0.10 subtle)"),
-                (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle)"),
-                (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle)"),
+                (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle  0.3 Ess)"),
+                (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle  0.5 Ess)"),
             ]
             target_id = None
             while True:

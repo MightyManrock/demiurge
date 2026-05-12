@@ -1126,7 +1126,7 @@ def build_scenario_default() -> SimulationState:
         ],
     )
 
-    essence = EssenceStockpile(actual=0.0, apparent=0.0, concealment_integrity=1.0)
+    essence = EssenceStockpile(actual=1.0, apparent=0.0, concealment_integrity=1.0)
 
     universe = Universe(
         name="Warden's Compact",
