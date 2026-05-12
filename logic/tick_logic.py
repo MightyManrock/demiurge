@@ -1791,6 +1791,22 @@ class TickLoop:
                     note=f"Scry ({scope.value}) extra footprint",
                 ))
 
+            scope_essence: dict[ScryScope, float] = {
+                ScryScope.WORLD:    0.0,
+                ScryScope.SYSTEM:   0.0,
+                ScryScope.GALAXY:   0.3,
+                ScryScope.UNIVERSE: 0.5,
+            }
+            scry_essence_cost = scope_essence[scope]
+            if scry_essence_cost > 0.0:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.ESSENCE_CHANGE,
+                    target_id=state.demiurge.id,
+                    field="actual",
+                    delta=-scry_essence_cost,
+                    note=f"Scry ({scope.value}) essence cost",
+                ))
+
             scope_anchor: dict[ScryScope, int] = {
                 ScryScope.WORLD:    3,
                 ScryScope.SYSTEM:   2,

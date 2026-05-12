@@ -540,6 +540,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.WORLD],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(direct_creation=0.8),
+            essence_cost=5.0,
             tags=["creation", "world_shaping", "high_footprint", "species"],
         ),
 
@@ -553,7 +554,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.SPECIES],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(direct_creation=0.6, subtle_influence=0.2),
-            essence_cost=0.2,
+            essence_cost=3.0,
             tags=["creation", "species", "high_footprint", "civilization_seed"],
         ),
 
@@ -567,6 +568,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.WORLD],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(direct_creation=0.9),
+            essence_cost=4.0,
             tags=["world_shaping", "high_footprint", "irreversible"],
         ),
 
@@ -580,6 +582,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
                 direct_creation=1.0,
                 overt_miracles=0.8
             ),
+            essence_cost=3.0,
             tags=["destruction", "high_footprint", "irreversible", "politically_sensitive"],
         ),
 
@@ -595,6 +598,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.CIVILIZATION],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(overt_miracles=0.5),
+            essence_cost=1.0,
             tags=["belief_shift", "divine_awareness", "interpretable"],
         ),
 
@@ -605,6 +609,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.MORTAL],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(overt_miracles=0.6),
+            essence_cost=1.5,
             tags=["mortal_directed", "divine_awareness", "high_footprint"],
         ),
 
@@ -618,6 +623,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.CIVILIZATION, TargetType.MORTAL],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(overt_miracles=0.9),
+            essence_cost=3.0,
             tags=["divine_awareness", "high_footprint", "belief_anchor"],
         ),
 
@@ -633,6 +639,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.MORTAL],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(subtle_influence=0.1),
+            essence_cost=0.1,
             tags=["mortal_directed", "low_footprint", "deniable"],
         ),
 
@@ -646,6 +653,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.MORTAL],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(subtle_influence=0.15),
+            essence_cost=0.2,
             tags=["mortal_directed", "low_footprint", "deniable", "complex_intent"],
         ),
 
@@ -659,6 +667,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.CIVILIZATION, TargetType.WORLD],
             reliability=ActionReliability.UNCERTAIN,
             footprint_cost=FootprintCost(subtle_influence=0.2),
+            essence_cost=0.3,
             tags=["low_footprint", "deniable", "probabilistic"],
         ),
 
@@ -672,6 +681,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.CIVILIZATION],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(subtle_influence=0.25),
+            essence_cost=0.5,
             tags=["long_term", "low_footprint", "domain_shaping"],
         ),
 
@@ -687,6 +697,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.MORTAL],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(proxius_activity=0.10),
+            essence_cost=1.0,
             tags=["proxii", "appointment", "politically_sensitive"],
         ),
 
@@ -703,6 +714,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             reliability=ActionReliability.UNCERTAIN,
             # Uncertainty here is alignment drift, not the channel
             footprint_cost=FootprintCost(proxius_activity=0.15),
+            essence_cost=0.1,
             tags=["proxii", "indirect", "alignment_dependent",
                   "include_dormant_proxius"],
         ),
@@ -718,7 +730,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
                 proxius_activity=0.4,
                 overt_miracles=0.2
             ),
-            essence_cost=0.1,
+            essence_cost=1.5,
             tags=["proxii", "essence_consuming", "high_footprint"],
         ),
 
@@ -938,7 +950,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.UNDERREAL],
             reliability=ActionReliability.CHAOTIC,
             footprint_cost=FootprintCost(direct_creation=0.4),
-            essence_cost=0.2,
+            essence_cost=2.0,
             concealment_impact=0.3,
             tags=["underreal", "essence_consuming", "chaotic", "creation", "conceal"],
         ),
@@ -961,7 +973,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
                 direct_creation=0.7,
                 overt_miracles=0.3
             ),
-            essence_cost=0.3,
+            essence_cost=3.0,
             tags=["underreal", "destruction", "essence_consuming",
                   "irreversible", "high_footprint"],
         ),
@@ -976,7 +988,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.UNDERREAL],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(),
-            essence_cost=0.05,
+            essence_cost=0.5,
             concealment_impact=0.05,
             tags=["underreal", "observation", "intelligence"],
         ),
@@ -993,7 +1005,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.UNDERREAL],
             reliability=ActionReliability.PROBABLE,
             footprint_cost=FootprintCost(),
-            essence_cost=0.10,
+            essence_cost=1.0,
             tags=["underreal", "concealment", "essence_consuming", "maintenance"],
         ),
 
@@ -1010,7 +1022,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.UNDERREAL],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(),
-            essence_cost=0.0,
+            essence_cost=0.2,
             tags=["zero_footprint", "self_refinement", "can_persist"],
         ),
 
@@ -1026,7 +1038,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
             valid_targets=[TargetType.UNDERREAL],
             reliability=ActionReliability.CERTAIN,
             footprint_cost=FootprintCost(),
-            essence_cost=0.15,
+            essence_cost=1.5,
             tags=["zero_footprint", "self_refinement"],
         ),
 
@@ -1045,7 +1057,7 @@ def build_action_library() -> dict[str, ActionDefinition]:
                 overt_miracles=1.0,
                 direct_creation=0.8
             ),
-            essence_cost=1.0,
+            essence_cost=10.0,
             concealment_impact=1.0,
             tags=["underreal", "essence_consuming", "victory_condition",
                   "catastrophic_risk", "irreversible"],
