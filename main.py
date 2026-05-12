@@ -231,6 +231,15 @@ def display_tick_result(result: "TickResult") -> str:
         for entry in result.action_result.entries:
             lines.append(f"  [{entry.outcome.value.upper()}] {entry.narrative}")
         lines.append("")
+    if result.essence_claimed_by_domain:
+        total = sum(result.essence_claimed_by_domain.values())
+        parts = "  ".join(
+            f"{tag.split(':')[1]}:{amt:.3f}"
+            for tag, amt in sorted(result.essence_claimed_by_domain.items(), key=lambda x: -x[1])
+        )
+        lines.append(f"ESSENCE CLAIMED  (+{total:.3f} total)")
+        lines.append(f"  {parts}")
+        lines.append("")
     if result.disposition_changes:
         lines.append("LUMINARY REACTIONS")
         for lid, (r, m) in result.disposition_changes.items():
@@ -2220,6 +2229,8 @@ class GameScreen(Screen):
         if TargetType.CIVILIZATION in defn.valid_targets:
             civ_items = []
             for cid, c in state.civilizations.items():
+                if not is_in_window(c):
+                    continue
                 w_obj = state.locations.get(str(c.origin_location_id)) if c.origin_location_id else None
                 loc   = w_obj.name if w_obj else "?"
                 civ_items.append((cid, f"{c.name:<30} [{c.scale.value}]  {loc}"))

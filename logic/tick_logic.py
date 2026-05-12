@@ -356,6 +356,9 @@ class TickResult(BaseModel):
 
     terminal: TerminalCheck = Field(default_factory=TerminalCheck)
 
+    essence_claimed_by_domain: dict[str, float] = Field(default_factory=dict)
+    # domain tag -> Demiurge's claim this tick
+
     seed: int = 0
     # RNG seed used this tick — for reproducibility
 
@@ -503,8 +506,9 @@ class TickLoop:
         state = self._prune_weak_beliefs(state)
 
         # ── Essence generation (Phase 1 tail) ─────────
-        essence_gen_mutations = self._process_essence_generation(state, cfg)
+        essence_gen_mutations, essence_by_domain = self._process_essence_generation(state, cfg)
         state = self._apply_mutations(state, essence_gen_mutations)
+        result.essence_claimed_by_domain = essence_by_domain
 
         # ── Inject ongoing actions (appended after manual queue) ──────────
         # Manually queued actions in the same category take priority;
@@ -913,12 +917,12 @@ class TickLoop:
         self,
         state: SimulationState,
         cfg: TickConfig,
-    ) -> list["StateMutation"]:
+    ) -> tuple[list["StateMutation"], dict[str, float]]:
         """
         Compute per-domain world pools → universe pool → claiming fractions.
         Adds Demiurge's share to essence.actual (no apparent/concealment impact).
         Accumulates each Luminary's share into state.luminary_essence_this_eval.
-        Returns ESSENCE_CHANGE mutations for the Demiurge's claim.
+        Returns (ESSENCE_CHANGE mutations, per-domain claim amounts).
         """
         # Build per-domain universe pool by summing across all SignificantLocations.
         universe_pool: dict[str, float] = {}
@@ -972,6 +976,7 @@ class TickLoop:
 
         mutations: list[StateMutation] = []
         demiurge_total_claim = 0.0
+        domain_claim_breakdown: dict[str, float] = {}
 
         for tag, pool in universe_pool.items():
             if pool <= 0.0:
@@ -996,6 +1001,7 @@ class TickLoop:
                 # No Luminary claims this domain — Demiurge gets 100% if affiliated
                 if tag in demiurge_affiliated:
                     demiurge_total_claim += pool
+                    domain_claim_breakdown[tag] = domain_claim_breakdown.get(tag, 0.0) + pool
                     if tag in tracked:
                         state.domain_essence_claimed[tag] = (
                             state.domain_essence_claimed.get(tag, 0.0) + pool
@@ -1009,6 +1015,8 @@ class TickLoop:
 
             dem_claim = pool * dem_fraction if tag in demiurge_affiliated else 0.0
             demiurge_total_claim += dem_claim
+            if dem_claim > 0.0:
+                domain_claim_breakdown[tag] = domain_claim_breakdown.get(tag, 0.0) + dem_claim
             if tag in tracked and dem_claim > 0.0:
                 state.domain_essence_claimed[tag] = (
                     state.domain_essence_claimed.get(tag, 0.0) + dem_claim
@@ -1023,7 +1031,7 @@ class TickLoop:
                 note=f"Domain-based Essence claim (+{demiurge_total_claim:.3f})",
             ))
 
-        return mutations
+        return mutations, domain_claim_breakdown
 
     def _apply_passive_mutations(
         self,
@@ -1906,8 +1914,8 @@ class TickLoop:
             old_short = old_tag.split(":", 1)[1] if ":" in old_tag else old_tag
             new_short = new_tag.split(":", 1)[1] if ":" in new_tag else new_tag
             return mutations, (
-                f"You release your conceptual hold on {old_short} and turn your focus "
-                f"toward {new_short}. The reorientation settles into your nature."
+                f"You release your conceptual hold on {old_short.title()} and turn your focus "
+                f"toward {new_short.title()}. The reorientation settles into your nature."
             )
 
         # ── Explore Beliefs ───────────────────────────
