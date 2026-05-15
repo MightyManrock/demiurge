@@ -2198,7 +2198,7 @@ class TickLoop:
             base_rate = 10.0
             affinity_bonus = 7.0 if tag in state.demiurge.affiliated_domains else 0.0
             expr = _compute_universal_expression(state, tag)
-            from_expression = math.floor(expr * 3.0)
+            from_expression = round(max(0.0, (expr - 0.1) * (10 / 3)), 2)
             revelation_per_tick = round(base_rate + affinity_bonus + from_expression, 2)
             actual_gain = round(min(revelation_per_tick, cap - pool), 2)
             new_pool = round(pool + actual_gain, 2)
