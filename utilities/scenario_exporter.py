@@ -957,7 +957,7 @@ def build_scenario_default() -> SimulationState:
             "religion:animism": 0.80, "practice:foraging": 0.70,
             "relations:conquest": 0.60, "structure:egalitarianism": 0.50,
         },
-        theistic=True,
+        theistic=False,
         divine_awareness=0.10,
         age=60.0,
         visibility=1.0, pinned=True,

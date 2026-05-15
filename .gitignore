@@ -11,6 +11,7 @@ docs
 saves/*.db
 scenarios/*.bak
 core/*.bak
+resources/*
 
 # Claude Code
 CLAUDE.md

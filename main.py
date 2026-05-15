@@ -2035,7 +2035,7 @@ class GameScreen(Screen):
                     await app.push_screen_wait(ToastModal(
                         f"Insufficient Essence.\n\n"
                         f"  Cost:      {defn.essence_cost:.1f}\n"
-                        f"  Available: {available:.2f}"
+                        f"  Available: {available:.2f}\n"
                         f"  (stockpile {state.essence.actual:.2f}{committed_str})"
                     ))
                     continue
