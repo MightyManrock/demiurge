@@ -7,13 +7,17 @@ Rebuild Demiurge databases selectively.
   python rebuild_databases.py --domains        # rebuild only domain registry
   python rebuild_databases.py --cultures       # rebuild only culture registry
   python rebuild_databases.py --imagines       # rebuild only imago registry
+  python rebuild_databases.py --actions        # rebuild only action registry
   python rebuild_databases.py --scenario       # rebuild only default scenario
-  python rebuild_databases.py --domains --scenario   # any combination works
+  python rebuild_databases.py --actions --scenario   # any combination works
 
-When all three registries are selected, core/core.db is deleted and fully
-re-bootstrapped (original behaviour). When fewer than three are selected,
-core/core.db is preserved and only the selected registries' tables are dropped
-and re-populated — leaving imago_editor.py edits intact if Imago is unchecked.
+When all four registries are selected, core/core.db is deleted and fully
+re-bootstrapped. When fewer than four are selected, core/core.db is preserved
+and only the selected registries' tables are dropped and re-populated —
+leaving imago_editor.py edits intact if Imago is unchecked.
+
+To rebuild actions without touching Imago edits:
+  python rebuild_databases.py --actions --scenario
 """
 
 import argparse
@@ -24,25 +28,30 @@ CORE_DB = Path(__file__).parent / "core" / "core.db"
 
 # ── Shared dispatcher ──────────────────────────────────────────────────────────
 
-def run_operations(domains: bool, cultures: bool, imagines: bool, scenario: bool) -> list[str]:
+def run_operations(
+    domains: bool, cultures: bool, imagines: bool, actions: bool, scenario: bool
+) -> list[str]:
     """Execute selected rebuild operations. Returns result lines for display."""
     results: list[str] = []
 
-    if domains or cultures or imagines:
-        all_three = domains and cultures and imagines
-        if all_three:
+    if domains or cultures or imagines or actions:
+        all_four = domains and cultures and imagines and actions
+        if all_four:
             if CORE_DB.exists():
                 CORE_DB.unlink()
                 results.append("Deleted existing core/core.db")
-            from utilities.domain_registry import get_registry as get_domain_registry
+            from utilities.domain_registry  import get_registry as get_domain_registry
             from utilities.culture_registry import get_registry as get_culture_registry
             from utilities.imago_registry   import get_registry as get_imago_registry
+            from utilities.action_registry  import get_registry as get_action_registry
             get_domain_registry()
             results.append("  Domain registry written (full bootstrap)")
             get_culture_registry()
             results.append("  Culture registry written (full bootstrap)")
             get_imago_registry()
             results.append("  Imago registry written (full bootstrap)")
+            get_action_registry()
+            results.append("  Action registry written (full bootstrap)")
         else:
             results.append("Partial rebuild — core/core.db preserved")
             if domains:
@@ -57,6 +66,10 @@ def run_operations(domains: bool, cultures: bool, imagines: bool, scenario: bool
                 from utilities.imago_registry import reinstate as reinstate_imagines
                 reinstate_imagines(CORE_DB)
                 results.append("  Imago registry reinstated")
+            if actions:
+                from utilities.action_registry import reinstate as reinstate_actions
+                reinstate_actions(CORE_DB)
+                results.append("  Action registry reinstated")
 
     if scenario:
         from utilities.scenario_exporter import build_scenario_default, export_scenario
@@ -85,8 +98,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--domains",  action="store_true", help="Rebuild domain registry in core/core.db")
     p.add_argument("--cultures", action="store_true", help="Rebuild culture registry in core/core.db")
     p.add_argument("--imagines", action="store_true", help="Rebuild imago registry in core/core.db")
+    p.add_argument("--actions",  action="store_true", help="Rebuild action registry in core/core.db")
     p.add_argument("--scenario", action="store_true", help="Rebuild default scenario (wardens_compact.db)")
-    p.add_argument("--all",      action="store_true", help="Rebuild everything (equivalent to all four flags)")
+    p.add_argument("--all",      action="store_true", help="Rebuild everything (equivalent to all five flags)")
     return p.parse_args()
 
 
@@ -96,6 +110,7 @@ def _run_cli(args: argparse.Namespace) -> None:
         domains=use_all or args.domains,
         cultures=use_all or args.cultures,
         imagines=use_all or args.imagines,
+        actions=use_all or args.actions,
         scenario=use_all or args.scenario,
     )
     if not results:
@@ -165,6 +180,7 @@ def _build_tui_app():
                 yield Checkbox("Domain registry",  value=True, id="cb-domains")
                 yield Checkbox("Culture registry", value=True, id="cb-cultures")
                 yield Checkbox("Imago registry",   value=True, id="cb-imagines")
+                yield Checkbox("Action registry",  value=True, id="cb-actions")
                 yield Checkbox("Default scenario", value=True, id="cb-scenario")
             yield RichLog(id="log-area", highlight=True, markup=True)
             with Horizontal(id="button-row"):
@@ -189,9 +205,10 @@ def _build_tui_app():
             domains  = self.query_one("#cb-domains",  Checkbox).value
             cultures = self.query_one("#cb-cultures", Checkbox).value
             imagines = self.query_one("#cb-imagines", Checkbox).value
+            actions  = self.query_one("#cb-actions",  Checkbox).value
             scenario = self.query_one("#cb-scenario", Checkbox).value
 
-            if not any([domains, cultures, imagines, scenario]):
+            if not any([domains, cultures, imagines, actions, scenario]):
                 self.call_from_thread(log.write, "[yellow]Nothing selected — check at least one item.[/]")
                 return
 
@@ -199,7 +216,7 @@ def _build_tui_app():
             self.call_from_thread(log.clear)
             self.call_from_thread(log.write, "[bold]Starting rebuild...[/]")
 
-            results = run_operations(domains, cultures, imagines, scenario)
+            results = run_operations(domains, cultures, imagines, actions, scenario)
 
             for line in results:
                 self.call_from_thread(log.write, line)
@@ -213,7 +230,7 @@ def _build_tui_app():
 
 if __name__ == "__main__":
     args = _parse_args()
-    any_flag = any([args.domains, args.cultures, args.imagines, args.scenario, args.all])
+    any_flag = any([args.domains, args.cultures, args.imagines, args.actions, args.scenario, args.all])
     if any_flag:
         _run_cli(args)
     else:
