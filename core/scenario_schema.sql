@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     demiurge_id         TEXT NOT NULL,
     pantheon_id         TEXT NOT NULL,
     luminary_production_accum TEXT NOT NULL DEFAULT '{}',  -- JSON {luminary_id: float} weighted-production accumulator
-    domain_essence_claimed  TEXT NOT NULL DEFAULT '{}'   -- JSON {domain_tag: float} cumulative Demiurge claim
+    domain_essence_claimed  TEXT NOT NULL DEFAULT '{}',  -- JSON {domain_tag: float} cumulative Demiurge claim
+    universe_domain_expression TEXT NOT NULL DEFAULT '{}'  -- JSON {domain_tag: float} per-domain baseline (0.1 default if absent)
 );
 
 -- ─────────────────────────────────────────

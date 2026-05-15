@@ -171,6 +171,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         rules=rules,
         child_ids=galaxy_ids,
         current_age=meta["current_age"],
+        universe_domain_expression=_jd_str(meta.get("universe_domain_expression", "{}")),
     )
 
     state = SimulationState(

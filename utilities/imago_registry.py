@@ -57,7 +57,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "But the wheel also prevents mastery; constant change is the enemy of expertise, "
         "and you never stay anywhere long enough to become truly skilled.",
         {"domain:change": 0.35, "domain:sacrifice": 0.1, "domain:mastery": -0.1,
-         "religion:animism": 0.2, "values:humility": 0.2},
+         "religion:demiurge_worship": 0.1, "practice:agriculture": 0.06, "values:sincerity": 0.2},
         0, 0,
     ),
     ImagoNode(
@@ -67,7 +67,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "As the wall crumbles, void opens behind it—not emptiness created by loss, but emptiness "
         "that was always there, concealed by structure. Crumbling structures take communities with them.",
         {"domain:change": 0.3, "domain:void": 0.08, "domain:community": -0.1,
-         "practice:nomadism": 0.1, "religion:nontheism": 0.1, "values:pragmatism": 0.15},
+         "practice:nomadism": 0.1, "religion:nontheism": 0.1, "values:adaptability": 0.15},
         0, 1,
     ),
     ImagoNode(
@@ -138,7 +138,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "who fight on against impossible odds do so by erasing the memory of what the war "
         "has already cost them.",
         {"domain:conflict": 0.35, "domain:sacrifice": 0.1, "domain:memory": -0.1,
-         "structure:competition": 0.15, "values:tenacity": 0.2, "values:sincerity": 0.1},
+         "values:tenacity": 0.2, "values:sincerity": 0.1, "religion:nontheism": 0.08},
         0, 7,
     ),
     ImagoNode(
@@ -149,7 +149,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "But the rival's eye despises yielding; it has no patience for the flowing, "
         "accommodating path that goes around rather than through.",
         {"domain:conflict": 0.3, "domain:mastery": 0.08, "domain:water": -0.1,
-         "structure:competition": 0.2, "values:ambition": 0.2},
+         "values:ambition": 0.2, "values:folk_wisdom": 0.08, "religion:nontheism": 0.07},
         0, 8,
     ),
     ImagoNode(
@@ -220,7 +220,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Imposed order demands official history over lived memory; the fist that enforces "
         "rewrites what came before it.",
         {"domain:order": 0.35, "domain:fire": 0.08, "domain:memory": -0.1,
-         "structure:hierarchy": 0.2, "values:tenacity": 0.15, "values:honesty": 0.1},
+         "structure:hierarchy": 0.2, "values:honesty": 0.1, "religion:luminary_worship": 0.1},
         0, 14,
     ),
     ImagoNode(
@@ -231,7 +231,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "But the warden's jurisdiction also resists what disrupts its categories; the new "
         "finding that overturns established truth is unwelcome here.",
         {"domain:order": 0.3, "domain:sacrifice": 0.1, "domain:truth": -0.1,
-         "practice:sedentism": 0.15, "values:moderation": 0.15},
+         "practice:sedentism": 0.15, "values:moderation": 0.1, "religion:demiurge_worship": 0.08},
         0, 15,
     ),
     ImagoNode(
@@ -311,7 +311,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "disturbing. But stillness does not grow; the still pool resists the seasonal flood, "
         "the living current.",
         {"domain:silence": 0.3, "domain:memory": 0.08, "domain:growth": -0.1,
-         "relations:isolationism": 0.15, "values:humility": 0.2},
+         "relations:isolationism": 0.08, "values:moderation": 0.1, "religion:void_worship": 0.07},
         0, 22,
     ),
     ImagoNode(
@@ -381,7 +381,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Domestic belonging, the family unit, the shared warmth, the first and smallest "
         "community—the fire that is everyone's and therefore no one's to take.",
         {"domain:community": 0.35, "domain:fire": 0.1, "domain:decay": -0.1,
-         "practice:sedentism": 0.2, "values:patience": 0.15},
+         "practice:sedentism": 0.2, "values:charity": 0.15, "religion:ancestor_worship": 0.12},
         0, 28,
     ),
     ImagoNode(
@@ -391,7 +391,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "The communal meal, the ritual of shared food, is the most fundamental expression of "
         "collective belonging. What is given to the table is given to all.",
         {"domain:community": 0.3, "domain:water": 0.1, "domain:secrecy": -0.1,
-         "structure:cooperation": 0.15, "values:humility": 0.15},
+         "values:sincerity": 0.25, "practice:monogamy": 0.1, "religion:demiurge_worship": 0.1},
         0, 29,
     ),
     ImagoNode(
@@ -460,7 +460,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "The altar flame, the vestal fire, the burning that reaches upward—sacred fire is "
         "the most ancient form of divine communication.",
         {"domain:fire": 0.35, "domain:light": 0.1, "domain:memory": -0.1,
-         "religion:animism": 0.2, "values:idealism": 0.15},
+         "values:prosperity": 0.15, "religion:luminary_worship": 0.2, "practice:sedentism": 0.08},
         0, 35,
     ),
     ImagoNode(
@@ -468,9 +468,9 @@ _IMAGO_NODES: list[ImagoNode] = [
         "The Billowing Pyre",
         "What is given to the fire is given completely. This is what makes it a gift.",
         "The sacrificial pyre is the great burning that gives everything and asks for the "
-        "same. It is destruction as the highest form of devotion.",
+        "same. It is destruction as the highest form of devotion but somehow leaves behind just enough.",
         {"domain:fire": 0.3, "domain:sacrifice": 0.1, "domain:growth": -0.1,
-         "religion:animism": 0.15, "values:tenacity": 0.1},
+         "religion:void_worship": 0.15, "values:moderation": 0.15},
         0, 36,
     ),
     ImagoNode(
@@ -533,7 +533,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Light is natural rhythm, the dawn that arrives regardless of whether anyone was "
         "waiting for it, the cycle that asks nothing.",
         {"domain:light": 0.35, "domain:water": 0.1, "domain:decay": -0.1,
-         "religion:animism": 0.2, "values:idealism": 0.15},
+         "religion:animism": 0.2, "values:idealism": 0.15, "practice:foraging": 0.08},
         0, 42,
     ),
     ImagoNode(
@@ -543,7 +543,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Light is guidance: the lighthouse, the signal fire, the flame made specifically to "
         "be seen by someone who needs it—illumination in service of others.",
         {"domain:light": 0.3, "domain:community": 0.1, "domain:silence": -0.1,
-         "structure:cooperation": 0.15, "values:honesty": 0.15},
+         "values:honesty": 0.15, "values:charity": 0.12, "religion:luminary_worship": 0.08},
         0, 43,
     ),
     ImagoNode(
@@ -611,7 +611,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Truth is the basis of reliable navigation—practical, hard-won, earned through use "
         "rather than revelation. The instrument endures.",
         {"domain:truth": 0.35, "domain:water": 0.1, "domain:void": -0.1,
-         "values:honesty": 0.2, "values:patience": 0.15},
+         "values:honesty": 0.2, "practice:nomadism": 0.08, "religion:demiurge_worship": 0.07},
         0, 49,
     ),
     ImagoNode(
@@ -621,7 +621,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Revelation is the blinding moment when something is fully and finally known. Truth "
         "as exposure is not concerned with comfort.",
         {"domain:truth": 0.35, "domain:sacrifice": 0.1, "domain:change": -0.1,
-         "values:honesty": 0.2, "values:sincerity": 0.15},
+         "values:erudition": 0.15, "values:idealism": 0.12, "religion:luminary_worship": 0.1},
         0, 50,
     ),
     ImagoNode(
@@ -699,7 +699,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "of depths lies the most humbling solitude; in bearing the weight of itself there "
         "is little meaning.",
         {"domain:water": 0.3, "domain:silence": 0.1, "domain:truth": -0.1,
-         "relations:isolationism": 0.15, "values:humility": 0.2},
+         "values:humility": 0.12, "religion:void_worship": 0.07, "values:patience": 0.08},
         0, 57,
     ),
     ImagoNode(
@@ -784,7 +784,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "maker rarely considers at the moment of craft. The rust arrives not as punishment "
         "but as conclusion, for it was always written into the work.",
         {"domain:decay": 0.3, "domain:truth": 0.1, "domain:mastery": -0.1,
-         "techno:luddism": 0.1, "values:folk_wisdom": 0.15, "values:humility": 0.15},
+         "values:folk_wisdom": 0.15, "practice:foraging": 0.08, "religion:void_worship": 0.08},
         0, 64,
     ),
     ImagoNode(
@@ -856,7 +856,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "become. Nothing in the seedling hesitates; it has no attachment to what it is "
         "giving up.",
         {"domain:growth": 0.35, "domain:sacrifice": 0.1, "domain:memory": -0.1,
-         "religion:animism": 0.2, "values:idealism": 0.15},
+         "religion:animism": 0.2, "values:charity": 0.15, "practice:agriculture": 0.08},
         0, 70,
     ),
     ImagoNode(
@@ -867,7 +867,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "arrives because that is what spring does. The world that expects the return and "
         "plants accordingly is practicing the oldest and most reliable form of faith.",
         {"domain:growth": 0.3, "domain:truth": 0.1, "domain:conflict": -0.1,
-         "practice:agriculture": 0.2, "values:humility": 0.15},
+         "practice:agriculture": 0.2, "values:humility": 0.15, "values:prosperity": 0.08},
         0, 71,
     ),
     ImagoNode(
@@ -954,7 +954,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "cultures that learn to treat the threshold as a place rather than a passage find "
         "in it something more solid ground cannot offer.",
         {"domain:void": 0.3, "domain:change": 0.1, "domain:order": -0.1,
-         "religion:animism": 0.15, "values:adaptability": 0.2},
+         "religion:animism": 0.15, "values:adaptability": 0.07, "values:humility": 0.12},
         0, 78,
     ),
     ImagoNode(
@@ -1023,7 +1023,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "as the first and the last. This is what mastery asks of people and why most do "
         "not achieve it.",
         {"domain:mastery": 0.35, "domain:memory": 0.1, "domain:void": -0.1,
-         "practice:sedentism": 0.15, "values:tenacity": 0.2},
+         "practice:sedentism": 0.15, "values:ambition": 0.2, "religion:demiurge_worship": 0.15},
         0, 84,
     ),
     ImagoNode(
@@ -1034,7 +1034,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "Mastery either begins or ends somewhere beyond mere talent. The gift is the "
         "precondition—not the achievement.",
         {"domain:mastery": 0.3, "domain:light": 0.1, "domain:decay": -0.1,
-         "structure:competition": 0.15, "values:idealism": 0.2},
+         "values:indulgence": 0.15, "values:erudition": 0.12, "religion:nontheism": 0.1},
         0, 85,
     ),
     ImagoNode(
@@ -1105,7 +1105,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "inscription loses: the weight of the person who chose to remember it. The story "
         "told by a living voice is not the same as the story carved in stone.",
         {"domain:memory": 0.35, "domain:fire": 0.1, "domain:mastery": -0.1,
-         "religion:ancestor_worship": 0.2, "values:sincerity": 0.15},
+         "religion:ancestor_worship": 0.15, "values:sincerity": 0.2},
         0, 91,
     ),
     ImagoNode(
@@ -1115,7 +1115,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "What the mind prefers to forget, the scar refuses to. Memory that lives in the "
         "body does not require consent.",
         {"domain:memory": 0.3, "domain:conflict": 0.1, "domain:growth": -0.1,
-         "structure:competition": 0.1, "values:tenacity": 0.2, "values:folk_wisdom": 0.1},
+         "values:tenacity": 0.1, "values:folk_wisdom": 0.1, "religion:nontheism": 0.07},
         0, 92,
     ),
     ImagoNode(
@@ -1183,7 +1183,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "The first offering asks a question, and the answer shapes every act of worship "
         "that follows: if I give this up, will something be given back?",
         {"domain:sacrifice": 0.35, "domain:growth": 0.1, "domain:secrecy": -0.1,
-         "religion:luminary_worship": 0.2, "values:sincerity": 0.15},
+         "religion:luminary_worship": 0.1, "values:sincerity": 0.15, "values:charity": 0.08},
         0, 98,
     ),
     ImagoNode(
@@ -1194,7 +1194,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "What is given up without being taken is the most honest gift. The fast is the "
         "offering no one witnesses, which is part of what makes it costly.",
         {"domain:sacrifice": 0.3, "domain:void": 0.1, "domain:growth": -0.1,
-         "religion:luminary_worship": 0.1, "values:patience": 0.2, "values:moderation": 0.15},
+         "religion:luminary_worship": 0.1, "values:moderation": 0.12, "values:idealism": 0.07},
         0, 99,
     ),
     ImagoNode(
@@ -1264,7 +1264,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "of others is that what is given in trust must be given back in kind, or the next "
         "secret will not be given at all.",
         {"domain:secrecy": 0.35, "domain:sacrifice": 0.1, "domain:conflict": -0.1,
-         "structure:cooperation": 0.15, "values:sincerity": 0.15},
+         "structure:cooperation": 0.08, "values:sincerity": 0.15, "religion:demiurge_worship": 0.1},
         0, 105,
     ),
     ImagoNode(
@@ -1275,7 +1275,7 @@ _IMAGO_NODES: list[ImagoNode] = [
         "happens there is no one's business but yours, which is a rarer condition than "
         "it sounds.",
         {"domain:secrecy": 0.3, "domain:memory": 0.1, "domain:order": -0.1,
-         "relations:isolationism": 0.15, "values:patience": 0.2},
+         "relations:isolationism": 0.08, "religion:nontheism": 0.07, "values:wit": 0.1},
         0, 106,
     ),
     ImagoNode(

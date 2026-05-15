@@ -426,6 +426,10 @@ class Universe(Location):
     # could be years, centuries, or abstract "eras."
     current_age: float = 0.0
 
+    # Per-domain expression baseline. Keys are domain:xxx tags.
+    # Missing keys default to 0.1 in _compute_universal_expression.
+    universe_domain_expression: dict[str, float] = Field(default_factory=dict)
+
     # Aggregate event log — references to Event objects
     # (defined when we build the action layer).
     event_log_ids: list[UUID] = Field(default_factory=list)

@@ -90,8 +90,8 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
         """INSERT INTO scenario_meta
            (name, description, universe_id, universe_name, universe_save_name,
             universe_description, current_age, tick_number, demiurge_id, pantheon_id,
-            luminary_production_accum, domain_essence_claimed)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            luminary_production_accum, domain_essence_claimed, universe_domain_expression)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -105,6 +105,7 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             str(state.pantheon.id),
             json.dumps(state.luminary_production_this_eval),
             json.dumps(state.domain_essence_claimed),
+            json.dumps(state.universe.universe_domain_expression),
         ),
     )
 

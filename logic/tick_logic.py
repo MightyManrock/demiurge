@@ -152,7 +152,7 @@ def _compute_universal_expression(state: "SimulationState", domain_tag: str) -> 
     Sums belief strength from all civs (scale-weighted) and domain_expression
     from all SignificantLocations, then normalizes against _REVELATION_EXPRESSION_FULL.
     """
-    total = 0.0
+    total = state.universe.universe_domain_expression.get(domain_tag, 0.1)
     for civ in state.civilizations.values():
         scale_mult = _CIV_SCALE_ESSENCE_MULT.get(civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1)
         total += civ.dominant_beliefs.get(domain_tag, 0.0) * scale_mult
@@ -2993,6 +2993,15 @@ class TickLoop:
             for tag, strength in world.domain_expression.items():
                 raw_scores[tag] += world_weight * strength
                 total_weight += world_weight * strength
+
+        # Universe baseline: treat universe_domain_expression like a SignificantLocation.
+        # Missing tags default to 0.1.
+        universe_expr = state.universe.universe_domain_expression
+        universe_weight = 0.3
+        for tag in get_domain_registry().all_tags:
+            strength = universe_expr.get(tag, 0.1)
+            raw_scores[tag] += universe_weight * strength
+            total_weight += universe_weight * strength
 
         if total_weight == 0.0:
             return UniverseDomainProfile(

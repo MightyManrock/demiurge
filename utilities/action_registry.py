@@ -595,7 +595,7 @@ _ACTION_SEED: list[dict] = [
             "Turn your divine awareness inward and meditate on a Domain. "
             "Each tick this action runs, Revelation accumulates in that Domain's pool. "
             "Affiliated Domains accrue Revelation faster. "
-            "Spend Revelation via Reveal Imago to internalize Imago nodes."
+            "Spend Revelation via Reveal Imāgō to internalize Imāgō nodes."
         ),
         "valid_targets": ["underreal"],
         "reliability": "certain",
@@ -607,12 +607,12 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "reveal_imago",
-        "name": "Reveal Imago",
+        "name": "Reveal Imāgō",
         "category": "self_refinement",
         "description": (
             "Spend accumulated Revelation from a Domain's pool to permanently "
-            "internalize an Imago node from that Domain's tree. "
-            "Prerequisites must be met; costs rise slightly with each Imago you reveal."
+            "internalize an Imāgō node from that Domain's tree. "
+            "Prerequisites must be met; costs rise slightly with each Imāgō you reveal."
         ),
         "valid_targets": ["underreal"],
         "reliability": "certain",
@@ -646,7 +646,7 @@ _ACTION_SEED: list[dict] = [
         "description": (
             "Reorient one of your affiliated domain focuses. "
             "Swap an existing affiliation for any canonical domain. "
-            "Affiliated domains give future bonuses to aligned Imago effects "
+            "Affiliated domains give future bonuses to aligned Imāgō effects "
             "and research point generation."
         ),
         "valid_targets": ["underreal"],

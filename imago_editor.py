@@ -449,7 +449,7 @@ class ImagoPickerModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
-            yield Label(f"{self._tree.title()} — Imagines", classes="modal-title")
+            yield Label(f"{self._tree.title()} — Imāginēs", classes="modal-title")
             with Grid(id="imago-grid"):
                 for tier in (4, 3, 2, 1):
                     tier_nodes = self._by_tier.get(tier, [])
@@ -821,7 +821,7 @@ class ImagoEditorApp(App):
                 with TabPane("Node", id="tab-node"):
                     with VerticalScroll(id="node-content-area"):
                         yield Static(
-                            "Select a domain from the sidebar, then pick an Imago node.",
+                            "Select a domain from the sidebar, then pick an Imāgō node.",
                             id="no-node-msg",
                         )
         yield Footer()

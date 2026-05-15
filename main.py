@@ -315,7 +315,7 @@ def display_briefing(state: "SimulationState") -> str:
         "  Footprint Tolerances:",
         f"    Overt Miracles:   {tol.overt_miracles:.2f}  |  Subtle Influence: {tol.subtle_influence:.2f}",
         f"    Proxius Activity: {tol.proxius_activity:.2f}  |  Direct Creation:  {tol.direct_creation:.2f}",
-        f"  Proxii Policy: {cap_str}  (slack: {pp.tolerance_for_excess:.2f})",
+        f"  Proxiī Policy: {cap_str}  (slack: {pp.tolerance_for_excess:.2f})",
         f"  Active shaping expected:    {'yes' if rules.active_shaping_expected else 'no'}",
         f"  Mortals perceive divinity:  {'yes' if rules.mortals_can_perceive_divinity else 'no'}",
     ]
@@ -1430,8 +1430,8 @@ class DomainPickerModal(ModalScreen):
 # ─────────────────────────────────────────
 # IMAGO TREE PICKER
 # Shows all 7 nodes of one tree in a 3-column pyramid layout.
-# Dismisses with a node_id (str), "__manual__" to skip to manual
-# direction, or None to cancel.
+# Dismisses with a node_id (str), BACK to return to domain picker,
+# or None to cancel.
 # ─────────────────────────────────────────
 
 class ImagoCell(Widget):
@@ -1479,7 +1479,7 @@ class ImagoTreeModal(ModalScreen):
     """
     Tree-layout Imago picker. Grid is 3 columns × 4 rows (T4 top, T1 bottom).
     T4 is centred; each other tier puts its lower-sort node in col 0, higher in col 2.
-    Dismisses with a node_id, '__manual__', or None.
+    Dismisses with a node_id, BACK, or None.
     """
 
     BINDINGS = [
@@ -1546,7 +1546,7 @@ class ImagoTreeModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
-            yield Label(f"{self._tree.title()} — Imagines", classes="modal-title")
+            yield Label(f"{self._tree.title()} — Imāginēs", classes="modal-title")
             with Grid(id="imago-grid"):
                 for tier in (4, 3, 2, 1):
                     nodes = self._by_tier[tier]
@@ -1568,7 +1568,6 @@ class ImagoTreeModal(ModalScreen):
                                 yield cell
             yield Static("", id="imago-tooltip")
             with Horizontal(classes="btn-row"):
-                yield Button("No Imago",  id="manual-btn")
                 yield Button("← Domain",  id="back-btn")
                 yield Button("Cancel",    id="cancel-btn",  classes="-danger")
 
@@ -1606,10 +1605,6 @@ class ImagoTreeModal(ModalScreen):
 
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
         self.dismiss(event.node_id)
-
-    @on(Button.Pressed, "#manual-btn")
-    def _manual(self, _: Button.Pressed) -> None:
-        self.dismiss("__manual__")
 
     @on(Button.Pressed, "#back-btn")
     def _back_btn(self, _: Button.Pressed) -> None:
@@ -1695,7 +1690,7 @@ class ImagoDetailModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box-tall"):
-            yield Label("Imago — Confirm", classes="modal-title")
+            yield Label("Imāgō — Confirm", classes="modal-title")
             with ScrollableContainer():
                 yield Static(self._body(), id="imago-detail-body")
             with Horizontal(classes="btn-row"):
@@ -1835,7 +1830,7 @@ class ImagoRevealModal(ModalScreen):
     def compose(self) -> "ComposeResult":
         pool_str = f"Revelation: {self._pool:.2f} / {self._cap:.2f}"
         with Vertical(classes="modal-box"):
-            yield Label(f"{self._tree.title()} — Reveal Imago", classes="modal-title")
+            yield Label(f"{self._tree.title()} — Reveal Imāgō", classes="modal-title")
             yield Label(pool_str, id="reveal-pool-label")
             with Grid(id="imago-grid"):
                 for tier in (4, 3, 2, 1):
@@ -1985,7 +1980,7 @@ class ImagoRevealDetailModal(ModalScreen):
     def compose(self) -> "ComposeResult":
         can_reveal = self._pool >= self._cost
         with Vertical(classes="modal-box-tall"):
-            yield Label("Reveal Imago — Confirm", classes="modal-title")
+            yield Label("Reveal Imāgō — Confirm", classes="modal-title")
             with ScrollableContainer():
                 yield Static(self._body(), id="imago-detail-body")
             with Horizontal(classes="btn-row"):
@@ -3141,8 +3136,6 @@ class GameScreen(Screen):
                         break
                     if chosen_id is None:       # Cancel: propagate up
                         return None
-                    if chosen_id == "__manual__":
-                        break
                     node      = ireg.get_node(chosen_id)
                     confirmed = await self.app.push_screen_wait(ImagoDetailModal(node, state))
                     if confirmed is None: return None  # Cancel from detail
@@ -3154,25 +3147,7 @@ class GameScreen(Screen):
                         ]
                         return (dvs, chosen_id)
                     # False = back to tree picker; loop continues
-                if chosen_id == BACK:
-                    continue  # re-show domain picker
-                # fell through with __manual__
-
-            # Manual direction fallback
-            form = await self.app.push_screen_wait(
-                TextFormModal(
-                    "Domain Direction",
-                    [("Direction  -1.0 suppress  →  +1.0 promote", "dir", "0.5")],
-                    show_back=True,
-                )
-            )
-            if form is None: return None
-            if form == BACK: continue   # back to domain picker
-            try:
-                direction = max(-1.0, min(1.0, float(form["dir"])))
-            except ValueError:
-                direction = 0.5
-            return ([DomainVector(domain_tag=tag, direction=direction)], None)
+                continue  # BACK: re-show domain picker
 
     async def _build_reveal_imago_intent(
         self,
@@ -3261,7 +3236,7 @@ class GameScreen(Screen):
                  or (include_dormant and m.status == MortalStatus.DORMANT))
         ]
         if not proxii:
-            self._feed_markup("[#5a7090]No Proxii available.[/]")
+            self._feed_markup("[#5a7090]No Proxiī available.[/]")
             return None
         items = []
         for mid, m in proxii:
