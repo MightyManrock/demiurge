@@ -19,7 +19,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from core.onto_core import (
-    Domain, Luminary, Pantheon, Constraint,
+    Luminary, Pantheon, Constraint,
     Disposition, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
@@ -134,8 +134,7 @@ def _uuid(text: str | None) -> UUID | None:
 
 def _build_state(conn: sqlite3.Connection) -> SimulationState:
     meta    = dict(conn.execute("SELECT * FROM scenario_meta").fetchone())
-    domains = _load_domains(conn)
-    lums, constraints_by_owner = _load_luminaries(conn, domains)
+    lums, constraints_by_owner = _load_luminaries(conn)
     pantheon = _load_pantheon(conn, constraints_by_owner)
     rules    = _load_universe_rules(conn)
     locations = _load_locations(conn)
@@ -174,13 +173,12 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         current_age=meta["current_age"],
     )
 
-    return SimulationState(
+    state = SimulationState(
         universe=universe,
         demiurge=demiurge,
         essence=essence,
         pantheon=pantheon,
         luminaries={str(l.id): l for l in lums.values()},
-        domains=domains,
         locations=locations,
         civilizations=civs,
         mortals=mortals,
@@ -196,50 +194,26 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         tick_number=meta.get("tick_number", 0),
     )
 
+    # If the scenario DB didn't specify starting affiliated domains, derive them:
+    # top-4 by aggregate Luminary affinity, alphabetical tiebreak.
+    if not state.demiurge.affiliated_domains:
+        from utilities.domain_registry import get_registry as get_domain_registry
+        dreg = get_domain_registry()
+        agg: dict[str, float] = {}
+        for lum in state.luminaries.values():
+            for tag, aff in lum.domains.items():
+                if dreg.is_canonical(tag):
+                    agg[tag] = agg.get(tag, 0.0) + aff
+        state.demiurge.affiliated_domains = sorted(agg, key=lambda t: (-agg[t], t))[:4]
+
+    return state
+
 
 # ─────────────────────────────────────────
 # Per-table loaders
 # ─────────────────────────────────────────
 
-def _load_domains(conn) -> dict[str, Domain]:
-    out = {}
-    for row in conn.execute("SELECT * FROM domains"):
-        d = Domain(
-            id=UUID(row["id"]),
-            name=row["name"],
-            description=row["description"],
-            source_powers=[UUID(x) for x in _j(row["source_powers"])],
-            tags=_j(row["tags"]),
-        )
-        out[str(d.id)] = d
-    return out
-
-
-def _parse_luminary_domains(raw_json: str, domains: dict[str, Domain]) -> dict[str, float]:
-    """Parse domains column with backward compat for old UUID-list format."""
-    val = json.loads(raw_json) if raw_json else {}
-    if isinstance(val, dict):
-        return val
-    # Legacy list: items are either UUID strings or domain:... tag strings
-    result: dict[str, float] = {}
-    for item in val:
-        item = str(item)
-        if item.startswith("domain:"):
-            result[item] = 1.0
-        else:
-            # UUID reference — look up in domains dict and extract tag
-            dom = domains.get(item)
-            if dom:
-                for tag in dom.tags:
-                    if tag.startswith("domain:"):
-                        result[tag] = 1.0
-    return result
-
-
-def _load_luminaries(
-    conn,
-    domains: dict[str, Domain],
-) -> tuple[dict[str, Luminary], dict[str, list[Constraint]]]:
+def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constraint]]]:
     """Returns (luminaries dict, constraints_by_owner_id dict)."""
     # Load all constraints first, grouped by owner
     constraints_by_owner: dict[str, list[Constraint]] = {}
@@ -257,10 +231,12 @@ def _load_luminaries(
     for raw in conn.execute("SELECT * FROM luminaries"):
         row = dict(raw)
         lid = row["id"]
+        raw_domains = json.loads(row["domains"]) if row["domains"] else {}
+        domains: dict[str, float] = raw_domains if isinstance(raw_domains, dict) else {}
         l = Luminary(
             id=UUID(lid),
             name=row["name"],
-            domains=_parse_luminary_domains(row["domains"], domains),
+            domains=domains,
             pantheon_id=_uuid(row["pantheon_id"]),
             disposition=Disposition(
                 results=row["disposition_results"],
@@ -523,7 +499,6 @@ def _load_demiurge(conn) -> Demiurge:
         id=UUID(row["id"]),
         name=row["name"],
         liege_luminary_ids=[UUID(x) for x in _j(row["liege_luminary_ids"])],
-        granted_domains=[UUID(x) for x in _j(row["granted_domains"])],
         footprint=FootprintProfile(
             overt_miracles=row["fp_overt_miracles"],
             subtle_influence=row["fp_subtle_influence"],

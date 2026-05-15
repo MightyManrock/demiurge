@@ -287,17 +287,11 @@ def display_briefing(state: "SimulationState") -> str:
             continue
         lines.append("")
         lines.append(f"  {lum.name.upper()}  [{_personality_label(lum)}]")
-        domain_names = [
-            state.domains[str(did)].name
-            for did in lum.domains if str(did) in state.domains
+        domain_parts = [
+            f"{tag.split(':', 1)[1].title()} ({aff:.2f})"
+            for tag, aff in sorted(lum.domains.items(), key=lambda x: -x[1])
         ]
-        lines.append(f"  Domains: {', '.join(domain_names)}")
-        for did in lum.domains:
-            d = state.domains.get(str(did))
-            if d:
-                lines.append(f"    • {d.name}: {d.description}")
-                if d.tags:
-                    lines.append(f"      Tags: {', '.join(d.tags)}")
+        lines.append(f"  Domains: {', '.join(domain_parts)}")
         if lum.constraints:
             lines.append("  Constraints imposed on you:")
             for c in lum.constraints:

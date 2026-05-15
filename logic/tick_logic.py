@@ -37,7 +37,7 @@ from core.eval_core import (
     DispositionDeltaReason,
 )
 from core.onto_core import (
-    Demiurge, Pantheon, Luminary, Domain,
+    Demiurge, Pantheon, Luminary,
 )
 from core.universe_core import (
     Universe, Location, System, SignificantLocation, PopLocation,
@@ -379,7 +379,6 @@ class SimulationState(BaseModel):
     essence:       "EssenceStockpile"
     pantheon:      "Pantheon"
     luminaries:    dict[str, "Luminary"]    # str(UUID) -> Luminary
-    domains:       dict[str, "Domain"]      # str(UUID) -> Domain
     locations:     dict[str, "Location"]    # str(UUID) -> Location (all spatial entities)
     civilizations: dict[str, "Civilization"]
     mortals:       dict[str, "NotableMortal"]

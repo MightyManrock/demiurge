@@ -12,36 +12,6 @@ from uuid import UUID, uuid4
 
 
 # ─────────────────────────────────────────
-# HIGHEST REAL
-# ─────────────────────────────────────────
-
-class Power(BaseModel):
-    """
-    An unconscious archetypal force in the Highest Real.
-    Powers don't act — they radiate. Domains are how that
-    radiation becomes structured and usable.
-    """
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    description: str
-
-
-class Domain(BaseModel):
-    """
-    A structured aspect of one or more Powers.
-    Domains are the fundamental currency of divine identity —
-    what a Luminary *is* is what Domains it embodies.
-    Tags feed the evaluation and dialogue layers later.
-    """
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    description: str
-    source_powers: list[UUID]       # Most Domains flow from one Power; some bridge several
-    tags: list[str] = Field(default_factory=list)
-    # e.g. ["conflict", "change", "mortal_emotion"] — used for speech act queries
-
-
-# ─────────────────────────────────────────
 # OVERREAL
 # ─────────────────────────────────────────
 
@@ -144,7 +114,6 @@ class Demiurge(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     liege_luminary_ids: list[UUID]
-    granted_domains: list[UUID]         # Domains the lieges have empowered you with
     footprint: FootprintProfile = Field(default_factory=FootprintProfile)
     proxius_ids: list[UUID] = Field(default_factory=list)
     unlocked_domain_tags: list[str] = Field(default_factory=list)

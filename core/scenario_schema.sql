@@ -32,20 +32,6 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
 -- OVERREAL — ontological layer
 -- ─────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS powers (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    description TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS domains (
-    id            TEXT PRIMARY KEY,
-    name          TEXT NOT NULL,
-    description   TEXT NOT NULL,
-    source_powers TEXT NOT NULL DEFAULT '[]',  -- JSON array of power UUIDs
-    tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array of strings
-);
-
 CREATE TABLE IF NOT EXISTS luminaries (
     id                   TEXT PRIMARY KEY,
     name                 TEXT NOT NULL,
@@ -207,7 +193,6 @@ CREATE TABLE IF NOT EXISTS demiurge (
     id                    TEXT PRIMARY KEY,
     name                  TEXT NOT NULL,
     liege_luminary_ids    TEXT NOT NULL DEFAULT '[]',  -- JSON array
-    granted_domains       TEXT NOT NULL DEFAULT '[]',  -- JSON array
     -- FootprintProfile (embedded)
     fp_overt_miracles     REAL NOT NULL DEFAULT 0.0,
     fp_subtle_influence   REAL NOT NULL DEFAULT 0.0,

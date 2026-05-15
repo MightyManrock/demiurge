@@ -18,7 +18,7 @@ from pathlib import Path
 from uuid import UUID
 
 from core.onto_core import (
-    Power, Domain, Disposition, Constraint,
+    Disposition, Constraint,
     Luminary, Pantheon, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
@@ -61,8 +61,6 @@ def export_scenario(
     conn.executescript(SCHEMA_PATH.read_text())
 
     _write_scenario_meta(conn, state, scenario_name, description)
-    _write_powers(conn, state)
-    _write_domains(conn, state)
     _write_luminaries(conn, state)
     _write_pantheon(conn, state)
     _write_universe_rules(conn, state)
@@ -109,36 +107,6 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.domain_essence_claimed),
         ),
     )
-
-
-def _write_powers(conn, state: SimulationState):
-    # Powers are referenced by domains; reconstruct from domain.source_powers
-    seen: dict[str, tuple] = {}
-    for domain in state.domains.values():
-        for pid in domain.source_powers:
-            sid = str(pid)
-            if sid not in seen:
-                seen[sid] = (sid, f"Power:{sid[:8]}", "")
-    for row in seen.values():
-        conn.execute(
-            "INSERT INTO powers (id, name, description) VALUES (?, ?, ?)",
-            row,
-        )
-
-
-def _write_domains(conn, state: SimulationState):
-    for domain in state.domains.values():
-        conn.execute(
-            """INSERT INTO domains (id, name, description, source_powers, tags)
-               VALUES (?, ?, ?, ?, ?)""",
-            (
-                str(domain.id),
-                domain.name,
-                domain.description,
-                _j(domain.source_powers),
-                _j(domain.tags),
-            ),
-        )
 
 
 def _write_luminaries(conn, state: SimulationState):
@@ -422,17 +390,16 @@ def _write_demiurge(conn, state: SimulationState):
     fp = d.footprint
     conn.execute(
         """INSERT INTO demiurge
-           (id, name, liege_luminary_ids, granted_domains,
+           (id, name, liege_luminary_ids,
             fp_overt_miracles, fp_subtle_influence,
             fp_proxius_activity, fp_direct_creation,
             proxius_ids, unlocked_domain_tags, unlocked_imagines,
             affiliated_domains, tracked_essence_domains)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(d.id),
             d.name,
             _j(d.liege_luminary_ids),
-            _j(d.granted_domains),
             fp.overt_miracles,
             fp.subtle_influence,
             fp.proxius_activity,
@@ -619,40 +586,6 @@ def build_scenario_default() -> SimulationState:
           Sethis         — Neran Confederacy frontier colony
     """
 
-    # ── Powers ──────────────────────────────────────
-    p_order    = Power(name="Order",    description="The force of structure, rule, and stillness.")
-    p_conflict = Power(name="Conflict", description="The force of struggle, competition, and upheaval.")
-    p_silence  = Power(name="Silence",  description="Absence as presence; the space between.")
-    p_change   = Power(name="Change",   description="Flux, transformation, impermanence.")
-
-    # ── Domains ─────────────────────────────────────
-    d_order = Domain(
-        name="Order",
-        description="Hierarchy, rule, institutional permanence.",
-        source_powers=[p_order.id],
-        tags=["domain:order"],
-    )
-    d_silence = Domain(
-        name="Silence",
-        description="Restraint, hidden influence, the unseen hand.",
-        source_powers=[p_silence.id],
-        tags=["domain:silence"],
-    )
-    d_conflict = Domain(
-        name="Conflict",
-        description="Competition, opposition, the crucible of strength.",
-        source_powers=[p_conflict.id],
-        tags=["domain:conflict"],
-    )
-    d_change = Domain(
-        name="Change",
-        description="Revolution, dissolution, new forms from old.",
-        source_powers=[p_change.id],
-        tags=["domain:change"],
-    )
-
-    domains = {str(d.id): d for d in [d_order, d_silence, d_conflict, d_change]}
-
     # ── Luminaries ───────────────────────────────────
     cassiel = Luminary(
         name="Cassiel",
@@ -662,13 +595,11 @@ def build_scenario_default() -> SimulationState:
             Constraint(
                 name="Subtlety Mandate",
                 description="Overt miracles must remain minimal.",
-                domain_source=d_silence.id,
                 enforcement_weight=0.85,
             ),
             Constraint(
                 name="Proxius Restraint",
                 description="No more than one Proxius per world.",
-                domain_source=d_order.id,
                 enforcement_weight=0.6,
             ),
         ],
@@ -686,7 +617,6 @@ def build_scenario_default() -> SimulationState:
                     "The universe must show strong conflict/change domain "
                     "expression within a reasonable span."
                 ),
-                domain_source=d_conflict.id,
                 enforcement_weight=0.9,
             ),
         ],
@@ -1108,21 +1038,16 @@ def build_scenario_default() -> SimulationState:
     )
 
     # ── Demiurge ─────────────────────────────────────
-    # Affiliated domains: aggregate affinity sum across all lieges.
-    # All 4 liege domains tie at 1.0 each; alphabetical tiebreak.
+    # affiliated_domains left empty — loader derives top-4 from Luminary affinities.
     demiurge = Demiurge(
         name="The Unnamed",
         liege_luminary_ids=[cassiel.id, vrath.id],
-        granted_domains=[d_order.id, d_conflict.id],
         footprint=FootprintProfile(),
         unlocked_imagines=[
             "order:t1:warden",      # Cassiel (Order) — quiet cost of stable boundaries
             "silence:t1:veil",      # Cassiel (Silence) — the concealed god, subtlety mandate
             "conflict:t1:banner",   # Vrath (Conflict) — defiance past the point of hope
             "change:t1:wheel",      # Vrath (Change) — costly, unstoppable transformation
-        ],
-        affiliated_domains=[
-            "domain:change", "domain:conflict", "domain:order", "domain:silence",
         ],
     )
 
@@ -1144,7 +1069,6 @@ def build_scenario_default() -> SimulationState:
         essence=essence,
         pantheon=pantheon,
         luminaries=luminaries,
-        domains=domains,
         locations={
             str(galaxy.id):        galaxy,
             str(system.id):        system,
