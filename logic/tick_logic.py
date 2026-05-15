@@ -20,6 +20,7 @@ from core.action_core import (
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+    RevealImagoIntent, CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope, WeighCivilizationIntent,
     TargetType,
 )
@@ -47,6 +48,7 @@ from core.universe_core import (
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
+from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice
 
@@ -113,6 +115,64 @@ def is_in_window(entity: object) -> bool:
     vis = getattr(entity, "visibility", 0.0)
     pinned = getattr(entity, "pinned", False)
     return pinned or vis > ENTITY_VISIBILITY_FLOOR
+
+
+# ─────────────────────────────────────────
+# REVELATION CONSTANTS
+# ─────────────────────────────────────────
+
+_REVELATION_BASE_COSTS: dict[int, int] = {1: 60, 2: 100, 3: 200, 4: 400}
+
+# Weighted sum of domain expression across all civs + significant locations;
+# considered "full expression" at this denominator value for normalization.
+_REVELATION_EXPRESSION_FULL: float = 3.0
+
+
+def _revelation_adjusted_cost(tier: int, revealed_count: int) -> int:
+    base = _REVELATION_BASE_COSTS[tier]
+    return math.floor(base * (1.0 + 0.003 * revealed_count))
+
+
+def _compute_revelation_cap(state: "SimulationState", domain_tag: str) -> float:
+    """Sum of adjusted costs for all unrevealed Imagines in the Domain's tree."""
+    ireg = get_imago_registry()
+    tree = domain_tag.split(":", 1)[1] if ":" in domain_tag else domain_tag
+    revealed_count = state.demiurge.revealed_imagines
+    unlocked = set(state.demiurge.unlocked_imagines)
+    cap = 0.0
+    for node in ireg.nodes_for_tree(tree):
+        if node.node_id not in unlocked:
+            cap += _revelation_adjusted_cost(node.tier, revealed_count)
+    return cap
+
+
+def _compute_universal_expression(state: "SimulationState", domain_tag: str) -> float:
+    """
+    Normalized domain expression across the whole universe: 0.1–1.0.
+    Sums belief strength from all civs (scale-weighted) and domain_expression
+    from all SignificantLocations, then normalizes against _REVELATION_EXPRESSION_FULL.
+    """
+    total = 0.0
+    for civ in state.civilizations.values():
+        scale_mult = _CIV_SCALE_ESSENCE_MULT.get(civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1)
+        total += civ.dominant_beliefs.get(domain_tag, 0.0) * scale_mult
+    for loc in state.locations.values():
+        if isinstance(loc, SignificantLocation):
+            total += loc.domain_expression.get(domain_tag, 0.0)
+    normalized = total / _REVELATION_EXPRESSION_FULL
+    return max(0.1, min(1.0, normalized))
+
+
+def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id: "UUID") -> float:
+    """
+    Normalized domain expression at a single SignificantLocation: 0.0–1.0.
+    Used for Proxius Commission Inquiry bonus calculation.
+    """
+    loc = state.locations.get(str(loc_id))
+    if not isinstance(loc, SignificantLocation):
+        return 0.0
+    raw = loc.domain_expression.get(domain_tag, 0.0)
+    return max(0.0, min(1.0, raw))
 
 
 # ─────────────────────────────────────────
@@ -564,6 +624,24 @@ class TickLoop:
             state.ticks_without_essence_gain = 0
         else:
             state.ticks_without_essence_gain += 1
+
+        # ── Explore Beliefs auto-stop ──────────────────
+        # If ongoing Explore Beliefs has filled the pool to cap, cancel it automatically.
+        from core.action_core import ActionCategory as _AC
+        _sr_key = _AC.SELF_REFINEMENT.value
+        if _sr_key in state.ongoing_actions:
+            _oa = state.ongoing_actions[_sr_key]
+            if _oa.action_key == "explore_beliefs" and isinstance(_oa.intent, ExploreBeliefIntent):
+                _tag = _oa.intent.domain_tag
+                _cap = _compute_revelation_cap(state, _tag)
+                _pool = state.demiurge.revelation_pools.get(_tag, 0.0)
+                if _cap == 0.0 or _pool >= _cap:
+                    del state.ongoing_actions[_sr_key]
+                    _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
+                    result.passive_result.narrative_events.append(
+                        f"[Revelation] Explore Beliefs on {_short} stopped: pool full ({_pool:.2f} / {_cap:.2f}). "
+                        f"Use Reveal Imago to internalize Imagines."
+                    )
 
         # ── Phase 2.5: Proxius Agent Actions ───────────
         agent_mutations = self._resolve_proxius_agents(state, phase_rng)
@@ -2107,20 +2185,130 @@ class TickLoop:
         # ── Explore Beliefs ───────────────────────────
         if isinstance(intent, ExploreBeliefIntent):
             tag = intent.domain_tag
-            if tag in state.demiurge.unlocked_domain_tags:
-                return mutations, f"{tag} is already part of your explored beliefs."
+            short = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+            cap = _compute_revelation_cap(state, tag)
+            if cap == 0.0:
+                return mutations, f"All Imagines in {short} are already revealed — there is nothing left to research here."
+            pool = state.demiurge.revelation_pools.get(tag, 0.0)
+            if pool >= cap:
+                return mutations, (
+                    f"You have accumulated maximum Revelation for {short} ({pool:.2f} / {cap:.2f}). "
+                    f"Use Reveal Imago to unlock Imagines before continuing."
+                )
+            base_rate = 10.0
+            affinity_bonus = 7.0 if tag in state.demiurge.affiliated_domains else 0.0
+            expr = _compute_universal_expression(state, tag)
+            from_expression = math.floor(expr * 3.0)
+            revelation_per_tick = round(base_rate + affinity_bonus + from_expression, 2)
+            actual_gain = round(min(revelation_per_tick, cap - pool), 2)
+            new_pool = round(pool + actual_gain, 2)
             mutations.append(StateMutation(
-                mutation_type=MutationType.DEMIURGE_UNLOCK,
+                mutation_type=MutationType.REVELATION_GAINED,
                 target_id=state.demiurge.id,
-                field="unlocked_domain_tags",
-                new_value=tag,
-                note=f"Demiurge explored: {tag}",
+                field=tag,
+                delta=actual_gain,
+                note=f"Explore Beliefs: +{actual_gain} Revelation for {tag}",
             ))
-            short = tag.split(":", 1)[1] if ":" in tag else tag
+            # Check if any unlockable Imago just became affordable
+            ireg = get_imago_registry()
+            tree = tag.split(":", 1)[1] if ":" in tag else tag
+            unlocked_set = set(state.demiurge.unlocked_imagines)
+            newly_affordable: list[str] = []
+            for node in ireg.nodes_for_tree(tree):
+                if node.node_id in unlocked_set:
+                    continue
+                if not ireg.is_unlockable(node.node_id, unlocked_set):
+                    continue
+                cost = _revelation_adjusted_cost(node.tier, state.demiurge.revealed_imagines)
+                if pool < cost <= new_pool:
+                    newly_affordable.append(node.name)
+            narrative = f"+{actual_gain} Revelation for {short} ({new_pool:.2f} / {cap:.2f})."
+            if newly_affordable:
+                names = ", ".join(newly_affordable)
+                narrative += f" You have enough Revelation in {short} to reveal: {names}."
+            return mutations, narrative
+
+        # ── Reveal Imago ──────────────────────────────
+        if isinstance(intent, RevealImagoIntent):
+            tag = intent.domain_tag
+            node_id = intent.node_id
+            short = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+            ireg = get_imago_registry()
+            node = ireg.get_node(node_id)
+            if node is None or node.tree != (tag.split(":", 1)[1] if ":" in tag else tag):
+                return mutations, f"Invalid Imago node '{node_id}' for domain {tag}."
+            unlocked_set = set(state.demiurge.unlocked_imagines)
+            if node_id in unlocked_set:
+                return mutations, f"{node.name} is already unlocked."
+            if not ireg.is_unlockable(node_id, unlocked_set):
+                prereqs = ireg.prerequisites_for(node_id)
+                missing = [p for p in prereqs if p not in unlocked_set]
+                return mutations, (
+                    f"Prerequisites for {node.name} not met. "
+                    f"Still needed: {', '.join(missing)}."
+                )
+            cost = _revelation_adjusted_cost(node.tier, state.demiurge.revealed_imagines)
+            pool = state.demiurge.revelation_pools.get(tag, 0.0)
+            if pool < cost:
+                deficit = round(cost - pool, 2)
+                return mutations, (
+                    f"Insufficient Revelation for {node.name}. "
+                    f"Need {cost}, have {pool:.2f} — {deficit:.2f} short."
+                )
+            mutations.append(StateMutation(
+                mutation_type=MutationType.REVELATION_GAINED,
+                target_id=state.demiurge.id,
+                field=tag,
+                delta=-float(cost),
+                note=f"Reveal Imago: spent {cost} Revelation from {tag} for {node_id}",
+            ))
+            mutations.append(StateMutation(
+                mutation_type=MutationType.IMAGO_REVEALED,
+                target_id=state.demiurge.id,
+                field=node_id,
+                new_value=node_id,
+                note=f"Demiurge revealed Imago: {node_id}",
+            ))
+            tier_names = {1: "Tier-1", 2: "Tier-2", 3: "Tier-3", 4: "Apex"}
             return mutations, (
-                f"You turn your awareness inward and contemplate {short.title()}. "
-                f"The domain takes shape in your understanding — "
-                f"a new frontier, not yet manifested in the world."
+                f"You have internalized {node.name}, a {tier_names.get(node.tier, 'Tier')} Imago "
+                f"of {short}. {cost} Revelation spent."
+            )
+
+        # ── Commission Inquiry ────────────────────────
+        if isinstance(intent, CommissionInquiryIntent):
+            tag = intent.domain_tag
+            short = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+            proxius = state.mortals.get(str(intent.proxius_id))
+            if proxius is None:
+                return mutations, "The designated Proxius could not be found."
+            if proxius.status != MortalStatus.ACTIVE:
+                return mutations, f"{proxius.name} is not active and cannot conduct research."
+            if proxius.active_goal is not None and proxius.active_goal.research_domain:
+                return mutations, f"{proxius.name} is already conducting research into {proxius.active_goal.research_domain}."
+            cap = _compute_revelation_cap(state, tag)
+            if cap == 0.0:
+                return mutations, f"All Imagines in {short} are already revealed — no research needed."
+            pool = state.demiurge.revelation_pools.get(tag, 0.0)
+            if pool >= cap:
+                return mutations, f"Revelation for {short} is already at its cap. Reveal Imagines before commissioning further research."
+            goal = ProxiusGoal(
+                imago_node_id="",
+                target_location_id=proxius.current_location,
+                research_domain=tag,
+                latitude=0.5,
+                started_at_tick=state.tick_number,
+            )
+            mutations.append(StateMutation(
+                mutation_type=MutationType.PROXIUS_GOAL_SET,
+                target_id=proxius.id,
+                field="active_goal",
+                new_value=goal,
+                note=f"Commission Inquiry: {proxius.name} → research {tag}",
+            ))
+            return mutations, (
+                f"You commission {proxius.name} to study {short}. "
+                f"Their mortal insight will contribute a trickle of Revelation each tick."
             )
 
         # ── Whisper / Dream ───────────────────────────
@@ -3281,6 +3469,42 @@ class TickLoop:
                 goal.effectiveness_bonus = max(0.0, goal.effectiveness_bonus - 0.05)
                 continue
 
+            # ── Research goal branch (Commission Inquiry) ──
+            if goal.research_domain:
+                tag = goal.research_domain
+                cap = _compute_revelation_cap(state, tag)
+                pool = state.demiurge.revelation_pools.get(tag, 0.0)
+                if cap == 0.0 or pool >= cap:
+                    # Tree complete or pool full — clear goal
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.PROXIUS_GOAL_CLEARED,
+                        target_id=mortal.id,
+                        field="active_goal",
+                        note=f"{mortal.name} completed Domain research on {tag}",
+                    ))
+                    short = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+                    goal.report_log = (goal.report_log + [
+                        f"[Tick {state.tick_number + 1}] {mortal.name}: Research on {short} is complete. Awaiting a new directive."
+                    ])[-5:]
+                    goal.last_action = AgentActionChoice.RESEARCH_DOMAIN
+                    goal.last_action_tick = state.tick_number
+                else:
+                    base_rev = 2.0
+                    expr = _compute_local_expression(state, tag, mortal.current_location)
+                    loc_bonus = round(expr * 2.0, 2)
+                    belief_bonus = 1.0 if mortal.belief_tags.get(tag, 0.0) >= 0.4 else 0.0
+                    delta = round(min(base_rev + loc_bonus + belief_bonus, cap - pool), 2)
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.REVELATION_GAINED,
+                        target_id=state.demiurge.id,
+                        field=tag,
+                        delta=delta,
+                        note=f"{mortal.name} research on {tag}: +{delta} Revelation",
+                    ))
+                    goal.last_action = AgentActionChoice.RESEARCH_DOMAIN
+                    goal.last_action_tick = state.tick_number
+                continue
+
             # Action weight table
             promote_w    = 0.60
             take_stock_w = 0.10
@@ -3674,5 +3898,17 @@ class TickLoop:
             elif m.mutation_type == MutationType.PROXIUS_GOAL_CLEARED:
                 if tid in state.mortals:
                     state.mortals[tid].active_goal = None
+
+            elif m.mutation_type == MutationType.REVELATION_GAINED:
+                tag = m.field
+                if tag and m.delta is not None:
+                    current = state.demiurge.revelation_pools.get(tag, 0.0)
+                    state.demiurge.revelation_pools[tag] = round(max(0.0, current + m.delta), 2)
+
+            elif m.mutation_type == MutationType.IMAGO_REVEALED:
+                node_id = str(m.new_value) if m.new_value else None
+                if node_id and node_id not in state.demiurge.unlocked_imagines:
+                    state.demiurge.unlocked_imagines.append(node_id)
+                    state.demiurge.revealed_imagines += 1
 
         return state

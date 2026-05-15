@@ -127,3 +127,8 @@ class Demiurge(BaseModel):
     tracked_essence_domains: list[str] = Field(default_factory=list)
     # Subset of domain:... tags for which per-tick Demiurge Essence claims are
     # recorded in SimulationState.domain_essence_claimed. Empty by default.
+    revelation_pools: dict[str, float] = Field(default_factory=dict)
+    # domain:... tag → accumulated Revelation points.
+    # All 16 canonical tags are present (0.0 by default); filled in by the loader.
+    revealed_imagines: int = 0
+    # Count of Imagines unlocked via Reveal Imago (does not include starting Imagines).

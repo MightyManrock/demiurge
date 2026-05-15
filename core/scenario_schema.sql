@@ -202,7 +202,9 @@ CREATE TABLE IF NOT EXISTS demiurge (
     unlocked_domain_tags  TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
     unlocked_imagines         TEXT NOT NULL DEFAULT '[]',  -- JSON array of imago node_id strings
     affiliated_domains        TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
-    tracked_essence_domains   TEXT NOT NULL DEFAULT '[]'   -- JSON array of domain:... strings
+    tracked_essence_domains   TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
+    revelation_pools          TEXT NOT NULL DEFAULT '{}',  -- JSON object {domain_tag: float}
+    revealed_imagines         INTEGER NOT NULL DEFAULT 0   -- count of Imagines unlocked via Reveal Imago
 );
 
 CREATE TABLE IF NOT EXISTS essence (

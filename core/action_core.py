@@ -405,13 +405,31 @@ class UpliftSpeciesIntent(BaseModel):
 class ExploreBeliefIntent(BaseModel):
     """
     For: explore_beliefs
-    The Demiurge contemplates a domain adjacent to their current understanding,
-    expanding their conceptual frontier without promoting it in the universe.
-    Adds the domain to the Demiurge's unlocked_domain_tags list.
+    The Demiurge turns their awareness inward and meditates on a Domain,
+    accumulating Revelation in that Domain's pool each tick.
     """
     domain_tag: str
-    # The canonical domain:... tag being explored.
-    # Must be within the Demiurge's current accessibility threshold.
+    # The canonical domain:... tag being researched.
+
+
+class RevealImagoIntent(BaseModel):
+    """
+    For: reveal_imago
+    The Demiurge spends accumulated Revelation from a Domain pool to
+    permanently internalize an Imago node from that Domain's tree.
+    """
+    domain_tag: str  # which domain's pool to draw from
+    node_id: str     # the specific Imago node to unlock
+
+
+class CommissionInquiryIntent(BaseModel):
+    """
+    For: commission_inquiry
+    The Demiurge directs a Proxius to conduct ongoing research into a Domain,
+    funneling a small stream of Revelation into the Demiurge's pool each tick.
+    """
+    proxius_id: UUID
+    domain_tag: str  # domain:... tag to research
 
 
 class ChangeAffiliatedDomainsIntent(BaseModel):
@@ -471,6 +489,8 @@ ActionIntent = Union[
     SeedWorldIntent,
     UpliftSpeciesIntent,
     ExploreBeliefIntent,
+    RevealImagoIntent,
+    CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent,
     ScryIntent,
     WeighCivilizationIntent,
@@ -604,6 +624,8 @@ class MutationType(str, Enum):
     ENTITY_VISIBILITY      = "entity_visibility"   # locations, civilizations, species
     PROXIUS_GOAL_SET       = "proxius_goal_set"    # new_value = ProxiusGoal instance
     PROXIUS_GOAL_CLEARED   = "proxius_goal_cleared"
+    REVELATION_GAINED      = "revelation_gained"   # field=domain_tag, delta=amount (negative to spend)
+    IMAGO_REVEALED         = "imago_revealed"      # new_value=node_id; appends to unlocked_imagines, increments revealed_imagines
 
 
 class StateMutation(BaseModel):

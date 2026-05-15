@@ -9,6 +9,7 @@ from core.action_core import DomainVector
 
 class AgentActionChoice(str, Enum):
     PROMOTE_DOMAIN       = "promote_domain"
+    RESEARCH_DOMAIN      = "research_domain"
     TAKE_STOCK           = "take_stock"
     REPORT_TO_DEMIURGE   = "report_to_demiurge"
     PETITION_FOR_RELIEF  = "petition_for_relief"
@@ -34,3 +35,6 @@ class ProxiusGoal(BaseModel):
     effectiveness_bonus: float = 0.0    # grows with streak, cap 0.30, resets on break
     petition_pending: bool = False      # true until Demiurge re-issues or revokes
     report_log: list[str] = Field(default_factory=list)  # last 5 entries
+    research_domain: Optional[str] = None
+    # When set: this is a Commission Inquiry research goal. domain:... tag being studied.
+    # Mutually exclusive in practice with domain_vectors / target_civilization_id (directive goals).

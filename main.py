@@ -30,6 +30,7 @@ from core.action_core import (
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
+    RevealImagoIntent, CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent, WeighCivilizationIntent,
     DomainVector, Framing,
 )
@@ -37,6 +38,7 @@ from core.universe_core import MortalRole, MortalStatus, MortalProminence, Signi
 from logic.tick_logic import (
     SimulationState, TickLoop, TickResult,
     is_mortal_visible, is_in_window, ALWAYS_VISIBLE_THRESHOLD, ENTITY_VISIBILITY_FLOOR,
+    _compute_revelation_cap, _revelation_adjusted_cost,
 )
 from core.action_core import ScryScope, ScryIntent
 from utilities.scenario_loader import load_scenario, validate_luminary_affinities
@@ -686,6 +688,15 @@ DomainSquare.inactive {
     color: $muted;
 }
 
+DomainSquare.eligible-reveal {
+    border: round #e8c060;
+    color: #e8c060;
+}
+
+DomainSquare.eligible-reveal:focus {
+    border: round #f0d880;
+}
+
 #lum-panel {
     height: 3;
     background: $bg-panel;
@@ -741,6 +752,29 @@ ImagoCell.inactive {
 
 ImagoCell.inactive:focus {
     border: round #3a4e70;
+}
+
+ImagoRevealCell {
+    border: round #2e3d58;
+    color: #4a5a72;
+    height: 4;
+    content-align: center middle;
+}
+
+ImagoRevealCell.imago-eligible {
+    border: round #e8c060;
+    color: #e8c060;
+}
+
+ImagoRevealCell.imago-eligible:focus {
+    border: round #f0d880;
+    color: $text;
+}
+
+#reveal-pool-label {
+    text-align: center;
+    color: #7090b0;
+    padding: 0 2;
 }
 
 .imago-spacer {
@@ -1236,12 +1270,14 @@ class DomainSquare(Widget):
             super().__init__()
             self.tag = tag
 
-    def __init__(self, tag: str, icon: str, name: str, affiliated: bool, accessible: bool) -> None:
+    def __init__(self, tag: str, icon: str, name: str, affiliated: bool, accessible: bool, eligible_reveal: bool = False) -> None:
         classes = []
         if affiliated and accessible:
             classes.append("affiliated")
         if not accessible:
             classes.append("inactive")
+        if eligible_reveal and accessible:
+            classes.append("eligible-reveal")
         super().__init__(classes=" ".join(classes), disabled=not accessible)
         self._tag  = tag
         self._icon = icon
@@ -1282,6 +1318,8 @@ class DomainPickerModal(ModalScreen):
         state: SimulationState,
         explore_mode: bool = False,
         exclude_tags: set | None = None,
+        capped_domains: set | None = None,
+        eligible_reveal_domains: set | None = None,
     ) -> None:
         super().__init__()
         self._state        = state
@@ -1291,16 +1329,18 @@ class DomainPickerModal(ModalScreen):
         lum_info, fellow_tags, _ = _get_lum_domain_context(state)
 
         accessible_set = set(dreg.all_tags)
-        if explore_mode:
-            accessible_set -= set(state.demiurge.unlocked_domain_tags)
+        # Domain-tag unlocking removed; all 16 domains are accessible by default.
         if exclude_tags:
             accessible_set -= exclude_tags
+        if capped_domains:
+            accessible_set -= capped_domains
 
-        self._dreg           = dreg
-        self._lum_info       = lum_info
-        self._fellow_tags    = fellow_tags
-        self._accessible_set = accessible_set
-        self._affiliated_set = set(state.demiurge.affiliated_domains)
+        self._dreg                  = dreg
+        self._lum_info              = lum_info
+        self._fellow_tags           = fellow_tags
+        self._accessible_set        = accessible_set
+        self._affiliated_set        = set(state.demiurge.affiliated_domains)
+        self._eligible_reveal_set   = eligible_reveal_domains or set()
 
     def compose(self) -> ComposeResult:
         title = "Explore Domain" if self._explore_mode else "Choose Domain"
@@ -1310,6 +1350,7 @@ class DomainPickerModal(ModalScreen):
                 for tag in _DOMAIN_GRID_ORDER:
                     accessible = tag in self._accessible_set
                     affiliated = tag in self._affiliated_set
+                    eligible_reveal = tag in self._eligible_reveal_set
                     _dname = tag.split(":", 1)[1].title()
                     if len(_dname) % 2 == 0:
                         _dname = " " + _dname
@@ -1319,6 +1360,7 @@ class DomainPickerModal(ModalScreen):
                         name=_dname,
                         affiliated=affiliated,
                         accessible=accessible,
+                        eligible_reveal=eligible_reveal,
                     )
             yield Static("", id="lum-panel")
             with Horizontal(classes="btn-row"):
@@ -1677,6 +1719,301 @@ class ImagoDetailModal(ModalScreen):
         self.dismiss(None)
 
     def action_back(self) -> None:
+        self.dismiss(False)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# IMAGO REVEAL MODALS
+# ─────────────────────────────────────────
+
+class ImagoRevealCell(Widget):
+    """One cell in the Imago reveal tree picker."""
+
+    can_focus = True
+
+    class Focused(Message):
+        def __init__(self, node_id: str) -> None:
+            super().__init__()
+            self.node_id = node_id
+
+    class Selected(Message):
+        def __init__(self, node_id: str) -> None:
+            super().__init__()
+            self.node_id = node_id
+
+    def __init__(self, node: "ImagoNode", state: "SimulationState", cost: int) -> None:
+        unlocked = node.node_id in state.demiurge.unlocked_imagines
+        pool = state.demiurge.revelation_pools.get(f"domain:{node.tree}", 0.0)
+        ireg = get_imago_registry()
+        unlocked_set = set(state.demiurge.unlocked_imagines)
+        prereqs_met = ireg.is_unlockable(node.node_id, unlocked_set)
+        affordable = pool >= cost
+        self._unlocked    = unlocked
+        self._prereqs_met = prereqs_met
+        self._affordable  = affordable
+        self._cost        = cost
+
+        if unlocked:
+            classes = ["inactive"]          # already revealed
+            disabled = True
+        elif prereqs_met and affordable:
+            classes = ["imago-eligible"]    # can reveal
+            disabled = False
+        else:
+            classes = ["inactive"]          # locked or unaffordable
+            disabled = True
+
+        super().__init__(classes=" ".join(classes), disabled=disabled)
+        self._node = node
+
+    def render(self) -> "Text":
+        name_line = self._node.name
+        if self._unlocked:
+            cost_line = "✓ Revealed"
+        else:
+            cost_line = f"{self._cost} Rev"
+        return Text.from_markup(f"{name_line}\n[dim]{cost_line}[/]", justify="center")
+
+    def on_focus(self) -> None:
+        self.post_message(self.Focused(self._node.node_id))
+
+    def on_enter(self) -> None:
+        self.post_message(self.Focused(self._node.node_id))
+
+    def on_click(self) -> None:
+        if not self.disabled:
+            self.post_message(self.Selected(self._node.node_id))
+
+    def key_enter(self) -> None:
+        if not self.disabled:
+            self.post_message(self.Selected(self._node.node_id))
+
+
+class ImagoRevealModal(ModalScreen):
+    """
+    Imago tree view for the Reveal Imago flow.
+    Shows Revelation costs, pool/cap header, and eligibility highlights.
+    Dismisses with a node_id string (eligible node selected), BACK, or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",      "go_back",      "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("up",          "nav('up')",    ""),
+        ("down",        "nav('down')",  ""),
+        ("left",        "nav('left')",  ""),
+        ("right",       "nav('right')", ""),
+    ]
+
+    _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
+
+    def __init__(self, state: "SimulationState", domain_tag: str) -> None:
+        super().__init__()
+        self._state      = state
+        self._domain_tag = domain_tag
+        tree = domain_tag.split(":", 1)[1] if ":" in domain_tag else domain_tag
+        self._tree = tree
+
+        ireg  = get_imago_registry()
+        nodes = ireg.nodes_for_tree(tree)
+        by_tier: dict[int, list] = {1: [], 2: [], 3: [], 4: []}
+        for n in nodes:
+            by_tier[n.tier].append(n)
+        self._by_tier = by_tier
+
+        rev_count = state.demiurge.revealed_imagines
+        self._costs = {
+            n.node_id: _revelation_adjusted_cost(n.tier, rev_count)
+            for n in nodes
+        }
+        self._pool = state.demiurge.revelation_pools.get(domain_tag, 0.0)
+        self._cap  = _compute_revelation_cap(state, domain_tag)
+
+    def compose(self) -> "ComposeResult":
+        pool_str = f"Revelation: {self._pool:.2f} / {self._cap:.2f}"
+        with Vertical(classes="modal-box"):
+            yield Label(f"{self._tree.title()} — Reveal Imago", classes="modal-title")
+            yield Label(pool_str, id="reveal-pool-label")
+            with Grid(id="imago-grid"):
+                for tier in (4, 3, 2, 1):
+                    nodes = self._by_tier[tier]
+                    if tier == 4:
+                        yield Static("", classes="imago-spacer")
+                        node = nodes[0]
+                        yield ImagoRevealCell(node, self._state, self._costs[node.node_id])
+                        yield Static("", classes="imago-spacer")
+                    else:
+                        left, right = nodes[0], nodes[1]
+                        for node in (left, right):
+                            cell = ImagoRevealCell(node, self._state, self._costs[node.node_id])
+                            if node is left:
+                                yield cell
+                                yield Static("", classes="imago-spacer")
+                            else:
+                                yield cell
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn", classes="-danger")
+
+    def on_mount(self) -> None:
+        for cell in self.query(ImagoRevealCell):
+            if not cell.disabled:
+                cell.focus()
+                break
+
+    def action_nav(self, direction: str) -> None:
+        cells = list(self.query(ImagoRevealCell))
+        focused_idx = next((i for i, c in enumerate(cells) if c.has_focus), -1)
+        if focused_idx == -1:
+            self.on_mount()
+            return
+        pos_map = {i: p for i, p in enumerate(self._POSITIONS)}
+        cur_pos = pos_map.get(focused_idx, (0, 1))
+        dr, dc = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+        r, c = cur_pos[0] + dr, cur_pos[1] + dc
+        while 0 <= r <= 3 and 0 <= c <= 2:
+            for i, p in pos_map.items():
+                if p == (r, c) and not cells[i].disabled:
+                    cells[i].focus()
+                    return
+            r, c = r + dr, c + dc
+
+    def on_imago_reveal_cell_selected(self, event: ImagoRevealCell.Selected) -> None:
+        self.dismiss(event.node_id)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ImagoRevealDetailModal(ModalScreen):
+    """
+    Confirmation screen for Reveal Imago.
+    Shows node description, costs, and pool balance. Confirm button labeled 'Reveal'.
+    Dismisses with True (confirm), False (back to tree), or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",      "go_back",      "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+    ]
+
+    def __init__(
+        self,
+        node: "ImagoNode",
+        state: "SimulationState",
+        domain_tag: str,
+        cost: int,
+        pool: float,
+    ) -> None:
+        super().__init__()
+        self._node       = node
+        self._state      = state
+        self._domain_tag = domain_tag
+        self._cost       = cost
+        self._pool       = pool
+
+    def _body(self) -> "Text":
+        node = self._node
+        dreg = get_domain_registry()
+        lum_info, fellow_tags, _ = _get_lum_domain_context(self._state)
+
+        lines: list[str] = []
+        lines.append(f"[bold #c0ccdc]{_e(node.name)}[/]")
+        lines.append(f"[#3a5a7a]Tier {node.tier}  ·  {node.tree.title()} tree[/]")
+        lines.append("")
+        lines.append(f"[#9090a8]{_e(node.description)}[/]")
+        lines.append("")
+
+        remaining = round(self._pool - self._cost, 2)
+        cost_col = "#50b870" if self._pool >= self._cost else "#b04050"
+        lines.append(f"[bold {cost_col}]Cost: {self._cost} Revelation[/]")
+        lines.append(f"[#5a7090]Pool: {self._pool:.2f}  →  Remaining after reveal: {remaining:.2f}[/]")
+        lines.append("")
+
+        domain_fx  = [(t, v) for t, v in node.mechanics.items() if t.startswith("domain:")]
+        culture_fx = [(t, v) for t, v in node.mechanics.items() if is_culture_tag(t)]
+
+        if domain_fx:
+            lines.append("[bold #5a7090]DOMAIN EFFECTS[/]")
+            for tag, v in sorted(domain_fx, key=lambda x: -abs(x[1])):
+                short = tag.split(":", 1)[1]
+                col   = "#50b870" if v > 0 else "#b04050"
+                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+            lines.append("")
+
+        if culture_fx:
+            lines.append("[bold #5a7090]CULTURE EFFECTS[/]")
+            for tag, v in sorted(culture_fx, key=lambda x: -abs(x[1])):
+                short = tag.split(":", 1)[1]
+                col   = "#50b870" if v > 0 else "#b04050"
+                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+            lines.append("")
+
+        lines.append("[bold #5a7090]LUMINARY AFFINITIES[/]")
+        for lum, lum_tags in lum_info:
+            if not lum_tags:
+                continue
+            lid   = str(lum.id)
+            score = sum(
+                dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=fellow_tags[lid],
+                    personality=dreg.compute_personality(lum.domains),
+                ) * direction
+                for tag, direction in node.mechanics.items()
+                if tag.startswith("domain:")
+            )
+            col = "#50b870" if score > 0.1 else ("#b04050" if score < -0.1 else "#5a7090")
+            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.2f}[/]")
+
+        return Text.from_markup("\n".join(lines))
+
+    def compose(self) -> "ComposeResult":
+        can_reveal = self._pool >= self._cost
+        with Vertical(classes="modal-box-tall"):
+            yield Label("Reveal Imago — Confirm", classes="modal-title")
+            with ScrollableContainer():
+                yield Static(self._body(), id="imago-detail-body")
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn", classes="-danger")
+                yield Button(
+                    "Reveal",
+                    id="reveal-btn",
+                    classes="-primary",
+                    disabled=not can_reveal,
+                )
+
+    def on_mount(self) -> None:
+        self.query_one("#reveal-btn", Button).focus()
+
+    @on(Button.Pressed, "#reveal-btn")
+    def _reveal(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
         self.dismiss(False)
 
     def action_force_cancel(self) -> None:
@@ -2089,6 +2426,37 @@ class GameScreen(Screen):
         state = self._state
 
         target_type = defn.valid_targets[0] if defn.valid_targets else TargetType.WORLD
+
+        # ── commission_inquiry: proxius picker → domain picker ──
+        if action_key == "commission_inquiry":
+            result = await self._pick_proxius(state, include_dormant=False)
+            if result is None: return None
+            if result == BACK: return BACK
+            proxius_id = UUID(result)
+            proxius = state.mortals.get(result)
+            # Compute capped domains so the player can't commission already-saturated research.
+            dreg = get_domain_registry()
+            capped = {
+                tag for tag in dreg.all_tags
+                if _compute_revelation_cap(state, tag) == 0.0
+                or state.demiurge.revelation_pools.get(tag, 0.0) >= _compute_revelation_cap(state, tag)
+            }
+            tag = await self.app.push_screen_wait(
+                DomainPickerModal(state, capped_domains=capped)
+            )
+            if tag is None: return None
+            if tag == BACK: return None
+            if not tag: return None
+            intent = CommissionInquiryIntent(proxius_id=proxius_id, domain_tag=tag)
+            return ActionInstance(
+                action_definition_id=defn.id,
+                target_type=TargetType.MORTAL,
+                target_id=proxius_id,
+                timestamp=state.universe.current_age,
+                demiurge_id=state.demiurge.id,
+                proxius_id=proxius_id,
+                intent=intent,
+            )
 
         # ── issue_directive: full multi-step (proxius → form → domain → civ) ──
         if action_key == "issue_directive":
@@ -2675,13 +3043,24 @@ class GameScreen(Screen):
         # ── SELF REFINEMENT ──────────────────────────────
         elif cat == ActionCategory.SELF_REFINEMENT:
             if action_key == "explore_beliefs":
-                domain_result = await self._pick_domain_and_imago(state, explore_mode=True)
-                if domain_result is None: return None
-                if domain_result == BACK: return BACK
-                dvs, _ = domain_result
-                if not dvs:
-                    return None
-                return ExploreBeliefIntent(domain_tag=dvs[0].domain_tag)
+                # Compute capped domains (pool >= cap) so they show as unavailable.
+                dreg = get_domain_registry()
+                capped = {
+                    tag for tag in dreg.all_tags
+                    if _compute_revelation_cap(state, tag) == 0.0
+                    or state.demiurge.revelation_pools.get(tag, 0.0) >= _compute_revelation_cap(state, tag)
+                }
+                tag = await self.app.push_screen_wait(
+                    DomainPickerModal(state, explore_mode=True, capped_domains=capped)
+                )
+                if tag is None: return None
+                if tag == BACK: return BACK
+                if not tag: return None
+                return ExploreBeliefIntent(domain_tag=tag)
+
+            if action_key == "reveal_imago":
+                return await self._build_reveal_imago_intent(state)
+
 
             if action_key == "change_affiliated_domains":
                 if not state.demiurge.affiliated_domains:
@@ -2794,6 +3173,78 @@ class GameScreen(Screen):
             except ValueError:
                 direction = 0.5
             return ([DomainVector(domain_tag=tag, direction=direction)], None)
+
+    async def _build_reveal_imago_intent(
+        self,
+        state: SimulationState,
+    ) -> "RevealImagoIntent | str | None":
+        """
+        Multi-step flow for Reveal Imago:
+          domain picker → Imago reveal tree → detail/confirm modal → RevealImagoIntent
+        """
+        dreg = get_domain_registry()
+        ireg = get_imago_registry()
+
+        # Domains where the player has at least some Revelation (eligible highlight)
+        def _min_cost(tag: str) -> int:
+            tree = tag.split(":", 1)[1] if ":" in tag else tag
+            unlocked = set(state.demiurge.unlocked_imagines)
+            rev = state.demiurge.revealed_imagines
+            return min(
+                (_revelation_adjusted_cost(n.tier, rev) for n in ireg.nodes_for_tree(tree)
+                 if n.node_id not in unlocked and ireg.is_unlockable(n.node_id, unlocked)),
+                default=9999,
+            )
+
+        eligible_reveal_domains = {
+            tag for tag in dreg.all_tags
+            if state.demiurge.revelation_pools.get(tag, 0.0) >= _min_cost(tag)
+        }
+        # Domains with no unrevealed Imagines are excluded (cap == 0)
+        capped = {
+            tag for tag in dreg.all_tags
+            if _compute_revelation_cap(state, tag) == 0.0
+        }
+
+        step = 0
+        chosen_tag: str = ""
+        chosen_node_id: str = ""
+        while True:
+            if step == 0:
+                tag = await self.app.push_screen_wait(
+                    DomainPickerModal(
+                        state,
+                        capped_domains=capped,
+                        eligible_reveal_domains=eligible_reveal_domains,
+                    )
+                )
+                if tag is None: return None
+                if tag == BACK: return BACK
+                if not tag: return None
+                chosen_tag = tag
+                step = 1
+
+            if step == 1:
+                result = await self.app.push_screen_wait(
+                    ImagoRevealModal(state, chosen_tag)
+                )
+                if result is None: return None
+                if result == BACK: step = 0; continue
+                chosen_node_id = result
+                step = 2
+
+            if step == 2:
+                node = ireg.get_node(chosen_node_id)
+                if node is None:
+                    step = 1; continue
+                cost = _revelation_adjusted_cost(node.tier, state.demiurge.revealed_imagines)
+                pool = state.demiurge.revelation_pools.get(chosen_tag, 0.0)
+                confirmed = await self.app.push_screen_wait(
+                    ImagoRevealDetailModal(node, state, chosen_tag, cost, pool)
+                )
+                if confirmed is None: return None
+                if confirmed is False: step = 1; continue
+                return RevealImagoIntent(domain_tag=chosen_tag, node_id=chosen_node_id)
 
     async def _pick_proxius(
         self,

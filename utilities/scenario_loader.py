@@ -493,6 +493,18 @@ def _load_proxius_goal(raw: Optional[str]) -> Optional[ProxiusGoal]:
         return None
 
 
+def _load_revelation_pools(row: dict) -> dict[str, float]:
+    """Load revelation_pools from DB row, filling in any missing canonical tags with 0.0."""
+    from utilities.domain_registry import get_registry as get_domain_registry
+    dreg = get_domain_registry()
+    raw: dict = _jd(row.get("revelation_pools", "{}"))
+    pools = {tag: 0.0 for tag in dreg.all_tags}
+    for tag, val in raw.items():
+        if tag in pools:
+            pools[tag] = float(val)
+    return pools
+
+
 def _load_demiurge(conn) -> Demiurge:
     row = dict(conn.execute("SELECT * FROM demiurge").fetchone())
     return Demiurge(
@@ -510,6 +522,8 @@ def _load_demiurge(conn) -> Demiurge:
         unlocked_imagines=_j(row.get("unlocked_imagines", "[]")),
         affiliated_domains=_j(row.get("affiliated_domains", "[]")),
         tracked_essence_domains=_j(row.get("tracked_essence_domains", "[]")),
+        revelation_pools=_load_revelation_pools(row),
+        revealed_imagines=int(row.get("revealed_imagines", 0) or 0),
     )
 
 

@@ -592,9 +592,10 @@ _ACTION_SEED: list[dict] = [
         "name": "Explore Beliefs",
         "category": "self_refinement",
         "description": (
-            "Contemplate a domain adjacent to your current understanding. "
-            "Expands your conceptual frontier without promoting the belief "
-            "in the universe — but unlocks it for future directive use."
+            "Turn your divine awareness inward and meditate on a Domain. "
+            "Each tick this action runs, Revelation accumulates in that Domain's pool. "
+            "Affiliated Domains accrue Revelation faster. "
+            "Spend Revelation via Reveal Imago to internalize Imago nodes."
         ),
         "valid_targets": ["underreal"],
         "reliability": "certain",
@@ -603,6 +604,40 @@ _ACTION_SEED: list[dict] = [
         "essence_cost": 0.2, "concealment_impact": 0.0,
         "requires_proxius": 0,
         "tags": ["zero_footprint", "self_refinement", "can_persist"],
+    },
+    {
+        "action_key": "reveal_imago",
+        "name": "Reveal Imago",
+        "category": "self_refinement",
+        "description": (
+            "Spend accumulated Revelation from a Domain's pool to permanently "
+            "internalize an Imago node from that Domain's tree. "
+            "Prerequisites must be met; costs rise slightly with each Imago you reveal."
+        ),
+        "valid_targets": ["underreal"],
+        "reliability": "certain",
+        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.0,
+        "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
+        "essence_cost": 0.0, "concealment_impact": 0.0,
+        "requires_proxius": 0,
+        "tags": ["zero_footprint", "self_refinement"],
+    },
+    {
+        "action_key": "commission_inquiry",
+        "name": "Commission Inquiry",
+        "category": "proxius_direction",
+        "description": (
+            "Direct a Proxius to conduct ongoing research into a Domain, "
+            "funneling a small trickle of Revelation into your pool each tick. "
+            "Mortal research is slower than direct contemplation but runs in parallel."
+        ),
+        "valid_targets": ["mortal"],
+        "reliability": "certain",
+        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.0,
+        "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
+        "essence_cost": 0.0, "concealment_impact": 0.0,
+        "requires_proxius": 1,
+        "tags": ["proxius_direction", "research"],
     },
     {
         "action_key": "change_affiliated_domains",
