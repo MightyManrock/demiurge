@@ -581,13 +581,19 @@ def build_scenario_default() -> SimulationState:
       The Nascent Coil (galaxy)
         Ardent System
           Neran          — stable, interstellar civilization (domain:order)
-          Vel Arath      — barren, no life; candidate for seed_world
+          Vel Arath      — barren candidate for seeding (domain:decay)
         The Outer Reach (system)
           Oros           — stable, nascent tribal society (domain:conflict seeds)
         Irriman System   [hidden]
-          Kiddis         — stable world, Damtal species
+          Kiddis         — stable world, Damtal kingdoms
+          Pellum         — barren inner rock
         The Velar Corridor [hidden, dwarf star]
-          Sethis         — Neran Confederacy frontier colony
+          Sethis         — Neran Confederacy frontier colony; Surathi native clans (domain:community)
+      The Pale Margin (galaxy)
+        Sullen Eye (giant star)
+          Cinder         — scorched barren rock (domain:fire)
+        The Drift (dwarf star)
+          Mireth         — dim, cold world; Veldan city-state (domain:memory)
     """
 
     # ── Luminaries ───────────────────────────────────
@@ -683,13 +689,15 @@ def build_scenario_default() -> SimulationState:
     )
     vel_arath = SignificantLocation(
         name="Vel Arath",
+        description="A dead world slowly dissolving into itself. Dust storms strip the surface bare each cycle.",
         location_type="planet",
         parent_id=system.id,
         condition=LocCondition.BARREN,
+        domain_expression={"domain:decay": 0.25},
         geo_tags=["geo:rocky", "geo:barren"],
         atmo_tags=["atmo:none"],
         age=900.0,
-        visibility=1.0, pinned=True,
+        visibility=0.0, pinned=False,
     )
 
     galaxy.child_ids.append(system.id)
@@ -737,8 +745,22 @@ def build_scenario_default() -> SimulationState:
         visibility=0.0, pinned=False,
     )
 
+    pellum = SignificantLocation(
+        name="Pellum",
+        description="A scorched inner rock locked in tight orbit around Irriman's star. No atmosphere to speak of; surface cracked with ancient tectonic scars.",
+        location_type="planet",
+        parent_id=system_hidden.id,
+        condition=LocCondition.BARREN,
+        domain_expression={"domain:void":0.15},
+        geo_tags=["geo:rocky", "geo:barren"],
+        atmo_tags=["atmo:none"],
+        age=420.0,
+        visibility=0.0, pinned=False,
+    )
+
     galaxy.child_ids.append(system_hidden.id)
     system_hidden.child_ids.append(kiddis.id)
+    system_hidden.child_ids.append(pellum.id)
 
     system_colony = System(
         name="The Velar Corridor",
@@ -749,11 +771,11 @@ def build_scenario_default() -> SimulationState:
     )
     sethis = SignificantLocation(
         name="Sethis",
-        description="A frontier colony established by the Neran Confederacy. Order-aligned but still finding its footing.",
+        description="A frontier colony established by the Neran Confederacy, sharing the world with the native Surathi clans. The two peoples have begun to trade and intermarry at the margins.",
         location_type="planet",
         parent_id=system_colony.id,
         condition=LocCondition.STABLE,
-        domain_expression={"domain:order": 0.2},
+        domain_expression={"domain:community": 0.25},
         geo_tags=["geo:terrestrial", "geo:arid"],
         atmo_tags=["atmo:nitrogen_oxygen"],
         age=60.0,
@@ -783,10 +805,11 @@ def build_scenario_default() -> SimulationState:
     )
     cinder = SignificantLocation(
         name="Cinder",
-        description="A scorched, airless rock. Whatever once lived here left no trace.",
+        description="A scorched, airless rock baked by the bloated giant above it. The surface radiates heat even in the dim light.",
         location_type="planet",
         parent_id=system_b1.id,
         condition=LocCondition.BARREN,
+        domain_expression={"domain:fire": 0.35},
         geo_tags=["geo:rocky", "geo:barren"],
         atmo_tags=["atmo:none"],
         age=1800.0,
@@ -800,9 +823,22 @@ def build_scenario_default() -> SimulationState:
         coordinates=CosmicCoordinates(x=-1.0, y=2.0, z=-1.0),
         visibility=0.0, pinned=False,
     )
+    mireth = SignificantLocation(
+        name="Mireth",
+        description="A dim, cold world at the edge of its star's habitable band. The Veldan have endured here for millennia, building their quiet assembly in cavern-cities beneath the ice-crusted plains.",
+        location_type="planet",
+        parent_id=system_b2.id,
+        condition=LocCondition.STABLE,
+        domain_expression={"domain:memory": 0.40},
+        geo_tags=["geo:terrestrial", "geo:cold"],
+        atmo_tags=["atmo:nitrogen_oxygen"],
+        age=820.0,
+        visibility=0.0, pinned=False,
+    )
 
     galaxy_b.child_ids.extend([system_b1.id, system_b2.id])
     system_b1.child_ids.append(cinder.id)
+    system_b2.child_ids.append(mireth.id)
 
     # ── Species ───────────────────────────────────────
     naran_species = Species(
@@ -846,7 +882,7 @@ def build_scenario_default() -> SimulationState:
 
     damtal_species = Species(
         name="Damtal",
-        description="",
+        description="Low-slung quadrupeds of Kiddis. Territorial and hierarchical, with a complex system of clan-kingship that has persisted for centuries.",
         origin_world_id=kiddis.id,
         sapient=True,
         lifespan_min=60,
@@ -856,6 +892,34 @@ def build_scenario_default() -> SimulationState:
         visibility=0.0, pinned=False,
     )
     kiddis.species_ids.append(damtal_species.id)
+
+    surathi_species = Species(
+        name="Surathi",
+        description="The sun-bronzed native people of Sethis. Clan-based hunter-traders with a rich oral tradition and a pragmatic curiosity about the Naran settlers.",
+        origin_world_id=sethis.id,
+        sapient=True,
+        lifespan_min=90,
+        lifespan_max=130,
+        bio_tags=["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"],
+        # domain_tags=["domain:community"],
+        condition=SpeciesCondition.STABLE,
+        visibility=0.0, pinned=False,
+    )
+    sethis.species_ids.append(surathi_species.id)
+
+    veldan_species = Species(
+        name="Veldan",
+        description="A slow-metabolizing, cold-adapted people native to Mireth. Their cavern-city culture prizes collective memory and deliberate governance over expansion.",
+        origin_world_id=mireth.id,
+        sapient=True,
+        lifespan_min=180,
+        lifespan_max=260,
+        bio_tags=["bio:bipedal", "bio:cold_blooded", "bio:carbon_based"],
+        # domain_tags=["domain:memory"],
+        condition=SpeciesCondition.STABLE,
+        visibility=0.0, pinned=False,
+    )
+    mireth.species_ids.append(veldan_species.id)
 
     # ── Civilizations ─────────────────────────────────
     neran_confed = Civilization(
@@ -900,18 +964,63 @@ def build_scenario_default() -> SimulationState:
 
     damtal_civ = Civilization(
         name="Kingdoms of the Damtal",
+        description="A fractious collection of clan-kingdoms spread across Kiddis's major continents. United in name by the Paramount King, divided in practice by ancient territorial rivalries.",
         origin_location_id=kiddis.id,
         scale=CivilizationScale.CONTINENTAL,
         health=CivilizationHealth(stability=0.5, prosperity=0.35, cohesion=0.2),
         primary_species_id=damtal_species.id,
-        dominant_beliefs={},
-        culture_tags={},
+        dominant_beliefs={"domain:growth": 0.45, "domain:community": 0.35, "domain:mastery": 0.25},
+        culture_tags={
+            "structure:hierarchy": 0.80, "religion:animism": 0.70,
+            "practice:agriculture": 0.65, "practice:sedentism": 0.60,
+            "relations:conquest": 0.55, "religion:ancestor_worship": 0.50,
+        },
         theistic=False,
-        divine_awareness=0.0,
+        divine_awareness=0.10,
         age=260.0,
         visibility=0.0, pinned=False,
     )
     kiddis.civilization_ids.append(damtal_civ.id)
+
+    surathi_clans = Civilization(
+        name="The Surathi Clans",
+        description="The loose confederation of nomadic Surathi hunter-clans who ranged across Sethis long before the Naran colony ships arrived. They watch the settlers with cautious pragmatism.",
+        origin_location_id=sethis.id,
+        scale=CivilizationScale.TRIBAL,
+        health=CivilizationHealth(stability=0.55, prosperity=0.40, cohesion=0.70),
+        primary_species_id=surathi_species.id,
+        dominant_beliefs={"domain:community": 0.65, "domain:change": 0.30},
+        culture_tags={
+            "practice:nomadism": 0.90, "religion:animism": 0.80,
+            "structure:egalitarianism": 0.70, "practice:foraging": 0.65,
+            "relations:commerce": 0.40,
+        },
+        theistic=False,
+        divine_awareness=0.12,
+        age=300.0,
+        visibility=0.0, pinned=False,
+    )
+    sethis.civilization_ids.append(surathi_clans.id)
+
+    veldan_assembly = Civilization(
+        name="The Veldan Assembly",
+        description="A single city-state built across the cavern systems beneath Mireth's largest plateau. Decisions are made by council of memory-keepers whose authority derives from custodianship of the historical record.",
+        origin_location_id=mireth.id,
+        scale=CivilizationScale.CITY_STATE,
+        health=CivilizationHealth(stability=0.70, prosperity=0.45, cohesion=0.80),
+        primary_species_id=veldan_species.id,
+        dominant_beliefs={"domain:memory": 0.60, "domain:mastery": 0.35},
+        culture_tags={
+            "practice:sedentism": 0.95, "religion:ancestor_worship": 0.85,
+            "techno:science": 0.70, "structure:hierarchy": 0.60,
+            "relations:diplomacy": 0.50,
+        },
+        theistic=True,
+        divine_awareness=0.22,
+        age=550.0,
+        visibility=0.0, pinned=False,
+    )
+    mireth.civilization_ids.append(veldan_assembly.id)
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
@@ -1041,6 +1150,144 @@ def build_scenario_default() -> SimulationState:
         home_location=neran.id, current_location=neran.id,
     )
 
+    # ── Sethis mortals — Naran colonists ─────────────
+    ren_caleth = NotableMortal(
+        name="Ren Caleth", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.42, visibility=0.0,
+        personal_tags=["domain:order", "domain:community", "status:colony_governor", "personal:pragmatic", "personal:cautious"],
+        culture_tags={"structure:hierarchy": 0.80, "relations:diplomacy": 0.75, "practice:sedentism": 0.70},
+        alignment=0.65, chrono_age=148.0, bio_age=148.0,
+        home_location=sethis.id, current_location=sethis.id,
+    )
+    neran_confed.notable_mortal_ids.append(ren_caleth.id)
+
+    yssa_tharn = NotableMortal(
+        name="Yssa Tharn", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
+        prominence_roles=[MortalProminence.SCHOLAR], prominence=0.28, visibility=0.0,
+        personal_tags=["domain:mastery", "domain:order", "status:colonial_surveyor", "personal:methodical"],
+        culture_tags={"techno:science": 0.85, "techno:industrialism": 0.70, "practice:sedentism": 0.65},
+        alignment=0.60, chrono_age=112.0, bio_age=112.0,
+        home_location=sethis.id, current_location=sethis.id,
+    )
+    neran_confed.notable_mortal_ids.append(yssa_tharn.id)
+
+    # ── Sethis mortals — Surathi clans ───────────────
+    orrath = NotableMortal(
+        name="Orrath", civilization_id=surathi_clans.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=surathi_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.50, visibility=0.0,
+        personal_tags=["domain:community", "domain:change", "status:clan_elder", "personal:patient", "personal:perceptive"],
+        culture_tags={"practice:nomadism": 0.90, "structure:egalitarianism": 0.80, "relations:commerce": 0.45},
+        alignment=0.55, chrono_age=74.0, bio_age=74.0,
+        home_location=sethis.id, current_location=sethis.id,
+    )
+    surathi_clans.notable_mortal_ids.append(orrath.id)
+
+    deva = NotableMortal(
+        name="Deva", civilization_id=surathi_clans.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=surathi_species.id,
+        prominence_roles=[MortalProminence.PRIEST], prominence=0.38, visibility=0.0,
+        personal_tags=["domain:community", "domain:memory", "status:spirit_caller", "personal:spiritual", "personal:receptive"],
+        culture_tags={"religion:animism": 0.90, "practice:nomadism": 0.85, "religion:ancestor_worship": 0.70},
+        alignment=0.62, chrono_age=58.0, bio_age=58.0,
+        home_location=sethis.id, current_location=sethis.id,
+    )
+    surathi_clans.notable_mortal_ids.append(deva.id)
+
+    yakkel = NotableMortal(
+        name="Yakkel", civilization_id=surathi_clans.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=surathi_species.id,
+        prominence_roles=[MortalProminence.MILITARY], prominence=0.35, visibility=0.0,
+        personal_tags=["domain:conflict", "domain:community", "status:hunt_chief", "personal:fierce", "personal:loyal"],
+        culture_tags={"practice:nomadism": 0.90, "practice:foraging": 0.80, "relations:conquest": 0.50},
+        alignment=0.45, chrono_age=41.0, bio_age=41.0,
+        home_location=sethis.id, current_location=sethis.id,
+    )
+    surathi_clans.notable_mortal_ids.append(yakkel.id)
+
+    # ── Sethis — Surathi convert to the Confederacy ──
+    sirak = NotableMortal(
+        name="Sirak Vendir", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=surathi_species.id,
+        prominence_roles=[MortalProminence.MERCHANT], prominence=0.32, visibility=0.0,
+        personal_tags=["domain:community", "domain:order", "status:liaison", "personal:opportunistic", "personal:charismatic"],
+        culture_tags={"relations:commerce": 0.80, "relations:diplomacy": 0.70, "structure:hierarchy": 0.50},
+        alignment=0.50, chrono_age=36.0, bio_age=36.0,
+        home_location=sethis.id, current_location=sethis.id,
+    )
+    neran_confed.notable_mortal_ids.append(sirak.id)
+
+    # ── Kiddis mortals — Kingdoms of the Damtal ──────
+    var_keth = NotableMortal(
+        name="Var-Keth", civilization_id=damtal_civ.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=damtal_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.58, visibility=0.0,
+        personal_tags=["domain:mastery", "domain:community", "status:paramount_king", "personal:ambitious", "personal:ruthless"],
+        culture_tags={"structure:hierarchy": 0.90, "relations:conquest": 0.75, "practice:sedentism": 0.70},
+        alignment=0.35, chrono_age=52.0, bio_age=52.0,
+        home_location=kiddis.id, current_location=kiddis.id,
+    )
+    damtal_civ.notable_mortal_ids.append(var_keth.id)
+
+    issel = NotableMortal(
+        name="Issel", civilization_id=damtal_civ.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=damtal_species.id,
+        prominence_roles=[MortalProminence.PRIEST], prominence=0.48, visibility=0.0,
+        personal_tags=["domain:growth", "domain:community", "status:high_priestess", "personal:devout", "personal:patient"],
+        culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.80, "practice:sedentism": 0.70},
+        alignment=0.65, chrono_age=67.0, bio_age=67.0,
+        home_location=kiddis.id, current_location=kiddis.id,
+    )
+    damtal_civ.notable_mortal_ids.append(issel.id)
+
+    durrak = NotableMortal(
+        name="Durrak", civilization_id=damtal_civ.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=damtal_species.id,
+        prominence_roles=[MortalProminence.MILITARY], prominence=0.44, visibility=0.0,
+        personal_tags=["domain:conflict", "domain:mastery", "status:warlord", "personal:aggressive", "personal:pragmatic"],
+        culture_tags={"relations:conquest": 0.85, "structure:hierarchy": 0.80, "practice:sedentism": 0.60},
+        alignment=0.25, chrono_age=45.0, bio_age=45.0,
+        home_location=kiddis.id, current_location=kiddis.id,
+    )
+    damtal_civ.notable_mortal_ids.append(durrak.id)
+
+    yellan = NotableMortal(
+        name="Yellan", civilization_id=damtal_civ.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=damtal_species.id,
+        prominence_roles=[MortalProminence.SCHOLAR], prominence=0.30, visibility=0.0,
+        personal_tags=["domain:growth", "domain:memory", "status:lore_keeper", "personal:obsessive", "personal:perceptive"],
+        culture_tags={"religion:ancestor_worship": 0.85, "practice:sedentism": 0.80, "techno:science": 0.40},
+        alignment=0.55, chrono_age=78.0, bio_age=78.0,
+        home_location=kiddis.id, current_location=kiddis.id,
+    )
+    damtal_civ.notable_mortal_ids.append(yellan.id)
+
+    # ── Mireth mortals — Veldan Assembly ─────────────
+    councilor_yeth = NotableMortal(
+        name="Yeth Orvain", civilization_id=veldan_assembly.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=veldan_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.52, visibility=0.0,
+        personal_tags=["domain:memory", "domain:mastery", "status:first_councilor", "personal:deliberate", "personal:wise"],
+        culture_tags={"structure:hierarchy": 0.80, "religion:ancestor_worship": 0.85, "practice:sedentism": 0.90},
+        alignment=0.72, chrono_age=198.0, bio_age=198.0,
+        home_location=mireth.id, current_location=mireth.id,
+    )
+    veldan_assembly.notable_mortal_ids.append(councilor_yeth.id)
+
+    keeper_orvan = NotableMortal(
+        name="Orvan", civilization_id=veldan_assembly.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=veldan_species.id,
+        prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
+        prominence=0.45, visibility=0.0,
+        personal_tags=["domain:memory", "domain:silence", "status:archive_keeper", "personal:reclusive", "personal:perceptive"],
+        culture_tags={"religion:ancestor_worship": 0.90, "techno:science": 0.80, "practice:sedentism": 0.85},
+        alignment=0.68, chrono_age=231.0, bio_age=231.0,
+        home_location=mireth.id, current_location=mireth.id,
+    )
+    veldan_assembly.notable_mortal_ids.append(keeper_orvan.id)
+
     # ── Demiurge ─────────────────────────────────────
     # affiliated_domains left empty — loader derives top-4 from Luminary affinities.
     demiurge = Demiurge(
@@ -1083,30 +1330,42 @@ def build_scenario_default() -> SimulationState:
             str(vel_arath.id):     vel_arath,
             str(oros.id):          oros,
             str(kiddis.id):        kiddis,
+            str(pellum.id):        pellum,
             str(sethis.id):        sethis,
             str(galaxy_b.id):      galaxy_b,
             str(system_b1.id):     system_b1,
             str(system_b2.id):     system_b2,
             str(cinder.id):        cinder,
+            str(mireth.id):        mireth,
         },
         civilizations={
-            str(neran_confed.id): neran_confed,
-            str(keth_civ.id):     keth_civ,
-            str(damtal_civ.id):   damtal_civ,
+            str(neran_confed.id):    neran_confed,
+            str(keth_civ.id):        keth_civ,
+            str(damtal_civ.id):      damtal_civ,
+            str(surathi_clans.id):   surathi_clans,
+            str(veldan_assembly.id): veldan_assembly,
         },
         mortals={
-            str(senna.id):   senna,   str(karath.id): karath,
-            str(veth.id):    veth,    str(durenn.id): durenn,
-            str(asha.id):    asha,    str(orryn.id):  orryn,
-            str(thessal.id): thessal, str(maeva.id):  maeva,
-            str(kael.id):    kael,    str(urren.id):  urren,
-            str(korax.id):   korax,
+            str(senna.id):          senna,          str(karath.id):       karath,
+            str(veth.id):           veth,            str(durenn.id):       durenn,
+            str(asha.id):           asha,            str(orryn.id):        orryn,
+            str(thessal.id):        thessal,         str(maeva.id):        maeva,
+            str(kael.id):           kael,            str(urren.id):        urren,
+            str(korax.id):          korax,
+            str(ren_caleth.id):     ren_caleth,      str(yssa_tharn.id):   yssa_tharn,
+            str(orrath.id):         orrath,          str(deva.id):         deva,
+            str(yakkel.id):         yakkel,          str(sirak.id):        sirak,
+            str(var_keth.id):       var_keth,        str(issel.id):        issel,
+            str(durrak.id):         durrak,          str(yellan.id):       yellan,
+            str(councilor_yeth.id): councilor_yeth,  str(keeper_orvan.id): keeper_orvan,
         },
         species={
-            str(naran_species.id):  naran_species,
-            str(ultir_species.id):  ultir_species,
-            str(keth_species.id):   keth_species,
-            str(damtal_species.id): damtal_species,
+            str(naran_species.id):   naran_species,
+            str(ultir_species.id):   ultir_species,
+            str(keth_species.id):    keth_species,
+            str(damtal_species.id):  damtal_species,
+            str(surathi_species.id): surathi_species,
+            str(veldan_species.id):  veldan_species,
         },
         civ_momentum={
             str(neran_confed.id): CivilizationMomentum(
@@ -1116,6 +1375,18 @@ def build_scenario_default() -> SimulationState:
             str(keth_civ.id): CivilizationMomentum(
                 civilization_id=keth_civ.id,
                 stability_delta=-0.05, prosperity_delta=0.0, cohesion_delta=0.1,
+            ),
+            str(damtal_civ.id): CivilizationMomentum(
+                civilization_id=damtal_civ.id,
+                stability_delta=0.0, prosperity_delta=-0.05, cohesion_delta=-0.1,
+            ),
+            str(surathi_clans.id): CivilizationMomentum(
+                civilization_id=surathi_clans.id,
+                stability_delta=-0.05, prosperity_delta=0.05, cohesion_delta=0.0,
+            ),
+            str(veldan_assembly.id): CivilizationMomentum(
+                civilization_id=veldan_assembly.id,
+                stability_delta=0.05, prosperity_delta=0.0, cohesion_delta=0.05,
             ),
         },
         luminary_attention={str(cassiel.id): 0.15, str(vrath.id): 0.30},
