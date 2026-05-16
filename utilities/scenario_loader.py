@@ -29,6 +29,7 @@ from core.universe_core import (
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
+    Pop, SocialClass, WildStratum,
     Universe,
 )
 from core.action_core import (
@@ -140,6 +141,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     locations = _load_locations(conn)
     species  = _load_species(conn)
     civs     = _load_civilizations(conn)
+    pops     = _load_pops(conn)
     mortals  = _load_mortals(conn)
     demiurge = _load_demiurge(conn)
     essence  = _load_essence(conn)
@@ -183,6 +185,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         luminaries={str(l.id): l for l in lums.values()},
         locations=locations,
         civilizations=civs,
+        pops=pops,
         mortals=mortals,
         species=species,
         civ_momentum=civ_momentum,
@@ -422,6 +425,10 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
         row = dict(raw)
         # Handle legacy world_id column for old DBs
         origin_loc_str = row.get("origin_location_id") or row.get("world_id")
+        dominant = _jd(row["dominant_beliefs"])
+        # established_beliefs: fall back to a copy of dominant_beliefs on old DBs
+        established_raw = row.get("established_beliefs", "{}")
+        established = _jd(established_raw) if established_raw and established_raw != "{}" else dict(dominant)
         c = Civilization(
             id=UUID(row["id"]),
             name=row["name"],
@@ -434,7 +441,9 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
                 cohesion=row["health_cohesion"],
             ),
             primary_species_id=_uuid(row["primary_species_id"]),
-            dominant_beliefs=_jd(row["dominant_beliefs"]),
+            dominant_beliefs=dominant,
+            established_beliefs=established,
+            pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
             culture_tags=_jd(row.get("culture_tags", "{}")),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
@@ -448,6 +457,37 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
         ):
             c.notable_mortal_ids.append(UUID(mrow["id"]))
         out[str(c.id)] = c
+    return out
+
+
+def _load_pops(conn) -> dict[str, Pop]:
+    out: dict[str, Pop] = {}
+    try:
+        rows = conn.execute("SELECT * FROM pops").fetchall()
+    except Exception:
+        return out  # table absent in old DBs
+    for raw in rows:
+        row = dict(raw)
+        sc_raw = row.get("social_class")
+        ws_raw = row.get("wild_stratum")
+        p = Pop(
+            id=UUID(row["id"]),
+            civilization_id=_uuid(row.get("civilization_id")),
+            species_id=_uuid(row.get("species_id")),
+            social_class=SocialClass(sc_raw) if sc_raw else None,
+            wild_stratum=WildStratum(ws_raw) if ws_raw else None,
+            current_location=UUID(row["current_location"]),
+            size_fractional=float(row.get("size_fractional", 6.0)),
+            dominant_beliefs=_jd(row.get("dominant_beliefs", "{}")),
+            culture_tags=_jd(row.get("culture_tags", "{}")),
+            rider_traits=_jd(row.get("rider_traits", "{}")),
+            notable_mortal_ids=[UUID(x) for x in _j(row.get("notable_mortal_ids", "[]"))],
+            parent_pop_id=_uuid(row.get("parent_pop_id")),
+            child_pop_ids=[UUID(x) for x in _j(row.get("child_pop_ids", "[]"))],
+            visibility=float(row.get("visibility", 0.0)),
+            pinned=bool(row.get("pinned", 0)),
+        )
+        out[str(p.id)] = p
     return out
 
 
@@ -560,20 +600,14 @@ def _load_tick_config(conn) -> TickConfig:
         location_visibility_decay_rate=row.get("location_visibility_decay_rate", 0.01),
         civ_visibility_decay_rate=row.get("civ_visibility_decay_rate", 0.01),
         species_visibility_decay_rate=row.get("species_visibility_decay_rate", 0.01),
+        pop_conformity_base=float(row.get("pop_conformity_base", 0.005)),
+        pop_visibility_drift_rate=float(row.get("pop_visibility_drift_rate", 0.02)),
+        established_drift_base=float(row.get("established_drift_base", 0.01)),
     )
 
 
 def _load_civ_momentum(conn) -> dict[str, CivilizationMomentum]:
     out = {}
-    drifts: dict[str, list[DomainVector]] = {}
-    for row in conn.execute("SELECT * FROM civ_momentum_belief_drift"):
-        drifts.setdefault(row["civilization_id"], []).append(
-            DomainVector(
-                domain_tag=row["domain_tag"],
-                direction=row["direction"],
-                notes=row["notes"],
-            )
-        )
     for row in conn.execute("SELECT * FROM civ_momentum"):
         cid = row["civilization_id"]
         out[cid] = CivilizationMomentum(
@@ -581,7 +615,6 @@ def _load_civ_momentum(conn) -> dict[str, CivilizationMomentum]:
             stability_delta=row["stability_delta"],
             prosperity_delta=row["prosperity_delta"],
             cohesion_delta=row["cohesion_delta"],
-            belief_drift=drifts.get(cid, []),
         )
     return out
 

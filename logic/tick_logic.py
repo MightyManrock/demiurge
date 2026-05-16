@@ -45,6 +45,7 @@ from core.universe_core import (
     Civilization, NotableMortal,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
+    Pop, SocialClass,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
@@ -96,6 +97,8 @@ def is_in_window(entity: object) -> bool:
     vis = getattr(entity, "visibility", 0.0)
     pinned = getattr(entity, "pinned", False)
     return pinned or vis > ENTITY_VISIBILITY_FLOOR
+
+is_mortal_visible = is_in_window  # backward-compat alias
 
 
 # ─────────────────────────────────────────
@@ -275,6 +278,18 @@ class TickConfig(BaseModel):
     # of 6 (excess=8) adds 8×0.20=1.6 to their expectation floor next period.
     # Raised expectations decay by 0.10 per two consecutive shortfall periods.
 
+    # Pop dynamics
+    pop_conformity_base: float = 0.005
+    # Base rate at which Pops are nudged toward civ.established_beliefs per tick.
+    # Scaled by scale_conformity_mult * civ.health.cohesion at runtime.
+
+    pop_visibility_drift_rate: float = 0.02
+    # Rate at which Pop.visibility converges toward min(civ.visibility, world.visibility).
+
+    established_drift_base: float = 0.01
+    # Base rate at which civ.established_beliefs drifts toward civ.dominant_beliefs per tick.
+    # Scaled by civ.health.cohesion at runtime.
+
 
 # ─────────────────────────────────────────
 # TICK PHASES
@@ -300,13 +315,13 @@ class CivilizationMomentum(BaseModel):
     Set by recent history, current health, and any
     active subtle influence effects.
     Passive simulation moves it along this vector each tick.
+    Belief drift is no longer stored here — it is handled by
+    Pop-level conformity pressure in the passive phase.
     """
     civilization_id: UUID
     stability_delta:  float = 0.0
     prosperity_delta: float = 0.0
     cohesion_delta:   float = 0.0
-    belief_drift: list["DomainVector"] = Field(default_factory=list)
-    # Domain tags this civilization is naturally drifting toward/away from
 
 
 class PassiveWorldResult(BaseModel):
@@ -432,6 +447,7 @@ class SimulationState(BaseModel):
     luminaries:    dict[str, "Luminary"]    # str(UUID) -> Luminary
     locations:     dict[str, "Location"]    # str(UUID) -> Location (all spatial entities)
     civilizations: dict[str, "Civilization"]
+    pops:          dict[str, "Pop"] = Field(default_factory=dict)
     mortals:       dict[str, "NotableMortal"]
     species:       dict[str, "Species"] = Field(default_factory=dict)
 
@@ -642,6 +658,12 @@ class TickLoop:
         agent_mutations = self._resolve_proxius_agents(state, phase_rng)
         state = self._apply_mutations(state, agent_mutations)
 
+        # ── Pop aggregate recomputation ────────────────
+        # Recompute Civilization.dominant_beliefs as the size-weighted average of
+        # constituent Pop beliefs. This makes dominant_beliefs a derived read for
+        # Phase 3 onward rather than an independently maintained value.
+        self._recompute_civ_dominant_beliefs(state)
+
         # ── Phase 3: Domain Profiling ──────────────────
         profile = self._build_domain_profile(state)
         result.domain_profile = profile
@@ -688,14 +710,21 @@ class TickLoop:
         result = PassiveWorldResult()
 
         # ── Civilization momentum ──────────────────────
+        # Scale conformity multipliers: larger civs have stronger institutional pressure.
+        _SCALE_CONFORMITY: dict[str, float] = {
+            "nascent": 0.2, "tribal": 0.4, "city_state": 0.6,
+            "regional": 0.8, "continental": 1.0, "planetary": 1.2,
+            "interplanetary": 1.4, "interstellar": 1.6, "intergalactic": 2.0,
+        }
+
         for cid, civ in state.civilizations.items():
             momentum = state.civ_momentum.get(
                 cid,
                 CivilizationMomentum(civilization_id=UUID(cid))
             )
 
+            # prosperity and cohesion drift from momentum
             for stat, delta in [
-                ("stability",  momentum.stability_delta),
                 ("prosperity", momentum.prosperity_delta),
                 ("cohesion",   momentum.cohesion_delta),
             ]:
@@ -703,7 +732,6 @@ class TickLoop:
                 effective_delta = (delta * cfg.civ_momentum_rate) + noise
                 current = getattr(civ.health, stat)
                 new_val = max(0.0, min(1.0, current + effective_delta))
-
                 if abs(new_val - current) > 0.001:
                     result.civilization_mutations.append(StateMutation(
                         mutation_type=MutationType.CIVILIZATION_STAT,
@@ -713,27 +741,78 @@ class TickLoop:
                         note=f"{civ.name} {stat} passive drift",
                     ))
 
-            # Apply belief_drift from momentum
-            for dv in momentum.belief_drift:
+            # Stability: nudge toward cosine similarity between dominant and established beliefs.
+            # When Pops diverge from the official profile, stability falls.
+            if civ.dominant_beliefs and civ.established_beliefs:
+                stability_target = self._cosine_similarity(
+                    civ.dominant_beliefs, civ.established_beliefs
+                )
+            else:
+                stability_target = civ.health.stability  # no change if no beliefs yet
+            stability_delta = (stability_target - civ.health.stability) * cfg.civ_momentum_rate
+            noise = rng.gauss(0, cfg.civ_noise_factor)
+            if abs(stability_delta + noise) > 0.001:
                 result.civilization_mutations.append(StateMutation(
-                    mutation_type=MutationType.BELIEF_SHIFT,
+                    mutation_type=MutationType.CIVILIZATION_STAT,
                     target_id=UUID(cid),
-                    field="dominant_beliefs",
-                    delta=dv.direction * cfg.civ_momentum_rate,
-                    new_value=dv.domain_tag,
-                    note=f"{civ.name} belief drift: {dv.domain_tag}",
+                    field="health.stability",
+                    delta=stability_delta + noise,
+                    note=f"{civ.name} stability from belief alignment",
                 ))
 
-            # Narrative event if a civilization crosses a threshold
-            new_stability = civ.health.stability + momentum.stability_delta * cfg.civ_momentum_rate
-            if new_stability < 0.2 and civ.health.stability >= 0.2:
+            # established_beliefs drifts toward dominant_beliefs (institutional lag).
+            established_rate = cfg.established_drift_base * civ.health.cohesion
+            for tag in set(civ.dominant_beliefs) | set(civ.established_beliefs):
+                dom_val = civ.dominant_beliefs.get(tag, 0.0)
+                est_val = civ.established_beliefs.get(tag, 0.0)
+                delta = (dom_val - est_val) * established_rate
+                if abs(delta) > 0.0001:
+                    result.civilization_mutations.append(StateMutation(
+                        mutation_type=MutationType.CIV_ESTABLISHED_SHIFT,
+                        target_id=UUID(cid),
+                        field=tag,
+                        new_value=tag,
+                        delta=delta,
+                        note=f"{civ.name} established belief drift: {tag}",
+                    ))
+
+            # Narrative event if stability crosses a threshold
+            projected_stability = max(0.0, min(1.0, civ.health.stability + stability_delta))
+            if projected_stability < 0.2 and civ.health.stability >= 0.2:
                 result.narrative_events.append(
                     f"{civ.name} has entered a state of critical instability."
                 )
-            elif new_stability > 0.8 and civ.health.stability <= 0.8:
+            elif projected_stability > 0.8 and civ.health.stability <= 0.8:
                 result.narrative_events.append(
                     f"{civ.name} has achieved remarkable stability."
                 )
+
+        # ── Civ → Pop conformity pressure ──────────────
+        for pop in state.pops.values():
+            if not pop.civilization_id:
+                continue
+            civ = state.civilizations.get(str(pop.civilization_id))
+            if civ is None or not civ.established_beliefs:
+                continue
+            scale_key = civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale)
+            conformity_rate = (
+                cfg.pop_conformity_base
+                * _SCALE_CONFORMITY.get(scale_key, 1.0)
+                * civ.health.cohesion
+            )
+            for tag in set(civ.established_beliefs) | set(pop.dominant_beliefs):
+                est_val = civ.established_beliefs.get(tag, 0.0)
+                pop_val = pop.dominant_beliefs.get(tag, 0.0)
+                delta = (est_val - pop_val) * conformity_rate
+                if abs(delta) > 0.0001:
+                    result.civilization_mutations.append(StateMutation(
+                        mutation_type=MutationType.POP_BELIEF_SHIFT,
+                        target_id=pop.id,
+                        field=tag,
+                        new_value=tag,
+                        delta=delta,
+                        note=f"{civ.name} conformity pressure on Pop ({tag})",
+                    ))
 
         # ── Mortal alignment drift ─────────────────────
         for mid, mortal in state.mortals.items():
@@ -891,6 +970,35 @@ class TickLoop:
                     note=f"{sp.name} visibility decay",
                 ))
 
+        # ── Pop visibility drift ───────────────────────
+        # Pop visibility converges toward min(civ.visibility, world.visibility).
+        # If the civilization or world goes dark, so do its Pops.
+        _pop_loc_to_world: dict[str, str] = {}
+        for wid, world in state.worlds.items():
+            for cid in world.child_ids:
+                loc = state.locations.get(str(cid))
+                if loc and isinstance(loc, PopLocation):
+                    _pop_loc_to_world[str(cid)] = wid
+
+        for pid, pop in state.pops.items():
+            if pop.pinned:
+                continue
+            civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+            civ_vis = civ.visibility if civ else 0.0
+            wid = _pop_loc_to_world.get(str(pop.current_location), str(pop.current_location))
+            world_obj = state.worlds.get(wid)
+            world_vis = world_obj.visibility if world_obj else 0.0
+            baseline = min(civ_vis, world_vis)
+            delta = (baseline - pop.visibility) * cfg.pop_visibility_drift_rate
+            if abs(delta) > 0.0001:
+                result.entity_mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_VISIBILITY,
+                    target_id=UUID(pid),
+                    field="visibility",
+                    delta=delta,
+                    note="Pop visibility drift",
+                ))
+
         # ── Passive Proxius footprint accumulation ────────
         # Active Proxii generate proxius_activity each tick.
         # Policy-compliant worlds contribute at PROXIUS_COMPLIANCE_FACTOR of
@@ -999,6 +1107,22 @@ class TickLoop:
 
         return result
 
+    @staticmethod
+    def _belief_match(pop_beliefs: dict[str, float], civ_established: dict[str, float]) -> float:
+        """
+        Weighted overlap: fraction of the civilization's established belief expression
+        that this Pop's beliefs cover. Returns 0.0–1.0.
+        Used to scale the civ scope bonus on Pop Essence contribution.
+        """
+        if not civ_established:
+            return 1.0
+        numerator = sum(
+            min(pop_beliefs.get(tag, 0.0), strength)
+            for tag, strength in civ_established.items()
+        )
+        denominator = sum(civ_established.values())
+        return numerator / denominator if denominator > 0.0 else 0.0
+
     def _process_essence_generation(
         self,
         state: SimulationState,
@@ -1009,16 +1133,23 @@ class TickLoop:
         Adds Demiurge's share to essence.actual (no apparent/concealment impact).
         Accumulates each Luminary's share into state.luminary_essence_this_eval.
         Returns (ESSENCE_CHANGE mutations, per-domain claim amounts).
+
+        Belief contributions come from Pop.dominant_beliefs, scaled by a scope
+        bonus proportional to how well the Pop's beliefs match the civilization's
+        established_beliefs (weighted overlap). This replaces the old civ-level
+        dominant_beliefs * scale_mult approach.
         """
-        # Build per-domain universe pool by summing across all SignificantLocations.
         universe_pool: dict[str, float] = {}
 
-        # Build index: world_id → list of civilizations present there
-        civs_by_world: dict[str, list["Civilization"]] = {}
-        for civ in state.civilizations.values():
-            for wid, world in state.worlds.items():
-                if str(civ.id) in [str(x) for x in world.civilization_ids]:
-                    civs_by_world.setdefault(wid, []).append(civ)
+        # Build index: world_id → parent-world for PopLocations.
+        # Pops live in PopLocations; we need to find which SignificantLocation world
+        # each PopLocation belongs to so we can assign Pop contributions to the right world pool.
+        pop_loc_to_world: dict[str, str] = {}
+        for wid, world in state.worlds.items():
+            for cid in world.child_ids:
+                loc = state.locations.get(str(cid))
+                if loc and isinstance(loc, PopLocation):
+                    pop_loc_to_world[str(cid)] = wid
 
         # Build index: world_id → list of mortals currently there
         mortals_by_world: dict[str, list["NotableMortal"]] = {}
@@ -1027,28 +1158,48 @@ class TickLoop:
                 wid = str(mortal.current_location)
                 mortals_by_world.setdefault(wid, []).append(mortal)
 
+        # World location weight: distribute each world's domain_expression contribution
+        # evenly rather than per-Pop (location is an inherent property of the world).
         for wid, world in state.worlds.items():
-            domain_tags: set[str] = set()
-            # Collect all domain tags that appear on this world
-            domain_tags.update(world.domain_expression.keys())
-            for civ in civs_by_world.get(wid, []):
-                domain_tags.update(civ.dominant_beliefs.keys())
-            for mortal in mortals_by_world.get(wid, []):
-                domain_tags.update(mortal.belief_tags.keys())
+            for tag, strength in world.domain_expression.items():
+                amount = strength * cfg.essence_location_weight
+                if amount > 0.0:
+                    universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
-            for tag in domain_tags:
-                amount = (
-                    world.domain_expression.get(tag, 0.0) * cfg.essence_location_weight
-                    + sum(
-                        civ.dominant_beliefs.get(tag, 0.0)
-                        * _CIV_SCALE_ESSENCE_MULT.get(civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1)
-                        for civ in civs_by_world.get(wid, [])
-                    )
-                    + sum(
-                        mortal.belief_tags.get(tag, 0.0) * cfg.essence_mortal_weight
-                        for mortal in mortals_by_world.get(wid, [])
-                    )
+        # Pop contributions: belief strength * scope bonus
+        for pop in state.pops.values():
+            if not pop.dominant_beliefs:
+                continue
+            civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+
+            # Determine which world this Pop is on
+            pop_loc_str = str(pop.current_location)
+            wid = pop_loc_to_world.get(pop_loc_str)
+            if wid is None:
+                # Pop's location is a SignificantLocation directly (fallback for old data)
+                wid = pop_loc_str
+
+            if civ is not None:
+                scale_mult = _CIV_SCALE_ESSENCE_MULT.get(
+                    civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1
                 )
+                match = self._belief_match(pop.dominant_beliefs, civ.established_beliefs)
+            else:
+                scale_mult = 0.05
+                match = 0.0
+
+            for tag, strength in pop.dominant_beliefs.items():
+                # Base Pop contribution + scope bonus scaled by institutional match
+                amount = strength * (1.0 + (scale_mult - 1.0) * match)
+                if amount > 0.0:
+                    universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
+
+        # Mortal contributions (unchanged)
+        for mortal in state.mortals.values():
+            if mortal.status != "active":
+                continue
+            for tag, strength in mortal.belief_tags.items():
+                amount = strength * cfg.essence_mortal_weight
                 if amount > 0.0:
                     universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
@@ -1994,6 +2145,14 @@ class TickLoop:
                 lid for lid, loc in state.locations.items() if is_in_window(loc)
             }
 
+            # Build PopLocation → parent world index for Pop discovery gating
+            _pop_loc_to_world: dict[str, str] = {}
+            for wid, world in state.worlds.items():
+                for cid in world.child_ids:
+                    loc = state.locations.get(str(cid))
+                    if loc and isinstance(loc, PopLocation):
+                        _pop_loc_to_world[str(cid)] = wid
+
             discovered_locs:  list[str] = []
             discovered_civs:  list[str] = []
             discovered_sp:    list[str] = []
@@ -2148,6 +2307,41 @@ class TickLoop:
                         refreshed_mort.append(mortal.name)
                     else:
                         discovered_mort.append(mortal.name)
+
+            # ── Pops
+            # Pops are gated on their civilization being in-window.
+            # Discovery probability scales with Pop size and social class prominence.
+            _PROMINENT_CLASSES = {"elite", "priest", "warrior"}
+            for pid, pop in state.pops.items():
+                if pop.pinned:
+                    continue
+                if not pop.civilization_id:
+                    continue
+                civ = state.civilizations.get(str(pop.civilization_id))
+                if civ is None or not is_in_window(civ):
+                    continue
+                pop_loc = state.locations.get(str(pop.current_location))
+                pop_world_id = (
+                    _pop_loc_to_world.get(str(pop.current_location))
+                    if pop_loc and isinstance(pop_loc, PopLocation)
+                    else str(pop.current_location)
+                )
+                if pop_world_id not in eligible_locs:
+                    continue
+                size_factor = min(1.0, pop.size_fractional / 9.0)
+                stratum_factor = 1.3 if (pop.social_class and pop.social_class.value in _PROMINENT_CLASSES) else 1.0
+                world_scry_base = start_vis * 0.5  # Pops revealed at half start_vis
+                p = min(1.0, world_scry_base * size_factor * stratum_factor)
+                if rng.random() < p:
+                    was_visible = pop.visibility > ENTITY_VISIBILITY_FLOOR
+                    new_vis = max(pop.visibility, world_scry_base)
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.POP_VISIBILITY,
+                        target_id=UUID(pid),
+                        field="visibility",
+                        new_value=new_vis,
+                        note=f"Scry ({scope.value}): Pop of {civ.name} sighted",
+                    ))
 
             parts = [f"You scryed at {scope.value} scope."]
             all_discovered = discovered_locs + discovered_civs + discovered_sp + discovered_mort
@@ -2962,6 +3156,51 @@ class TickLoop:
     # ─────────────────────────────────────────
     # PHASE 3: DOMAIN PROFILING
     # ─────────────────────────────────────────
+
+    @staticmethod
+    def _cosine_similarity(a: dict[str, float], b: dict[str, float]) -> float:
+        """Cosine similarity between two belief/domain dicts. Returns 0.0–1.0."""
+        if not a or not b:
+            return 0.0
+        tags = set(a) | set(b)
+        dot = sum(a.get(t, 0.0) * b.get(t, 0.0) for t in tags)
+        mag_a = sum(v * v for v in a.values()) ** 0.5
+        mag_b = sum(v * v for v in b.values()) ** 0.5
+        if mag_a == 0.0 or mag_b == 0.0:
+            return 0.0
+        return dot / (mag_a * mag_b)
+
+    def _recompute_civ_dominant_beliefs(self, state: SimulationState) -> None:
+        """
+        Overwrite each Civilization.dominant_beliefs with the size-fractional-weighted
+        average of its constituent Pop beliefs. Prunes entries below BELIEF_FLOOR.
+        Called once per tick after Phase 2.5, before Phase 3 domain profiling.
+        """
+        for civ in state.civilizations.values():
+            if not civ.pop_ids:
+                continue  # no Pops yet; leave dominant_beliefs unchanged
+
+            weighted: dict[str, float] = {}
+            total_weight = 0.0
+
+            for pid in civ.pop_ids:
+                pop = state.pops.get(str(pid))
+                if pop is None:
+                    continue
+                w = max(0.001, pop.size_fractional)
+                total_weight += w
+                for tag, strength in pop.dominant_beliefs.items():
+                    weighted[tag] = weighted.get(tag, 0.0) + strength * w
+
+            if total_weight == 0.0:
+                continue
+
+            new_beliefs = {
+                tag: min(1.0, val / total_weight)
+                for tag, val in weighted.items()
+                if val / total_weight > BELIEF_FLOOR
+            }
+            civ.dominant_beliefs = new_beliefs
 
     def _build_domain_profile(
         self,
@@ -3927,5 +4166,35 @@ class TickLoop:
                 if node_id and node_id not in state.demiurge.unlocked_imagines:
                     state.demiurge.unlocked_imagines.append(node_id)
                     state.demiurge.revealed_imagines += 1
+
+            elif m.mutation_type == MutationType.POP_BELIEF_SHIFT:
+                tag = str(m.new_value) if m.new_value else m.field
+                if tid and tid in state.pops and tag:
+                    beliefs = state.pops[tid].dominant_beliefs
+                    current = beliefs.get(tag, 0.0)
+                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    if new_strength > BELIEF_FLOOR:
+                        beliefs[tag] = new_strength
+                    elif tag in beliefs:
+                        del beliefs[tag]
+
+            elif m.mutation_type == MutationType.POP_VISIBILITY:
+                if tid and tid in state.pops:
+                    pop = state.pops[tid]
+                    if m.new_value is not None:
+                        pop.visibility = max(0.0, min(1.0, float(m.new_value)))
+                    elif m.delta is not None:
+                        pop.visibility = max(0.0, min(1.0, pop.visibility + m.delta))
+
+            elif m.mutation_type == MutationType.CIV_ESTABLISHED_SHIFT:
+                tag = str(m.new_value) if m.new_value else m.field
+                if tid and tid in state.civilizations and tag:
+                    established = state.civilizations[tid].established_beliefs
+                    current = established.get(tag, 0.0)
+                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    if new_strength > BELIEF_FLOOR:
+                        established[tag] = new_strength
+                    elif tag in established:
+                        del established[tag]
 
         return state

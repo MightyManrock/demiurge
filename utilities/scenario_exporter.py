@@ -28,6 +28,7 @@ from core.universe_core import (
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
+    Pop, SocialClass,
     Universe,
 )
 from core.action_core import EssenceStockpile
@@ -67,6 +68,7 @@ def export_scenario(
     _write_locations(conn, state)
     _write_species(conn, state)
     _write_civilizations(conn, state)
+    _write_pops(conn, state)
     _write_mortals(conn, state)
     _write_demiurge(conn, state)
     _write_essence(conn, state)
@@ -324,9 +326,9 @@ def _write_civilizations(conn, state: SimulationState):
             """INSERT INTO civilizations
                (id, name, description, origin_location_id, scale,
                 health_stability, health_prosperity, health_cohesion,
-                primary_species_id, dominant_beliefs, culture_tags,
-                theistic, divine_awareness, age, visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                primary_species_id, dominant_beliefs, established_beliefs, pop_ids,
+                culture_tags, theistic, divine_awareness, age, visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -338,12 +340,44 @@ def _write_civilizations(conn, state: SimulationState):
                 c.health.cohesion,
                 str(c.primary_species_id) if c.primary_species_id else None,
                 _j(c.dominant_beliefs),
+                _j(c.established_beliefs),
+                _j(c.pop_ids),
                 _j(c.culture_tags),
                 int(c.theistic),
                 c.divine_awareness,
                 c.age,
                 c.visibility,
                 int(c.pinned),
+            ),
+        )
+
+
+def _write_pops(conn, state: SimulationState):
+    for p in state.pops.values():
+        conn.execute(
+            """INSERT INTO pops
+               (id, civilization_id, species_id, social_class, wild_stratum,
+                current_location, size_fractional,
+                dominant_beliefs, culture_tags, rider_traits,
+                notable_mortal_ids, parent_pop_id, child_pop_ids,
+                visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                str(p.id),
+                str(p.civilization_id) if p.civilization_id else None,
+                str(p.species_id) if p.species_id else None,
+                p.social_class.value if p.social_class else None,
+                p.wild_stratum.value if p.wild_stratum else None,
+                str(p.current_location),
+                p.size_fractional,
+                _j(p.dominant_beliefs),
+                _j(p.culture_tags),
+                _j(p.rider_traits),
+                _j(p.notable_mortal_ids),
+                str(p.parent_pop_id) if p.parent_pop_id else None,
+                _j(p.child_pop_ids),
+                p.visibility,
+                int(p.pinned),
             ),
         )
 
@@ -438,8 +472,9 @@ def _write_tick_config(conn, state: SimulationState):
             alignment_drift_rate, attention_decay_rate, evaluation_interval,
             mortal_visibility_decay_rate, proxius_passive_footprint_rate,
             location_visibility_decay_rate, civ_visibility_decay_rate,
-            species_visibility_decay_rate)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            species_visibility_decay_rate,
+            pop_conformity_base, pop_visibility_drift_rate, established_drift_base)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cfg.tick_duration,
             cfg.footprint_decay_rate,
@@ -458,6 +493,9 @@ def _write_tick_config(conn, state: SimulationState):
             cfg.location_visibility_decay_rate,
             cfg.civ_visibility_decay_rate,
             cfg.species_visibility_decay_rate,
+            cfg.pop_conformity_base,
+            cfg.pop_visibility_drift_rate,
+            cfg.established_drift_base,
         ),
     )
 
@@ -470,13 +508,6 @@ def _write_civ_momentum(conn, state: SimulationState):
                VALUES (?, ?, ?, ?)""",
             (cid, m.stability_delta, m.prosperity_delta, m.cohesion_delta),
         )
-        for dv in m.belief_drift:
-            conn.execute(
-                """INSERT INTO civ_momentum_belief_drift
-                   (civilization_id, domain_tag, direction, notes)
-                   VALUES (?, ?, ?, ?)""",
-                (cid, dv.domain_tag, dv.direction, dv.notes),
-            )
 
 
 def _write_luminary_state(conn, state: SimulationState):
@@ -1111,6 +1142,125 @@ def build_scenario_default() -> SimulationState:
     ossian.civilization_ids.append(vehn_quietude.id)
     lethis.civilization_ids.append(vehn_quietude.id)
 
+    # ── PopLocations and starting Pops ───────────────
+    # One PopLocation per inhabited world (surface settlement placeholder).
+    # One starting Pop per civilization, mirroring its dominant_beliefs exactly
+    # so the simulation baseline is unchanged at tick 0.
+
+    pop_loc_neran = PopLocation(
+        name="Neran Surface", location_type="pop_location", parent_id=neran.id,
+        visibility=1.0, pinned=True,
+    )
+    pop_loc_oros = PopLocation(
+        name="Oros Surface", location_type="pop_location", parent_id=oros.id,
+        visibility=1.0, pinned=True,
+    )
+    pop_loc_kiddis = PopLocation(
+        name="Kiddis Surface", location_type="pop_location", parent_id=kiddis.id,
+        visibility=0.0, pinned=False,
+    )
+    pop_loc_sethis = PopLocation(
+        name="Sethis Surface", location_type="pop_location", parent_id=sethis.id,
+        visibility=0.0, pinned=False,
+    )
+    pop_loc_mireth = PopLocation(
+        name="Mireth Caverns", location_type="pop_location", parent_id=mireth.id,
+        visibility=0.0, pinned=False,
+    )
+    pop_loc_ossian = PopLocation(
+        name="Ossian Surface", location_type="pop_location", parent_id=ossian.id,
+        visibility=0.0, pinned=False,
+    )
+
+    neran.child_ids.append(pop_loc_neran.id)
+    oros.child_ids.append(pop_loc_oros.id)
+    kiddis.child_ids.append(pop_loc_kiddis.id)
+    sethis.child_ids.append(pop_loc_sethis.id)
+    mireth.child_ids.append(pop_loc_mireth.id)
+    ossian.child_ids.append(pop_loc_ossian.id)
+
+    pop_loc_neran.pop_ids  # populated below
+
+    # Starting Pops — one per civilization, beliefs match civ dominant_beliefs.
+    # Size set to match civilization scale. established_beliefs seeded equal to dominant_beliefs.
+    pop_neran_confed = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_neran.id,
+        size_fractional=9.0,  # INTERSTELLAR: ~1 billion
+        dominant_beliefs=dict(neran_confed.dominant_beliefs),
+        culture_tags=dict(neran_confed.culture_tags),
+        visibility=1.0, pinned=True,
+    )
+    neran_confed.pop_ids.append(pop_neran_confed.id)
+    neran_confed.established_beliefs = dict(neran_confed.dominant_beliefs)
+    pop_loc_neran.pop_ids.append(pop_neran_confed.id)
+
+    pop_keth = Pop(
+        civilization_id=keth_civ.id, species_id=keth_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_oros.id,
+        size_fractional=5.0,  # TRIBAL: ~100K
+        dominant_beliefs=dict(keth_civ.dominant_beliefs),
+        culture_tags=dict(keth_civ.culture_tags),
+        visibility=1.0, pinned=True,
+    )
+    keth_civ.pop_ids.append(pop_keth.id)
+    keth_civ.established_beliefs = dict(keth_civ.dominant_beliefs)
+    pop_loc_oros.pop_ids.append(pop_keth.id)
+
+    pop_damtal = Pop(
+        civilization_id=damtal_civ.id, species_id=damtal_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_kiddis.id,
+        size_fractional=7.0,  # CONTINENTAL: ~10M
+        dominant_beliefs=dict(damtal_civ.dominant_beliefs),
+        culture_tags=dict(damtal_civ.culture_tags),
+        visibility=0.0, pinned=False,
+    )
+    damtal_civ.pop_ids.append(pop_damtal.id)
+    damtal_civ.established_beliefs = dict(damtal_civ.dominant_beliefs)
+    pop_loc_kiddis.pop_ids.append(pop_damtal.id)
+
+    pop_surathi = Pop(
+        civilization_id=surathi_clans.id, species_id=surathi_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_sethis.id,
+        size_fractional=5.0,  # TRIBAL: ~100K
+        dominant_beliefs=dict(surathi_clans.dominant_beliefs),
+        culture_tags=dict(surathi_clans.culture_tags),
+        visibility=0.0, pinned=False,
+    )
+    surathi_clans.pop_ids.append(pop_surathi.id)
+    surathi_clans.established_beliefs = dict(surathi_clans.dominant_beliefs)
+    pop_loc_sethis.pop_ids.append(pop_surathi.id)
+
+    pop_veldan = Pop(
+        civilization_id=veldan_assembly.id, species_id=veldan_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_mireth.id,
+        size_fractional=6.0,  # CITY_STATE: ~1M
+        dominant_beliefs=dict(veldan_assembly.dominant_beliefs),
+        culture_tags=dict(veldan_assembly.culture_tags),
+        visibility=0.0, pinned=False,
+    )
+    veldan_assembly.pop_ids.append(pop_veldan.id)
+    veldan_assembly.established_beliefs = dict(veldan_assembly.dominant_beliefs)
+    pop_loc_mireth.pop_ids.append(pop_veldan.id)
+
+    pop_vehn = Pop(
+        civilization_id=vehn_quietude.id, species_id=vehn_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_ossian.id,
+        size_fractional=8.0,  # INTERPLANETARY: ~100M
+        dominant_beliefs=dict(vehn_quietude.dominant_beliefs),
+        culture_tags=dict(vehn_quietude.culture_tags),
+        visibility=0.0, pinned=False,
+    )
+    vehn_quietude.pop_ids.append(pop_vehn.id)
+    vehn_quietude.established_beliefs = dict(vehn_quietude.dominant_beliefs)
+    pop_loc_ossian.pop_ids.append(pop_vehn.id)
+
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
         name="Senna Vaur", civilization_id=neran_confed.id,
@@ -1456,6 +1606,8 @@ def build_scenario_default() -> SimulationState:
         neran, vel_arath, oros, kiddis, pellum, sethis,
         galaxy_b, system_b1, system_b2, cinder, mireth,
         galaxy_c, system_c1, ossian, lethis,
+        pop_loc_neran, pop_loc_oros, pop_loc_kiddis,
+        pop_loc_sethis, pop_loc_mireth, pop_loc_ossian,
         naran_species, ultir_species, keth_species, damtal_species,
         surathi_species, veldan_species, vehn_species,
         neran_confed, keth_civ, damtal_civ, surathi_clans,
@@ -1485,26 +1637,32 @@ def build_scenario_default() -> SimulationState:
         pantheon=pantheon,
         luminaries=luminaries,
         locations={
-            str(galaxy.id):        galaxy,
-            str(system.id):        system,
-            str(system_outer.id):  system_outer,
-            str(system_hidden.id): system_hidden,
-            str(system_colony.id): system_colony,
-            str(neran.id):         neran,
-            str(vel_arath.id):     vel_arath,
-            str(oros.id):          oros,
-            str(kiddis.id):        kiddis,
-            str(pellum.id):        pellum,
-            str(sethis.id):        sethis,
-            str(galaxy_b.id):      galaxy_b,
-            str(system_b1.id):     system_b1,
-            str(system_b2.id):     system_b2,
-            str(cinder.id):        cinder,
-            str(mireth.id):        mireth,
-            str(galaxy_c.id):      galaxy_c,
-            str(system_c1.id):     system_c1,
-            str(ossian.id):        ossian,
-            str(lethis.id):        lethis,
+            str(galaxy.id):           galaxy,
+            str(system.id):           system,
+            str(system_outer.id):     system_outer,
+            str(system_hidden.id):    system_hidden,
+            str(system_colony.id):    system_colony,
+            str(neran.id):            neran,
+            str(vel_arath.id):        vel_arath,
+            str(oros.id):             oros,
+            str(kiddis.id):           kiddis,
+            str(pellum.id):           pellum,
+            str(sethis.id):           sethis,
+            str(galaxy_b.id):         galaxy_b,
+            str(system_b1.id):        system_b1,
+            str(system_b2.id):        system_b2,
+            str(cinder.id):           cinder,
+            str(mireth.id):           mireth,
+            str(galaxy_c.id):         galaxy_c,
+            str(system_c1.id):        system_c1,
+            str(ossian.id):           ossian,
+            str(lethis.id):           lethis,
+            str(pop_loc_neran.id):    pop_loc_neran,
+            str(pop_loc_oros.id):     pop_loc_oros,
+            str(pop_loc_kiddis.id):   pop_loc_kiddis,
+            str(pop_loc_sethis.id):   pop_loc_sethis,
+            str(pop_loc_mireth.id):   pop_loc_mireth,
+            str(pop_loc_ossian.id):   pop_loc_ossian,
         },
         civilizations={
             str(neran_confed.id):    neran_confed,
@@ -1530,6 +1688,14 @@ def build_scenario_default() -> SimulationState:
             str(sivel.id):          sivel,            str(orveth.id):       orveth,
             str(valn.id):           valn,             str(taleth.id):       taleth,
             str(kern.id):           kern,
+        },
+        pops={
+            str(pop_neran_confed.id): pop_neran_confed,
+            str(pop_keth.id):         pop_keth,
+            str(pop_damtal.id):       pop_damtal,
+            str(pop_surathi.id):      pop_surathi,
+            str(pop_veldan.id):       pop_veldan,
+            str(pop_vehn.id):         pop_vehn,
         },
         species={
             str(naran_species.id):   naran_species,

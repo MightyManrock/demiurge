@@ -152,13 +152,33 @@ CREATE TABLE IF NOT EXISTS civilizations (
     health_prosperity   REAL NOT NULL DEFAULT 0.5,
     health_cohesion     REAL NOT NULL DEFAULT 0.5,
     primary_species_id  TEXT,
-    dominant_beliefs    TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
+    dominant_beliefs    TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; derived aggregate of Pops
+    established_beliefs TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; institutional/official profile
+    pop_ids             TEXT NOT NULL DEFAULT '[]',  -- JSON array of Pop UUIDs
     culture_tags        TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     theistic            INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness    REAL NOT NULL DEFAULT 0.3,
     age                 REAL NOT NULL DEFAULT 0.0,
     visibility          REAL    NOT NULL DEFAULT 0.0,
     pinned              INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pops (
+    id               TEXT PRIMARY KEY,
+    civilization_id  TEXT,                           -- UUID of owning Civilization (nullable)
+    species_id       TEXT,                           -- UUID of Species (nullable)
+    social_class     TEXT,                           -- SocialClass value; NULL for non-sapient Pops
+    wild_stratum     TEXT,                           -- WildStratum value; NULL for sapient Pops
+    current_location TEXT NOT NULL,                  -- UUID of PopLocation
+    size_fractional  REAL NOT NULL DEFAULT 6.0,      -- internal log size; int(size_fractional) = displayed magnitude
+    dominant_beliefs TEXT NOT NULL DEFAULT '{}',     -- JSON object {tag: strength_float}
+    culture_tags     TEXT NOT NULL DEFAULT '{}',     -- JSON object {tag: strength_float}
+    rider_traits     TEXT NOT NULL DEFAULT '{}',     -- JSON object {tag: strength_float}; traits from Imago preaching
+    notable_mortal_ids TEXT NOT NULL DEFAULT '[]',   -- JSON array of NotableMortal UUIDs
+    parent_pop_id    TEXT,                           -- UUID of parent Pop if this is a splinter; NULL otherwise
+    child_pop_ids    TEXT NOT NULL DEFAULT '[]',     -- JSON array of splinter Pop UUIDs
+    visibility       REAL NOT NULL DEFAULT 0.0,
+    pinned           INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS mortals (
@@ -239,7 +259,10 @@ CREATE TABLE IF NOT EXISTS tick_config (
     location_visibility_decay_rate          REAL NOT NULL DEFAULT 0.01,
     civ_visibility_decay_rate               REAL NOT NULL DEFAULT 0.01,
     species_visibility_decay_rate           REAL NOT NULL DEFAULT 0.01,
-    starting_visible_decay_rate             REAL NOT NULL DEFAULT 0.005  -- kept for backward compat with old saves; no longer read
+    starting_visible_decay_rate             REAL NOT NULL DEFAULT 0.005,  -- kept for backward compat with old saves; no longer read
+    pop_conformity_base                     REAL NOT NULL DEFAULT 0.005,  -- base rate at which Pops are nudged toward established_beliefs
+    pop_visibility_drift_rate               REAL NOT NULL DEFAULT 0.02,   -- rate at which Pop visibility converges toward civ+world floor
+    established_drift_base                  REAL NOT NULL DEFAULT 0.01    -- base rate at which established_beliefs drifts toward dominant_beliefs
 );
 
 -- Per-civilization natural momentum at scenario start.

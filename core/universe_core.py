@@ -234,23 +234,58 @@ class SocialClass(str, Enum):
     ELITE      = "elite"        # Ruling class and aristocracy
 
 
+class WildStratum(str, Enum):
+    APEX     = "apex"      # Top predator / dominant organism
+    HERD     = "herd"      # Prey species / herd animals
+    CARRION  = "carrion"   # Scavengers
+    SYMBIONT = "symbiont"  # Mutualistic partners
+    PARASITE = "parasite"  # Parasitic/exploitative role
+
+
 class Pop(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     civilization_id: Optional[UUID] = None
     species_id: Optional[UUID] = None
-    social_class: SocialClass = SocialClass.COMMON
+
+    # Exactly one of these should be set depending on whether the species is sapient.
+    social_class: Optional[SocialClass] = None
+    wild_stratum: Optional[WildStratum] = None
+
+    @property
+    def stratum(self) -> str:
+        if self.social_class is not None:
+            return self.social_class.value
+        if self.wild_stratum is not None:
+            return self.wild_stratum.value
+        return "unknown"
+
     current_location: UUID       # PopLocation UUID; sub-world location
 
-    # Logarithmic size: actual population ≈ 10 ** size_magnitude
-    # e.g. 3 → ~1,000 | 6 → ~1,000,000 | 9 → ~1,000,000,000
-    size_magnitude: int = 6
+    # Fractional logarithmic size tracked internally; displayed as int.
+    # Actual population ≈ 10 ** size_magnitude
+    # e.g. 3.0 → ~1,000 | 6.0 → ~1,000,000 | 9.0 → ~1,000,000,000
+    size_fractional: float = 6.0
+
+    @property
+    def size_magnitude(self) -> int:
+        return int(self.size_fractional)
 
     # Authoritative source of belief/culture data for this group.
     # Civilization.dominant_beliefs and culture_tags are aggregates derived from Pops (and Govs).
     dominant_beliefs: dict[str, float] = Field(default_factory=dict)
     culture_tags: dict[str, float] = Field(default_factory=dict)
 
+    # Traits introduced via Imago preaching — tracked separately from inherited culture_tags.
+    rider_traits: dict[str, float] = Field(default_factory=dict)
+
     notable_mortal_ids: list[UUID] = Field(default_factory=list)
+
+    # Splinter lineage: parent_pop_id set if this Pop was split from another.
+    parent_pop_id: Optional[UUID] = None
+    child_pop_ids: list[UUID] = Field(default_factory=list)
+
+    visibility: float = 0.0
+    pinned: bool = False
 
 
 # ─────────────────────────────────────────
@@ -292,12 +327,17 @@ class Civilization(BaseModel):
     scale: CivilizationScale = CivilizationScale.TRIBAL
     health: CivilizationHealth = Field(default_factory=CivilizationHealth)
 
-    # Derived aggregate of this civilization's Pops (and eventually Govs).
-    # Authoritative source is Pop.dominant_beliefs; this is a weighted summary
-    # read by Luminary evaluation until Pop-based profiling is implemented.
+    # Tick-computed weighted aggregate of Pop dominant_beliefs.
+    # Written at end of Phase 2 each tick; do not set independently.
     # Float strength is 0.0–1.0; entries below BELIEF_FLOOR are pruned each tick.
     dominant_beliefs: dict[str, float] = Field(default_factory=dict)
     # e.g. {"domain:conflict": 0.8, "domain:memory": 0.3}
+
+    # The institutional/official belief profile — what the educational system,
+    # laws, and clergy actively reinforce. Seeded from dominant_beliefs at scenario
+    # creation; drifts toward dominant_beliefs slowly each tick (rate ∝ cohesion).
+    # Divergence from dominant_beliefs drives stability loss.
+    established_beliefs: dict[str, float] = Field(default_factory=dict)
 
     # Derived aggregate of this civilization's Pops (and eventually Govs).
     culture_tags: dict[str, float] = Field(default_factory=dict)
