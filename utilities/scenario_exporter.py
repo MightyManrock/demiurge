@@ -1306,6 +1306,23 @@ def build_scenario_default() -> SimulationState:
         pop_loc_sethis.pop_ids.append(p.id)
     surathi_clans.established_beliefs = dict(surathi_clans.dominant_beliefs)
 
+    # ── Surathi assimilates (TRIBAL → CONFEDERACY): Surathi people who have joined the Neran Confederacy ──
+    # Parent is pop_surathi_common — they came from that community and are still culturally entangled.
+    pop_surathi_confederate = Pop(
+        civilization_id=neran_confed.id, species_id=surathi_species.id,
+        social_class=SocialClass.MERCHANT,
+        current_location=pop_loc_sethis.id,
+        size_fractional=1.2,
+        dominant_beliefs={"domain:community": 0.55, "domain:order": 0.40, "domain:mastery": 0.20},
+        culture_tags={"relations:commerce": 0.75, "relations:diplomacy": 0.65,
+                      "structure:hierarchy": 0.50, "practice:sedentism": 0.60},
+        parent_pop_id=pop_surathi_common.id,
+        visibility=0.0, pinned=False,
+    )
+    pop_surathi_common.child_pop_ids.append(pop_surathi_confederate.id)
+    neran_confed.pop_ids.append(pop_surathi_confederate.id)
+    pop_loc_sethis.pop_ids.append(pop_surathi_confederate.id)
+
     # ── Veldan Assembly (CITY_STATE): memory-keeper council vs. practical craftspeople ──
     pop_veldan_council = Pop(
         civilization_id=veldan_assembly.id, species_id=veldan_species.id,
@@ -1367,7 +1384,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.80, "relations:diplomacy": 0.80, "practice:sedentism": 0.80},
         alignment=0.75, chrono_age=170.0, bio_age=170.0,
         home_location=neran.id, current_location=neran.id,
-        pinned=True,
+        pinned=True, pop_id=pop_neran_elite.id,
     )
     neran_confed.notable_mortal_ids.append(senna.id)
 
@@ -1379,7 +1396,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.90, "practice:sedentism": 0.80, "techno:industrialism": 0.70},
         alignment=0.45, chrono_age=205.0, bio_age=205.0,
         home_location=neran.id, current_location=neran.id,
-        pinned=True,
+        pinned=True, pop_id=pop_neran_elite.id,
     )
     neran_confed.notable_mortal_ids.append(karath.id)
 
@@ -1391,7 +1408,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:luminary_worship": 0.90, "religion:ancestor_worship": 0.80, "practice:sedentism": 0.80},
         alignment=0.85, chrono_age=260.0, bio_age=260.0,
         home_location=neran.id, current_location=neran.id,
-        pinned=True,
+        pinned=True, pop_id=pop_neran_elite.id,
     )
     neran_confed.notable_mortal_ids.append(veth.id)
 
@@ -1403,7 +1420,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"relations:commerce": 0.85, "practice:sedentism": 0.80, "structure:hierarchy": 0.70},
         alignment=0.35, chrono_age=235.0, bio_age=235.0,
         home_location=neran.id, current_location=neran.id,
-        pinned=True,
+        pinned=True, pop_id=pop_neran_common.id,
     )
     neran_confed.notable_mortal_ids.append(durenn.id)
 
@@ -1416,7 +1433,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"practice:nomadism": 0.90, "religion:animism": 0.85, "relations:conquest": 0.80},
         alignment=0.60, chrono_age=145.0, bio_age=145.0,
         home_location=oros.id, current_location=oros.id,
-        pinned=True,
+        pinned=True, pop_id=pop_keth_warrior.id,
     )
     keth_civ.notable_mortal_ids.append(asha.id)
 
@@ -1428,6 +1445,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"techno:science": 0.80, "practice:sedentism": 0.70},
         alignment=0.20, chrono_age=155.0, bio_age=155.0,
         home_location=neran.id, current_location=neran.id,
+        pop_id=pop_neran_artisan.id,
     )
     neran_confed.notable_mortal_ids.append(orryn.id)
 
@@ -1439,6 +1457,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"techno:science": 0.90, "practice:sedentism": 0.80},
         alignment=0.55, chrono_age=190.0, bio_age=190.0,
         home_location=neran.id, current_location=neran.id,
+        pop_id=pop_neran_artisan.id,
     )
     neran_confed.notable_mortal_ids.append(thessal.id)
 
@@ -1450,6 +1469,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:luminary_worship": 0.90, "religion:ancestor_worship": 0.85, "practice:sedentism": 0.80},
         alignment=0.70, chrono_age=85.0, bio_age=85.0,
         home_location=neran.id, current_location=neran.id,
+        pop_id=pop_neran_common.id,
     )
     neran_confed.notable_mortal_ids.append(maeva.id)
 
@@ -1461,6 +1481,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"relations:conquest": 0.85, "practice:nomadism": 0.90},
         alignment=0.30, chrono_age=130.0, bio_age=130.0,
         home_location=oros.id, current_location=oros.id,
+        pop_id=pop_keth_warrior.id,
     )
     keth_civ.notable_mortal_ids.append(kael.id)
 
@@ -1473,6 +1494,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.85, "practice:nomadism": 0.80},
         alignment=0.50, chrono_age=175.0, bio_age=175.0,
         home_location=oros.id, current_location=oros.id,
+        pop_id=pop_keth_common.id,
     )
     keth_civ.notable_mortal_ids.append(urren.id)
 
@@ -1495,6 +1517,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.80, "relations:diplomacy": 0.75, "practice:sedentism": 0.70},
         alignment=0.65, chrono_age=148.0, bio_age=148.0,
         home_location=sethis.id, current_location=sethis.id,
+        pop_id=pop_neran_elite.id,
     )
     neran_confed.notable_mortal_ids.append(ren_caleth.id)
 
@@ -1506,6 +1529,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"techno:science": 0.85, "techno:industrialism": 0.70, "practice:sedentism": 0.65},
         alignment=0.60, chrono_age=112.0, bio_age=112.0,
         home_location=sethis.id, current_location=sethis.id,
+        pop_id=pop_neran_artisan.id,
     )
     neran_confed.notable_mortal_ids.append(yssa_tharn.id)
 
@@ -1518,6 +1542,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"practice:nomadism": 0.90, "structure:egalitarianism": 0.80, "relations:commerce": 0.45},
         alignment=0.55, chrono_age=74.0, bio_age=74.0,
         home_location=sethis.id, current_location=sethis.id,
+        pop_id=pop_surathi_common.id,
     )
     surathi_clans.notable_mortal_ids.append(orrath.id)
 
@@ -1529,6 +1554,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:animism": 0.90, "practice:nomadism": 0.85, "religion:ancestor_worship": 0.70},
         alignment=0.62, chrono_age=58.0, bio_age=58.0,
         home_location=sethis.id, current_location=sethis.id,
+        pop_id=pop_surathi_priest.id,
     )
     surathi_clans.notable_mortal_ids.append(deva.id)
 
@@ -1540,6 +1566,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"practice:nomadism": 0.90, "practice:foraging": 0.80, "relations:conquest": 0.50},
         alignment=0.45, chrono_age=41.0, bio_age=41.0,
         home_location=sethis.id, current_location=sethis.id,
+        pop_id=pop_surathi_common.id,
     )
     surathi_clans.notable_mortal_ids.append(yakkel.id)
 
@@ -1552,6 +1579,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"relations:commerce": 0.80, "relations:diplomacy": 0.70, "structure:hierarchy": 0.50},
         alignment=0.50, chrono_age=36.0, bio_age=36.0,
         home_location=sethis.id, current_location=sethis.id,
+        pop_id=pop_surathi_confederate.id,
     )
     neran_confed.notable_mortal_ids.append(sirak.id)
 
@@ -1564,6 +1592,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.90, "relations:conquest": 0.75, "practice:sedentism": 0.70},
         alignment=0.35, chrono_age=52.0, bio_age=52.0,
         home_location=kiddis.id, current_location=kiddis.id,
+        pop_id=pop_damtal_elite.id,
     )
     damtal_civ.notable_mortal_ids.append(var_keth.id)
 
@@ -1575,6 +1604,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.80, "practice:sedentism": 0.70},
         alignment=0.65, chrono_age=67.0, bio_age=67.0,
         home_location=kiddis.id, current_location=kiddis.id,
+        pop_id=pop_damtal_elite.id,
     )
     damtal_civ.notable_mortal_ids.append(issel.id)
 
@@ -1586,6 +1616,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"relations:conquest": 0.85, "structure:hierarchy": 0.80, "practice:sedentism": 0.60},
         alignment=0.25, chrono_age=45.0, bio_age=45.0,
         home_location=kiddis.id, current_location=kiddis.id,
+        pop_id=pop_damtal_elite.id,
     )
     damtal_civ.notable_mortal_ids.append(durrak.id)
 
@@ -1597,6 +1628,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:ancestor_worship": 0.85, "practice:sedentism": 0.80, "techno:science": 0.40},
         alignment=0.55, chrono_age=78.0, bio_age=78.0,
         home_location=kiddis.id, current_location=kiddis.id,
+        pop_id=pop_damtal_common.id,
     )
     damtal_civ.notable_mortal_ids.append(yellan.id)
 
@@ -1609,6 +1641,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.80, "religion:ancestor_worship": 0.85, "practice:sedentism": 0.90},
         alignment=0.72, chrono_age=198.0, bio_age=198.0,
         home_location=mireth.id, current_location=mireth.id,
+        pop_id=pop_veldan_council.id,
     )
     veldan_assembly.notable_mortal_ids.append(councilor_yeth.id)
 
@@ -1621,6 +1654,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:ancestor_worship": 0.90, "techno:science": 0.80, "practice:sedentism": 0.85},
         alignment=0.68, chrono_age=231.0, bio_age=231.0,
         home_location=mireth.id, current_location=mireth.id,
+        pop_id=pop_veldan_council.id,
     )
     veldan_assembly.notable_mortal_ids.append(keeper_orvan.id)
 
@@ -1633,6 +1667,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.80, "practice:sedentism": 0.90, "religion:ancestor_worship": 0.85},
         alignment=0.78, chrono_age=312.0, bio_age=312.0,
         home_location=ossian.id, current_location=ossian.id,
+        pop_id=pop_vehn_council.id,
     )
     vehn_quietude.notable_mortal_ids.append(sivel.id)
 
@@ -1645,6 +1680,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:ancestor_worship": 0.95, "practice:sedentism": 0.90, "techno:science": 0.70},
         alignment=0.82, chrono_age=388.0, bio_age=388.0,
         home_location=ossian.id, current_location=ossian.id,
+        pop_id=pop_vehn_council.id,
     )
     vehn_quietude.notable_mortal_ids.append(orveth.id)
 
@@ -1656,6 +1692,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.85, "techno:science": 0.80, "practice:sedentism": 0.70},
         alignment=0.60, chrono_age=245.0, bio_age=245.0,
         home_location=ossian.id, current_location=ossian.id,
+        pop_id=pop_vehn_common.id,
     )
     vehn_quietude.notable_mortal_ids.append(valn.id)
 
@@ -1667,6 +1704,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"techno:science": 0.85, "relations:diplomacy": 0.70, "practice:sedentism": 0.60},
         alignment=0.30, chrono_age=178.0, bio_age=178.0,
         home_location=ossian.id, current_location=ossian.id,
+        pop_id=pop_vehn_common.id,
     )
     vehn_quietude.notable_mortal_ids.append(taleth.id)
 
@@ -1678,6 +1716,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"practice:sedentism": 0.90, "structure:hierarchy": 0.75, "religion:ancestor_worship": 0.70},
         alignment=0.65, chrono_age=207.0, bio_age=207.0,
         home_location=lethis.id, current_location=lethis.id,
+        pop_id=pop_vehn_common.id,
     )
     vehn_quietude.notable_mortal_ids.append(kern.id)
 
@@ -1708,7 +1747,7 @@ def build_scenario_default() -> SimulationState:
         pop_neran_elite, pop_neran_common, pop_neran_artisan,
         pop_keth_warrior, pop_keth_common,
         pop_damtal_elite, pop_damtal_common,
-        pop_surathi_priest, pop_surathi_common,
+        pop_surathi_priest, pop_surathi_common, pop_surathi_confederate,
         pop_veldan_council, pop_veldan_common,
         pop_vehn_council, pop_vehn_common,
         naran_species, ultir_species, keth_species, damtal_species,
@@ -1800,8 +1839,9 @@ def build_scenario_default() -> SimulationState:
             str(pop_keth_common.id):   pop_keth_common,
             str(pop_damtal_elite.id):  pop_damtal_elite,
             str(pop_damtal_common.id): pop_damtal_common,
-            str(pop_surathi_priest.id): pop_surathi_priest,
-            str(pop_surathi_common.id): pop_surathi_common,
+            str(pop_surathi_priest.id):       pop_surathi_priest,
+            str(pop_surathi_common.id):       pop_surathi_common,
+            str(pop_surathi_confederate.id):  pop_surathi_confederate,
             str(pop_veldan_council.id): pop_veldan_council,
             str(pop_veldan_common.id):  pop_veldan_common,
             str(pop_vehn_council.id):   pop_vehn_council,

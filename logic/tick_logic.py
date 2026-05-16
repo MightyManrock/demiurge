@@ -101,6 +101,10 @@ OMEN_POP_SPLASH = 0.20
 # Fraction of an omen/development nudge's domain delta distributed across all
 # Pops on the target world, weighted inversely by size (smaller = more impact).
 
+LINEAGE_BLEED_FRACTION = 0.20
+# Fraction of a splash delta that bleeds further to a Pop's parent and children.
+# Moderated by cosine similarity — diverged relatives resist the bleed.
+
 # Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
 # Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
 _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
@@ -2724,6 +2728,10 @@ class TickLoop:
                                     delta=splash_delta,
                                     note=f"Whisper splash to {sp.stratum} Pop",
                                 ))
+                                self._emit_lineage_bleed(
+                                    mutations, state, sp, dv.domain_tag,
+                                    splash_delta, "whisper",
+                                )
 
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
@@ -2954,6 +2962,10 @@ class TickLoop:
                                         delta=splash_delta,
                                         note=f"Omen splash to {sp.stratum} Pop",
                                     ))
+                                    self._emit_lineage_bleed(
+                                        mutations, state, sp, dv.domain_tag,
+                                        splash_delta, "omen",
+                                    )
 
         # ── Civilizational Development ────────────────
         elif isinstance(intent, DevelopmentIntent):
@@ -3038,6 +3050,10 @@ class TickLoop:
                                 delta=splash_delta,
                                 note=f"Development nudge splash to {sp.stratum} Pop",
                             ))
+                            self._emit_lineage_bleed(
+                                mutations, state, sp, dv.domain_tag,
+                                splash_delta, "development",
+                            )
 
         # ── Luminary Petition ─────────────────────────
         elif isinstance(intent, LuminaryPetitionIntent):
@@ -3389,6 +3405,41 @@ class TickLoop:
         if mag_a == 0.0 or mag_b == 0.0:
             return 0.0
         return dot / (mag_a * mag_b)
+
+    def _emit_lineage_bleed(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        pop: object,
+        domain_tag: str,
+        base_delta: float,
+        source_note: str,
+    ) -> None:
+        """Bleed LINEAGE_BLEED_FRACTION × similarity of a splash delta to lineage relatives."""
+        relatives = []
+        parent_id = getattr(pop, "parent_pop_id", None)
+        if parent_id:
+            parent = state.pops.get(str(parent_id))
+            if parent:
+                relatives.append(parent)
+        for child_id in getattr(pop, "child_pop_ids", []):
+            child = state.pops.get(str(child_id))
+            if child:
+                relatives.append(child)
+        for rel in relatives:
+            sim = self._cosine_similarity(
+                getattr(pop, "dominant_beliefs", {}),
+                getattr(rel, "dominant_beliefs", {}),
+            )
+            bleed_delta = base_delta * LINEAGE_BLEED_FRACTION * sim
+            if abs(bleed_delta) > 1e-5:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_BELIEF_SHIFT,
+                    target_id=rel.id,
+                    field=domain_tag,
+                    delta=bleed_delta,
+                    note=f"Lineage bleed ({source_note} → {getattr(rel, 'stratum', 'Pop')})",
+                ))
 
     def _recompute_civ_dominant_beliefs(self, state: SimulationState) -> None:
         """
