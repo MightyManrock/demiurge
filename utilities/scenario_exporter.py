@@ -594,6 +594,10 @@ def build_scenario_default() -> SimulationState:
           Cinder         — scorched barren rock (domain:fire)
         The Drift (dwarf star)
           Mireth         — dim, cold world; Veldan city-state (domain:memory)
+      The Sunken Veil (galaxy)
+        Amarant System (main sequence)
+          Ossian         — Vehn homeworld; interplanetary Quietude civ (domain:silence, domain:truth)
+          Lethis         — Vehn colony; no native life (domain:silence, domain:secrecy)
     """
 
     # ── Luminaries ───────────────────────────────────
@@ -840,6 +844,53 @@ def build_scenario_default() -> SimulationState:
     system_b1.child_ids.append(cinder.id)
     system_b2.child_ids.append(mireth.id)
 
+    # ── Third galaxy: The Sunken Veil ─────────────────
+    # A sparse cluster of aged stars at the far edge of perception. The Vehn
+    # found it suitable precisely because no one else had. Coordinates at
+    # (-4, 3, 1.5) place it well away from both inhabited clusters.
+    galaxy_c = Location(
+        name="The Sunken Veil",
+        location_type="galaxy",
+        description="A tenuous cluster of aged stars at the far edge of perception. No other sapient life has found it — or if they have, they said nothing.",
+        coordinates=CosmicCoordinates(x=-4.0, y=3.0, z=1.5),
+        visibility=0.0, pinned=False,
+    )
+
+    system_c1 = System(
+        name="Amarant System",
+        parent_id=galaxy_c.id,
+        star_type=StarType.MAIN_SEQUENCE,
+        coordinates=CosmicCoordinates(x=1.0, y=-1.0, z=0.0),
+        visibility=0.0, pinned=False,
+    )
+    ossian = SignificantLocation(
+        name="Ossian",
+        description="The Vehn homeworld: a temperate planet of wide plains and deep cave networks. Most of Vehn civilization lives below the surface, where sound travels differently and silence is easier to keep.",
+        location_type="planet",
+        parent_id=system_c1.id,
+        condition=LocCondition.STABLE,
+        domain_expression={"domain:silence": 0.50, "domain:truth": 0.20},
+        geo_tags=["geo:terrestrial", "geo:temperate"],
+        atmo_tags=["atmo:nitrogen_oxygen"],
+        age=750.0,
+        visibility=0.0, pinned=False,
+    )
+    lethis = SignificantLocation(
+        name="Lethis",
+        description="A dry, windswept world colonized by the Vehn roughly two centuries ago. No native life ever took root here. The Quietude settled it precisely because it was empty — and because emptiness, to them, is a virtue.",
+        location_type="planet",
+        parent_id=system_c1.id,
+        condition=LocCondition.STABLE,
+        domain_expression={"domain:silence": 0.35, "domain:secrecy": 0.20},
+        geo_tags=["geo:terrestrial", "geo:arid"],
+        atmo_tags=["atmo:nitrogen_oxygen"],
+        age=620.0,
+        visibility=0.0, pinned=False,
+    )
+
+    galaxy_c.child_ids.append(system_c1.id)
+    system_c1.child_ids.extend([ossian.id, lethis.id])
+
     # ── Species ───────────────────────────────────────
     naran_species = Species(
         name="Naran",
@@ -920,6 +971,20 @@ def build_scenario_default() -> SimulationState:
         visibility=0.0, pinned=False,
     )
     mireth.species_ids.append(veldan_species.id)
+
+    vehn_species = Species(
+        name="Vehn",
+        description="A long-lived, contemplative people native to Ossian. The Vehn communicate through sparse speech woven with elaborate somatic gesture; a long silence in conversation carries as much meaning as words. Their social philosophy treats noise — metaphorical or literal — as a form of pollution.",
+        origin_world_id=ossian.id,
+        sapient=True,
+        lifespan_min=300,
+        lifespan_max=420,
+        bio_tags=["bio:bipedal", "bio:cold_blooded", "bio:carbon_based"],
+        domain_tags=["domain:silence", "domain:secrecy"],
+        condition=SpeciesCondition.STABLE,
+        visibility=0.0, pinned=False,
+    )
+    ossian.species_ids.append(vehn_species.id)
 
     # ── Civilizations ─────────────────────────────────
     neran_confed = Civilization(
@@ -1021,6 +1086,30 @@ def build_scenario_default() -> SimulationState:
         visibility=0.0, pinned=False,
     )
     mireth.civilization_ids.append(veldan_assembly.id)
+
+    vehn_quietude = Civilization(
+        name="The Vehn Quietude",
+        description="An interplanetary civilization that has mastered the art of not being noticed. The Quietude enforces strict communication silence with any external presence and maintains it internally through a blend of cultural reverence and legal sanction. Their expansion to Lethis was conducted without announcement; they have no interest in being found.",
+        origin_location_id=ossian.id,
+        scale=CivilizationScale.INTERPLANETARY,
+        health=CivilizationHealth(stability=0.72, prosperity=0.50, cohesion=0.88),
+        primary_species_id=vehn_species.id,
+        dominant_beliefs={
+            "domain:silence": 0.70, "domain:secrecy": 0.55,
+            "domain:mastery": 0.35, "domain:truth": 0.30,
+        },
+        culture_tags={
+            "practice:sedentism": 0.95, "religion:ancestor_worship": 0.80,
+            "structure:hierarchy": 0.70, "techno:science": 0.75,
+            "relations:diplomacy": 0.20,
+        },
+        theistic=True,
+        divine_awareness=0.18,
+        age=800.0,
+        visibility=0.0, pinned=False,
+    )
+    ossian.civilization_ids.append(vehn_quietude.id)
+    lethis.civilization_ids.append(vehn_quietude.id)
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
@@ -1288,6 +1377,63 @@ def build_scenario_default() -> SimulationState:
     )
     veldan_assembly.notable_mortal_ids.append(keeper_orvan.id)
 
+    # ── Ossian mortals — The Vehn Quietude ───────────
+    sivel = NotableMortal(
+        name="Sivel", civilization_id=vehn_quietude.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=vehn_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.68, visibility=0.0,
+        personal_tags=["domain:silence", "domain:truth", "status:first_arbiter", "personal:deliberate", "personal:wise"],
+        culture_tags={"structure:hierarchy": 0.80, "practice:sedentism": 0.90, "religion:ancestor_worship": 0.85},
+        alignment=0.78, chrono_age=312.0, bio_age=312.0,
+        home_location=ossian.id, current_location=ossian.id,
+    )
+    vehn_quietude.notable_mortal_ids.append(sivel.id)
+
+    orveth = NotableMortal(
+        name="Orveth", civilization_id=vehn_quietude.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=vehn_species.id,
+        prominence_roles=[MortalProminence.PRIEST, MortalProminence.SCHOLAR],
+        prominence=0.50, visibility=0.0,
+        personal_tags=["domain:silence", "domain:memory", "status:deep_keeper", "personal:reclusive", "personal:obsessive"],
+        culture_tags={"religion:ancestor_worship": 0.95, "practice:sedentism": 0.90, "techno:science": 0.70},
+        alignment=0.82, chrono_age=388.0, bio_age=388.0,
+        home_location=ossian.id, current_location=ossian.id,
+    )
+    vehn_quietude.notable_mortal_ids.append(orveth.id)
+
+    valn = NotableMortal(
+        name="Valn", civilization_id=vehn_quietude.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=vehn_species.id,
+        prominence_roles=[MortalProminence.MILITARY], prominence=0.46, visibility=0.0,
+        personal_tags=["domain:mastery", "domain:secrecy", "status:fleet_commander", "personal:pragmatic", "personal:disciplined"],
+        culture_tags={"structure:hierarchy": 0.85, "techno:science": 0.80, "practice:sedentism": 0.70},
+        alignment=0.60, chrono_age=245.0, bio_age=245.0,
+        home_location=ossian.id, current_location=ossian.id,
+    )
+    vehn_quietude.notable_mortal_ids.append(valn.id)
+
+    taleth = NotableMortal(
+        name="Taleth", civilization_id=vehn_quietude.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=vehn_species.id,
+        prominence_roles=[MortalProminence.REBEL], prominence=0.32, visibility=0.0,
+        personal_tags=["domain:truth", "domain:change", "status:dissident", "personal:agitator", "personal:charismatic"],
+        culture_tags={"techno:science": 0.85, "relations:diplomacy": 0.70, "practice:sedentism": 0.60},
+        alignment=0.30, chrono_age=178.0, bio_age=178.0,
+        home_location=ossian.id, current_location=ossian.id,
+    )
+    vehn_quietude.notable_mortal_ids.append(taleth.id)
+
+    kern = NotableMortal(
+        name="Kern", civilization_id=vehn_quietude.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=vehn_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.40, visibility=0.0,
+        personal_tags=["domain:silence", "domain:secrecy", "status:colonial_warden", "personal:methodical", "personal:patient"],
+        culture_tags={"practice:sedentism": 0.90, "structure:hierarchy": 0.75, "religion:ancestor_worship": 0.70},
+        alignment=0.65, chrono_age=207.0, bio_age=207.0,
+        home_location=lethis.id, current_location=lethis.id,
+    )
+    vehn_quietude.notable_mortal_ids.append(kern.id)
+
     # ── Demiurge ─────────────────────────────────────
     # affiliated_domains left empty — loader derives top-4 from Luminary affinities.
     demiurge = Demiurge(
@@ -1310,7 +1456,7 @@ def build_scenario_default() -> SimulationState:
         demiurge_id=demiurge.id,
         pantheon_id=pantheon.id,
         rules=rules,
-        child_ids=[galaxy.id, galaxy_b.id],
+        child_ids=[galaxy.id, galaxy_b.id, galaxy_c.id],
         current_age=600.0,
     )
 
@@ -1337,6 +1483,10 @@ def build_scenario_default() -> SimulationState:
             str(system_b2.id):     system_b2,
             str(cinder.id):        cinder,
             str(mireth.id):        mireth,
+            str(galaxy_c.id):      galaxy_c,
+            str(system_c1.id):     system_c1,
+            str(ossian.id):        ossian,
+            str(lethis.id):        lethis,
         },
         civilizations={
             str(neran_confed.id):    neran_confed,
@@ -1344,6 +1494,7 @@ def build_scenario_default() -> SimulationState:
             str(damtal_civ.id):      damtal_civ,
             str(surathi_clans.id):   surathi_clans,
             str(veldan_assembly.id): veldan_assembly,
+            str(vehn_quietude.id):   vehn_quietude,
         },
         mortals={
             str(senna.id):          senna,          str(karath.id):       karath,
@@ -1358,6 +1509,9 @@ def build_scenario_default() -> SimulationState:
             str(var_keth.id):       var_keth,        str(issel.id):        issel,
             str(durrak.id):         durrak,          str(yellan.id):       yellan,
             str(councilor_yeth.id): councilor_yeth,  str(keeper_orvan.id): keeper_orvan,
+            str(sivel.id):          sivel,            str(orveth.id):       orveth,
+            str(valn.id):           valn,             str(taleth.id):       taleth,
+            str(kern.id):           kern,
         },
         species={
             str(naran_species.id):   naran_species,
@@ -1366,6 +1520,7 @@ def build_scenario_default() -> SimulationState:
             str(damtal_species.id):  damtal_species,
             str(surathi_species.id): surathi_species,
             str(veldan_species.id):  veldan_species,
+            str(vehn_species.id):    vehn_species,
         },
         civ_momentum={
             str(neran_confed.id): CivilizationMomentum(
@@ -1387,6 +1542,10 @@ def build_scenario_default() -> SimulationState:
             str(veldan_assembly.id): CivilizationMomentum(
                 civilization_id=veldan_assembly.id,
                 stability_delta=0.05, prosperity_delta=0.0, cohesion_delta=0.05,
+            ),
+            str(vehn_quietude.id): CivilizationMomentum(
+                civilization_id=vehn_quietude.id,
+                stability_delta=0.05, prosperity_delta=0.02, cohesion_delta=0.05,
             ),
         },
         luminary_attention={str(cassiel.id): 0.15, str(vrath.id): 0.30},

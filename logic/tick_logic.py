@@ -149,16 +149,28 @@ def _compute_revelation_cap(state: "SimulationState", domain_tag: str) -> float:
 def _compute_universal_expression(state: "SimulationState", domain_tag: str) -> float:
     """
     Normalized domain expression across the whole universe: 0.1–1.0.
-    Sums belief strength from all civs (scale-weighted) and domain_expression
-    from all SignificantLocations, then normalizes against _REVELATION_EXPRESSION_FULL.
+    Sums belief strength from civs (scale-weighted, once per world they inhabit) and
+    domain_expression from all SignificantLocations, then normalizes against
+    _REVELATION_EXPRESSION_FULL.
+
+    Civ beliefs are counted per world presence rather than once per civilization so that
+    a civ spanning multiple worlds contributes proportionally to its reach.
+    TODO: deprecate this world-presence proxy once Pops are implemented and civ domain
+    expression flows through Pop belief aggregation instead.
     """
     total = state.universe.universe_domain_expression.get(domain_tag, 0.1)
-    for civ in state.civilizations.values():
-        scale_mult = _CIV_SCALE_ESSENCE_MULT.get(civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1)
-        total += civ.dominant_beliefs.get(domain_tag, 0.0) * scale_mult
     for loc in state.locations.values():
-        if isinstance(loc, SignificantLocation):
-            total += loc.domain_expression.get(domain_tag, 0.0)
+        if not isinstance(loc, SignificantLocation):
+            continue
+        total += loc.domain_expression.get(domain_tag, 0.0)
+        for civ_id in loc.civilization_ids:
+            civ = state.civilizations.get(str(civ_id))
+            if civ is None:
+                continue
+            scale_mult = _CIV_SCALE_ESSENCE_MULT.get(
+                civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1
+            )
+            total += civ.dominant_beliefs.get(domain_tag, 0.0) * scale_mult
     normalized = total / _REVELATION_EXPRESSION_FULL
     return max(0.1, min(1.0, normalized))
 
