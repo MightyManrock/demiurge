@@ -456,6 +456,9 @@ class TickResult(BaseModel):
     )
     # luminary_id -> (results_new, methods_new)
 
+    agent_narratives:   list[str] = Field(default_factory=list)
+    # Proxius REPORT_TO_DEMIURGE entries surfaced this tick
+
     dialogue_triggers:  list["DialogueTrigger"] = Field(default_factory=list)
     # Unsuppressed triggers only — these go to the player
 
@@ -543,6 +546,10 @@ class SimulationState(BaseModel):
         default_factory=dict
     )
 
+    # Transient: mortal IDs audited during Phase 2 this tick. Cleared at tick start.
+    # Phase 2.5 reads this to suppress REPORT_TO_DEMIURGE when an audit already ran.
+    proxii_audited_this_tick: set[str] = Field(default_factory=set, exclude=True)
+
     # Weighted domain production accumulated per Luminary since their last evaluation.
     # Each tick adds sum(lum.domains[D] × universe_pool[D]) for that Luminary.
     # Keyed by str(luminary UUID). Reset per Luminary at evaluation time. Persisted.
@@ -586,6 +593,7 @@ class TickLoop:
         at the end of each phase.
         """
         self._overthrow_this_tick = None
+        state.proxii_audited_this_tick = set()
         cfg = state.config
         seed = self._rng.randint(0, 2**32)
         phase_rng = random.Random(seed)
@@ -694,8 +702,9 @@ class TickLoop:
                     )
 
         # ── Phase 2.5: Proxius Agent Actions ───────────
-        agent_mutations = self._resolve_proxius_agents(state, phase_rng)
+        agent_mutations, agent_narratives = self._resolve_proxius_agents(state, phase_rng)
         state = self._apply_mutations(state, agent_mutations)
+        result.agent_narratives.extend(agent_narratives)
 
         # ── Pop aggregate recomputation ────────────────
         # Recompute Civilization.dominant_beliefs as the size-weighted average of
@@ -1906,7 +1915,13 @@ class TickLoop:
                     f"Personal convictions: {tags}."
                     + goal_section
                 )
-                # No mutations — purely observational; they do not know you checked.
+                # Marks this Proxius as audited this tick so Phase 2.5 suppresses
+                # a redundant REPORT_TO_DEMIURGE choice.
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.PROXIUS_AUDITED,
+                    target_id=mortal.id,
+                    note=f"Audit of {mortal.name} this tick",
+                ))
 
             elif defn.name == "Read Divine Traces":
                 target_world_id = str(instance.target_id) if instance.target_id else None
@@ -3966,14 +3981,17 @@ class TickLoop:
         self,
         state: SimulationState,
         phase_rng: random.Random,
-    ) -> list[StateMutation]:
+    ) -> tuple[list[StateMutation], list[str]]:
         """
         Phase 2.5 — autonomous Proxius agent actions.
         Each active Proxius with an active_goal chooses and executes one
         action per tick, weighted by dedication (alignment × leeway).
         Generates StateMutations directly; does not go through ActionInstance machinery.
+        Returns (mutations, agent_narratives) where agent_narratives are REPORT_TO_DEMIURGE
+        entries that should be surfaced in the tick log.
         """
         mutations: list[StateMutation] = []
+        agent_narratives: list[str] = []
 
         for mortal in state.mortals.values():
             if mortal.role != MortalRole.PROXIUS:
@@ -4033,9 +4051,10 @@ class TickLoop:
                 continue
 
             # Action weight table
+            already_audited = str(mortal.id) in state.proxii_audited_this_tick
             promote_w    = 0.60
             take_stock_w = 0.10
-            report_w     = 0.10 + (1.0 - goal.latitude) * 0.15
+            report_w     = 0.0 if already_audited else (0.10 + (1.0 - goal.latitude) * 0.15)
             petition_w   = 0.05 if not goal.petition_pending else 0.0
             nothing_w    = max(0.0, 0.15 - dedication * 0.10)
 
@@ -4124,6 +4143,7 @@ class TickLoop:
                     + "."
                 )
                 goal.report_log = (goal.report_log + [entry])[-5:]
+                agent_narratives.append(entry)
 
             elif chosen == AgentActionChoice.PETITION_FOR_RELIEF:
                 goal.petition_pending = True
@@ -4149,7 +4169,7 @@ class TickLoop:
                 goal.consecutive_promote_count = 0
                 goal.effectiveness_bonus = max(0.0, goal.effectiveness_bonus - 0.05)
 
-        return mutations
+        return mutations, agent_narratives
 
     def _resolve_world_id(
         self,
@@ -4423,6 +4443,10 @@ class TickLoop:
                     eid = str(m.new_value.id)
                     if eid not in state.active_events:
                         state.active_events[eid] = m.new_value
+
+            elif m.mutation_type == MutationType.PROXIUS_AUDITED:
+                if tid:
+                    state.proxii_audited_this_tick.add(tid)
 
             elif m.mutation_type == MutationType.PROXIUS_GOAL_SET:
                 if tid in state.mortals and isinstance(m.new_value, ProxiusGoal):

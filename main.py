@@ -242,6 +242,11 @@ def display_tick_result(result: "TickResult") -> str:
         for entry in result.action_result.entries:
             lines.append(f"  [{entry.outcome.value.upper()}] {entry.narrative}")
         lines.append("")
+    if result.agent_narratives:
+        lines.append("PROXIUS REPORTS")
+        for n in result.agent_narratives:
+            lines.append(f"  • {n}")
+        lines.append("")
     if result.essence_claimed_by_domain:
         total = sum(result.essence_claimed_by_domain.values())
         parts = "  ".join(

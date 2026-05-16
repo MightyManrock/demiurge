@@ -620,6 +620,7 @@ class MutationType(str, Enum):
     ENTITY_VISIBILITY      = "entity_visibility"   # locations, civilizations, species
     PROXIUS_GOAL_SET       = "proxius_goal_set"    # new_value = ProxiusGoal instance
     PROXIUS_GOAL_CLEARED   = "proxius_goal_cleared"
+    PROXIUS_AUDITED        = "proxius_audited"      # transient; marks mortal audited this tick
     REVELATION_GAINED      = "revelation_gained"   # field=domain_tag, delta=amount (negative to spend)
     IMAGO_REVEALED         = "imago_revealed"      # new_value=node_id; appends to unlocked_imagines, increments revealed_imagines
     POP_BELIEF_SHIFT       = "pop_belief_shift"    # field=domain_tag, delta on Pop.dominant_beliefs
