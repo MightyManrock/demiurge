@@ -268,11 +268,7 @@ class ProxiusDirectiveIntent(BaseModel):
     The gap between your intent and their execution
     is where interesting things happen.
     """
-    goal_statement: str
-    # Your intent in plain terms — what you want achieved.
-    # e.g. "Ensure the reformist faction survives the purge"
-    #      "Discredit the Church of the Threefold before it unifies the northern clans"
-    #      "Find me a mortal worthy of elevation"
+    goal_statement: str = ""
 
     domain_vectors: list[DomainVector] = Field(default_factory=list)
     # The underlying Domain agenda this serves

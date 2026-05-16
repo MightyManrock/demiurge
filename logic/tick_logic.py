@@ -2756,7 +2756,7 @@ class TickLoop:
                     target_id=proxius.id,
                     field="active_goal",
                     new_value=goal,
-                    note=f"Directive set: '{intent.goal_statement[:60]}'",
+                    note=f"Preach Imāgō: '{intent.imago_node_id or 'no imago'}'",
                 ))
 
                 dedication = proxius.alignment * (1.0 - intent.latitude * 0.3)
@@ -2766,9 +2766,14 @@ class TickLoop:
                     dedication_note = "with some reservation"
                 else:
                     dedication_note = "reluctantly"
+                if intent.imago_node_id:
+                    ireg = get_imago_registry()
+                    node = ireg.get_node(intent.imago_node_id)
+                    imago_label = f" preaching {node.name}" if node else ""
+                else:
+                    imago_label = ""
                 narrative = (
-                    f"Proxius {proxius.name} has been given a directive: "
-                    f"'{intent.goal_statement}'. "
+                    f"Proxius {proxius.name} has been sent to preach{imago_label}. "
                     f"They will pursue it {dedication_note}."
                 )
 

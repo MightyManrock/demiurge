@@ -2282,8 +2282,8 @@ class GameScreen(Screen):
                 oa   = state.ongoing_actions.pop(chosen)
                 defn = library.get(oa.action_key)
                 name = defn.name if defn else oa.action_key
-                # Clear the Proxius's active goal when an issue_directive is stopped
-                if oa.action_key == "issue_directive" and oa.proxius_id:
+                # Clear the Proxius's active goal when a preach_imago is stopped
+                if oa.action_key == "preach_imago" and oa.proxius_id:
                     proxius = state.mortals.get(str(oa.proxius_id))
                     if proxius:
                         proxius.active_goal = None
@@ -2472,8 +2472,8 @@ class GameScreen(Screen):
                 intent=intent,
             )
 
-        # ── issue_directive: full multi-step (proxius → form → domain → civ) ──
-        if action_key == "issue_directive":
+        # ── preach_imago: multi-step (proxius → domain/imago → civ) ──
+        if action_key == "preach_imago":
             already_directed = {
                 str(ai.proxius_id)
                 for ai in state.action_queue
@@ -2481,7 +2481,7 @@ class GameScreen(Screen):
                 and ai.proxius_id is not None
             }
             step = 0
-            pid = None; form_data = None
+            pid = None
             dvs: list = []; imago_id = None
             while True:
                 if step == 0:
@@ -2492,26 +2492,11 @@ class GameScreen(Screen):
                     if result == BACK: return BACK
                     pid = result; step = 1
                 if step == 1:
-                    form = await app.push_screen_wait(
-                        TextFormModal(
-                            "Directive",
-                            [
-                                ("Goal statement", "goal", "Strengthen the reformist faction"),
-                                ("Latitude  0.0 strict → 1.0 open", "lat", "0.5"),
-                            ],
-                            description=defn.description,
-                            show_back=True,
-                        )
-                    )
-                    if form is None: return None
-                    if form == BACK: step = 0; continue
-                    form_data = form; step = 2
-                if step == 2:
                     domain_result = await self._pick_domain_and_imago(state)
                     if domain_result is None: return None
-                    if domain_result == BACK: step = 1; continue
-                    dvs, imago_id = domain_result; step = 3
-                if step == 3:
+                    if domain_result == BACK: step = 0; continue
+                    dvs, imago_id = domain_result; step = 2
+                if step == 2:
                     target_civ_id = None
                     if dvs:
                         proxius_obj = state.mortals.get(pid)
@@ -2533,22 +2518,16 @@ class GameScreen(Screen):
                             chosen_civ = await app.push_screen_wait(
                                 PickerModal("Promote belief in which civilization?", civ_items, show_back=True)
                             )
-                            if chosen_civ == BACK: step = 2; continue
+                            if chosen_civ == BACK: step = 1; continue
                             if chosen_civ is None: return None
                             if chosen_civ != "__discard__":
                                 target_civ_id = UUID(chosen_civ)
                             else:
                                 dvs = []
                     break
-            goal = form_data["goal"].strip() or "Strengthen the reformist faction"
-            try:
-                latitude = max(0.0, min(1.0, float(form_data["lat"])))
-            except ValueError:
-                latitude = 0.5
             intent = ProxiusDirectiveIntent(
-                goal_statement=goal,
                 domain_vectors=dvs,
-                latitude=latitude,
+                latitude=0.5,
                 target_civilization_id=target_civ_id,
                 imago_node_id=imago_id,
             )

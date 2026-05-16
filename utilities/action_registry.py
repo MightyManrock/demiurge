@@ -227,13 +227,13 @@ _ACTION_SEED: list[dict] = [
         "tags": ["proxii", "appointment", "politically_sensitive"],
     },
     {
-        "action_key": "issue_directive",
-        "name": "Issue Directive to Proxius",
+        "action_key": "preach_imago",
+        "name": "Preach Imāgō",
         "category": "proxius_direction",
         "description": (
-            "Communicate intent to a Proxius. They interpret and execute "
-            "according to their alignment and personal tags. "
-            "Issuing to a dormant Proxius reactivates them."
+            "Direct a Proxius to preach an Imāgō framework to a target community. "
+            "They interpret and execute according to their alignment and personal tags. "
+            "Directing a dormant Proxius reactivates them."
         ),
         "valid_targets": ["mortal"],
         "reliability": "uncertain",
