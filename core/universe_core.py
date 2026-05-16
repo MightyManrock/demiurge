@@ -386,12 +386,11 @@ class NotableMortal(BaseModel):
     prominence: float = Field(ge=0.0, le=1.0, default=0.5)
 
     # How clearly the Demiurge currently perceives this mortal.
-    # Decays passively; refreshed by scrying their world or taking direct action.
-    # Ignored when prominence >= ALWAYS_VISIBLE_THRESHOLD.
+    # Decays passively at mortal_visibility_decay_rate × (1 − prominence); refreshed by
+    # scrying their world or taking direct action on them.
     visibility: float = Field(ge=0.0, le=1.0, default=0.0)
-    # Mortals visible at scenario start decay at starting_visible_decay_rate (slow) instead
-    # of mortal_visibility_decay_rate. Distinct from the always-visible prominence threshold.
-    starting_visible: bool = False
+    # True while the Demiurge has this mortal actively in focus (prevents decay).
+    # Starting-scenario mortals are pinned for the first 10 ticks, then released.
     pinned: bool = False
 
     # How faithfully they're currently pursuing their

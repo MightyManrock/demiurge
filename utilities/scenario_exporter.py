@@ -90,8 +90,9 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
         """INSERT INTO scenario_meta
            (name, description, universe_id, universe_name, universe_save_name,
             universe_description, current_age, tick_number, demiurge_id, pantheon_id,
-            luminary_production_accum, domain_essence_claimed, universe_domain_expression)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            luminary_production_accum, domain_essence_claimed, universe_domain_expression,
+            starting_pinned_ids)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -106,6 +107,7 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.luminary_production_this_eval),
             json.dumps(state.domain_essence_claimed),
             json.dumps(state.universe.universe_domain_expression),
+            json.dumps(state.starting_pinned_ids),
         ),
     )
 
@@ -355,9 +357,9 @@ def _write_mortals(conn, state: SimulationState):
                 belief_tags, personal_tags, culture_tags,
                 alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary,
-                home_location, current_location, starting_visible, pinned,
+                home_location, current_location, pinned,
                 active_goal_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -379,7 +381,6 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.appointed_by_luminary) if m.appointed_by_luminary else None,
                 str(m.home_location),
                 str(m.current_location),
-                int(m.starting_visible),
                 int(m.pinned),
                 m.active_goal.model_dump_json() if m.active_goal else None,
             ),
@@ -437,8 +438,8 @@ def _write_tick_config(conn, state: SimulationState):
             alignment_drift_rate, attention_decay_rate, evaluation_interval,
             mortal_visibility_decay_rate, proxius_passive_footprint_rate,
             location_visibility_decay_rate, civ_visibility_decay_rate,
-            species_visibility_decay_rate, starting_visible_decay_rate)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            species_visibility_decay_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cfg.tick_duration,
             cfg.footprint_decay_rate,
@@ -457,7 +458,6 @@ def _write_tick_config(conn, state: SimulationState):
             cfg.location_visibility_decay_rate,
             cfg.civ_visibility_decay_rate,
             cfg.species_visibility_decay_rate,
-            cfg.starting_visible_decay_rate,
         ),
     )
 
@@ -1120,7 +1120,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.80, "relations:diplomacy": 0.80, "practice:sedentism": 0.80},
         alignment=0.75, chrono_age=170.0, bio_age=170.0,
         home_location=neran.id, current_location=neran.id,
-        starting_visible=True,
+        pinned=True,
     )
     neran_confed.notable_mortal_ids.append(senna.id)
 
@@ -1132,7 +1132,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.90, "practice:sedentism": 0.80, "techno:industrialism": 0.70},
         alignment=0.45, chrono_age=205.0, bio_age=205.0,
         home_location=neran.id, current_location=neran.id,
-        starting_visible=True,
+        pinned=True,
     )
     neran_confed.notable_mortal_ids.append(karath.id)
 
@@ -1144,7 +1144,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"religion:luminary_worship": 0.90, "religion:ancestor_worship": 0.80, "practice:sedentism": 0.80},
         alignment=0.85, chrono_age=260.0, bio_age=260.0,
         home_location=neran.id, current_location=neran.id,
-        starting_visible=True,
+        pinned=True,
     )
     neran_confed.notable_mortal_ids.append(veth.id)
 
@@ -1156,7 +1156,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"relations:commerce": 0.85, "practice:sedentism": 0.80, "structure:hierarchy": 0.70},
         alignment=0.35, chrono_age=235.0, bio_age=235.0,
         home_location=neran.id, current_location=neran.id,
-        starting_visible=True,
+        pinned=True,
     )
     neran_confed.notable_mortal_ids.append(durenn.id)
 
@@ -1169,7 +1169,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"practice:nomadism": 0.90, "religion:animism": 0.85, "relations:conquest": 0.80},
         alignment=0.60, chrono_age=145.0, bio_age=145.0,
         home_location=oros.id, current_location=oros.id,
-        starting_visible=True,
+        pinned=True,
     )
     keth_civ.notable_mortal_ids.append(asha.id)
 
@@ -1450,6 +1450,24 @@ def build_scenario_default() -> SimulationState:
 
     essence = EssenceStockpile(actual=1.0, apparent=0.0, concealment_integrity=1.0)
 
+    # Collect all entities pinned at scenario creation; these are unpinned at tick 10.
+    _all_scenario_entities: list = [
+        galaxy, system, system_outer, system_hidden, system_colony,
+        neran, vel_arath, oros, kiddis, pellum, sethis,
+        galaxy_b, system_b1, system_b2, cinder, mireth,
+        galaxy_c, system_c1, ossian, lethis,
+        naran_species, ultir_species, keth_species, damtal_species,
+        surathi_species, veldan_species, vehn_species,
+        neran_confed, keth_civ, damtal_civ, surathi_clans,
+        veldan_assembly, vehn_quietude,
+        senna, karath, veth, durenn, asha, orryn, thessal, maeva,
+        kael, urren, korax,
+        ren_caleth, yssa_tharn, orrath, deva, yakkel, sirak,
+        var_keth, issel, durrak, yellan,
+        councilor_yeth, keeper_orvan, sivel, orveth, valn, taleth, kern,
+    ]
+    starting_pinned_ids = [str(e.id) for e in _all_scenario_entities if e.pinned]
+
     universe = Universe(
         name="Warden's Compact",
         save_name="WC",
@@ -1551,6 +1569,7 @@ def build_scenario_default() -> SimulationState:
         luminary_attention={str(cassiel.id): 0.15, str(vrath.id): 0.30},
         ticks_since_evaluation={str(cassiel.id): 0.0, str(vrath.id): 0.0},
         config=TickConfig(tick_duration=0.5, evaluation_interval=5.0),
+        starting_pinned_ids=starting_pinned_ids,
     )
 
 

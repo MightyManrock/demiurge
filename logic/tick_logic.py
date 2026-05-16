@@ -54,13 +54,11 @@ from core.agent_core import ProxiusGoal, AgentActionChoice
 
 
 # ─────────────────────────────────────────
-# MORTAL VISIBILITY CONSTANTS
+# VISIBILITY CONSTANTS
 # ─────────────────────────────────────────
 
-ALWAYS_VISIBLE_THRESHOLD = 0.65
-
 ENTITY_VISIBILITY_FLOOR = 0.05
-# Below this, non-mortal entities (locations, civilizations, species) are out of the Window.
+# Below this, any entity (location, civilization, species, mortal) is out of the Window.
 
 # ─────────────────────────────────────────
 # PROXIUS POLICY CONSTANTS
@@ -78,8 +76,6 @@ BELIEF_FLOOR = 0.02
 # Belief/domain-expression entries below this strength are
 # silently pruned each passive phase. Keeps dicts clean of
 # ghost residue from many tiny-delta actions.
-# Mortals at or above this prominence are always perceived —
-# no visibility tracking needed.
 
 # Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
 # Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
@@ -94,21 +90,6 @@ _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
     "interstellar":   1.20,
     "intergalactic":  1.60,
 }
-
-VISIBILITY_FLOOR = 0.1
-# Below this value a mortal has slipped from the Demiurge's awareness.
-
-
-def is_mortal_visible(mortal: "NotableMortal") -> bool:
-    """True if the Demiurge can currently perceive this mortal."""
-    return (
-        mortal.status != MortalStatus.DECEASED
-        and (
-            mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD
-            or mortal.visibility > VISIBILITY_FLOOR
-        )
-    )
-
 
 def is_in_window(entity: object) -> bool:
     """True if the Demiurge has this entity (location, civilization, or species) in the Window."""
@@ -237,10 +218,8 @@ class TickConfig(BaseModel):
     alignment_drift_rate: float = 0.01
 
     # Mortal visibility decay
-    # How quickly a non-prominent mortal fades from the Demiurge's awareness.
+    # Base rate; modulated by prominence: effective_decay = rate * (1.0 - prominence).
     mortal_visibility_decay_rate: float = 0.03
-    # Mortals visible at scenario start use this slower rate instead.
-    starting_visible_decay_rate: float = 0.005
 
     # Window visibility decay for non-mortal entities
     location_visibility_decay_rate: float = 0.01
@@ -517,6 +496,10 @@ class SimulationState(BaseModel):
     # Cumulative Demiurge Essence claimed per tracked domain (see Demiurge.tracked_essence_domains).
     # Persisted so the player can see long-run domain income.
     domain_essence_claimed: dict[str, float] = Field(default_factory=dict)
+
+    # Entity IDs (str(UUID)) that were pinned at scenario creation.
+    # At tick 10 Phase 1, all are unpinned and this list is cleared.
+    starting_pinned_ids: list[str] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────
@@ -837,20 +820,34 @@ class TickLoop:
         for mid, mortal in state.mortals.items():
             if mortal.status == MortalStatus.DECEASED:
                 continue
-            if mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD:
+            if mortal.pinned:
                 continue
             if mortal.visibility <= 0.0:
                 continue
-            rate = (cfg.starting_visible_decay_rate if mortal.starting_visible
-                    else cfg.mortal_visibility_decay_rate)
-            new_vis = max(0.0, mortal.visibility - rate)
-            result.mortal_mutations.append(StateMutation(
-                mutation_type=MutationType.MORTAL_VISIBILITY,
-                target_id=UUID(mid),
-                field="visibility",
-                delta=-(mortal.visibility - new_vis),
-                note=f"{mortal.name} visibility decay",
-            ))
+            effective_rate = cfg.mortal_visibility_decay_rate * (1.0 - mortal.prominence)
+            new_vis = max(0.0, mortal.visibility - effective_rate)
+            if mortal.visibility - new_vis > 0.0001:
+                result.mortal_mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_VISIBILITY,
+                    target_id=UUID(mid),
+                    field="visibility",
+                    delta=-(mortal.visibility - new_vis),
+                    note=f"{mortal.name} visibility decay",
+                ))
+
+        # ── Starting-pin expiry ────────────────────────
+        # tick_number is pre-increment here; 9 means "this is the 10th tick processing".
+        if state.tick_number == 9 and state.starting_pinned_ids:
+            for eid in state.starting_pinned_ids:
+                entity = (
+                    state.mortals.get(eid)
+                    or state.locations.get(eid)
+                    or state.civilizations.get(eid)
+                    or state.species.get(eid)
+                )
+                if entity is not None:
+                    entity.pinned = False
+            state.starting_pinned_ids.clear()
 
         # ── Location visibility decay ──────────────────
         for lid, loc in state.locations.items():
@@ -1308,7 +1305,7 @@ class TickLoop:
         # ── Visibility refresh for mortal-targeted actions ─
         if instance.target_type == TargetType.MORTAL and instance.target_id:
             mortal = state.mortals.get(str(instance.target_id))
-            if mortal and mortal.prominence < ALWAYS_VISIBLE_THRESHOLD:
+            if mortal and not mortal.pinned:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.MORTAL_VISIBILITY,
                     target_id=instance.target_id,
@@ -2127,8 +2124,7 @@ class TickLoop:
 
             # ── Mortals
             for mid, mortal in state.mortals.items():
-                if (mortal.status == MortalStatus.DECEASED
-                        or mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD):
+                if mortal.status == MortalStatus.DECEASED or mortal.pinned:
                     continue
                 if str(mortal.current_location) not in eligible_locs:
                     continue
@@ -2139,7 +2135,7 @@ class TickLoop:
                     (base + _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags, base)) * sf
                 ))
                 if rng.random() < p:
-                    was_visible = mortal.visibility > VISIBILITY_FLOOR
+                    was_visible = mortal.visibility > ENTITY_VISIBILITY_FLOOR
                     new_vis = max(mortal.visibility, start_vis)
                     mutations.append(StateMutation(
                         mutation_type=MutationType.MORTAL_VISIBILITY,

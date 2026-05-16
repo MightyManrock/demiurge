@@ -37,7 +37,7 @@ from core.action_core import (
 from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation
 from logic.tick_logic import (
     SimulationState, TickLoop, TickResult,
-    is_mortal_visible, is_in_window, ALWAYS_VISIBLE_THRESHOLD, ENTITY_VISIBILITY_FLOOR,
+    is_in_window, ENTITY_VISIBILITY_FLOOR,
     _compute_revelation_cap, _revelation_adjusted_cost,
 )
 from core.action_core import ScryScope, ScryIntent
@@ -100,9 +100,8 @@ def _prominence_label(mortal) -> str:
         role_part = "no notable role"
     else:
         role_part = " · ".join(r.value.title() for r in mortal.prominence_roles)
-    always = mortal.prominence >= ALWAYS_VISIBLE_THRESHOLD
-    tier = "always visible" if always else f"prominence:{mortal.prominence:.2f}"
-    return f"{role_part}  [{tier}]"
+    pin_str = " [pinned]" if mortal.pinned else ""
+    return f"{role_part}  [prominence:{mortal.prominence:.2f}{pin_str}]"
 
 
 def _name_for_id(uid: "UUID", state: "SimulationState") -> str:
@@ -185,17 +184,14 @@ def display_state(state: "SimulationState") -> str:
     lines.append(SEP)
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
-        if not is_mortal_visible(mortal):
+        if mortal.status == MortalStatus.DECEASED or (not mortal.pinned and mortal.visibility <= ENTITY_VISIBILITY_FLOOR):
             continue
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
         age_str  = f"age:{mortal.chrono_age:.0f}"
         if mortal.bio_age != mortal.chrono_age:
             age_str += f"(bio:{mortal.bio_age:.0f})"
         prom_str = _prominence_label(mortal)
-        vis_note = (
-            f"  vis:{mortal.visibility:.2f}"
-            if mortal.prominence < ALWAYS_VISIBLE_THRESHOLD or mortal.pinned == False else ""
-        )
+        vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
         lines.append(
             f"  {mortal.name:16s} [{role_str}]  align:{mortal.alignment:.2f}  "
             f"{age_str}{vis_note}  {prom_str}"
@@ -388,7 +384,7 @@ def display_briefing(state: "SimulationState") -> str:
         lines.append(SEP)
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
-        if not is_mortal_visible(mortal):
+        if mortal.status == MortalStatus.DECEASED or (not mortal.pinned and mortal.visibility <= ENTITY_VISIBILITY_FLOOR):
             continue
         w_obj    = state.locations.get(str(mortal.current_location))
         c_obj    = state.civilizations.get(str(mortal.civilization_id)) if mortal.civilization_id else None
@@ -402,10 +398,7 @@ def display_briefing(state: "SimulationState") -> str:
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_note  = f"  [{sp_obj.name}]" if sp_obj else ""
         prom_str = _prominence_label(mortal)
-        vis_note = (
-            f"  vis:{mortal.visibility:.2f}"
-            if mortal.prominence < ALWAYS_VISIBLE_THRESHOLD else ""
-        )
+        vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
         lines.append(
             f"  {mortal.name:16s} [{role_str:7s}]  align:{mortal.alignment:.2f}  "
             f"{age_str}{sp_note}{vis_note}   {loc}"
@@ -2614,7 +2607,7 @@ class GameScreen(Screen):
             _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
             mortals = [
                 (mid, m) for mid, m in state.mortals.items()
-                if is_mortal_visible(m)
+                if (m.status != MortalStatus.DECEASED and (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR))
                 and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
                 and mid not in _proxius_ids
             ]

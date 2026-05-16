@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     pantheon_id         TEXT NOT NULL,
     luminary_production_accum TEXT NOT NULL DEFAULT '{}',  -- JSON {luminary_id: float} weighted-production accumulator
     domain_essence_claimed  TEXT NOT NULL DEFAULT '{}',  -- JSON {domain_tag: float} cumulative Demiurge claim
-    universe_domain_expression TEXT NOT NULL DEFAULT '{}'  -- JSON {domain_tag: float} per-domain baseline (0.1 default if absent)
+    universe_domain_expression TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} per-domain baseline (0.1 default if absent)
+    starting_pinned_ids        TEXT NOT NULL DEFAULT '[]'  -- JSON [str(UUID), ...] entities pinned at scenario start; unpinned at tick 10
 );
 
 -- ─────────────────────────────────────────
@@ -181,7 +182,6 @@ CREATE TABLE IF NOT EXISTS mortals (
     appointed_by_luminary  TEXT,
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
     current_location       TEXT NOT NULL,  -- UUID of current SignificantLocation (changes on movement)
-    starting_visible       INTEGER NOT NULL DEFAULT 0,  -- bool; decays at slow rate instead of normal
     pinned                 INTEGER NOT NULL DEFAULT 0,  -- bool; mortal stays at max visibility
     active_goal_json       TEXT DEFAULT NULL            -- JSON of ProxiusGoal, or NULL
 );
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS tick_config (
     location_visibility_decay_rate          REAL NOT NULL DEFAULT 0.01,
     civ_visibility_decay_rate               REAL NOT NULL DEFAULT 0.01,
     species_visibility_decay_rate           REAL NOT NULL DEFAULT 0.01,
-    starting_visible_decay_rate             REAL NOT NULL DEFAULT 0.005
+    starting_visible_decay_rate             REAL NOT NULL DEFAULT 0.005  -- kept for backward compat with old saves; no longer read
 );
 
 -- Per-civilization natural momentum at scenario start.

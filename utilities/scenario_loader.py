@@ -150,6 +150,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     active_events = _load_active_events(conn)
     luminary_production_accum = _jd_str(meta.get("luminary_production_accum", "{}"))
     domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
+    starting_pinned_ids = _j(meta.get("starting_pinned_ids", "[]"))
 
     # Universe ID: stored in scenario_meta if present, else generate one.
     universe_id_str = meta.get("universe_id", "")
@@ -193,6 +194,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         luminary_production_this_eval=luminary_production_accum,
         domain_essence_claimed=domain_essence_claimed,
         tick_number=meta.get("tick_number", 0),
+        starting_pinned_ids=starting_pinned_ids,
     )
 
     # If the scenario DB didn't specify starting affiliated domains, derive them:
@@ -474,7 +476,6 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
             home_location=UUID(row["home_location"]),
             current_location=UUID(row["current_location"]),
-            starting_visible=bool(row.get("starting_visible", 0)),
             pinned=bool(row.get("pinned", 0)),
             active_goal=_load_proxius_goal(row.get("active_goal_json")),
         )
@@ -559,7 +560,6 @@ def _load_tick_config(conn) -> TickConfig:
         location_visibility_decay_rate=row.get("location_visibility_decay_rate", 0.01),
         civ_visibility_decay_rate=row.get("civ_visibility_decay_rate", 0.01),
         species_visibility_decay_rate=row.get("species_visibility_decay_rate", 0.01),
-        starting_visible_decay_rate=row.get("starting_visible_decay_rate", 0.005),
     )
 
 
