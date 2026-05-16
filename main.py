@@ -2584,6 +2584,7 @@ class GameScreen(Screen):
                     if target_id is None: return None
                     if target_id == BACK: continue
                 else:
+                    target_id = None
                     target_type = TargetType.UNIVERSE
                 break
             return ActionInstance(
