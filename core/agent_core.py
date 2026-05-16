@@ -23,6 +23,7 @@ class ProxiusGoal(BaseModel):
     Cleared when the directive is revoked.
     """
     imago_node_id: str
+    label: str = ""          # human-readable summary, e.g. "Preaching Wheel of Change in Oros"
     target_location_id: UUID
     target_civilization_id: Optional[UUID] = None  # None = all civs at location
     domain_vectors: list[DomainVector] = Field(default_factory=list)

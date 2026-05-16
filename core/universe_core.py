@@ -414,7 +414,13 @@ class NotableMortal(BaseModel):
     # Cultural traits inherited from their civilization, e.g. {"culture:hierarchy": 0.8}
 
     species_id: Optional[UUID] = None
-    pop_id: Optional[UUID] = None   # Pop this mortal belongs to; None until Pop system is active
+    pop_id: Optional[UUID] = None   # Pop this mortal belongs to; cleared when they age out
+
+    # Tick at which the mortal was first elevated to each divine-appointment role.
+    # Set once at appointment; never reset on dormancy/reactivation.
+    # Used to compute wall-clock tenure and determine when they age out of pop_id.
+    proxius_appointed_tick: Optional[int] = None
+    herald_appointed_tick:  Optional[int] = None
 
     # Discrete social roles — explains in the UI why this mortal is notable.
     # An empty list (or [NONE]) means the mortal has no recognised public role.

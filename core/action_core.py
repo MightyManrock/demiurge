@@ -626,6 +626,7 @@ class MutationType(str, Enum):
     POP_VISIBILITY         = "pop_visibility"      # delta/new_value on Pop.visibility; clamp 0–1
     CIV_ESTABLISHED_SHIFT  = "civ_established_shift"  # field=domain_tag, delta on Civilization.established_beliefs
     POP_SPLINTER           = "pop_splinter"        # new_value=Pop object (splinter); target_id=parent Pop UUID
+    MORTAL_POP_AGED_OUT    = "mortal_pop_aged_out" # target_id=mortal UUID; clears pop_id
 
 
 class StateMutation(BaseModel):

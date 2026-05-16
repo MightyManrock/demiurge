@@ -518,6 +518,9 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             current_location=UUID(row["current_location"]),
             pinned=bool(row.get("pinned", 0)),
             active_goal=_load_proxius_goal(row.get("active_goal_json")),
+            pop_id=_uuid(row.get("pop_id")),
+            proxius_appointed_tick=row.get("proxius_appointed_tick"),
+            herald_appointed_tick=row.get("herald_appointed_tick"),
         )
         out[str(m.id)] = m
     return out

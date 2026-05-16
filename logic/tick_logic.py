@@ -124,6 +124,18 @@ def is_in_window(entity: object) -> bool:
 is_mortal_visible = is_in_window  # backward-compat alias
 
 
+def _first_appointed_tick(mortal: object) -> "Optional[int]":
+    """Return the earliest tick at which a mortal was elevated to any divine-appointment role."""
+    ticks = [
+        t for t in (
+            getattr(mortal, "proxius_appointed_tick", None),
+            getattr(mortal, "herald_appointed_tick", None),
+        )
+        if t is not None
+    ]
+    return min(ticks) if ticks else None
+
+
 # ─────────────────────────────────────────
 # REVELATION CONSTANTS
 # ─────────────────────────────────────────
@@ -917,6 +929,29 @@ class TickLoop:
                         result.pending_death_narratives.append(
                             f"{mortal.name} has died of natural causes at age {new_bio_age:.0f}."
                         )
+
+        # ── Pop affiliation age-out for divine appointments ───
+        # An appointed mortal loses their Pop bond once their wall-clock tenure
+        # (ticks × tick_duration, converted to UTUs) exceeds their species' lifespan_min.
+        # They've outlived their cohort and no longer have common ground with them.
+        for mid, mortal in state.mortals.items():
+            if mortal.status == MortalStatus.DECEASED or mortal.pop_id is None:
+                continue
+            first_tick = _first_appointed_tick(mortal)
+            if first_tick is None:
+                continue
+            tenure_utu = (state.tick_number - first_tick) * cfg.tick_duration
+            sp = state.species.get(str(mortal.species_id)) if mortal.species_id else None
+            if sp and tenure_utu >= sp.lifespan_min:
+                result.entity_mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_POP_AGED_OUT,
+                    target_id=UUID(mid),
+                    note=f"{mortal.name} has aged beyond their origin community",
+                ))
+                result.narrative_events.append(
+                    f"{mortal.name} has lived so long beyond their origin community "
+                    f"that the bond no longer holds — they stand apart from the people they were born among."
+                )
 
         # ── Mortal visibility decay ────────────────────
         for mid, mortal in state.mortals.items():
@@ -1849,8 +1884,9 @@ class TickLoop:
                     g = mortal.active_goal
                     ticks_active = state.tick_number - g.started_at_tick
                     last_act = g.last_action.value.replace("_", " ") if g.last_action else "none yet"
+                    directive_desc = g.label if g.label else f"imago [{g.imago_node_id}]"
                     goal_section = (
-                        f" Active directive: imago [{g.imago_node_id}], "
+                        f" Active directive: {directive_desc}, "
                         f"{ticks_active} tick(s) active, "
                         f"last action: {last_act}"
                         + (f", streak: {g.consecutive_promote_count}" if g.consecutive_promote_count > 0 else "")
@@ -2742,8 +2778,15 @@ class TickLoop:
             else:
                 # Set goal on the Proxius — they will act autonomously each tick
                 imago_id = intent.imago_node_id or ""
+                # Build a human-readable label for audit/report narratives
+                _ireg = get_imago_registry()
+                _node = _ireg.get_node(imago_id) if imago_id else None
+                _imago_name = _node.name if _node else (imago_id.split(":")[-1].title() if imago_id else "directive")
+                _loc = state.locations.get(str(proxius.current_location))
+                _loc_name = _loc.name if _loc else "unknown location"
                 goal = ProxiusGoal(
                     imago_node_id=imago_id,
+                    label=f"Preaching {_imago_name} in {_loc_name}",
                     target_location_id=proxius.current_location,
                     target_civilization_id=intent.target_civilization_id,
                     domain_vectors=list(intent.domain_vectors),
@@ -4181,6 +4224,8 @@ class TickLoop:
                     mortal.role = MortalRole.PROXIUS
                     mortal.visibility = 1.0
                     mortal.pinned = True
+                    if mortal.proxius_appointed_tick is None:
+                        mortal.proxius_appointed_tick = state.tick_number
                     if mortal.id not in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.append(mortal.id)
                     loc_id_str = str(mortal.current_location)
@@ -4201,6 +4246,10 @@ class TickLoop:
                     if loc and isinstance(loc, SignificantLocation):
                         if mortal.id in loc.proxius_ids:
                             loc.proxius_ids.remove(mortal.id)
+
+            elif m.mutation_type == MutationType.MORTAL_POP_AGED_OUT:
+                if tid in state.mortals:
+                    state.mortals[tid].pop_id = None
 
             elif m.mutation_type == MutationType.MORTAL_STATUS:
                 if tid in state.mortals and m.new_value:

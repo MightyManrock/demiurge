@@ -203,7 +203,10 @@ CREATE TABLE IF NOT EXISTS mortals (
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
     current_location       TEXT NOT NULL,  -- UUID of current SignificantLocation (changes on movement)
     pinned                 INTEGER NOT NULL DEFAULT 0,  -- bool; mortal stays at max visibility
-    active_goal_json       TEXT DEFAULT NULL            -- JSON of ProxiusGoal, or NULL
+    active_goal_json       TEXT DEFAULT NULL,           -- JSON of ProxiusGoal, or NULL
+    pop_id                 TEXT DEFAULT NULL,           -- UUID of origin Pop; cleared on age-out
+    proxius_appointed_tick INTEGER DEFAULT NULL,        -- tick of first Proxius elevation (wall-clock)
+    herald_appointed_tick  INTEGER DEFAULT NULL         -- tick of first Herald elevation (wall-clock)
 );
 
 -- ─────────────────────────────────────────
