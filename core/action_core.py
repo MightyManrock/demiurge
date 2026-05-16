@@ -629,6 +629,7 @@ class MutationType(str, Enum):
     POP_BELIEF_SHIFT       = "pop_belief_shift"    # field=domain_tag, delta on Pop.dominant_beliefs
     POP_VISIBILITY         = "pop_visibility"      # delta/new_value on Pop.visibility; clamp 0–1
     CIV_ESTABLISHED_SHIFT  = "civ_established_shift"  # field=domain_tag, delta on Civilization.established_beliefs
+    POP_SPLINTER           = "pop_splinter"        # new_value=Pop object (splinter); target_id=parent Pop UUID
 
 
 class StateMutation(BaseModel):

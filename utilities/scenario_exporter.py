@@ -1181,85 +1181,178 @@ def build_scenario_default() -> SimulationState:
 
     pop_loc_neran.pop_ids  # populated below
 
-    # Starting Pops — one per civilization, beliefs match civ dominant_beliefs.
-    # Size set to match civilization scale. established_beliefs seeded equal to dominant_beliefs.
-    pop_neran_confed = Pop(
+    # Starting Pops — 2–3 per civilization with class and belief diversity.
+    # established_beliefs seeded from the civ's canonical dominant_beliefs (institutional baseline).
+    # Pop aggregates differ slightly, creating immediate push/pull tension.
+    # Total size_fractional per civ approximates the original single-Pop value.
+
+    # ── Neran Confederacy (INTERSTELLAR): elite technocrats, civilian majority, reform artisans ──
+    pop_neran_elite = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.ELITE,
+        current_location=pop_loc_neran.id,
+        size_fractional=2.0,
+        dominant_beliefs={"domain:order": 0.90, "domain:mastery": 0.65, "domain:truth": 0.30},
+        culture_tags={"structure:hierarchy": 0.95, "relations:diplomacy": 0.80,
+                      "techno:science": 0.75, "techno:industrialism": 0.70},
+        visibility=1.0, pinned=True,
+    )
+    pop_neran_common = Pop(
         civilization_id=neran_confed.id, species_id=naran_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_neran.id,
-        size_fractional=9.0,  # INTERSTELLAR: ~1 billion
-        dominant_beliefs=dict(neran_confed.dominant_beliefs),
-        culture_tags=dict(neran_confed.culture_tags),
+        size_fractional=6.0,
+        dominant_beliefs={"domain:order": 0.75, "domain:mastery": 0.40},
+        culture_tags={"practice:sedentism": 0.90, "structure:hierarchy": 0.80,
+                      "techno:industrialism": 0.80, "relations:commerce": 0.75,
+                      "religion:luminary_worship": 0.60, "religion:ancestor_worship": 0.50},
         visibility=1.0, pinned=True,
     )
-    neran_confed.pop_ids.append(pop_neran_confed.id)
+    pop_neran_artisan = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.ARTISAN,
+        current_location=pop_loc_neran.id,
+        size_fractional=1.0,
+        dominant_beliefs={"domain:mastery": 0.70, "domain:change": 0.35, "domain:order": 0.50},
+        culture_tags={"techno:science": 0.85, "techno:industrialism": 0.90,
+                      "relations:commerce": 0.70, "practice:sedentism": 0.80},
+        visibility=0.0, pinned=False,
+    )
+    for p in (pop_neran_elite, pop_neran_common, pop_neran_artisan):
+        neran_confed.pop_ids.append(p.id)
+        pop_loc_neran.pop_ids.append(p.id)
     neran_confed.established_beliefs = dict(neran_confed.dominant_beliefs)
-    pop_loc_neran.pop_ids.append(pop_neran_confed.id)
 
-    pop_keth = Pop(
+    # ── Keth Wanderers (TRIBAL): warriors dominate, memory-keepers preserve ──
+    pop_keth_warrior = Pop(
+        civilization_id=keth_civ.id, species_id=keth_species.id,
+        social_class=SocialClass.WARRIOR,
+        current_location=pop_loc_oros.id,
+        size_fractional=2.0,
+        dominant_beliefs={"domain:conflict": 0.85, "domain:change": 0.30},
+        culture_tags={"practice:nomadism": 0.95, "relations:conquest": 0.80,
+                      "structure:egalitarianism": 0.50},
+        visibility=1.0, pinned=True,
+    )
+    pop_keth_common = Pop(
         civilization_id=keth_civ.id, species_id=keth_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_oros.id,
-        size_fractional=5.0,  # TRIBAL: ~100K
-        dominant_beliefs=dict(keth_civ.dominant_beliefs),
-        culture_tags=dict(keth_civ.culture_tags),
-        visibility=1.0, pinned=True,
+        size_fractional=3.0,
+        dominant_beliefs={"domain:conflict": 0.55, "domain:memory": 0.65},
+        culture_tags={"practice:nomadism": 0.95, "religion:ancestor_worship": 0.85,
+                      "religion:animism": 0.80, "practice:foraging": 0.70,
+                      "structure:egalitarianism": 0.55},
+        visibility=0.0, pinned=False,
     )
-    keth_civ.pop_ids.append(pop_keth.id)
+    for p in (pop_keth_warrior, pop_keth_common):
+        keth_civ.pop_ids.append(p.id)
+        pop_loc_oros.pop_ids.append(p.id)
     keth_civ.established_beliefs = dict(keth_civ.dominant_beliefs)
-    pop_loc_oros.pop_ids.append(pop_keth.id)
 
-    pop_damtal = Pop(
+    # ── Kingdoms of the Damtal (CONTINENTAL): rival nobles vs. agrarian commons ──
+    pop_damtal_elite = Pop(
+        civilization_id=damtal_civ.id, species_id=damtal_species.id,
+        social_class=SocialClass.ELITE,
+        current_location=pop_loc_kiddis.id,
+        size_fractional=2.0,
+        dominant_beliefs={"domain:mastery": 0.60, "domain:growth": 0.30, "domain:conflict": 0.30},
+        culture_tags={"structure:hierarchy": 0.90, "relations:conquest": 0.70,
+                      "practice:sedentism": 0.60},
+        visibility=0.0, pinned=False,
+    )
+    pop_damtal_common = Pop(
         civilization_id=damtal_civ.id, species_id=damtal_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_kiddis.id,
-        size_fractional=7.0,  # CONTINENTAL: ~10M
-        dominant_beliefs=dict(damtal_civ.dominant_beliefs),
-        culture_tags=dict(damtal_civ.culture_tags),
+        size_fractional=5.0,
+        dominant_beliefs={"domain:growth": 0.55, "domain:community": 0.45},
+        culture_tags={"practice:agriculture": 0.80, "practice:sedentism": 0.75,
+                      "religion:animism": 0.70, "religion:ancestor_worship": 0.50},
         visibility=0.0, pinned=False,
     )
-    damtal_civ.pop_ids.append(pop_damtal.id)
+    for p in (pop_damtal_elite, pop_damtal_common):
+        damtal_civ.pop_ids.append(p.id)
+        pop_loc_kiddis.pop_ids.append(p.id)
     damtal_civ.established_beliefs = dict(damtal_civ.dominant_beliefs)
-    pop_loc_kiddis.pop_ids.append(pop_damtal.id)
 
-    pop_surathi = Pop(
+    # ── Surathi Clans (TRIBAL): spirit-speaker elders vs. restless hunter commons ──
+    pop_surathi_priest = Pop(
+        civilization_id=surathi_clans.id, species_id=surathi_species.id,
+        social_class=SocialClass.PRIEST,
+        current_location=pop_loc_sethis.id,
+        size_fractional=1.5,
+        dominant_beliefs={"domain:community": 0.70, "domain:memory": 0.40, "domain:growth": 0.20},
+        culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.70,
+                      "structure:egalitarianism": 0.60},
+        visibility=0.0, pinned=False,
+    )
+    pop_surathi_common = Pop(
         civilization_id=surathi_clans.id, species_id=surathi_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_sethis.id,
-        size_fractional=5.0,  # TRIBAL: ~100K
-        dominant_beliefs=dict(surathi_clans.dominant_beliefs),
-        culture_tags=dict(surathi_clans.culture_tags),
+        size_fractional=3.5,
+        dominant_beliefs={"domain:community": 0.60, "domain:change": 0.40},
+        culture_tags={"practice:nomadism": 0.90, "practice:foraging": 0.65,
+                      "structure:egalitarianism": 0.75, "relations:commerce": 0.40},
         visibility=0.0, pinned=False,
     )
-    surathi_clans.pop_ids.append(pop_surathi.id)
+    for p in (pop_surathi_priest, pop_surathi_common):
+        surathi_clans.pop_ids.append(p.id)
+        pop_loc_sethis.pop_ids.append(p.id)
     surathi_clans.established_beliefs = dict(surathi_clans.dominant_beliefs)
-    pop_loc_sethis.pop_ids.append(pop_surathi.id)
 
-    pop_veldan = Pop(
+    # ── Veldan Assembly (CITY_STATE): memory-keeper council vs. practical craftspeople ──
+    pop_veldan_council = Pop(
+        civilization_id=veldan_assembly.id, species_id=veldan_species.id,
+        social_class=SocialClass.PRIEST,
+        current_location=pop_loc_mireth.id,
+        size_fractional=2.0,
+        dominant_beliefs={"domain:memory": 0.80, "domain:truth": 0.50, "domain:mastery": 0.25},
+        culture_tags={"religion:ancestor_worship": 0.90, "techno:science": 0.75,
+                      "structure:hierarchy": 0.70, "practice:sedentism": 0.95},
+        visibility=0.0, pinned=False,
+    )
+    pop_veldan_common = Pop(
         civilization_id=veldan_assembly.id, species_id=veldan_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_mireth.id,
-        size_fractional=6.0,  # CITY_STATE: ~1M
-        dominant_beliefs=dict(veldan_assembly.dominant_beliefs),
-        culture_tags=dict(veldan_assembly.culture_tags),
+        size_fractional=4.0,
+        dominant_beliefs={"domain:memory": 0.50, "domain:mastery": 0.45},
+        culture_tags={"practice:sedentism": 0.95, "techno:science": 0.65,
+                      "relations:diplomacy": 0.50, "religion:ancestor_worship": 0.70},
         visibility=0.0, pinned=False,
     )
-    veldan_assembly.pop_ids.append(pop_veldan.id)
+    for p in (pop_veldan_council, pop_veldan_common):
+        veldan_assembly.pop_ids.append(p.id)
+        pop_loc_mireth.pop_ids.append(p.id)
     veldan_assembly.established_beliefs = dict(veldan_assembly.dominant_beliefs)
-    pop_loc_mireth.pop_ids.append(pop_veldan.id)
 
-    pop_vehn = Pop(
+    # ── Vehn Quietude (INTERPLANETARY): doctrine-enforcers vs. practical workers ──
+    pop_vehn_council = Pop(
+        civilization_id=vehn_quietude.id, species_id=vehn_species.id,
+        social_class=SocialClass.ELITE,
+        current_location=pop_loc_ossian.id,
+        size_fractional=2.5,
+        dominant_beliefs={"domain:silence": 0.85, "domain:secrecy": 0.70, "domain:truth": 0.35},
+        culture_tags={"structure:hierarchy": 0.80, "practice:sedentism": 0.95,
+                      "techno:science": 0.70, "religion:ancestor_worship": 0.75},
+        visibility=0.0, pinned=False,
+    )
+    pop_vehn_common = Pop(
         civilization_id=vehn_quietude.id, species_id=vehn_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_ossian.id,
-        size_fractional=8.0,  # INTERPLANETARY: ~100M
-        dominant_beliefs=dict(vehn_quietude.dominant_beliefs),
-        culture_tags=dict(vehn_quietude.culture_tags),
+        size_fractional=5.5,
+        dominant_beliefs={"domain:silence": 0.60, "domain:secrecy": 0.45, "domain:mastery": 0.50},
+        culture_tags={"practice:sedentism": 0.95, "techno:science": 0.75,
+                      "structure:hierarchy": 0.65, "religion:ancestor_worship": 0.80},
         visibility=0.0, pinned=False,
     )
-    vehn_quietude.pop_ids.append(pop_vehn.id)
+    for p in (pop_vehn_council, pop_vehn_common):
+        vehn_quietude.pop_ids.append(p.id)
+        pop_loc_ossian.pop_ids.append(p.id)
     vehn_quietude.established_beliefs = dict(vehn_quietude.dominant_beliefs)
-    pop_loc_ossian.pop_ids.append(pop_vehn.id)
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(
@@ -1608,6 +1701,12 @@ def build_scenario_default() -> SimulationState:
         galaxy_c, system_c1, ossian, lethis,
         pop_loc_neran, pop_loc_oros, pop_loc_kiddis,
         pop_loc_sethis, pop_loc_mireth, pop_loc_ossian,
+        pop_neran_elite, pop_neran_common, pop_neran_artisan,
+        pop_keth_warrior, pop_keth_common,
+        pop_damtal_elite, pop_damtal_common,
+        pop_surathi_priest, pop_surathi_common,
+        pop_veldan_council, pop_veldan_common,
+        pop_vehn_council, pop_vehn_common,
         naran_species, ultir_species, keth_species, damtal_species,
         surathi_species, veldan_species, vehn_species,
         neran_confed, keth_civ, damtal_civ, surathi_clans,
@@ -1690,12 +1789,19 @@ def build_scenario_default() -> SimulationState:
             str(kern.id):           kern,
         },
         pops={
-            str(pop_neran_confed.id): pop_neran_confed,
-            str(pop_keth.id):         pop_keth,
-            str(pop_damtal.id):       pop_damtal,
-            str(pop_surathi.id):      pop_surathi,
-            str(pop_veldan.id):       pop_veldan,
-            str(pop_vehn.id):         pop_vehn,
+            str(pop_neran_elite.id):   pop_neran_elite,
+            str(pop_neran_common.id):  pop_neran_common,
+            str(pop_neran_artisan.id): pop_neran_artisan,
+            str(pop_keth_warrior.id):  pop_keth_warrior,
+            str(pop_keth_common.id):   pop_keth_common,
+            str(pop_damtal_elite.id):  pop_damtal_elite,
+            str(pop_damtal_common.id): pop_damtal_common,
+            str(pop_surathi_priest.id): pop_surathi_priest,
+            str(pop_surathi_common.id): pop_surathi_common,
+            str(pop_veldan_council.id): pop_veldan_council,
+            str(pop_veldan_common.id):  pop_veldan_common,
+            str(pop_vehn_council.id):   pop_vehn_council,
+            str(pop_vehn_common.id):    pop_vehn_common,
         },
         species={
             str(naran_species.id):   naran_species,

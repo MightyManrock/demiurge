@@ -78,6 +78,29 @@ BELIEF_FLOOR = 0.02
 # silently pruned each passive phase. Keeps dicts clean of
 # ghost residue from many tiny-delta actions.
 
+# ─────────────────────────────────────────
+# POP SPLINTER CONSTANTS
+# ─────────────────────────────────────────
+
+SPLINTER_DIVERGENCE_THRESHOLD = 0.35
+# Cosine distance (1 − similarity) at which a Pop's beliefs are divergent
+# enough from civ.established_beliefs to trigger a population split.
+
+SPLINTER_MIN_SIZE = 4.0
+# Pop must be at least this large (size_fractional) to split.
+# Prevents micro-Pops from fragmenting further.
+
+SPLINTER_FRACTION = 0.35
+# Fraction of the parent Pop's size that breaks away into the splinter.
+
+WHISPER_POP_SPLASH = 0.15
+# Fraction of a whisper's belief delta that ripples to the target mortal's
+# Pop(s) on the same world.
+
+OMEN_POP_SPLASH = 0.20
+# Fraction of an omen/development nudge's domain delta distributed across all
+# Pops on the target world, weighted inversely by size (smaller = more impact).
+
 # Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
 # Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
 _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
@@ -1105,6 +1128,62 @@ class TickLoop:
                     note="Luminary attention decay",
                 ))
 
+        # ── Pop splinter check ─────────────────────────
+        # A Pop splits when its beliefs diverge too far from civ.established_beliefs.
+        # Runs after conformity pressure so we react to this tick's final belief state.
+        for pid, pop in list(state.pops.items()):
+            if pop.size_fractional < SPLINTER_MIN_SIZE:
+                continue
+            if pop.child_pop_ids:
+                continue  # already has children; prevent cascade in one tick
+            if not pop.civilization_id:
+                continue
+            civ = state.civilizations.get(str(pop.civilization_id))
+            if civ is None or not civ.established_beliefs:
+                continue
+            divergence = 1.0 - self._cosine_similarity(pop.dominant_beliefs, civ.established_beliefs)
+            if divergence < SPLINTER_DIVERGENCE_THRESHOLD:
+                continue
+
+            # Identify the primary divergent domain for the narrative log
+            top_div_tag = max(
+                (t for t in pop.dominant_beliefs),
+                key=lambda t: abs(
+                    pop.dominant_beliefs.get(t, 0.0)
+                    - civ.established_beliefs.get(t, 0.0)
+                ),
+                default=None,
+            )
+            short_tag = top_div_tag.split(":", 1)[-1] if top_div_tag else "unknown"
+            class_label = pop.stratum.title() if pop.stratum else "Pop"
+
+            splinter = Pop(
+                id=uuid4(),
+                civilization_id=pop.civilization_id,
+                species_id=pop.species_id,
+                social_class=pop.social_class,
+                wild_stratum=pop.wild_stratum,
+                current_location=pop.current_location,
+                size_fractional=pop.size_fractional * SPLINTER_FRACTION,
+                dominant_beliefs=dict(pop.dominant_beliefs),
+                culture_tags=dict(pop.culture_tags),
+                rider_traits=dict(pop.rider_traits),
+                parent_pop_id=pop.id,
+                visibility=max(0.0, pop.visibility * 0.5),
+                pinned=False,
+            )
+            note = (
+                f"[Pop splinter] A faction within {civ.name}'s {class_label} class "
+                f"broke away over {short_tag} (divergence {divergence:.2f})."
+            )
+            result.entity_mutations.append(StateMutation(
+                mutation_type=MutationType.POP_SPLINTER,
+                target_id=pop.id,
+                new_value=splinter,
+                note=note,
+            ))
+            result.narrative_events.append(note)
+
         return result
 
     @staticmethod
@@ -1166,31 +1245,37 @@ class TickLoop:
                 if amount > 0.0:
                     universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
-        # Pop contributions: belief strength * scope bonus
+        # Pre-compute per-civ total Pop size so splitting a civ into multiple Pops
+        # doesn't inflate its total essence output (contributions are size-weighted).
+        civ_total_size: dict[str, float] = {}
+        for pop in state.pops.values():
+            if pop.civilization_id:
+                cid = str(pop.civilization_id)
+                civ_total_size[cid] = civ_total_size.get(cid, 0.0) + pop.size_fractional
+
+        # Pop contributions: belief strength * size_weight * scope bonus
         for pop in state.pops.values():
             if not pop.dominant_beliefs:
                 continue
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
-
-            # Determine which world this Pop is on
-            pop_loc_str = str(pop.current_location)
-            wid = pop_loc_to_world.get(pop_loc_str)
-            if wid is None:
-                # Pop's location is a SignificantLocation directly (fallback for old data)
-                wid = pop_loc_str
+            cid = str(pop.civilization_id) if pop.civilization_id else None
 
             if civ is not None:
                 scale_mult = _CIV_SCALE_ESSENCE_MULT.get(
                     civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1
                 )
                 match = self._belief_match(pop.dominant_beliefs, civ.established_beliefs)
+                total_sz = civ_total_size.get(cid, pop.size_fractional)
+                size_weight = pop.size_fractional / total_sz if total_sz > 0.0 else 1.0
             else:
                 scale_mult = 0.05
                 match = 0.0
+                size_weight = 1.0
 
             for tag, strength in pop.dominant_beliefs.items():
-                # Base Pop contribution + scope bonus scaled by institutional match
-                amount = strength * (1.0 + (scale_mult - 1.0) * match)
+                # Contribution weighted by Pop's share of civ total size so that
+                # splitting one Pop into many doesn't multiply total essence output.
+                amount = strength * size_weight * (1.0 + (scale_mult - 1.0) * match)
                 if amount > 0.0:
                     universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
@@ -2157,6 +2242,7 @@ class TickLoop:
             discovered_civs:  list[str] = []
             discovered_sp:    list[str] = []
             discovered_mort:  list[str] = []
+            discovered_pops:  list[str] = []
             refreshed_locs:   list[str] = []
             refreshed_civs:   list[str] = []
             refreshed_sp:     list[str] = []
@@ -2342,6 +2428,11 @@ class TickLoop:
                         new_value=new_vis,
                         note=f"Scry ({scope.value}): Pop of {civ.name} sighted",
                     ))
+                    if not was_visible:
+                        class_label = pop.stratum.title() if pop.stratum else "Pop"
+                        discovered_pops.append(
+                            f"{civ.name} {class_label} class (sz {pop.size_magnitude})"
+                        )
 
             parts = [f"You scryed at {scope.value} scope."]
             all_discovered = discovered_locs + discovered_civs + discovered_sp + discovered_mort
@@ -2354,11 +2445,13 @@ class TickLoop:
                 parts.append(f"Species sighted: {', '.join(discovered_sp)}.")
             if discovered_mort:
                 parts.append(f"Mortals sighted: {', '.join(discovered_mort)}.")
-            if all_refreshed and not all_discovered:
+            if discovered_pops:
+                parts.append(f"Pops sighted: {', '.join(discovered_pops)}.")
+            if all_refreshed and not all_discovered and not discovered_pops:
                 parts.append(f"Sight maintained on: {', '.join(all_refreshed)}.")
             elif all_refreshed:
                 parts.append(f"Also maintained: {', '.join(all_refreshed)}.")
-            if not all_discovered and not all_refreshed:
+            if not all_discovered and not all_refreshed and not discovered_pops:
                 parts.append("Nothing new came into view.")
             return mutations, " ".join(parts)
 
@@ -2569,6 +2662,33 @@ class TickLoop:
                 ),
             ))
 
+            # Splash: ripple fraction of the whisper's effect to Pops on the same world
+            mortal_world_id = str(mortal.current_location)
+            world_obj = state.locations.get(mortal_world_id)
+            if world_obj is not None:
+                splash_pops = [
+                    p for p in state.pops.values()
+                    if str(p.civilization_id) == str(mortal.civilization_id)
+                    and any(
+                        str(pop_loc_cid) == str(p.current_location)
+                        for pop_loc_cid in getattr(world_obj, "child_ids", [])
+                    )
+                ]
+                if splash_pops:
+                    total_sz = sum(p.size_fractional for p in splash_pops)
+                    for sp in splash_pops:
+                        sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
+                        for dv in intent.domain_vectors:
+                            splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight
+                            if abs(splash_delta) > 1e-5:
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                    target_id=sp.id,
+                                    field=dv.domain_tag,
+                                    delta=splash_delta,
+                                    note=f"Whisper splash to {sp.stratum} Pop",
+                                ))
+
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
             if outcome == ActionOutcome.FAILURE:
@@ -2758,6 +2878,35 @@ class TickLoop:
                 ),
             ))
 
+            # Splash: distribute a fraction of the omen's effect across Pops on
+            # the target world, weighted inversely by size (smaller = more impacted).
+            if omen_world_id:
+                omen_world = state.locations.get(str(omen_world_id))
+                if omen_world is not None:
+                    scope_civ_id = str(intent.civilization_scope) if intent.civilization_scope else None
+                    splash_pops = [
+                        p for p in state.pops.values()
+                        if (scope_civ_id is None or str(p.civilization_id) == scope_civ_id)
+                        and any(
+                            str(cid) == str(p.current_location)
+                            for cid in getattr(omen_world, "child_ids", [])
+                        )
+                    ]
+                    if splash_pops:
+                        total_inv = sum(1.0 / p.size_fractional for p in splash_pops)
+                        for sp in splash_pops:
+                            inv_weight = (1.0 / sp.size_fractional) / total_inv if total_inv > 0 else 1.0
+                            for dv in intent.domain_vectors:
+                                splash_delta = dv.direction * effectiveness * 0.08 * OMEN_POP_SPLASH * inv_weight
+                                if abs(splash_delta) > 1e-5:
+                                    mutations.append(StateMutation(
+                                        mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                        target_id=sp.id,
+                                        field=dv.domain_tag,
+                                        delta=splash_delta,
+                                        note=f"Omen splash to {sp.stratum} Pop",
+                                    ))
+
         # ── Civilizational Development ────────────────
         elif isinstance(intent, DevelopmentIntent):
             if outcome == ActionOutcome.FAILURE:
@@ -2818,6 +2967,29 @@ class TickLoop:
                         domain_shift_rate=0.05,
                     ),
                 ))
+
+            # Splash: distribute fraction of development nudge across Pops on the civ's worlds.
+            civ_pop_loc_ids = {str(p.current_location) for p in state.pops.values()
+                               if str(p.civilization_id) == str(civ_obj.id)}
+            dev_splash_pops = [
+                p for p in state.pops.values()
+                if str(p.civilization_id) == str(civ_obj.id)
+                and str(p.current_location) in civ_pop_loc_ids
+            ]
+            if dev_splash_pops:
+                total_inv = sum(1.0 / p.size_fractional for p in dev_splash_pops)
+                for sp in dev_splash_pops:
+                    inv_weight = (1.0 / sp.size_fractional) / total_inv if total_inv > 0 else 1.0
+                    for dv in intent.domain_vectors:
+                        splash_delta = dv.direction * effectiveness * 0.1 * OMEN_POP_SPLASH * inv_weight
+                        if abs(splash_delta) > 1e-5:
+                            mutations.append(StateMutation(
+                                mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                target_id=sp.id,
+                                field=dv.domain_tag,
+                                delta=splash_delta,
+                                note=f"Development nudge splash to {sp.stratum} Pop",
+                            ))
 
         # ── Luminary Petition ─────────────────────────
         elif isinstance(intent, LuminaryPetitionIntent):
@@ -4196,5 +4368,30 @@ class TickLoop:
                         established[tag] = new_strength
                     elif tag in established:
                         del established[tag]
+
+            elif m.mutation_type == MutationType.POP_SPLINTER:
+                # m.target_id = parent Pop UUID; m.new_value = splinter Pop object
+                parent_pop = state.pops.get(tid) if tid else None
+                splinter: "Pop" = m.new_value  # type: ignore[assignment]
+                if parent_pop is not None and splinter is not None:
+                    splinter_sz = splinter.size_fractional
+                    # Reduce parent size
+                    parent_pop.size_fractional = max(
+                        0.0, parent_pop.size_fractional - splinter_sz
+                    )
+                    # Wire lineage
+                    splinter_id_str = str(splinter.id)
+                    parent_pop.child_pop_ids.append(splinter.id)
+                    # Register splinter in state
+                    state.pops[splinter_id_str] = splinter
+                    # Wire splinter into civ and PopLocation
+                    if splinter.civilization_id:
+                        civ = state.civilizations.get(str(splinter.civilization_id))
+                        if civ and splinter.id not in civ.pop_ids:
+                            civ.pop_ids.append(splinter.id)
+                    if splinter.current_location:
+                        pop_loc = state.locations.get(str(splinter.current_location))
+                        if pop_loc and hasattr(pop_loc, "pop_ids") and splinter.id not in pop_loc.pop_ids:
+                            pop_loc.pop_ids.append(splinter.id)
 
         return state

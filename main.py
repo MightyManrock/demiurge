@@ -34,7 +34,7 @@ from core.action_core import (
     ChangeAffiliatedDomainsIntent, WeighCivilizationIntent,
     DomainVector, Framing,
 )
-from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation
+from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation, Pop
 from logic.tick_logic import (
     SimulationState, TickLoop, TickResult,
     is_in_window, ENTITY_VISIBILITY_FLOOR,
@@ -181,6 +181,19 @@ def display_state(state: "SimulationState") -> str:
                     f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
                 )
                 lines.append(f"       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}")
+                for pid in civ.pop_ids:
+                    pop = state.pops.get(str(pid))
+                    if pop and is_in_window(pop):
+                        class_label = pop.stratum.title() if pop.stratum else "Pop"
+                        top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
+                        belief_str = "  ".join(
+                            f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                        ) or "none"
+                        vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                        lines.append(
+                            f"       ↳ {class_label} (sz {pop.size_magnitude})"
+                            f"  {belief_str}{vis_note}"
+                        )
     lines.append(SEP)
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
@@ -365,6 +378,19 @@ def display_briefing(state: "SimulationState") -> str:
                             lines.append(f"           beliefs: {_format_beliefs(civ.dominant_beliefs)}")
                         if civ.culture_tags:
                             lines.append(f"           culture: {_format_culture(civ.culture_tags)}")
+                        for pid in civ.pop_ids:
+                            pop = state.pops.get(str(pid))
+                            if pop and is_in_window(pop):
+                                class_label = pop.stratum.title() if pop.stratum else "Pop"
+                                top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
+                                belief_str = "  ".join(
+                                    f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                                ) or "none"
+                                vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                                lines.append(
+                                    f"           ↳ {class_label} (sz {pop.size_magnitude})"
+                                    f"  {belief_str}{vis_note}"
+                                )
     lines += ["", SEP]
     visible_species = [(sid, sp) for sid, sp in state.species.items() if is_in_window(sp)]
     if visible_species:
