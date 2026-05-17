@@ -611,7 +611,7 @@ def _load_tick_config(conn) -> TickConfig:
         pop_conformity_base=float(row.get("pop_conformity_base", 0.005)),
         pop_visibility_drift_rate=float(row.get("pop_visibility_drift_rate", 0.02)),
         established_drift_base=float(row.get("established_drift_base", 0.01)),
-        pop_contact_base_rate=float(row.get("pop_contact_base_rate", 0.002)),
+        pop_contact_base_rate=float(row.get("pop_contact_base_rate", 0.005)),
         cross_civ_contact_factor=float(row.get("cross_civ_contact_factor", 0.15)),
         cross_civ_scale_penalty=float(row.get("cross_civ_scale_penalty", 0.08)),
         cross_species_contact_factor=float(row.get("cross_species_contact_factor", 0.50)),

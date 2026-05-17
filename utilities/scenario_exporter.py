@@ -1221,7 +1221,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=neran_confed.id, species_id=naran_species.id,
         social_class=SocialClass.ELITE,
         current_location=pop_loc_neran.id,
-        size_fractional=2.0,
+        size_fractional=4.2,
         dominant_beliefs={"domain:order": 0.90, "domain:mastery": 0.65, "domain:truth": 0.30},
         culture_tags={"structure:hierarchy": 0.95, "relations:diplomacy": 0.80,
                       "techno:science": 0.75, "techno:industrialism": 0.70},
@@ -1231,7 +1231,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=neran_confed.id, species_id=naran_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_neran.id,
-        size_fractional=6.0,
+        size_fractional=8.0,
         dominant_beliefs={"domain:order": 0.75, "domain:mastery": 0.40},
         culture_tags={"practice:sedentism": 0.90, "structure:hierarchy": 0.80,
                       "techno:industrialism": 0.80, "relations:commerce": 0.75,
@@ -1243,7 +1243,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=neran_confed.id, species_id=naran_species.id,
         social_class=SocialClass.ARTISAN,
         current_location=pop_loc_neran.id,
-        size_fractional=1.0,
+        size_fractional=6.8,
         dominant_beliefs={"domain:mastery": 0.70, "domain:change": 0.35, "domain:order": 0.50},
         culture_tags={"techno:science": 0.85, "techno:industrialism": 0.90,
                       "relations:commerce": 0.70, "practice:sedentism": 0.80,
@@ -1253,15 +1253,55 @@ def build_scenario_default() -> SimulationState:
     for p in (pop_neran_elite, pop_neran_common, pop_neran_artisan):
         neran_confed.pop_ids.append(p.id)
         pop_loc_neran.pop_ids.append(p.id)
+
+    # ── Neran Confederacy Colonists on Sethis ──
+    pop_neran_elite_col = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.ELITE,
+        current_location=pop_loc_sethis.id,
+        size_fractional=2.0,
+        dominant_beliefs={"domain:order": 0.90, "domain:mastery": 0.65, "domain:truth": 0.30},
+        culture_tags={"structure:hierarchy": 0.95, "relations:diplomacy": 0.80,
+                      "techno:science": 0.75, "techno:industrialism": 0.70},
+        visibility=0.0, pinned=False,
+    )
+    pop_neran_common_col = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_sethis.id,
+        size_fractional=3.2,
+        dominant_beliefs={"domain:order": 0.75, "domain:mastery": 0.40},
+        culture_tags={"practice:sedentism": 0.90, "structure:hierarchy": 0.80,
+                      "techno:industrialism": 0.80, "relations:commerce": 0.75,
+                      "relations:diplomacy": 0.65, "techno:science": 0.55,
+                      "religion:luminary_worship": 0.60, "religion:ancestor_worship": 0.50},
+        visibility=0.0, pinned=False,
+    )
+    pop_neran_artisan_col = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.ARTISAN,
+        current_location=pop_loc_neran.id,
+        size_fractional=2.7,
+        dominant_beliefs={"domain:mastery": 0.70, "domain:change": 0.35, "domain:order": 0.50},
+        culture_tags={"techno:science": 0.85, "techno:industrialism": 0.90,
+                      "relations:commerce": 0.70, "practice:sedentism": 0.80,
+                      "relations:diplomacy": 0.55},
+        visibility=0.0, pinned=False,
+    )
+    for p in (pop_neran_elite_col, pop_neran_common_col, pop_neran_artisan_col):
+        neran_confed.pop_ids.append(p.id)
+        pop_loc_sethis.pop_ids.append(p.id)
+
     neran_confed.established_beliefs = dict(neran_confed.dominant_beliefs)
     neran_confed.established_culture_tags = dict(neran_confed.culture_tags)
+
 
     # ── Keth Wanderers (TRIBAL): warriors dominate, memory-keepers preserve ──
     pop_keth_warrior = Pop(
         civilization_id=keth_civ.id, species_id=keth_species.id,
         social_class=SocialClass.WARRIOR,
         current_location=pop_loc_oros.id,
-        size_fractional=2.0,
+        size_fractional=3.6,
         dominant_beliefs={"domain:conflict": 0.85, "domain:change": 0.30},
         culture_tags={"practice:nomadism": 0.95, "relations:conquest": 0.80,
                       "religion:ancestor_worship": 0.75, "religion:animism": 0.70,
@@ -1272,7 +1312,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=keth_civ.id, species_id=keth_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_oros.id,
-        size_fractional=3.0,
+        size_fractional=5.0,
         dominant_beliefs={"domain:conflict": 0.55, "domain:memory": 0.65},
         culture_tags={"practice:nomadism": 0.95, "religion:ancestor_worship": 0.85,
                       "religion:animism": 0.80, "practice:foraging": 0.70,
@@ -1290,7 +1330,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=damtal_civ.id, species_id=damtal_species.id,
         social_class=SocialClass.ELITE,
         current_location=pop_loc_kiddis.id,
-        size_fractional=2.0,
+        size_fractional=3.4,
         dominant_beliefs={"domain:mastery": 0.60, "domain:growth": 0.30, "domain:conflict": 0.30},
         culture_tags={"structure:hierarchy": 0.90, "relations:conquest": 0.70,
                       "religion:animism": 0.60, "practice:sedentism": 0.60},
@@ -1300,7 +1340,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=damtal_civ.id, species_id=damtal_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_kiddis.id,
-        size_fractional=5.0,
+        size_fractional=6.5,
         dominant_beliefs={"domain:growth": 0.55, "domain:community": 0.45},
         culture_tags={"practice:agriculture": 0.80, "practice:sedentism": 0.75,
                       "religion:animism": 0.70, "religion:ancestor_worship": 0.50,
@@ -1318,7 +1358,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=surathi_clans.id, species_id=surathi_species.id,
         social_class=SocialClass.PRIEST,
         current_location=pop_loc_sethis.id,
-        size_fractional=1.5,
+        size_fractional=2.5,
         dominant_beliefs={"domain:community": 0.70, "domain:memory": 0.40, "domain:growth": 0.20},
         culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.70,
                       "practice:nomadism": 0.80, "practice:foraging": 0.55,
@@ -1329,7 +1369,7 @@ def build_scenario_default() -> SimulationState:
         civilization_id=surathi_clans.id, species_id=surathi_species.id,
         social_class=SocialClass.COMMON,
         current_location=pop_loc_sethis.id,
-        size_fractional=3.5,
+        size_fractional=4.8,
         dominant_beliefs={"domain:community": 0.60, "domain:change": 0.40},
         culture_tags={"practice:nomadism": 0.90, "religion:animism": 0.75,
                       "practice:foraging": 0.65, "structure:egalitarianism": 0.75,
@@ -1557,7 +1597,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"structure:hierarchy": 0.80, "relations:diplomacy": 0.75, "practice:sedentism": 0.70},
         alignment=0.65, chrono_age=148.0, bio_age=148.0,
         home_location=sethis.id, current_location=sethis.id,
-        pop_id=pop_neran_elite.id,
+        pop_id=pop_neran_elite_col.id,
     )
     neran_confed.notable_mortal_ids.append(ren_caleth.id)
 
@@ -1569,7 +1609,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={"techno:science": 0.85, "techno:industrialism": 0.70, "practice:sedentism": 0.65},
         alignment=0.60, chrono_age=112.0, bio_age=112.0,
         home_location=sethis.id, current_location=sethis.id,
-        pop_id=pop_neran_artisan.id,
+        pop_id=pop_neran_artisan_col.id,
     )
     neran_confed.notable_mortal_ids.append(yssa_tharn.id)
 
@@ -1875,6 +1915,9 @@ def build_scenario_default() -> SimulationState:
             str(pop_neran_elite.id):   pop_neran_elite,
             str(pop_neran_common.id):  pop_neran_common,
             str(pop_neran_artisan.id): pop_neran_artisan,
+            str(pop_neran_elite_col.id): pop_neran_elite_col,
+            str(pop_neran_common_col.id): pop_neran_common_col,
+            str(pop_neran_artisan_col.id): pop_neran_artisan_col,
             str(pop_keth_warrior.id):  pop_keth_warrior,
             str(pop_keth_common.id):   pop_keth_common,
             str(pop_damtal_elite.id):  pop_damtal_elite,

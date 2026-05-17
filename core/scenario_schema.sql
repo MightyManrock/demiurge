@@ -272,7 +272,7 @@ CREATE TABLE IF NOT EXISTS tick_config (
     pop_visibility_drift_rate               REAL NOT NULL DEFAULT 0.02,   -- rate at which Pop visibility converges toward civ+world floor
     established_drift_base                  REAL NOT NULL DEFAULT 0.01,   -- base rate at which established_beliefs drifts toward dominant_beliefs
     -- Cross-Pop contact
-    pop_contact_base_rate       REAL NOT NULL DEFAULT 0.002,
+    pop_contact_base_rate       REAL NOT NULL DEFAULT 0.005,
     cross_civ_contact_factor    REAL NOT NULL DEFAULT 0.15,
     cross_civ_scale_penalty     REAL NOT NULL DEFAULT 0.08,
     cross_species_contact_factor REAL NOT NULL DEFAULT 0.50,

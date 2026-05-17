@@ -277,6 +277,15 @@ _CIV_SCALE_CONTACT_RANK: dict[str, int] = {
     "interstellar": 7, "intergalactic": 8,
 }
 
+# Flat susceptibility modifier applied after all other resistance factors.
+# Negative = more open to outside influence; positive = more closed.
+_STRATUM_SUSCEPTIBILITY: dict[str, float] = {
+    "merchant": -0.12,
+    "elite":    -0.06,
+    "warrior":  +0.06,
+    "priest":   +0.12,
+}
+
 # ─────────────────────────────────────────
 # TICK CONFIGURATION
 # Tunable constants separated from logic.
@@ -397,7 +406,7 @@ class TickConfig(BaseModel):
     # Scaled by civ.health.cohesion at runtime.
 
     # Cross-Pop contact (passive belief drift between co-located Pops of different civs)
-    pop_contact_base_rate: float = 0.002
+    pop_contact_base_rate: float = 0.005
     cross_civ_contact_factor: float = 0.15
     cross_civ_scale_penalty: float = 0.08
     cross_species_contact_factor: float = 0.50
@@ -945,6 +954,11 @@ class TickLoop:
             # Actively preached Pops (goal targets) resist institutional pull at half rate
             if pop.preaching_imago_id is not None:
                 conformity_rate *= 0.5
+            # Stratum susceptibility: priests and warriors resist institutional pull;
+            # merchants are more responsive to it
+            pop_class = pop.social_class.value if hasattr(pop.social_class, "value") else str(pop.social_class or "")
+            susceptibility = _STRATUM_SUSCEPTIBILITY.get(pop_class, 0.0)
+            conformity_rate *= max(0.1, 1.0 + susceptibility)
             for tag in set(civ.established_beliefs) | set(pop.dominant_beliefs):
                 est_val = civ.established_beliefs.get(tag, 0.0)
                 pop_val = pop.dominant_beliefs.get(tag, 0.0)
@@ -2873,11 +2887,13 @@ class TickLoop:
                 _src_species_id = str(mortal.species_id) if mortal.species_id else None
                 _src_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
                 _src_class = ((_src_pop.social_class.value if hasattr(_src_pop.social_class, "value") else str(_src_pop.social_class or "")) if _src_pop else None) or None
+                _src_size = _src_pop.size_fractional if _src_pop else 1.0
                 total_sz = sum(p.size_fractional for p in splash_pops)
                 for sp in splash_pops:
                     sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
                     resistance = self._pop_contact_resistance(
-                        sp, _src_civ_id, _src_species_id, _src_class, state, _splash_cfg
+                        sp, _src_civ_id, _src_species_id, _src_class, state, _splash_cfg,
+                        src_size=_src_size,
                     )
                     for dv in intent.domain_vectors:
                         receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
@@ -4640,6 +4656,7 @@ class TickLoop:
         src_class: str | None,
         state: "SimulationState",
         cfg: TickConfig,
+        src_size: float = 1.0,
     ) -> float:
         """
         Returns a resistance multiplier in [0.0, 1.0] representing how much
@@ -4670,8 +4687,8 @@ class TickLoop:
             r *= cfg.cross_species_contact_factor
 
         # Cross-stratum resistance
+        tgt_class_str = target_pop.social_class.value if hasattr(target_pop.social_class, "value") else str(target_pop.social_class or "")
         if src_class:
-            tgt_class_str = target_pop.social_class.value if hasattr(target_pop.social_class, "value") else str(target_pop.social_class or "")
             src_rank = _SOCIAL_CLASS_RANK.get(src_class, 0)
             tgt_rank = _SOCIAL_CLASS_RANK.get(tgt_class_str, 0)
             stratum_distance = abs(tgt_rank - src_rank)
@@ -4684,6 +4701,14 @@ class TickLoop:
         )
         if values_strength > 0.0:
             r *= max(0.05, 1.0 - values_strength * cfg.values_stubbornness_factor)
+
+        # Size ratio: a smaller source Pop has proportionally less sway over a larger target
+        tgt_size = max(0.001, target_pop.size_fractional)
+        r *= min(1.0, src_size / tgt_size)
+
+        # Stratum susceptibility: applied last as a flat modifier to total resistance
+        susceptibility = _STRATUM_SUSCEPTIBILITY.get(tgt_class_str, 0.0)
+        r *= (1.0 + susceptibility)
 
         return max(0.0, min(1.0, r))
 
@@ -4712,7 +4737,8 @@ class TickLoop:
                     src_species_id = str(pop_a.species_id) if pop_a.species_id else None
                     src_class = (pop_a.social_class.value if hasattr(pop_a.social_class, "value") else str(pop_a.social_class or "")) or None
                     resistance = self._pop_contact_resistance(
-                        pop_b, src_civ_id, src_species_id, src_class, state, cfg
+                        pop_b, src_civ_id, src_species_id, src_class, state, cfg,
+                        src_size=pop_a.size_fractional,
                     )
                     for tag, a_strength in pop_a.dominant_beliefs.items():
                         if a_strength <= BELIEF_FLOOR:
