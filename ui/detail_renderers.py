@@ -1,0 +1,338 @@
+"""
+Per-entity detail-tab renderers. Each function takes (state, entity_id) and
+returns a Rich Text. Renderers are pure read-only views — they make no
+assumptions about clickability (that's the manager's job in Phase 3).
+
+Naming: render_<kind>_detail. The DetailTabManager dispatches by kind string.
+"""
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from rich.markup import escape as _e
+from rich.text import Text
+
+from core.universe_core import MortalRole, MortalStatus
+from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
+from display import (
+    _personality_label, _format_beliefs, _format_culture, _prominence_label,
+)
+
+if TYPE_CHECKING:
+    from logic.tick_logic import SimulationState
+
+
+def _not_found(label: str) -> Text:
+    return Text.from_markup(f"[#b04050]{_e(label)} not found in current state.[/]")
+
+
+# ─────────────────────────────────────────
+# WORLD
+# ─────────────────────────────────────────
+
+def render_world_detail(state: "SimulationState", world_id: str) -> Text:
+    world = state.worlds.get(str(world_id))
+    if not world:
+        return _not_found(f"World {world_id}")
+
+    lines: list[str] = []
+    a = lines.append
+
+    a(f"[bold #4a80b0]WORLD: {_e(world.name)}[/]")
+    a("")
+    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age:.0f}")
+    if world.pinned:
+        a(f"  [#5a7090]pinned (always in Window)[/]")
+    else:
+        a(f"  visibility: {world.visibility:.2f}")
+
+    if world.geo_tags:
+        a(f"  geography: {_e(', '.join(world.geo_tags))}")
+    if world.atmo_tags:
+        a(f"  atmosphere: {_e(', '.join(world.atmo_tags))}")
+    if world.domain_expression:
+        a(f"  domain expression: {_e(_format_beliefs(world.domain_expression))}")
+
+    sys_obj = state.locations.get(str(world.parent_id)) if world.parent_id else None
+    if sys_obj:
+        a(f"  in system: [#3a6a8a]{_e(sys_obj.name)}[/]")
+
+    fp = getattr(world, "local_footprint", None)
+    if fp is not None:
+        a("")
+        a("[bold #4a80b0]LOCAL FOOTPRINT[/]")
+        a(f"  overt:{fp.overt_miracles:.2f}  subtle:{fp.subtle_influence:.2f}  "
+          f"proxii:{fp.proxius_activity:.2f}  create:{fp.direct_creation:.2f}")
+
+    a("")
+    a("[bold #4a80b0]CIVILIZATIONS[/]")
+    any_civ = False
+    for cid in world.civilization_ids:
+        civ = state.civilizations.get(str(cid))
+        if not civ:
+            continue
+        any_civ = True
+        h = civ.health
+        a(f"  ● [bold]{_e(civ.name)}[/]  \\[{_e(civ.scale.value)}]  "
+          f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}")
+    if not any_civ:
+        a("  [#5a7090](none)[/]")
+
+    a("")
+    a("[bold #4a80b0]NOTABLE MORTALS HERE[/]")
+    any_m = False
+    for mid, m in state.mortals.items():
+        if str(m.current_location) != str(world_id):
+            continue
+        if m.status == MortalStatus.DECEASED:
+            continue
+        if not is_in_window(m):
+            continue
+        any_m = True
+        role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
+        a(f"  ● [bold]{_e(m.name)}[/] \\[{role_str}]  align:{m.alignment:.2f}")
+    if not any_m:
+        a("  [#5a7090](none in Window)[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# SYSTEM
+# ─────────────────────────────────────────
+
+def render_system_detail(state: "SimulationState", system_id: str) -> Text:
+    sys_obj = state.systems.get(str(system_id))
+    if not sys_obj:
+        return _not_found(f"System {system_id}")
+
+    lines: list[str] = []
+    a = lines.append
+
+    star_str = sys_obj.star_type.value if hasattr(sys_obj, "star_type") else "?"
+    a(f"[bold #4a80b0]SYSTEM: {_e(sys_obj.name)}[/]")
+    a("")
+    a(f"  star type: \\[{_e(star_str)}]")
+    if sys_obj.pinned:
+        a(f"  [#5a7090]pinned (always in Window)[/]")
+    else:
+        a(f"  visibility: {sys_obj.visibility:.2f}")
+
+    parent = state.locations.get(str(sys_obj.parent_id)) if sys_obj.parent_id else None
+    if parent:
+        a(f"  in galaxy: [#3a6a8a]{_e(parent.name)}[/]")
+
+    a("")
+    a("[bold #4a80b0]WORLDS[/]")
+    any_w = False
+    for cid in sys_obj.child_ids:
+        world = state.worlds.get(str(cid))
+        if not world:
+            continue
+        any_w = True
+        in_window_marker = "●" if is_in_window(world) else "○"
+        style = "" if is_in_window(world) else "[dim]"
+        end = "" if is_in_window(world) else "[/]"
+        n_civs = sum(
+            1 for x in world.civilization_ids
+            if str(x) in state.civilizations and is_in_window(state.civilizations[str(x)])
+        )
+        life = f"{n_civs} civ(s) known" if n_civs else "no life known"
+        a(f"  {style}{in_window_marker} [bold]{_e(world.name)}[/]  "
+          f"\\[{_e(world.condition.value)}]  {life}{end}")
+
+    if not any_w:
+        a("  [#5a7090](no worlds catalogued)[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# CIVILIZATION
+# ─────────────────────────────────────────
+
+def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
+    civ = state.civilizations.get(str(civ_id))
+    if not civ:
+        return _not_found(f"Civilization {civ_id}")
+
+    lines: list[str] = []
+    a = lines.append
+    h = civ.health
+
+    a(f"[bold #4a80b0]CIVILIZATION: {_e(civ.name)}[/]")
+    a("")
+    a(f"  scale: \\[{_e(civ.scale.value)}]   divine awareness: {civ.divine_awareness:.2f}")
+    if civ.pinned:
+        a(f"  [#5a7090]pinned (always in Window)[/]")
+    else:
+        a(f"  visibility: {civ.visibility:.2f}")
+
+    a("")
+    a("[bold #4a80b0]HEALTH[/]")
+    a(f"  stability:  {h.stability:+.2f}")
+    a(f"  prosperity: {h.prosperity:+.2f}")
+    a(f"  cohesion:   {h.cohesion:+.2f}")
+
+    origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
+    if origin:
+        a("")
+        a(f"  origin: [#3a6a8a]{_e(origin.name)}[/]")
+
+    if civ.dominant_beliefs:
+        a("")
+        a("[bold #4a80b0]DOMINANT BELIEFS[/]")
+        for tag, val in sorted(civ.dominant_beliefs.items(), key=lambda kv: -kv[1]):
+            a(f"  {_e(tag)}: {val:.2f}")
+
+    if civ.culture_tags:
+        a("")
+        a("[bold #4a80b0]CULTURE[/]")
+        a(f"  {_e(_format_culture(civ.culture_tags))}")
+
+    a("")
+    a("[bold #4a80b0]POPS[/]")
+    any_p = False
+    for pid in civ.pop_ids:
+        pop = state.pops.get(str(pid))
+        if not pop:
+            continue
+        any_p = True
+        class_label = pop.stratum.title() if pop.stratum else "Pop"
+        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+        sp_note = f"  ({sp_obj.name})" if sp_obj else ""
+        top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
+        belief_str = "  ".join(
+            f"{t.split(':', 1)[-1]}({v:.2f})" for t, v in top
+        ) or "none"
+        vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+        a(f"  ↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}{vis}")
+        a(f"      {_e(belief_str)}")
+    if not any_p:
+        a("  [#5a7090](no pops)[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# MORTAL  (works for both notable mortals and Proxiī)
+# ─────────────────────────────────────────
+
+def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
+    m = state.mortals.get(str(mortal_id))
+    if not m:
+        return _not_found(f"Mortal {mortal_id}")
+
+    lines: list[str] = []
+    a = lines.append
+
+    role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
+    status_str = m.status.value.upper()
+
+    a(f"[bold #4a80b0]MORTAL: {_e(m.name)}[/]")
+    a("")
+    a(f"  \\[{role_str}]   status: \\[{status_str}]")
+    a(f"  alignment: {m.alignment:+.2f}")
+    age_str = f"age:{m.chrono_age:.0f}"
+    if m.bio_age != m.chrono_age:
+        age_str += f"  (bio:{m.bio_age:.0f})"
+    a(f"  {age_str}")
+    if m.pinned:
+        a(f"  [#5a7090]pinned (always in Window)[/]")
+    else:
+        a(f"  visibility: {m.visibility:.2f}")
+    a(f"  {_e(_prominence_label(m))}")
+
+    sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
+    if sp_obj:
+        a(f"  species: [#3a6a8a]{_e(sp_obj.name)}[/]")
+
+    loc = state.locations.get(str(m.current_location)) if m.current_location else None
+    if loc:
+        a(f"  location: [#3a6a8a]{_e(loc.name)}[/]")
+
+    home = state.locations.get(str(m.home_location)) if m.home_location else None
+    if home and (not loc or home.id != loc.id):
+        a(f"  home: [#3a6a8a]{_e(home.name)}[/]")
+
+    civ = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
+    if civ:
+        a(f"  civilization: [#3a6a8a]{_e(civ.name)}[/]")
+
+    if m.personal_tags:
+        a("")
+        a(f"  tags: {_e(', '.join(m.personal_tags))}")
+
+    if m.culture_tags:
+        a(f"  culture: {_e(_format_culture(m.culture_tags))}")
+
+    if m.role == MortalRole.PROXIUS:
+        a("")
+        a("[bold #4a80b0]PROXIUS GOAL[/]")
+        if m.active_goal:
+            g = m.active_goal
+            a(f"  current: [#a0d080]{_e(g.choice.value)}[/]")
+            if g.goal_pop_id:
+                pop = state.pops.get(str(g.goal_pop_id))
+                if pop:
+                    a(f"  target pop: {_e(pop.stratum.title())}")
+            if g.imago_node_id:
+                a(f"  imago: {_e(g.imago_node_id)}")
+        else:
+            a("  [#5a7090](idle — no active directive)[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# LUMINARY
+# ─────────────────────────────────────────
+
+def render_luminary_detail(state: "SimulationState", lum_id: str) -> Text:
+    lum = state.luminaries.get(str(lum_id))
+    if not lum:
+        return _not_found(f"Luminary {lum_id}")
+
+    lines: list[str] = []
+    a = lines.append
+    d = lum.disposition
+    att = state.luminary_attention.get(str(lum_id), 0.0)
+    liege = str(lum_id) in {str(i) for i in state.demiurge.liege_luminary_ids}
+
+    a(f"[bold #4a80b0]LUMINARY: {_e(lum.name)}[/]")
+    a("")
+    suffix = "  [#c09030]\\[LIEGE][/]" if liege else ""
+    a(f"  personality: [#3a5a7a]({_e(_personality_label(lum))})[/]{suffix}")
+    rc = "#50b870" if d.results >= 0 else "#b04050"
+    mc = "#50b870" if d.methods >= 0 else "#b04050"
+    ac = "#c09030" if att > 0.5 else "#2a4a6a"
+    a(f"  disposition: "
+      f"R[{rc}]{d.results:+.2f}[/]  "
+      f"M[{mc}]{d.methods:+.2f}[/]  "
+      f"att[{ac}]{att:.2f}[/]")
+
+    a("")
+    a("[bold #4a80b0]DOMAIN AFFINITIES[/]")
+    for tag, aff in sorted(lum.domains.items(), key=lambda kv: -kv[1]):
+        a(f"  {_e(tag.split(':', 1)[1].title()):16s}  {aff:+.2f}")
+
+    if lum.constraints:
+        a("")
+        a("[bold #4a80b0]CONSTRAINTS IMPOSED[/]")
+        for c in lum.constraints:
+            a(f"  • {_e(c.name)}  [#5a7090]\\[enf {c.enforcement_weight:.2f}][/]")
+            a(f"    [#7090b0]{_e(c.description)}[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# Dispatch table
+# ─────────────────────────────────────────
+
+RENDERERS = {
+    "world":     render_world_detail,
+    "system":    render_system_detail,
+    "civ":       render_civ_detail,
+    "mortal":    render_mortal_detail,
+    "luminary":  render_luminary_detail,
+}

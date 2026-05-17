@@ -54,6 +54,7 @@ from ui.widgets import (
     LocationsTab, EntitiesTab, ActionsTab,
     BriefingTab, UniverseTab, LuminariesTab,
 )
+from ui.detail_tabs import DetailTabManager
 from ui.session_log import SessionLog
 from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
@@ -171,12 +172,17 @@ class GameScreen(Screen):
         ("ctrl+2", "right_tab('universe')",   ""),
         ("ctrl+3", "right_tab('luminaries')", ""),
         ("ctrl+4", "right_tab('log')",        ""),
+        # Detail-tab controls (Phase 2).
+        ("escape",     "close_detail",   "Close"),
+        ("ctrl+p",     "pin_detail",     "Pin"),
+        ("alt+left",   "back_detail",    "Back"),
     ]
 
     def __init__(self, state: SimulationState):
         super().__init__()
         self._state = state
         self._briefing_open: bool = True
+        self._detail_mgr: DetailTabManager | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -206,6 +212,10 @@ class GameScreen(Screen):
         _LOGS_DIR.mkdir(exist_ok=True)
         log_path = _LOGS_DIR / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         self._log = SessionLog(log_path)
+        # Initialise the detail-tab manager once the right TabbedContent exists.
+        self._detail_mgr = DetailTabManager(
+            self, self.query_one("#right-tabs", TabbedContent),
+        )
         # Render all tabs from the initial state.
         self._refresh_all()
         # Plain-text session log still receives the full briefing + state snapshot.
@@ -244,6 +254,32 @@ class GameScreen(Screen):
                 briefing.first().refresh_state(state)
         self.query_one(UniverseTab).refresh_state(state)
         self.query_one(LuminariesTab).refresh_state(state)
+        if self._detail_mgr is not None:
+            self._detail_mgr.refresh_all(state)
+
+    # ── Detail-tab integration ────────────────
+
+    def open_detail(self, kind: str, entity_id, name: str) -> None:
+        """Open (or re-focus) a detail tab. Public API used by click handlers."""
+        if self._detail_mgr is None:
+            return
+        self._detail_mgr.open(kind, str(entity_id), name, self._state)
+
+    def action_close_detail(self) -> None:
+        if self._detail_mgr is None or not self._detail_mgr.close_focused():
+            return
+
+    def action_pin_detail(self) -> None:
+        if self._detail_mgr is None:
+            return
+        ok, msg = self._detail_mgr.toggle_pin_focused(self._state)
+        if not ok:
+            self._feed_markup(f"[#c09030]{msg}[/]")
+
+    def action_back_detail(self) -> None:
+        if self._detail_mgr is None:
+            return
+        self._detail_mgr.back_focused(self._state)
 
     # ── Tab actions ───────────────────────────
 
