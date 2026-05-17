@@ -16,7 +16,8 @@ from logic.tick_logic import is_in_window, is_mortal_visible, ENTITY_VISIBILITY_
 import display
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
-    _short_tag,
+    _short_tag, _trait_color, _format_beliefs_markup, _format_culture_markup,
+    _color_short_tag,
 )
 from ui.widgets import _click_link
 
@@ -69,7 +70,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
     if world.atmo_tags:
         a(f"  atmosphere: {_e(', '.join(world.atmo_tags))}")
     if world.domain_expression:
-        a(f"  domain expression: {_e(_format_beliefs(world.domain_expression))}")
+        a(f"  domain expression: {_format_beliefs_markup(world.domain_expression)}")
 
     sys_obj = state.locations.get(str(world.parent_id)) if world.parent_id else None
     if sys_obj:
@@ -220,12 +221,12 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         a("")
         a("[bold #4a80b0]DOMINANT BELIEFS[/]")
         for tag, val in sorted(civ.dominant_beliefs.items(), key=lambda kv: -kv[1]):
-            a(f"  {_e(_short_tag(tag))}: {val:.2f}")
+            a(f"  {_color_short_tag(tag, val, with_value=False)}: {val:.2f}")
 
     if civ.culture_tags:
         a("")
         a("[bold #4a80b0]CULTURE[/]")
-        a(f"  {_e(_format_culture(civ.culture_tags))}")
+        a(f"  {_format_culture_markup(civ.culture_tags)}")
 
     dev = display.DEV_MODE
 
@@ -247,11 +248,11 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         sp_note = f"  ({sp_obj.name})" if sp_obj else ""
         top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
         belief_str = "  ".join(
-            f"{_short_tag(t)}({v:.2f})" for t, v in top
-        ) or "none"
+            _color_short_tag(t, v) for t, v in top
+        ) or "[#5a7090]none[/]"
         vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
         a(f"  {pm}↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}{vis}{pe}")
-        a(f"      {pm}{_e(belief_str)}{pe}")
+        a(f"      {pm}{belief_str}{pe}")
     if not any_p:
         a("  [#5a7090](no pops visible in Window)[/]")
 
@@ -333,7 +334,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     if m.personal_tags:
         a(f"  tags:   {_e(', '.join(_short_tag(t) for t in m.personal_tags))}")
     if m.culture_tags:
-        a(f"  culture: {_e(_format_culture(m.culture_tags))}")
+        a(f"  culture: {_format_culture_markup(m.culture_tags)}")
 
     if m.role == MortalRole.PROXIUS:
         a("")
@@ -383,7 +384,9 @@ def render_luminary_detail(state: "SimulationState", lum_id: str) -> Text:
     a("")
     a("[bold #4a80b0]DOMAIN AFFINITIES[/]")
     for tag, aff in sorted(lum.domains.items(), key=lambda kv: -kv[1]):
-        a(f"  {_e(_short_tag(tag)):16s}  {aff:+.2f}")
+        chip = _color_short_tag(tag, aff, with_value=False)
+        # Pad inside the color span so column alignment is preserved.
+        a(f"  {chip}{' ' * max(0, 16 - len(_short_tag(tag)))}  {aff:+.2f}")
 
     if lum.constraints:
         a("")

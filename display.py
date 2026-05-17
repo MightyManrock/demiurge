@@ -85,6 +85,37 @@ def _personality_label(lum: "Luminary") -> str:
     return "/".join(parts) if parts else "neutral"
 
 
+def _trait_color(value: float, scale: float = 1.0) -> str:
+    """
+    Map a trait strength (or modifier) to a hex color used for tag rendering.
+
+    Positive scale: mid-gray (~0) → greenish-gray (0.05) → through greens,
+    teals, blues, blue-violets → purple (≥0.85). Negative scale runs
+    yellowish-gray (~0) → amber → red.
+
+    `scale` divides the input first. Use `1.0` for canonical [0, 1] strengths
+    (beliefs, culture, affinities). For signed modifiers whose meaningful
+    magnitude is narrower (e.g. Imago mechanics in roughly ±0.3), pass a
+    smaller scale so the gradient compresses to that range.
+    """
+    v = (value / scale) if scale else value
+    if v >= 0.85:    return "#9040c8"   # purple
+    if v >= 0.70:    return "#6050d0"   # blue-violet
+    if v >= 0.60:    return "#4070d0"   # blue
+    if v >= 0.50:    return "#4090c8"   # teal-blue
+    if v >= 0.40:    return "#40b8c0"   # teal
+    if v >= 0.30:    return "#40c0a0"   # green-teal
+    if v >= 0.20:    return "#50b880"   # green
+    if v >= 0.10:    return "#60a070"   # light green
+    if v >= 0.05:    return "#6a8070"   # greenish-gray
+    if v >= 0.00:    return "#707070"   # mid-gray
+    if v >= -0.05:   return "#807060"   # yellowish-gray
+    if v >= -0.15:   return "#a07050"   # amber
+    if v >= -0.30:   return "#b06040"   # orange
+    if v >= -0.50:   return "#b85040"   # red-orange
+    return "#b04040"                    # red
+
+
 def _short_tag(tag: str) -> str:
     """
     Render a tag in its short, human-readable form.
@@ -117,6 +148,38 @@ def _format_culture(tags: "dict[str, float]") -> str:
         _short_tag(t)
         for t, _ in sorted(tags.items(), key=lambda kv: -kv[1])
     )
+
+
+def _format_beliefs_markup(beliefs: "dict[str, float]", scale: float = 1.0) -> str:
+    """Like `_format_beliefs` but each tag is wrapped in a `[#color]…[/]` span
+    keyed off its value. Output is Rich markup; feed through `Text.from_markup`
+    and do NOT pass through `_e()` (it would escape the color brackets)."""
+    if not beliefs:
+        return ""
+    parts = []
+    for tag, v in sorted(beliefs.items(), key=lambda kv: -kv[1]):
+        color = _trait_color(v, scale=scale)
+        parts.append(f"[{color}]{_short_tag(tag)}({v:.2f})[/]")
+    return "  ".join(parts)
+
+
+def _format_culture_markup(tags: "dict[str, float]", scale: float = 1.0) -> str:
+    """Markup variant of `_format_culture` — colors per strength, no numbers."""
+    if not tags:
+        return ""
+    parts = []
+    for tag, v in sorted(tags.items(), key=lambda kv: -kv[1]):
+        color = _trait_color(v, scale=scale)
+        parts.append(f"[{color}]{_short_tag(tag)}[/]")
+    return ", ".join(parts)
+
+
+def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: float = 1.0) -> str:
+    """Single-tag colored markup. `with_value=True` appends `(0.42)`."""
+    color = _trait_color(value, scale=scale)
+    label = _short_tag(tag)
+    suffix = f"({value:.2f})" if with_value else ""
+    return f"[{color}]{label}{suffix}[/]"
 
 
 def _prominence_label(mortal) -> str:

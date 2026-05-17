@@ -30,7 +30,9 @@ from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 import display
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
-    _name_for_id, _short_tag, display_briefing, _lines_to_text,
+    _name_for_id, _short_tag, _trait_color,
+    _format_beliefs_markup, _format_culture_markup, _color_short_tag,
+    display_briefing, _lines_to_text,
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 
@@ -506,11 +508,11 @@ class UniverseTab(ContentTab):
             wm = "[dim]" if w_oow else ""
             we = "[/]" if w_oow else ""
             vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
-            domain_str = _format_beliefs(world.domain_expression) or "none"
+            domain_str = _format_beliefs_markup(world.domain_expression) or "[#5a7090]none[/]"
             world_link = _click_link("world", str(wid), f"[bold]{_e(world.name)}[/]")
             a(f"{wm}● {world_link}  "
               f"\\[{_e(world.condition.value)}]{vis_note}{we}")
-            a(f"{wm}    domain: [#a0b8d0]{_e(domain_str)}[/]{we}")
+            a(f"{wm}    domain: {domain_str}{we}")
             for cid in world.civilization_ids:
                 civ = state.civilizations.get(str(cid))
                 if not civ:
@@ -527,9 +529,9 @@ class UniverseTab(ContentTab):
                   f"\\[{_e(civ.scale.value)}]{civ_vis}  "
                   f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
                 if civ.dominant_beliefs:
-                    a(f"{cm}       beliefs: {_e(_format_beliefs(civ.dominant_beliefs))}{ce}")
+                    a(f"{cm}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs)}{ce}")
                 if civ.culture_tags:
-                    a(f"{cm}       culture: {_e(_format_culture(civ.culture_tags))}{ce}")
+                    a(f"{cm}       culture: {_format_culture_markup(civ.culture_tags)}{ce}")
                 for pid in civ.pop_ids:
                     pop = state.pops.get(str(pid))
                     if not pop:
@@ -544,11 +546,11 @@ class UniverseTab(ContentTab):
                     sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                     top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                     belief_str = "  ".join(
-                        f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs
-                    ) or "none"
+                        _color_short_tag(t, v) for t, v in top_beliefs
+                    ) or "[#5a7090]none[/]"
                     vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                     a(f"{pm}       ↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}  "
-                      f"{_e(belief_str)}{vn}{pe}")
+                      f"{belief_str}{vn}{pe}")
         if not any_w:
             a("[#5a7090](no worlds in Window)[/]")
         a("")
@@ -598,10 +600,10 @@ class LuminariesTab(ContentTab):
             a(f"● {lum_link}{tag} "
               f"[#3a5a7a]({_e(_personality_label(lum))})[/]")
             domain_parts = [
-                f"{_short_tag(tag2)} ({aff:.2f})"
+                _color_short_tag(tag2, aff)
                 for tag2, aff in sorted(lum.domains.items(), key=lambda x: -x[1])
             ]
-            a(f"    domains: {_e(', '.join(domain_parts))}")
+            a(f"    domains: {', '.join(domain_parts)}")
             rc = "#50b870" if d.results >= 0 else "#b04050"
             mc = "#50b870" if d.methods >= 0 else "#b04050"
             ac = "#c09030" if att > 0.5 else "#2a4a6a"
