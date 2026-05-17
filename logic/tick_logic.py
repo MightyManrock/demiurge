@@ -76,6 +76,11 @@ PROXIUS_COMPLIANCE_FACTOR = 0.3
 BELIEF_FLOOR = 0.02
 # Belief/domain-expression entries below this strength are
 # silently pruned each passive phase. Keeps dicts clean of
+
+BELIEF_CAP = 0.9
+# Hard ceiling for positive belief/culture growth on Pops, Mortals, and
+# Civilizations. Values can decay below 0.9 naturally; they just cannot
+# grow past it. Location domain_expression is uncapped.
 # ghost residue from many tiny-delta actions.
 
 # ─────────────────────────────────────────
@@ -2956,6 +2961,11 @@ class TickLoop:
                     note=f"{proxius.name} reactivated by directive",
                 ))
 
+            # Override reliability roll: alignment-modified low failure rate
+            # 0% at align=1.0, 2% at align=0.5, 4% at align=0.0
+            _fail_chance = max(0.0, 0.02 + (0.5 - proxius.alignment) * 0.04)
+            outcome = ActionOutcome.FAILURE if rng.random() < _fail_chance else ActionOutcome.SUCCESS
+
             if outcome == ActionOutcome.FAILURE:
                 narrative = (
                     f"The directive did not reach {proxius.name} clearly. "
@@ -4243,6 +4253,108 @@ class TickLoop:
             if goal is None:
                 continue
 
+            # ── Milestone checks (run every tick before the frequency gate) ──────
+            # Individual flags fire once; combined-success fires and clears the goal.
+            # Ordering: individual checks first (may reset petition clock), then
+            # combined check, then petition abandonment — so a same-tick double
+            # completion fires combined success before abandonment can fire.
+
+            _pop_a_ms = state.pops.get(str(goal.source_pop_id)) if goal.source_pop_id else None
+            _pop_b_ms = state.pops.get(str(goal.goal_pop_id))   if goal.goal_pop_id   else None
+            _imago_short_ms = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
+
+            # (A) Belief cap milestone
+            if not goal.pop_b_belief_cap_reached and _pop_b_ms is not None and goal.domain_vectors:
+                core_dv = max(
+                    (dv for dv in goal.domain_vectors if dv.direction > 0),
+                    key=lambda dv: dv.direction,
+                    default=None,
+                )
+                # Threshold slightly below BELIEF_CAP: Phase 1 decay runs before
+                # Phase 2.5, so the reading can sit ~0.01–0.02 below 0.9 even when
+                # the cap was hit last tick.
+                if core_dv and _pop_b_ms.dominant_beliefs.get(core_dv.domain_tag, 0.0) >= BELIEF_CAP - 0.02:
+                    goal.pop_b_belief_cap_reached = True
+                    goal.petition_pending         = True
+                    goal.petition_pending_ticks   = 0
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.MORTAL_ALIGNMENT,
+                        target_id=mortal.id,
+                        field="alignment",
+                        delta=+0.05,
+                        note=f"{mortal.name} — Pop B core domain at belief cap",
+                    ))
+                    domain_short = core_dv.domain_tag.split(":", 1)[1]
+                    agent_narratives.append(
+                        f"[Tick {state.tick_number + 1}] {mortal.name}: "
+                        f"The splinter community has fully embraced {domain_short} "
+                        f"under [{_imago_short_ms}]. Still growing their numbers. "
+                        f"Awaiting guidance."
+                    )
+
+            # (B) Size goal milestone — Pop B >= 55% of Pop A's current size
+            if (
+                not goal.pop_b_size_goal_reached
+                and _pop_a_ms is not None
+                and _pop_b_ms is not None
+                and _pop_b_ms.size_fractional >= 0.55 * _pop_a_ms.size_fractional
+            ):
+                goal.pop_b_size_goal_reached  = True
+                goal.petition_pending         = True
+                goal.petition_pending_ticks   = 0
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_ALIGNMENT,
+                    target_id=mortal.id,
+                    field="alignment",
+                    delta=+0.05,
+                    note=f"{mortal.name} — Pop B has reached 55% of Pop A's size",
+                ))
+                agent_narratives.append(
+                    f"[Tick {state.tick_number + 1}] {mortal.name}: "
+                    f"The [{_imago_short_ms}] community has grown to a self-sustaining size. "
+                    f"Awaiting new orders."
+                )
+
+            # (C) Combined success — both milestones met: immediate clearance
+            if goal.pop_b_belief_cap_reached and goal.pop_b_size_goal_reached:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_ALIGNMENT,
+                    target_id=mortal.id,
+                    field="alignment",
+                    delta=+0.08,
+                    note=f"{mortal.name} — full mission success",
+                ))
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.PROXIUS_GOAL_CLEARED,
+                    target_id=mortal.id,
+                    field="active_goal",
+                    note=f"{mortal.name} mission complete — goal cleared",
+                ))
+                agent_narratives.append(
+                    f"[Tick {state.tick_number + 1}] {mortal.name} reports: "
+                    f"The [{_imago_short_ms}] directive is fulfilled — "
+                    f"the community is established and their convictions run deep. "
+                    f"Standing by for a new purpose."
+                )
+                continue
+
+            # Petition abandonment: after milestones so a same-tick completion
+            # fires combined success before the 5-tick clock can trigger.
+            if goal.petition_pending:
+                goal.petition_pending_ticks += 1
+                if goal.petition_pending_ticks >= 5:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.PROXIUS_GOAL_CLEARED,
+                        target_id=mortal.id,
+                        field="active_goal",
+                        note=f"{mortal.name} abandoned goal after petition ignored for 5 ticks",
+                    ))
+                    agent_narratives.append(
+                        f"[Tick {state.tick_number + 1}] {mortal.name} has abandoned their directive — "
+                        f"no response to petition for {goal.petition_pending_ticks} ticks."
+                    )
+                    continue
+
             # Dedication: high alignment + low latitude → near-certain, frequent action
             dedication = mortal.alignment * (1.0 - goal.latitude * 0.3)
             dedication = max(0.0, min(1.0, dedication))
@@ -4295,8 +4407,24 @@ class TickLoop:
             already_audited = str(mortal.id) in state.proxii_audited_this_tick
             has_goal_pop    = goal.goal_pop_id is not None
             if has_goal_pop:
-                promote_w    = 0.40
-                bolster_w    = 0.30
+                _bcr = goal.pop_b_belief_cap_reached
+                _sgr = goal.pop_b_size_goal_reached
+                if _bcr and not _sgr:
+                    # Beliefs at cap but still growing: shift weight toward size drain
+                    promote_w = 0.50
+                    bolster_w = 0.15
+                elif _sgr and not _bcr:
+                    # Size met but beliefs still building: shift weight toward bolstering
+                    promote_w = 0.15
+                    bolster_w = 0.50
+                elif _bcr and _sgr:
+                    # Both met — combined-success should have fired; defensive fallback
+                    promote_w = 0.10
+                    bolster_w = 0.10
+                else:
+                    # Normal: balanced between deepening beliefs and growing size
+                    promote_w = 0.30
+                    bolster_w = 0.40
                 take_stock_w = 0.08
                 report_w     = 0.0 if already_audited else (0.08 + (1.0 - goal.latitude) * 0.10)
                 petition_w   = (
@@ -4305,12 +4433,13 @@ class TickLoop:
                 )
                 nothing_w    = max(0.0, 0.09 - dedication * 0.06)
             else:
-                promote_w    = 0.60
+                # No splinter yet: laser-focused on creating the first split
+                promote_w    = 0.75
                 bolster_w    = 0.0
-                take_stock_w = 0.10
-                report_w     = 0.0 if already_audited else (0.10 + (1.0 - goal.latitude) * 0.15)
-                petition_w   = 0.05 if not goal.petition_pending else 0.0
-                nothing_w    = max(0.0, 0.15 - dedication * 0.10)
+                take_stock_w = 0.06
+                report_w     = 0.0 if already_audited else (0.06 + (1.0 - goal.latitude) * 0.08)
+                petition_w   = 0.03 if not goal.petition_pending else 0.0
+                nothing_w    = max(0.0, 0.10 - dedication * 0.08)
 
             weights = [promote_w, bolster_w, take_stock_w, report_w, petition_w, nothing_w]
             choices = [
@@ -4416,22 +4545,16 @@ class TickLoop:
                             f"apart from their parent community."
                         )
                     else:
-                        # ── Ongoing: shift Pop A beliefs + transfer size ──
+                        # ── Ongoing: drain Pop A into Pop B (beliefs unchanged here;
+                        # Pop A only shifts via splash during BOLSTER_BELIEFS) ──
                         pop_b = state.pops.get(str(goal.goal_pop_id))
                         if pop_b is None:
                             goal.stagnation_counter = min(10, goal.stagnation_counter + 1)
                         else:
-                            for dv in goal.domain_vectors:
-                                belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
-                                rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
-                                receptivity = self._pop_domain_receptivity(pop_a, dv.domain_tag)
-                                mutations.append(StateMutation(
-                                    mutation_type=MutationType.POP_BELIEF_SHIFT,
-                                    target_id=pop_a.id,
-                                    field=dv.domain_tag,
-                                    delta=dv.direction * rate * receptivity,
-                                    note=f"Proxius {mortal.name} nudging source Pop beliefs",
-                                ))
+                            # Clear petition once Proxius achieves a streak of 2+
+                            if goal.petition_pending and goal.consecutive_promote_count >= 2:
+                                goal.petition_pending = False
+                                goal.petition_pending_ticks = 0
 
                             size_delta = round(0.05 * (1.0 + goal.effectiveness_bonus), 3)
                             if pop_a.size_fractional - size_delta <= 0.0:
@@ -4507,13 +4630,18 @@ class TickLoop:
 
             elif chosen == AgentActionChoice.BOLSTER_BELIEFS and goal.domain_vectors:
                 # Strengthen Pop B's distinctive beliefs directly
+                pop_a = state.pops.get(str(goal.source_pop_id)) if goal.source_pop_id else None
                 pop_b = state.pops.get(str(goal.goal_pop_id)) if goal.goal_pop_id else None
                 if pop_b is None:
                     goal.stagnation_counter = min(10, goal.stagnation_counter + 1)
                 else:
                     goal.consecutive_promote_count += 1
                     goal.effectiveness_bonus = min(0.30, goal.consecutive_promote_count * 0.05)
-                    base_rate = 0.06
+                    base_rate = 0.12
+                    # Clear petition once Proxius achieves a streak of 2+
+                    if goal.petition_pending and goal.consecutive_promote_count >= 2:
+                        goal.petition_pending = False
+                        goal.petition_pending_ticks = 0
                     for dv in goal.domain_vectors:
                         belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
                         rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
@@ -4532,6 +4660,20 @@ class TickLoop:
                             delta=dv.direction * rate * 0.5,
                             note=f"Rider trait from {goal.imago_node_id or 'directive'}",
                         ))
+                    # Splash: Proxius actively bridges Pop B's new beliefs back to Pop A.
+                    # No size dampening here — this is directed preaching, not passive contact.
+                    if pop_a is not None:
+                        for dv in goal.domain_vectors:
+                            if dv.direction > 0:
+                                _pop_a_receptivity = self._pop_domain_receptivity(pop_a, dv.domain_tag)
+                                splash_delta = dv.direction * base_rate * 0.6 * _pop_a_receptivity
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                    target_id=pop_a.id,
+                                    field=dv.domain_tag,
+                                    delta=splash_delta,
+                                    note=f"Belief splash to Pop A from {mortal.name} bolstering goal Pop",
+                                ))
                     mutations.append(StateMutation(
                         mutation_type=MutationType.FOOTPRINT_CHANGE,
                         target_id=state.demiurge.id,
@@ -4575,6 +4717,7 @@ class TickLoop:
 
             elif chosen == AgentActionChoice.PETITION_FOR_RELIEF:
                 goal.petition_pending = True
+                goal.petition_pending_ticks = 0  # 5-tick abandonment clock starts now
                 goal.consecutive_promote_count = 0
                 goal.effectiveness_bonus = 0.0
                 goal.stagnation_counter = 0  # fresh start after petition
@@ -4590,13 +4733,14 @@ class TickLoop:
                     f"[{imago_short}] {reason} Requesting new orders."
                 )
                 goal.report_log = (goal.report_log + [entry])[-5:]
-                mutations.append(StateMutation(
-                    mutation_type=MutationType.MORTAL_ALIGNMENT,
-                    target_id=mortal.id,
-                    field="alignment",
-                    delta=-0.02,
-                    note=f"{mortal.name} frustrated with current directive",
-                ))
+                if not (goal.pop_b_belief_cap_reached or goal.pop_b_size_goal_reached):
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.MORTAL_ALIGNMENT,
+                        target_id=mortal.id,
+                        field="alignment",
+                        delta=-0.02,
+                        note=f"{mortal.name} frustrated with current directive",
+                    ))
 
             elif chosen == AgentActionChoice.NOTHING:
                 goal.consecutive_promote_count = 0
@@ -4632,6 +4776,34 @@ class TickLoop:
             affinities = _RELIGION_DOMAIN_AFFINITY.get(tag, {})
             bonus += affinities.get(domain_tag, 0.0) * strength
         return max(0.2, 1.0 + bonus)
+
+    @staticmethod
+    def _belief_inertia(current: float, delta: float) -> float:
+        """
+        Returns a [0.0, 1.0] multiplier that slows belief/culture changes at extremes.
+
+        High zone  (current > 0.7, pushing up):   1.0 → ~0.25 at cap.
+        High zone  (current > 0.7, pushing down):  1.0 → ~0.50 at cap  (entrenched but not immovable).
+        Low zone   (current < 0.2, pushing up):    0.50 → 1.0  (unfamiliar ideas face friction).
+        Floor zone (current ≤ 0.1, pushing down):  0.60 → 1.0  (tiny remnants cling).
+        Mid range  (0.2–0.7): multiplier = 1.0.
+        """
+        if delta > 0:
+            if current >= 0.7:
+                # Linear from 1.0 at 0.7 down to 0.25 at 0.9+
+                t = min(1.0, (current - 0.7) / 0.2)
+                return 1.0 - t * 0.75
+            if current < 0.2:
+                # Linear from 0.50 at 0.0 up to 1.0 at 0.2
+                return 0.50 + (current / 0.2) * 0.50
+        else:  # delta < 0 (downward pressure)
+            if current >= 0.7:
+                t = min(1.0, (current - 0.7) / 0.2)
+                return 1.0 - t * 0.50
+            if current <= 0.1:
+                # Linear from 0.60 at 0.0 up to 1.0 at 0.1
+                return 0.60 + (current / 0.1) * 0.40
+        return 1.0
 
     def _pops_on_world(self, world_id: str, state: "SimulationState") -> list["Pop"]:
         """Return all Pops whose current_location is a PopLocation child of world_id."""
@@ -4718,9 +4890,10 @@ class TickLoop:
         cfg: TickConfig,
     ) -> list["StateMutation"]:
         """
-        Passive belief drift between co-located Pops of different civilizations.
-        For each world, iterates ordered pairs (a→b) where civs differ and
-        emits POP_BELIEF_SHIFT mutations scaled by _pop_contact_resistance().
+        Passive belief drift between all co-located Pops.
+        For each world, iterates ordered pairs (a→b) and emits POP_BELIEF_SHIFT
+        mutations scaled by _pop_contact_resistance(). Same-civ pairs are included;
+        the resistance function applies cross-civ and cross-stratum factors as appropriate.
         """
         mutations: list[StateMutation] = []
         for world_id in state.worlds:
@@ -4730,8 +4903,6 @@ class TickLoop:
             for i, pop_a in enumerate(world_pops):
                 for pop_b in world_pops:
                     if pop_a is pop_b:
-                        continue
-                    if str(pop_a.civilization_id) == str(pop_b.civilization_id):
                         continue
                     src_civ_id = str(pop_a.civilization_id) if pop_a.civilization_id else None
                     src_species_id = str(pop_a.species_id) if pop_a.species_id else None
@@ -4842,7 +5013,9 @@ class TickLoop:
                 elif tid in state.civilizations:
                     beliefs = state.civilizations[tid].dominant_beliefs
                     current = beliefs.get(tag, 0.0)
-                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_strength = max(0.0, min(cap, current + delta))
                     if new_strength > 0.0:
                         beliefs[tag] = new_strength
                     elif tag in beliefs:
@@ -5051,7 +5224,9 @@ class TickLoop:
                 if tid and tid in state.pops and tag:
                     beliefs = state.pops[tid].dominant_beliefs
                     current = beliefs.get(tag, 0.0)
-                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_strength = max(0.0, min(cap, current + delta))
                     if new_strength > BELIEF_FLOOR:
                         beliefs[tag] = new_strength
                     elif tag in beliefs:
@@ -5070,7 +5245,9 @@ class TickLoop:
                 if tid and tid in state.civilizations and tag:
                     established = state.civilizations[tid].established_beliefs
                     current = established.get(tag, 0.0)
-                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_strength = max(0.0, min(cap, current + delta))
                     if new_strength > BELIEF_FLOOR:
                         established[tag] = new_strength
                     elif tag in established:
@@ -5081,7 +5258,9 @@ class TickLoop:
                 if tid and tid in state.civilizations and tag:
                     est_cult = state.civilizations[tid].established_culture_tags
                     current = est_cult.get(tag, 0.0)
-                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_strength = max(0.0, min(cap, current + delta))
                     if new_strength > BELIEF_FLOOR:
                         est_cult[tag] = new_strength
                     elif tag in est_cult:
@@ -5130,7 +5309,10 @@ class TickLoop:
                 tag = m.field
                 if tid and tid in state.pops and tag and m.delta is not None:
                     pop = state.pops[tid]
-                    new_val = max(0.0, min(1.0, pop.culture_tags.get(tag, 0.0) + m.delta))
+                    current = pop.culture_tags.get(tag, 0.0)
+                    delta = m.delta * self._belief_inertia(current, m.delta)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_val = max(0.0, min(cap, current + delta))
                     if new_val < BELIEF_FLOOR:
                         pop.culture_tags.pop(tag, None)
                     else:

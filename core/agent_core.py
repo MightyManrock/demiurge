@@ -50,3 +50,17 @@ class ProxiusGoal(BaseModel):
     # Pop B's size_fractional at end of last tick; used to detect stagnation/re-absorption.
     stagnation_counter: int = 0
     # Ticks in a row where Pop B failed to grow. Drives petition weight up.
+
+    petition_pending_ticks: int = 0
+    # Consecutive ticks petition_pending has been True. Resets when petition clears.
+    # At 5 the Proxius abandons their goal entirely.
+
+    pop_b_belief_cap_reached: bool = False
+    # True once Pop B's core domain belief reaches the 0.9 cap.
+    # Triggers a petition for new orders; does NOT drain alignment on filing.
+
+    pop_b_size_goal_reached: bool = False
+    # True once Pop B's size_fractional >= 55% of Pop A's size_fractional.
+    # Triggers a petition for new orders; does NOT drain alignment on filing.
+    # When both flags are True the Proxius reports complete success and the
+    # goal is cleared immediately (no 5-tick petition wait).

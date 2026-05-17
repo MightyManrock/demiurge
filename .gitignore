@@ -5,7 +5,7 @@ lib64
 
 pyvenv.cfg
 
-autoplay.py
+autoplay*.py
 logs/*.log
 docs
 saves/*.db
