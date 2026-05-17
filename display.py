@@ -145,8 +145,8 @@ def _format_culture(tags: "dict[str, float]") -> str:
     if not tags:
         return ""
     return ", ".join(
-        _short_tag(t)
-        for t, _ in sorted(tags.items(), key=lambda kv: -kv[1])
+        f"{_short_tag(t)}({v:.2f})"
+        for t, v in sorted(tags.items(), key=lambda kv: -kv[1])
     )
 
 
@@ -164,13 +164,13 @@ def _format_beliefs_markup(beliefs: "dict[str, float]", scale: float = 1.0) -> s
 
 
 def _format_culture_markup(tags: "dict[str, float]", scale: float = 1.0) -> str:
-    """Markup variant of `_format_culture` — colors per strength, no numbers."""
+    """Markup variant of `_format_culture` — colors per strength, value appended."""
     if not tags:
         return ""
     parts = []
     for tag, v in sorted(tags.items(), key=lambda kv: -kv[1]):
         color = _trait_color(v, scale=scale)
-        parts.append(f"[{color}]{_short_tag(tag)}[/]")
+        parts.append(f"[{color}]{_short_tag(tag)}({v:.2f})[/]")
     return ", ".join(parts)
 
 
