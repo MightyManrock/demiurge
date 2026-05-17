@@ -1,0 +1,340 @@
+$bg:        #0c0c1e;
+$bg-panel:  #0f1028;
+$bg-feed:   #080812;
+$bg-modal:  #101026;
+$border:    #1e2d50;
+$text:      #c0ccdc;
+$muted:     #5a7090;
+$accent:    #4a80b0;
+$good:      #50b870;
+$warn:      #b8902a;
+$danger:    #b04050;
+$highlight: #1a2a50;
+
+Screen {
+    background: $bg;
+    color: $text;
+}
+
+Header {
+    background: #0a0a1e;
+    color: $muted;
+    height: 1;
+}
+
+Footer {
+    background: #0a0a1e;
+    color: $muted;
+}
+
+/* ── Layout ─────────────────────────── */
+
+#status-panel {
+    width: 36;
+    background: $bg-panel;
+    border-right: solid $border;
+    padding: 0 1 1 1;
+    overflow-y: auto;
+}
+
+#main-feed {
+    background: $bg-feed;
+}
+
+/* ── Buttons ─────────────────────────── */
+
+Button {
+    background: $highlight;
+    color: $accent;
+    border: none;
+    margin: 0 1;
+}
+
+Button:focus {
+    background: #24407a;
+    color: #c0d8f0;
+    border: none;
+}
+
+Button:hover {
+    background: #24407a;
+    color: #c0d8f0;
+}
+
+Button.-primary {
+    background: #14382a;
+    color: $good;
+}
+
+Button.-primary:hover {
+    background: #1e5040;
+    color: #70d890;
+}
+
+Button.-danger {
+    background: #38101e;
+    color: $danger;
+}
+
+Button.-danger:hover {
+    background: #501828;
+    color: #d07080;
+}
+
+/* ── Lists ─────────────────────────────── */
+
+ListView {
+    background: $bg-panel;
+    border: solid $border;
+}
+
+ListItem {
+    color: $text;
+    padding: 0 1;
+}
+
+ListItem.--highlight {
+    background: $highlight;
+    color: #e0eaf8;
+}
+
+ListItem > Label {
+    color: $text;
+    padding: 0 0;
+}
+
+/* ── Inputs ──────────────────────────── */
+
+Input {
+    background: #07071a;
+    color: #e0e8f8;
+    border: solid $border;
+}
+
+Input:focus {
+    border: solid #3a5a9a;
+}
+
+/* ── Labels ──────────────────────────── */
+
+Label {
+    color: $muted;
+}
+
+.field-label {
+    color: $muted;
+    padding: 1 0 0 0;
+}
+
+/* ── Modals ──────────────────────────── */
+
+ModalScreen {
+    align: center middle;
+    background: rgba(0,0,0,0.6);
+}
+
+.modal-box {
+    background: $bg-modal;
+    border: solid $border;
+    width: 74;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+}
+
+.modal-box-tall {
+    background: $bg-modal;
+    border: solid $border;
+    width: 74;
+    height: 80%;
+    padding: 1 2;
+}
+
+.modal-title {
+    color: $accent;
+    text-style: bold;
+    padding: 0 0 1 0;
+}
+
+.modal-desc {
+    color: $muted;
+    padding: 0 0 1 0;
+}
+
+.btn-row {
+    height: 3;
+    align: right middle;
+    padding: 1 0 0 0;
+}
+
+.toast-box {
+    background: $bg-modal;
+    border: solid $border;
+    width: 52;
+    height: auto;
+    padding: 1 2;
+}
+
+/* ── Domain Picker ───────────────────── */
+
+#domain-grid {
+    grid-size: 4;
+    height: auto;
+    margin: 1 0;
+}
+
+DomainSquare {
+    border: round $border;
+    height: 4;
+    content-align: center middle;
+    text-align: center;
+    padding: 0 1;
+    color: $text;
+}
+
+DomainSquare:focus {
+    border: round $accent;
+}
+
+DomainSquare.affiliated {
+    border: round $good;
+    color: $good;
+}
+
+DomainSquare.affiliated:focus {
+    border: round #70d890;
+}
+
+DomainSquare.inactive {
+    border: round $muted;
+    color: $muted;
+}
+
+DomainSquare.eligible-reveal {
+    border: round #e8c060;
+    color: #e8c060;
+}
+
+DomainSquare.eligible-reveal:focus {
+    border: round #f0d880;
+}
+
+#lum-panel {
+    height: 3;
+    background: $bg-panel;
+    border: solid $border;
+    padding: 0 1;
+    margin: 0 0 1 0;
+    content-align: left middle;
+}
+
+/* ── Imago Tree Picker ───────────────── */
+
+#imago-grid {
+    grid-size: 3;
+    height: auto;
+    margin: 1 0;
+}
+
+ImagoCell {
+    border: round $border;
+    height: 4;
+    content-align: center middle;
+    text-align: center;
+    padding: 0 1;
+    color: $text;
+}
+
+ImagoCell:focus {
+    border: round $accent;
+}
+
+ImagoCell.good {
+    border: round $good;
+    color: $good;
+}
+
+ImagoCell.good:focus {
+    border: round #70d890;
+}
+
+ImagoCell.danger {
+    border: round $danger;
+    color: $danger;
+}
+
+ImagoCell.danger:focus {
+    border: round #d07080;
+}
+
+ImagoCell.inactive {
+    border: round #2e3d58;
+    color: #4a5a72;
+}
+
+ImagoCell.inactive:focus {
+    border: round #3a4e70;
+}
+
+ImagoRevealCell {
+    border: round #2e3d58;
+    color: #4a5a72;
+    height: 4;
+    content-align: center middle;
+}
+
+ImagoRevealCell.imago-eligible {
+    border: round #e8c060;
+    color: #e8c060;
+}
+
+ImagoRevealCell.imago-eligible:focus {
+    border: round #f0d880;
+    color: $text;
+}
+
+#reveal-pool-label {
+    text-align: center;
+    color: #7090b0;
+    padding: 0 2;
+}
+
+.imago-spacer {
+    height: 4;
+}
+
+#imago-tooltip {
+    height: 5;
+    background: $bg-panel;
+    border: solid $border;
+    padding: 0 1;
+    margin: 0 0 1 0;
+    content-align: left middle;
+}
+
+/* ── LoadScreen ───────────────────────── */
+
+LoadScreen {
+    align: center middle;
+}
+
+.load-box {
+    background: $bg-panel;
+    border: solid $border;
+    width: 68;
+    height: 70%;
+    padding: 1 2;
+}
+
+.load-title {
+    color: $accent;
+    text-style: bold;
+    text-align: center;
+    padding: 1 0;
+}
+
+.load-section {
+    color: $muted;
+    text-style: bold;
+    padding: 1 0 0 0;
+}
