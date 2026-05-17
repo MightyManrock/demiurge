@@ -4489,20 +4489,22 @@ class TickLoop:
                         new_beliefs = dict(pop_a.dominant_beliefs)
                         for dv in goal.domain_vectors:
                             belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
-                            # Sum of 5 escalating ticks: streak i=1..5, effectiveness i*0.05
-                            base_shift = sum(
-                                base_rate * (1.0 + i * 0.05) + belief_affinity * 0.02
-                                for i in range(1, 6)
-                            )
                             # Culture synergy bonus: sum strength × pop A's culture level
                             culture_bonus = sum(
                                 c_strength * pop_a.culture_tags.get(c_tag, 0.0)
                                 for c_tag, c_strength in culture_mechanics.items()
                                 if dv.direction > 0
                             )
-                            delta = (base_shift + culture_bonus) * dv.direction
+                            # Apply 2 escalating tick-steps with inertia at each step
+                            # so the initial state respects the same resistance as live bolstering.
                             current = new_beliefs.get(dv.domain_tag, 0.0)
-                            new_beliefs[dv.domain_tag] = max(0.0, min(1.0, current + delta))
+                            for i in range(1, 3):
+                                tick_rate = base_rate * (1.0 + i * 0.05) + belief_affinity * 0.02
+                                raw_delta = (tick_rate + culture_bonus / 5) * dv.direction
+                                raw_delta *= self._belief_inertia(current, raw_delta)
+                                cap = BELIEF_CAP if raw_delta > 0 else 1.0
+                                current = max(0.0, min(cap, current + raw_delta))
+                            new_beliefs[dv.domain_tag] = current
 
                         # Prune sub-floor entries
                         new_beliefs = {
@@ -4782,27 +4784,27 @@ class TickLoop:
         """
         Returns a [0.0, 1.0] multiplier that slows belief/culture changes at extremes.
 
-        High zone  (current > 0.7, pushing up):   1.0 → ~0.25 at cap.
-        High zone  (current > 0.7, pushing down):  1.0 → ~0.50 at cap  (entrenched but not immovable).
-        Low zone   (current < 0.2, pushing up):    0.50 → 1.0  (unfamiliar ideas face friction).
-        Floor zone (current ≤ 0.1, pushing down):  0.60 → 1.0  (tiny remnants cling).
+        High zone  (current > 0.7, pushing up):   1.0 → ~0.40 at cap.
+        High zone  (current > 0.7, pushing down):  1.0 → ~0.65 at cap  (entrenched but not immovable).
+        Low zone   (current < 0.2, pushing up):    0.65 → 1.0  (unfamiliar ideas face friction).
+        Floor zone (current ≤ 0.1, pushing down):  0.75 → 1.0  (tiny remnants cling).
         Mid range  (0.2–0.7): multiplier = 1.0.
         """
         if delta > 0:
             if current >= 0.7:
-                # Linear from 1.0 at 0.7 down to 0.25 at 0.9+
+                # Linear from 1.0 at 0.7 down to 0.40 at 0.9+
                 t = min(1.0, (current - 0.7) / 0.2)
-                return 1.0 - t * 0.75
+                return 1.0 - t * 0.60
             if current < 0.2:
-                # Linear from 0.50 at 0.0 up to 1.0 at 0.2
-                return 0.50 + (current / 0.2) * 0.50
+                # Linear from 0.65 at 0.0 up to 1.0 at 0.2
+                return 0.65 + (current / 0.2) * 0.35
         else:  # delta < 0 (downward pressure)
             if current >= 0.7:
                 t = min(1.0, (current - 0.7) / 0.2)
-                return 1.0 - t * 0.50
+                return 1.0 - t * 0.35
             if current <= 0.1:
-                # Linear from 0.60 at 0.0 up to 1.0 at 0.1
-                return 0.60 + (current / 0.1) * 0.40
+                # Linear from 0.75 at 0.0 up to 1.0 at 0.1
+                return 0.75 + (current / 0.1) * 0.25
         return 1.0
 
     def _pops_on_world(self, world_id: str, state: "SimulationState") -> list["Pop"]:
