@@ -155,9 +155,11 @@ CREATE TABLE IF NOT EXISTS civilizations (
     dominant_beliefs    TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; derived aggregate of Pops
     established_beliefs TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; institutional/official profile
     pop_ids             TEXT NOT NULL DEFAULT '[]',  -- JSON array of Pop UUIDs
-    culture_tags        TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
+    culture_tags             TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; derived aggregate of Pops
+    established_culture_tags TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; institutional/official profile
     theistic            INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness    REAL NOT NULL DEFAULT 0.3,
+    core_locs           TEXT    NOT NULL DEFAULT '[]',  -- JSON array of SignificantLocation UUIDs
     age                 REAL NOT NULL DEFAULT 0.0,
     visibility          REAL    NOT NULL DEFAULT 0.0,
     pinned              INTEGER NOT NULL DEFAULT 0
@@ -268,7 +270,17 @@ CREATE TABLE IF NOT EXISTS tick_config (
     starting_visible_decay_rate             REAL NOT NULL DEFAULT 0.005,  -- kept for backward compat with old saves; no longer read
     pop_conformity_base                     REAL NOT NULL DEFAULT 0.005,  -- base rate at which Pops are nudged toward established_beliefs
     pop_visibility_drift_rate               REAL NOT NULL DEFAULT 0.02,   -- rate at which Pop visibility converges toward civ+world floor
-    established_drift_base                  REAL NOT NULL DEFAULT 0.01    -- base rate at which established_beliefs drifts toward dominant_beliefs
+    established_drift_base                  REAL NOT NULL DEFAULT 0.01,   -- base rate at which established_beliefs drifts toward dominant_beliefs
+    -- Cross-Pop contact
+    pop_contact_base_rate       REAL NOT NULL DEFAULT 0.002,
+    cross_civ_contact_factor    REAL NOT NULL DEFAULT 0.15,
+    cross_civ_scale_penalty     REAL NOT NULL DEFAULT 0.08,
+    cross_species_contact_factor REAL NOT NULL DEFAULT 0.50,
+    cross_stratum_contact_factor REAL NOT NULL DEFAULT 0.70,
+    values_stubbornness_factor  REAL NOT NULL DEFAULT 0.35,
+    peripheral_pop_belief_weight  REAL NOT NULL DEFAULT 0.25,
+    peripheral_pop_culture_weight REAL NOT NULL DEFAULT 0.25,
+    civ_culture_drift_rate      REAL NOT NULL DEFAULT 0.03   -- unused; established_culture_tags drift reuses established_drift_base
 );
 
 -- Per-civilization natural momentum at scenario start.

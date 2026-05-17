@@ -261,6 +261,23 @@ def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id:
 
 
 # ─────────────────────────────────────────
+# POP CONTACT RANK TABLES
+# Used by _pop_contact_resistance() for cross-stratum
+# and cross-scale resistance calculations.
+# ─────────────────────────────────────────
+
+_SOCIAL_CLASS_RANK: dict[str, int] = {
+    "underclass": 0, "common": 1, "artisan": 2, "merchant": 3,
+    "warrior": 4, "priest": 5, "elite": 6,
+}
+
+_CIV_SCALE_CONTACT_RANK: dict[str, int] = {
+    "nascent": 0, "tribal": 1, "city_state": 2, "regional": 3,
+    "continental": 4, "planetary": 5, "interplanetary": 6,
+    "interstellar": 7, "intergalactic": 8,
+}
+
+# ─────────────────────────────────────────
 # TICK CONFIGURATION
 # Tunable constants separated from logic.
 # ─────────────────────────────────────────
@@ -378,6 +395,17 @@ class TickConfig(BaseModel):
     established_drift_base: float = 0.01
     # Base rate at which civ.established_beliefs drifts toward civ.dominant_beliefs per tick.
     # Scaled by civ.health.cohesion at runtime.
+
+    # Cross-Pop contact (passive belief drift between co-located Pops of different civs)
+    pop_contact_base_rate: float = 0.002
+    cross_civ_contact_factor: float = 0.15
+    cross_civ_scale_penalty: float = 0.08
+    cross_species_contact_factor: float = 0.50
+    cross_stratum_contact_factor: float = 0.70
+    values_stubbornness_factor: float = 0.35
+    # Core-loc weighting for civ aggregate belief/culture recomputation
+    peripheral_pop_belief_weight: float = 0.25
+    peripheral_pop_culture_weight: float = 0.25
 
 
 # ─────────────────────────────────────────
@@ -757,10 +785,11 @@ class TickLoop:
         result.agent_narratives.extend(agent_narratives)
 
         # ── Pop aggregate recomputation ────────────────
-        # Recompute Civilization.dominant_beliefs as the size-weighted average of
-        # constituent Pop beliefs. This makes dominant_beliefs a derived read for
-        # Phase 3 onward rather than an independently maintained value.
-        self._recompute_civ_dominant_beliefs(state)
+        # Recompute Civilization.dominant_beliefs and culture_tags as size-weighted
+        # averages of constituent Pop beliefs/tags. Peripheral (non-core) Pops are
+        # weighted down so colony Pops don't over-influence the civ aggregate.
+        self._recompute_civ_dominant_beliefs(state, cfg)
+        self._recompute_civ_culture_tags(state, cfg)
 
         # ── Phase 3: Domain Profiling ──────────────────
         profile = self._build_domain_profile(state)
@@ -874,6 +903,21 @@ class TickLoop:
                         note=f"{civ.name} established belief drift: {tag}",
                     ))
 
+            # established_culture_tags drifts toward culture_tags (same institutional lag).
+            for tag in set(civ.culture_tags) | set(civ.established_culture_tags):
+                dom_val = civ.culture_tags.get(tag, 0.0)
+                est_val = civ.established_culture_tags.get(tag, 0.0)
+                delta = (dom_val - est_val) * established_rate
+                if abs(delta) > 0.0001:
+                    result.civilization_mutations.append(StateMutation(
+                        mutation_type=MutationType.CIV_ESTABLISHED_CULTURE_SHIFT,
+                        target_id=UUID(cid),
+                        field=tag,
+                        new_value=tag,
+                        delta=delta,
+                        note=f"{civ.name} established culture drift: {tag}",
+                    ))
+
             # Narrative event if stability crosses a threshold
             projected_stability = max(0.0, min(1.0, civ.health.stability + stability_delta))
             if projected_stability < 0.2 and civ.health.stability >= 0.2:
@@ -914,6 +958,21 @@ class TickLoop:
                         delta=delta,
                         note=f"{civ.name} conformity pressure on Pop ({tag})",
                     ))
+
+            # Culture conformity: nudge Pop culture_tags toward civ.established_culture_tags
+            if civ.established_culture_tags:
+                for tag in set(civ.established_culture_tags) | set(pop.culture_tags):
+                    est_val = civ.established_culture_tags.get(tag, 0.0)
+                    pop_val = pop.culture_tags.get(tag, 0.0)
+                    delta = (est_val - pop_val) * conformity_rate
+                    if abs(delta) > 0.0001:
+                        result.civilization_mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_CULTURE_SHIFT,
+                            target_id=pop.id,
+                            field=tag,
+                            delta=delta,
+                            note=f"{civ.name} culture conformity on Pop ({tag})",
+                        ))
 
         # ── Rider trait → culture tag attrition ───────
         # Culture tags that conflict with a Pop's active rider traits decay passively.
@@ -1254,6 +1313,13 @@ class TickLoop:
                     delta=-(current_att - new_att),
                     note="Luminary attention decay",
                 ))
+
+        # ── Cross-Pop contact (passive cross-civ belief drift) ─────
+        # Co-located Pops of different civs slowly drift toward each other's beliefs.
+        # Resistance is applied for cross-civ scale gap, cross-species, cross-stratum,
+        # and values: tag stubbornness. Omens are unaffected.
+        for m in self._process_pop_contact(state, cfg):
+            result.civilization_mutations.append(m)
 
         # ── Pop splinter check ─────────────────────────
         # A Pop splits when its beliefs diverge too far from civ.established_beliefs.
@@ -2796,37 +2862,38 @@ class TickLoop:
                 ),
             ))
 
-            # Splash: ripple fraction of the whisper's effect to Pops on the same world
+            # Splash: ripple fraction of the whisper's effect to all Pops on the same world.
+            # Cross-civ/cross-species/cross-stratum Pops receive reduced splash via resistance.
             mortal_world_id = str(mortal.current_location)
-            world_obj = state.locations.get(mortal_world_id)
-            if world_obj is not None:
-                splash_pops = [
-                    p for p in state.pops.values()
-                    if str(p.civilization_id) == str(mortal.civilization_id)
-                    and any(
-                        str(pop_loc_cid) == str(p.current_location)
-                        for pop_loc_cid in getattr(world_obj, "child_ids", [])
+            splash_pops = self._pops_on_world(mortal_world_id, state)
+            if splash_pops:
+                _splash_cfg = state.config
+                # Derive source attributes from the mortal for resistance calculations
+                _src_civ_id = str(mortal.civilization_id) if mortal.civilization_id else None
+                _src_species_id = str(mortal.species_id) if mortal.species_id else None
+                _src_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+                _src_class = ((_src_pop.social_class.value if hasattr(_src_pop.social_class, "value") else str(_src_pop.social_class or "")) if _src_pop else None) or None
+                total_sz = sum(p.size_fractional for p in splash_pops)
+                for sp in splash_pops:
+                    sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
+                    resistance = self._pop_contact_resistance(
+                        sp, _src_civ_id, _src_species_id, _src_class, state, _splash_cfg
                     )
-                ]
-                if splash_pops:
-                    total_sz = sum(p.size_fractional for p in splash_pops)
-                    for sp in splash_pops:
-                        sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
-                        for dv in intent.domain_vectors:
-                            receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
-                            splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight * receptivity
-                            if abs(splash_delta) > 1e-5:
-                                mutations.append(StateMutation(
-                                    mutation_type=MutationType.POP_BELIEF_SHIFT,
-                                    target_id=sp.id,
-                                    field=dv.domain_tag,
-                                    delta=splash_delta,
-                                    note=f"Whisper splash to {sp.stratum} Pop",
-                                ))
-                                self._emit_lineage_bleed(
-                                    mutations, state, sp, dv.domain_tag,
-                                    splash_delta, "whisper",
-                                )
+                    for dv in intent.domain_vectors:
+                        receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
+                        splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight * receptivity * resistance
+                        if abs(splash_delta) > 1e-5:
+                            mutations.append(StateMutation(
+                                mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                target_id=sp.id,
+                                field=dv.domain_tag,
+                                delta=splash_delta,
+                                note=f"Whisper splash to {sp.stratum} Pop",
+                            ))
+                            self._emit_lineage_bleed(
+                                mutations, state, sp, dv.domain_tag,
+                                splash_delta, "whisper",
+                            )
 
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
@@ -3530,15 +3597,27 @@ class TickLoop:
                     note=f"Lineage bleed ({source_note} → {getattr(rel, 'stratum', 'Pop')})",
                 ))
 
-    def _recompute_civ_dominant_beliefs(self, state: SimulationState) -> None:
+    def _recompute_civ_dominant_beliefs(self, state: SimulationState, cfg: TickConfig) -> None:
         """
         Overwrite each Civilization.dominant_beliefs with the size-fractional-weighted
         average of its constituent Pop beliefs. Prunes entries below BELIEF_FLOOR.
-        Called once per tick after Phase 2.5, before Phase 3 domain profiling.
+        Pops at non-core locations (not in civ.core_locs) are weighted down by
+        cfg.peripheral_pop_belief_weight. Called once per tick after Phase 2.5.
         """
+
+        # Build PopLocation → parent world index
+        pop_loc_to_world: dict[str, str] = {}
+        for wid, world in state.worlds.items():
+            for cid in world.child_ids:
+                loc = state.locations.get(str(cid))
+                if loc is not None and hasattr(loc, "pop_ids"):
+                    pop_loc_to_world[str(cid)] = wid
+
         for civ in state.civilizations.values():
             if not civ.pop_ids:
-                continue  # no Pops yet; leave dominant_beliefs unchanged
+                continue
+
+            core_loc_strs = {str(loc_id) for loc_id in civ.core_locs}
 
             weighted: dict[str, float] = {}
             total_weight = 0.0
@@ -3547,7 +3626,10 @@ class TickLoop:
                 pop = state.pops.get(str(pid))
                 if pop is None:
                     continue
-                w = max(0.001, pop.size_fractional)
+                world_id = pop_loc_to_world.get(str(pop.current_location), "")
+                is_core = (not core_loc_strs) or (world_id in core_loc_strs)
+                base_w = max(0.001, pop.size_fractional)
+                w = base_w if is_core else base_w * cfg.peripheral_pop_belief_weight
                 total_weight += w
                 for tag, strength in pop.dominant_beliefs.items():
                     weighted[tag] = weighted.get(tag, 0.0) + strength * w
@@ -3561,6 +3643,50 @@ class TickLoop:
                 if val / total_weight > BELIEF_FLOOR
             }
             civ.dominant_beliefs = new_beliefs
+
+    def _recompute_civ_culture_tags(self, state: SimulationState, cfg: TickConfig) -> None:
+        """
+        Overwrite each Civilization.culture_tags with the size-fractional-weighted
+        average of its constituent Pop culture_tags. Pops at non-core locations are
+        weighted down by cfg.peripheral_pop_culture_weight.
+        """
+
+        pop_loc_to_world: dict[str, str] = {}
+        for wid, world in state.worlds.items():
+            for cid in world.child_ids:
+                loc = state.locations.get(str(cid))
+                if loc is not None and hasattr(loc, "pop_ids"):
+                    pop_loc_to_world[str(cid)] = wid
+
+        for civ in state.civilizations.values():
+            if not civ.pop_ids:
+                continue
+
+            core_loc_strs = {str(loc_id) for loc_id in civ.core_locs}
+
+            weighted: dict[str, float] = {}
+            total_weight = 0.0
+
+            for pid in civ.pop_ids:
+                pop = state.pops.get(str(pid))
+                if pop is None:
+                    continue
+                world_id = pop_loc_to_world.get(str(pop.current_location), "")
+                is_core = (not core_loc_strs) or (world_id in core_loc_strs)
+                base_w = max(0.001, pop.size_fractional)
+                w = base_w if is_core else base_w * cfg.peripheral_pop_culture_weight
+                total_weight += w
+                for tag, strength in pop.culture_tags.items():
+                    weighted[tag] = weighted.get(tag, 0.0) + strength * w
+
+            if total_weight == 0.0:
+                continue
+
+            civ.culture_tags = {
+                tag: min(1.0, val / total_weight)
+                for tag, val in weighted.items()
+                if val / total_weight > BELIEF_FLOOR
+            }
 
     def _build_domain_profile(
         self,
@@ -4506,6 +4632,104 @@ class TickLoop:
                         pops.append(pop)
         return pops
 
+    def _pop_contact_resistance(
+        self,
+        target_pop: "Pop",
+        src_civ_id: str | None,
+        src_species_id: str | None,
+        src_class: str | None,
+        state: "SimulationState",
+        cfg: TickConfig,
+    ) -> float:
+        """
+        Returns a resistance multiplier in [0.0, 1.0] representing how much
+        cross-boundary friction slows belief drift from a source Pop/mortal
+        onto target_pop.  Same-civ Pops return 1.0 (no reduction).
+        """
+        r = 1.0
+
+        # Cross-civ resistance
+        target_civ_id = str(target_pop.civilization_id) if target_pop.civilization_id else None
+        if target_civ_id != src_civ_id:
+            r *= cfg.cross_civ_contact_factor
+            # Additional penalty when the target civ is larger/more established
+            if src_civ_id:
+                src_civ = state.civilizations.get(src_civ_id)
+                tgt_civ = state.civilizations.get(target_civ_id) if target_civ_id else None
+                if src_civ and tgt_civ:
+                    src_scale_str = src_civ.scale.value if hasattr(src_civ.scale, "value") else str(src_civ.scale)
+                    tgt_scale_str = tgt_civ.scale.value if hasattr(tgt_civ.scale, "value") else str(tgt_civ.scale)
+                    src_rank = _CIV_SCALE_CONTACT_RANK.get(src_scale_str, 0)
+                    tgt_rank = _CIV_SCALE_CONTACT_RANK.get(tgt_scale_str, 0)
+                    scale_gap = max(0, tgt_rank - src_rank)
+                    r *= max(0.05, 1.0 - scale_gap * cfg.cross_civ_scale_penalty)
+
+        # Cross-species resistance
+        target_species_id = str(target_pop.species_id) if target_pop.species_id else None
+        if src_species_id and target_species_id and target_species_id != src_species_id:
+            r *= cfg.cross_species_contact_factor
+
+        # Cross-stratum resistance
+        if src_class:
+            tgt_class_str = target_pop.social_class.value if hasattr(target_pop.social_class, "value") else str(target_pop.social_class or "")
+            src_rank = _SOCIAL_CLASS_RANK.get(src_class, 0)
+            tgt_rank = _SOCIAL_CLASS_RANK.get(tgt_class_str, 0)
+            stratum_distance = abs(tgt_rank - src_rank)
+            if stratum_distance > 0:
+                r *= cfg.cross_stratum_contact_factor ** stratum_distance
+
+        # Values-tag stubbornness
+        values_strength = sum(
+            v for tag, v in target_pop.culture_tags.items() if tag.startswith("values:")
+        )
+        if values_strength > 0.0:
+            r *= max(0.05, 1.0 - values_strength * cfg.values_stubbornness_factor)
+
+        return max(0.0, min(1.0, r))
+
+    def _process_pop_contact(
+        self,
+        state: "SimulationState",
+        cfg: TickConfig,
+    ) -> list["StateMutation"]:
+        """
+        Passive belief drift between co-located Pops of different civilizations.
+        For each world, iterates ordered pairs (a→b) where civs differ and
+        emits POP_BELIEF_SHIFT mutations scaled by _pop_contact_resistance().
+        """
+        mutations: list[StateMutation] = []
+        for world_id in state.worlds:
+            world_pops = self._pops_on_world(world_id, state)
+            if len(world_pops) < 2:
+                continue
+            for i, pop_a in enumerate(world_pops):
+                for pop_b in world_pops:
+                    if pop_a is pop_b:
+                        continue
+                    if str(pop_a.civilization_id) == str(pop_b.civilization_id):
+                        continue
+                    src_civ_id = str(pop_a.civilization_id) if pop_a.civilization_id else None
+                    src_species_id = str(pop_a.species_id) if pop_a.species_id else None
+                    src_class = (pop_a.social_class.value if hasattr(pop_a.social_class, "value") else str(pop_a.social_class or "")) or None
+                    resistance = self._pop_contact_resistance(
+                        pop_b, src_civ_id, src_species_id, src_class, state, cfg
+                    )
+                    for tag, a_strength in pop_a.dominant_beliefs.items():
+                        if a_strength <= BELIEF_FLOOR:
+                            continue
+                        b_strength = pop_b.dominant_beliefs.get(tag, 0.0)
+                        raw_delta = (a_strength - b_strength) * cfg.pop_contact_base_rate
+                        delta = raw_delta * resistance
+                        if abs(delta) > 1e-5:
+                            mutations.append(StateMutation(
+                                mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                target_id=pop_b.id,
+                                field=tag,
+                                delta=delta,
+                                note=f"Pop contact drift ({tag})",
+                            ))
+        return mutations
+
     def _summarize_evaluation(
         self,
         luminary: "Luminary",
@@ -4825,6 +5049,17 @@ class TickLoop:
                         established[tag] = new_strength
                     elif tag in established:
                         del established[tag]
+
+            elif m.mutation_type == MutationType.CIV_ESTABLISHED_CULTURE_SHIFT:
+                tag = str(m.new_value) if m.new_value else m.field
+                if tid and tid in state.civilizations and tag:
+                    est_cult = state.civilizations[tid].established_culture_tags
+                    current = est_cult.get(tag, 0.0)
+                    new_strength = max(0.0, min(1.0, current + (m.delta or 0.0)))
+                    if new_strength > BELIEF_FLOOR:
+                        est_cult[tag] = new_strength
+                    elif tag in est_cult:
+                        del est_cult[tag]
 
             elif m.mutation_type == MutationType.POP_SPLINTER:
                 # m.target_id = parent Pop UUID; m.new_value = splinter Pop object

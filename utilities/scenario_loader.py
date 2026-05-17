@@ -445,8 +445,10 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
             established_beliefs=established,
             pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
             culture_tags=_jd(row.get("culture_tags", "{}")),
+            established_culture_tags=_jd(row.get("established_culture_tags", "{}")),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
+            core_locs=[UUID(x) for x in _j(row.get("core_locs", "[]"))],
             age=row["age"],
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
@@ -609,6 +611,14 @@ def _load_tick_config(conn) -> TickConfig:
         pop_conformity_base=float(row.get("pop_conformity_base", 0.005)),
         pop_visibility_drift_rate=float(row.get("pop_visibility_drift_rate", 0.02)),
         established_drift_base=float(row.get("established_drift_base", 0.01)),
+        pop_contact_base_rate=float(row.get("pop_contact_base_rate", 0.002)),
+        cross_civ_contact_factor=float(row.get("cross_civ_contact_factor", 0.15)),
+        cross_civ_scale_penalty=float(row.get("cross_civ_scale_penalty", 0.08)),
+        cross_species_contact_factor=float(row.get("cross_species_contact_factor", 0.50)),
+        cross_stratum_contact_factor=float(row.get("cross_stratum_contact_factor", 0.70)),
+        values_stubbornness_factor=float(row.get("values_stubbornness_factor", 0.35)),
+        peripheral_pop_belief_weight=float(row.get("peripheral_pop_belief_weight", 0.25)),
+        peripheral_pop_culture_weight=float(row.get("peripheral_pop_culture_weight", 0.25)),
     )
 
 

@@ -629,7 +629,8 @@ class MutationType(str, Enum):
     IMAGO_REVEALED         = "imago_revealed"      # new_value=node_id; appends to unlocked_imagines, increments revealed_imagines
     POP_BELIEF_SHIFT       = "pop_belief_shift"    # field=domain_tag, delta on Pop.dominant_beliefs
     POP_VISIBILITY         = "pop_visibility"      # delta/new_value on Pop.visibility; clamp 0–1
-    CIV_ESTABLISHED_SHIFT  = "civ_established_shift"  # field=domain_tag, delta on Civilization.established_beliefs
+    CIV_ESTABLISHED_SHIFT         = "civ_established_shift"          # field=domain_tag, delta on Civilization.established_beliefs
+    CIV_ESTABLISHED_CULTURE_SHIFT = "civ_established_culture_shift"  # field=culture_tag, delta on Civilization.established_culture_tags
     POP_SPLINTER           = "pop_splinter"        # new_value=Pop object (splinter); target_id=parent Pop UUID
     POP_SIZE_CHANGE        = "pop_size_change"     # delta on Pop.size_fractional; floor 0.0
     POP_RIDER_TRAIT        = "pop_rider_trait"     # field=domain_tag, delta on Pop.rider_traits; clamp 0–1

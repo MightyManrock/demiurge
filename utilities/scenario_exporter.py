@@ -322,13 +322,18 @@ def _write_species(conn, state: SimulationState):
 
 def _write_civilizations(conn, state: SimulationState):
     for c in state.civilizations.values():
+        # core_locs: default to [origin_location_id] if not explicitly set
+        core_locs = list(c.core_locs)
+        if not core_locs and c.origin_location_id:
+            core_locs = [c.origin_location_id]
         conn.execute(
             """INSERT INTO civilizations
                (id, name, description, origin_location_id, scale,
                 health_stability, health_prosperity, health_cohesion,
                 primary_species_id, dominant_beliefs, established_beliefs, pop_ids,
-                culture_tags, theistic, divine_awareness, age, visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                culture_tags, established_culture_tags,
+                theistic, divine_awareness, core_locs, age, visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -343,8 +348,10 @@ def _write_civilizations(conn, state: SimulationState):
                 _j(c.established_beliefs),
                 _j(c.pop_ids),
                 _j(c.culture_tags),
+                _j(c.established_culture_tags),
                 int(c.theistic),
                 c.divine_awareness,
+                json.dumps([str(x) for x in core_locs]),
                 c.age,
                 c.visibility,
                 int(c.pinned),
@@ -482,8 +489,13 @@ def _write_tick_config(conn, state: SimulationState):
             mortal_visibility_decay_rate, proxius_passive_footprint_rate,
             location_visibility_decay_rate, civ_visibility_decay_rate,
             species_visibility_decay_rate,
-            pop_conformity_base, pop_visibility_drift_rate, established_drift_base)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            pop_conformity_base, pop_visibility_drift_rate, established_drift_base,
+            pop_contact_base_rate, cross_civ_contact_factor, cross_civ_scale_penalty,
+            cross_species_contact_factor, cross_stratum_contact_factor,
+            values_stubbornness_factor, peripheral_pop_belief_weight,
+            peripheral_pop_culture_weight, civ_culture_drift_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cfg.tick_duration,
             cfg.footprint_decay_rate,
@@ -505,6 +517,15 @@ def _write_tick_config(conn, state: SimulationState):
             cfg.pop_conformity_base,
             cfg.pop_visibility_drift_rate,
             cfg.established_drift_base,
+            cfg.pop_contact_base_rate,
+            cfg.cross_civ_contact_factor,
+            cfg.cross_civ_scale_penalty,
+            cfg.cross_species_contact_factor,
+            cfg.cross_stratum_contact_factor,
+            cfg.values_stubbornness_factor,
+            cfg.peripheral_pop_belief_weight,
+            cfg.peripheral_pop_culture_weight,
+            0.03,  # civ_culture_drift_rate stored for record; logic uses established_drift_base
         ),
     )
 
@@ -1098,7 +1119,7 @@ def build_scenario_default() -> SimulationState:
         culture_tags={
             "practice:nomadism": 0.90, "religion:animism": 0.80,
             "structure:egalitarianism": 0.70, "practice:foraging": 0.65,
-            "relations:commerce": 0.40,
+            "religion:ancestor_worship": 0.40, "relations:commerce": 0.40,
         },
         theistic=False,
         divine_awareness=0.12,
@@ -1114,7 +1135,7 @@ def build_scenario_default() -> SimulationState:
         scale=CivilizationScale.CITY_STATE,
         health=CivilizationHealth(stability=0.70, prosperity=0.45, cohesion=0.80),
         primary_species_id=veldan_species.id,
-        dominant_beliefs={"domain:memory": 0.60, "domain:mastery": 0.35},
+        dominant_beliefs={"domain:memory": 0.60, "domain:mastery": 0.35, "domain:truth": 0.20},
         culture_tags={
             "practice:sedentism": 0.95, "religion:ancestor_worship": 0.85,
             "techno:science": 0.70, "structure:hierarchy": 0.60,
@@ -1136,7 +1157,7 @@ def build_scenario_default() -> SimulationState:
         primary_species_id=vehn_species.id,
         dominant_beliefs={
             "domain:silence": 0.70, "domain:secrecy": 0.55,
-            "domain:mastery": 0.35, "domain:truth": 0.30,
+            "domain:mastery": 0.35, "domain:truth": 0.25,
         },
         culture_tags={
             "practice:sedentism": 0.95, "religion:ancestor_worship": 0.80,
@@ -1214,6 +1235,7 @@ def build_scenario_default() -> SimulationState:
         dominant_beliefs={"domain:order": 0.75, "domain:mastery": 0.40},
         culture_tags={"practice:sedentism": 0.90, "structure:hierarchy": 0.80,
                       "techno:industrialism": 0.80, "relations:commerce": 0.75,
+                      "relations:diplomacy": 0.65, "techno:science": 0.55,
                       "religion:luminary_worship": 0.60, "religion:ancestor_worship": 0.50},
         visibility=1.0, pinned=True,
     )
@@ -1224,13 +1246,15 @@ def build_scenario_default() -> SimulationState:
         size_fractional=1.0,
         dominant_beliefs={"domain:mastery": 0.70, "domain:change": 0.35, "domain:order": 0.50},
         culture_tags={"techno:science": 0.85, "techno:industrialism": 0.90,
-                      "relations:commerce": 0.70, "practice:sedentism": 0.80},
+                      "relations:commerce": 0.70, "practice:sedentism": 0.80,
+                      "relations:diplomacy": 0.55},
         visibility=0.0, pinned=False,
     )
     for p in (pop_neran_elite, pop_neran_common, pop_neran_artisan):
         neran_confed.pop_ids.append(p.id)
         pop_loc_neran.pop_ids.append(p.id)
     neran_confed.established_beliefs = dict(neran_confed.dominant_beliefs)
+    neran_confed.established_culture_tags = dict(neran_confed.culture_tags)
 
     # ── Keth Wanderers (TRIBAL): warriors dominate, memory-keepers preserve ──
     pop_keth_warrior = Pop(
@@ -1240,7 +1264,8 @@ def build_scenario_default() -> SimulationState:
         size_fractional=2.0,
         dominant_beliefs={"domain:conflict": 0.85, "domain:change": 0.30},
         culture_tags={"practice:nomadism": 0.95, "relations:conquest": 0.80,
-                      "structure:egalitarianism": 0.50},
+                      "religion:ancestor_worship": 0.75, "religion:animism": 0.70,
+                      "practice:foraging": 0.55, "structure:egalitarianism": 0.50},
         visibility=1.0, pinned=True,
     )
     pop_keth_common = Pop(
@@ -1251,13 +1276,14 @@ def build_scenario_default() -> SimulationState:
         dominant_beliefs={"domain:conflict": 0.55, "domain:memory": 0.65},
         culture_tags={"practice:nomadism": 0.95, "religion:ancestor_worship": 0.85,
                       "religion:animism": 0.80, "practice:foraging": 0.70,
-                      "structure:egalitarianism": 0.55},
+                      "relations:conquest": 0.50, "structure:egalitarianism": 0.55},
         visibility=0.0, pinned=False,
     )
     for p in (pop_keth_warrior, pop_keth_common):
         keth_civ.pop_ids.append(p.id)
         pop_loc_oros.pop_ids.append(p.id)
     keth_civ.established_beliefs = dict(keth_civ.dominant_beliefs)
+    keth_civ.established_culture_tags = dict(keth_civ.culture_tags)
 
     # ── Kingdoms of the Damtal (CONTINENTAL): rival nobles vs. agrarian commons ──
     pop_damtal_elite = Pop(
@@ -1267,7 +1293,7 @@ def build_scenario_default() -> SimulationState:
         size_fractional=2.0,
         dominant_beliefs={"domain:mastery": 0.60, "domain:growth": 0.30, "domain:conflict": 0.30},
         culture_tags={"structure:hierarchy": 0.90, "relations:conquest": 0.70,
-                      "practice:sedentism": 0.60},
+                      "religion:animism": 0.60, "practice:sedentism": 0.60},
         visibility=0.0, pinned=False,
     )
     pop_damtal_common = Pop(
@@ -1277,13 +1303,15 @@ def build_scenario_default() -> SimulationState:
         size_fractional=5.0,
         dominant_beliefs={"domain:growth": 0.55, "domain:community": 0.45},
         culture_tags={"practice:agriculture": 0.80, "practice:sedentism": 0.75,
-                      "religion:animism": 0.70, "religion:ancestor_worship": 0.50},
+                      "religion:animism": 0.70, "religion:ancestor_worship": 0.50,
+                      "structure:hierarchy": 0.65, "relations:conquest": 0.40},
         visibility=0.0, pinned=False,
     )
     for p in (pop_damtal_elite, pop_damtal_common):
         damtal_civ.pop_ids.append(p.id)
         pop_loc_kiddis.pop_ids.append(p.id)
     damtal_civ.established_beliefs = dict(damtal_civ.dominant_beliefs)
+    damtal_civ.established_culture_tags = dict(damtal_civ.culture_tags)
 
     # ── Surathi Clans (TRIBAL): spirit-speaker elders vs. restless hunter commons ──
     pop_surathi_priest = Pop(
@@ -1293,6 +1321,7 @@ def build_scenario_default() -> SimulationState:
         size_fractional=1.5,
         dominant_beliefs={"domain:community": 0.70, "domain:memory": 0.40, "domain:growth": 0.20},
         culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.70,
+                      "practice:nomadism": 0.80, "practice:foraging": 0.55,
                       "structure:egalitarianism": 0.60},
         visibility=0.0, pinned=False,
     )
@@ -1302,14 +1331,16 @@ def build_scenario_default() -> SimulationState:
         current_location=pop_loc_sethis.id,
         size_fractional=3.5,
         dominant_beliefs={"domain:community": 0.60, "domain:change": 0.40},
-        culture_tags={"practice:nomadism": 0.90, "practice:foraging": 0.65,
-                      "structure:egalitarianism": 0.75, "relations:commerce": 0.40},
+        culture_tags={"practice:nomadism": 0.90, "religion:animism": 0.75,
+                      "practice:foraging": 0.65, "structure:egalitarianism": 0.75,
+                      "religion:ancestor_worship": 0.35, "relations:commerce": 0.40},
         visibility=0.0, pinned=False,
     )
     for p in (pop_surathi_priest, pop_surathi_common):
         surathi_clans.pop_ids.append(p.id)
         pop_loc_sethis.pop_ids.append(p.id)
     surathi_clans.established_beliefs = dict(surathi_clans.dominant_beliefs)
+    surathi_clans.established_culture_tags = dict(surathi_clans.culture_tags)
 
     # ── Surathi assimilates (TRIBAL → CONFEDERACY): Surathi people who have joined the Neran Confederacy ──
     # Parent is pop_surathi_common — they came from that community and are still culturally entangled.
@@ -1336,7 +1367,8 @@ def build_scenario_default() -> SimulationState:
         size_fractional=2.0,
         dominant_beliefs={"domain:memory": 0.80, "domain:truth": 0.50, "domain:mastery": 0.25},
         culture_tags={"religion:ancestor_worship": 0.90, "techno:science": 0.75,
-                      "structure:hierarchy": 0.70, "practice:sedentism": 0.95},
+                      "structure:hierarchy": 0.70, "practice:sedentism": 0.95,
+                      "relations:diplomacy": 0.40},
         visibility=0.0, pinned=False,
     )
     pop_veldan_common = Pop(
@@ -1346,13 +1378,15 @@ def build_scenario_default() -> SimulationState:
         size_fractional=4.0,
         dominant_beliefs={"domain:memory": 0.50, "domain:mastery": 0.45},
         culture_tags={"practice:sedentism": 0.95, "techno:science": 0.65,
-                      "relations:diplomacy": 0.50, "religion:ancestor_worship": 0.70},
+                      "relations:diplomacy": 0.50, "religion:ancestor_worship": 0.70,
+                      "structure:hierarchy": 0.50},
         visibility=0.0, pinned=False,
     )
     for p in (pop_veldan_council, pop_veldan_common):
         veldan_assembly.pop_ids.append(p.id)
         pop_loc_mireth.pop_ids.append(p.id)
     veldan_assembly.established_beliefs = dict(veldan_assembly.dominant_beliefs)
+    veldan_assembly.established_culture_tags = dict(veldan_assembly.culture_tags)
 
     # ── Vehn Quietude (INTERPLANETARY): doctrine-enforcers vs. practical workers ──
     pop_vehn_council = Pop(
@@ -1370,7 +1404,7 @@ def build_scenario_default() -> SimulationState:
         social_class=SocialClass.COMMON,
         current_location=pop_loc_ossian.id,
         size_fractional=5.5,
-        dominant_beliefs={"domain:silence": 0.60, "domain:secrecy": 0.45, "domain:mastery": 0.50},
+        dominant_beliefs={"domain:silence": 0.60, "domain:secrecy": 0.45, "domain:mastery": 0.50, "domain:truth": 0.20},
         culture_tags={"practice:sedentism": 0.95, "techno:science": 0.75,
                       "structure:hierarchy": 0.65, "religion:ancestor_worship": 0.80},
         visibility=0.0, pinned=False,
@@ -1379,6 +1413,7 @@ def build_scenario_default() -> SimulationState:
         vehn_quietude.pop_ids.append(p.id)
         pop_loc_ossian.pop_ids.append(p.id)
     vehn_quietude.established_beliefs = dict(vehn_quietude.dominant_beliefs)
+    vehn_quietude.established_culture_tags = dict(vehn_quietude.culture_tags)
 
     # ── Notable Mortals ───────────────────────────────
     senna = NotableMortal(

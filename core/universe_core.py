@@ -347,9 +347,15 @@ class Civilization(BaseModel):
     # Divergence from dominant_beliefs drives stability loss.
     established_beliefs: dict[str, float] = Field(default_factory=dict)
 
-    # Derived aggregate of this civilization's Pops (and eventually Govs).
+    # Tick-computed weighted aggregate of Pop culture_tags.
+    # Written each tick; do not set independently.
     culture_tags: dict[str, float] = Field(default_factory=dict)
-    # e.g. {"culture:hierarchy": 0.85, "culture:science": 0.65}
+
+    # The institutional/official cultural profile — what customs, norms, and
+    # institutions actively reinforce. Seeded from culture_tags at scenario
+    # creation; drifts toward culture_tags slowly each tick (rate ∝ cohesion).
+    # Pops receive a conformity nudge toward established_culture_tags each tick.
+    established_culture_tags: dict[str, float] = Field(default_factory=dict)
 
     # Whether this civilization is aware of and actively
     # engaging with the divine — affects footprint
@@ -361,6 +367,12 @@ class Civilization(BaseModel):
     primary_species_id: Optional[UUID] = None
     pop_ids: list[UUID] = Field(default_factory=list)
     notable_mortal_ids: list[UUID] = Field(default_factory=list)
+
+    # Locations considered "home territory" for this civilization.
+    # Pops at locations NOT in this list are weighted down when computing
+    # the civilization's aggregate dominant_beliefs and culture_tags.
+    core_locs: list[UUID] = Field(default_factory=list)
+
     age: float = 0.0
     visibility: float = 0.0
     pinned: bool = False
