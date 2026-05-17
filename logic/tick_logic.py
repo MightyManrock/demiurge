@@ -2930,11 +2930,11 @@ class TickLoop:
                 if intent.imago_node_id:
                     ireg = get_imago_registry()
                     node = ireg.get_node(intent.imago_node_id)
-                    imago_label = f" preaching {node.name}" if node else ""
+                    imago_label = f" preach {node.name}" if node else ""
                 else:
                     imago_label = ""
                 narrative = (
-                    f"Proxius {proxius.name} has been sent to preach{imago_label}. "
+                    f"Proxius {proxius.name} has been sent to {imago_label}. "
                     f"They will pursue it {dedication_note}."
                 )
 
@@ -4270,7 +4270,7 @@ class TickLoop:
                         ))
                         agent_narratives.append(
                             f"[Tick {state.tick_number + 1}] {mortal.name}'s preaching of "
-                            f"[{goal.imago_node_id or 'directive'}] has drawn a new group "
+                            f"[{goal.imago_node_id if goal.imago_node_id else 'directive'}] has drawn a new group "
                             f"apart from their parent community."
                         )
                     else:

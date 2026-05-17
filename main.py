@@ -100,8 +100,9 @@ def _prominence_label(mortal) -> str:
         role_part = "no notable role"
     else:
         role_part = " · ".join(r.value.title() for r in mortal.prominence_roles)
-    pin_str = " [pinned]" if mortal.pinned else ""
-    return f"{role_part}  [prominence:{mortal.prominence:.2f}{pin_str}]"
+    return f"{role_part}  [prominence:{mortal.prominence:.2f}]"
+    # pin_str = " [pinned]" if mortal.pinned else ""
+    # return f"{role_part}  [prominence:{mortal.prominence:.2f}{pin_str}]"
 
 
 def _name_for_id(uid: "UUID", state: "SimulationState") -> str:

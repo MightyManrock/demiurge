@@ -100,10 +100,10 @@ _ACTION_SEED: list[dict] = [
         "name": "Manifest Omen",
         "category": "overt_miracle",
         "description": (
-            "Send a civilization-scale sign. Interpretable — mortals decide "
+            "Send a world-scale sign. Interpretable — mortals decide "
             "what it means, which affects belief drift unpredictably."
         ),
-        "valid_targets": ["civilization"],
+        "valid_targets": ["world"],
         "reliability": "probable",
         "fp_overt_miracles": 0.5, "fp_subtle_influence": 0.0,
         "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
