@@ -318,21 +318,30 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         a(f"  location: {loc_link}")
 
     home = state.locations.get(str(m.home_location)) if m.home_location else None
-    if home and (not loc or home.id != loc.id):
+    if home:
         home_link = _location_link(state, m.home_location, f"[#3a6a8a]{_e(home.name)}[/]")
-        a(f"  home: {home_link}")
+        a(f"  origin:   {home_link}")
 
     civ = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
     if civ:
         civ_link = _click_link("civ", str(m.civilization_id), f"[#3a6a8a]{_e(civ.name)}[/]")
         a(f"  civilization: {civ_link}")
 
-    if m.status_tags or m.personal_tags or m.culture_tags:
+    pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
+    if pop:
+        stratum = pop.stratum.title() if pop.stratum else "Pop"
+        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+        sp_note = f" ({sp_obj.name})" if sp_obj else ""
+        a(f"  pop:      [#3a6a8a]{_e(stratum)}[/]{_e(sp_note)}  sz:{pop.size_magnitude}")
+
+    if m.status_tags or m.personal_tags or m.belief_tags or m.culture_tags:
         a("")
     if m.status_tags:
-        a(f"  status: {_e(', '.join(_short_tag(t) for t in m.status_tags))}")
+        a(f"  status:  {_e(', '.join(_short_tag(t) for t in m.status_tags))}")
     if m.personal_tags:
-        a(f"  tags:   {_e(', '.join(_short_tag(t) for t in m.personal_tags))}")
+        a(f"  tags:    {_e(', '.join(_short_tag(t) for t in m.personal_tags))}")
+    if m.belief_tags:
+        a(f"  beliefs: {_format_beliefs_markup(m.belief_tags)}")
     if m.culture_tags:
         a(f"  culture: {_format_culture_markup(m.culture_tags)}")
 
