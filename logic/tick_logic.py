@@ -114,10 +114,12 @@ RIDER_ATTRITION_BASE = 0.003
 # Base decay rate per tick applied to culture_tags that conflict with a Pop's active rider_traits.
 # Multiplied by (1.0 - synergy): syn=-1 → 2x, syn=0 → 1x, syn=+1 → 0x.
 
-# How much a Pop's religion tags amplify or dampen domain influence on its dominant_beliefs.
-# Values are additive bonuses to the multiplier per unit of culture_tag strength.
-# Applied in omen, whisper, and Proxius PROMOTE_DOMAIN handlers.
-_RELIGION_DOMAIN_AFFINITY: dict[str, dict[str, float]] = {
+# How much a Pop's culture tags (religion and values) amplify or dampen domain
+# influence on its dominant_beliefs. Values are additive bonuses to the multiplier
+# per unit of culture_tag strength. Applied in omen, whisper, Proxius PROMOTE_DOMAIN,
+# and mortal alignment computation.
+_CULTURE_DOMAIN_AFFINITY: dict[str, dict[str, float]] = {
+    # ── Religion ────────────────────────────────
     "religion:luminary_worship": {
         "domain:order": 0.30, "domain:light": 0.30, "domain:truth": 0.20,
         "domain:mastery": 0.20, "domain:community": 0.15,
@@ -158,7 +160,84 @@ _RELIGION_DOMAIN_AFFINITY: dict[str, dict[str, float]] = {
         "domain:light": -0.35, "domain:community": -0.25, "domain:growth": -0.20,
         "domain:truth": -0.15,
     },
+    # ── Values & Virtues ────────────────────────
+    "values:honesty": {
+        "domain:truth": 0.30, "domain:light": 0.20, "domain:order": 0.15,
+        "domain:secrecy": -0.30, "domain:void": -0.15,
+    },
+    "values:adaptability": {
+        "domain:change": 0.30, "domain:water": 0.15, "domain:fire": 0.10,
+        "domain:order": -0.20, "domain:memory": -0.10,
+    },
+    "values:moderation": {
+        "domain:order": 0.20, "domain:silence": 0.20, "domain:sacrifice": 0.10,
+        "domain:community": 0.10,
+        "domain:fire": -0.20, "domain:conflict": -0.15,
+    },
+    "values:indulgence": {
+        "domain:fire": 0.25, "domain:growth": 0.15, "domain:water": 0.10,
+        "domain:order": -0.40, "domain:sacrifice": -0.35, "domain:silence": -0.30,
+    },
+    "values:charity": {
+        "domain:community": 0.30, "domain:light": 0.20, "domain:growth": 0.15,
+        "domain:sacrifice": 0.10,
+        "domain:mastery": -0.20, "domain:conflict": -0.10,
+    },
+    "values:prosperity": {
+        "domain:growth": 0.25, "domain:mastery": 0.20, "domain:community": 0.10,
+        "domain:sacrifice": -0.25, "domain:decay": -0.20,
+    },
+    "values:ambition": {
+        "domain:mastery": 0.30, "domain:conflict": 0.20, "domain:fire": 0.15,
+        "domain:silence": -0.30, "domain:community": -0.20, "domain:sacrifice": -0.15,
+    },
+    "values:humility": {
+        "domain:silence": 0.25, "domain:community": 0.20, "domain:order": 0.15,
+        "domain:sacrifice": 0.10,
+        "domain:mastery": -0.30, "domain:conflict": -0.15,
+    },
+    "values:wit": {
+        "domain:change": 0.20, "domain:truth": 0.15, "domain:secrecy": 0.10,
+        "domain:silence": -0.15, "domain:order": -0.10,
+    },
+    "values:sincerity": {
+        "domain:truth": 0.30, "domain:community": 0.20, "domain:light": 0.15,
+        "domain:order": 0.10,
+        "domain:secrecy": -0.30,
+    },
+    "values:patience": {
+        "domain:silence": 0.25, "domain:order": 0.20, "domain:memory": 0.15,
+        "domain:growth": 0.10,
+        "domain:conflict": -0.20, "domain:fire": -0.15,
+    },
+    "values:tenacity": {
+        "domain:conflict": 0.20, "domain:mastery": 0.20, "domain:fire": 0.15,
+        "domain:memory": 0.15,
+        "domain:change": -0.15,
+    },
+    "values:idealism": {
+        "domain:light": 0.30, "domain:truth": 0.20, "domain:sacrifice": 0.15,
+        "domain:change": 0.10,
+        "domain:secrecy": -0.20, "domain:void": -0.20,
+    },
+    "values:pragmatism": {
+        "domain:mastery": 0.25, "domain:order": 0.15, "domain:change": 0.15,
+        "domain:sacrifice": -0.20, "domain:light": -0.10,
+    },
+    "values:erudition": {
+        "domain:truth": 0.30, "domain:memory": 0.25, "domain:silence": 0.10,
+        "domain:mastery": 0.10,
+        "domain:conflict": -0.15,
+    },
+    "values:folk_wisdom": {
+        "domain:memory": 0.30, "domain:community": 0.20, "domain:growth": 0.15,
+        "domain:water": 0.10,
+        "domain:mastery": -0.20,
+    },
 }
+
+# Backward-compat alias (older code paths may still reference the religion-only name).
+_RELIGION_DOMAIN_AFFINITY = _CULTURE_DOMAIN_AFFINITY
 
 
 def compute_mortal_alignment_base(
@@ -169,40 +248,54 @@ def compute_mortal_alignment_base(
     """
     Computes a mortal's natural alignment drift target from two sources:
       domain belief similarity  — weight 0.70
-      religion tag affinity     — weight 0.30
-    Returns a value in [0.20, 0.80].
+      culture tag affinity      — weight 0.30  (religion + values, via _CULTURE_DOMAIN_AFFINITY)
+    Returns a value in [0.05, 0.95].
     Falls back to 0.5 if affiliated_domains is empty or mortal has no relevant data.
+
+    Per-set normalization: the mean similarity for a maximally-aligned tag is
+    bounded by how internally-coherent the affiliated set is (for a conflicted
+    set like Warden's Compact the diagonal contributes 1/n_aff plus small
+    cross-similarities). We divide by that ceiling so any tag perfectly matching
+    one affiliated domain scores ~1.0.
     """
     if not affiliated_domains:
         return 0.5
 
-    def max_sim_to_affiliated(tag: str) -> float:
-        return max(
-            (dreg.similarity(tag, a) for a in affiliated_domains),
-            default=0.0,
-        )
+    n_aff = len(affiliated_domains)
+
+    def mean_sim_to_affiliated(tag: str) -> float:
+        # Mean — not max — so a tag that aligns with one affiliated domain but
+        # opposes the others scores near zero rather than always positive.
+        return sum(dreg.similarity(tag, a) for a in affiliated_domains) / n_aff
+
+    # Normalization ceiling: the highest mean-sim any affiliated domain itself
+    # achieves against the affiliated set. Used so a fully-aligned belief
+    # produces ~1.0 regardless of how mutually-coherent the set is.
+    norm = max(mean_sim_to_affiliated(a) for a in affiliated_domains)
+    if norm <= 0.0:
+        norm = 1.0  # degenerate; avoid division blow-up
 
     # Belief tags — primary signal
     b_score = b_wt = 0.0
     for b_tag, strength in mortal.belief_tags.items():
-        b_score += max_sim_to_affiliated(b_tag) * strength
+        b_score += mean_sim_to_affiliated(b_tag) * strength
         b_wt    += strength
-    belief_sim = (b_score / b_wt) if b_wt else 0.0
+    belief_sim = (b_score / b_wt / norm) if b_wt else 0.0
 
-    # Religion tags via _RELIGION_DOMAIN_AFFINITY.
-    # Negative affinities are dampened (×0.5) — a religion that opposes the Demiurge's
-    # focus matters, but shouldn't drag a mortal down as hard as alignment with it lifts.
-    r_score = r_wt = 0.0
+    # Culture tags (religion + values) via _CULTURE_DOMAIN_AFFINITY.
+    # No damping on negatives — opposing values/religions pull alignment down
+    # at full weight, mirroring how synergistic ones lift it.
+    c_score = c_wt = 0.0
     for c_tag, c_strength in mortal.culture_tags.items():
-        domain_affinities = _RELIGION_DOMAIN_AFFINITY.get(c_tag, {})
+        domain_affinities = _CULTURE_DOMAIN_AFFINITY.get(c_tag, {})
         for d_tag, d_affinity in domain_affinities.items():
-            eff_aff = d_affinity * 0.5 if d_affinity < 0 else d_affinity
-            r_score += max_sim_to_affiliated(d_tag) * eff_aff * c_strength
-            r_wt    += abs(eff_aff) * c_strength
-    religion_sim = (r_score / r_wt) if r_wt else 0.0
+            c_score += mean_sim_to_affiliated(d_tag) * d_affinity * c_strength
+            c_wt    += abs(d_affinity) * c_strength
+    culture_sim = (c_score / c_wt / norm) if c_wt else 0.0
 
-    combined = belief_sim * 0.70 + religion_sim * 0.30
-    return 0.5 + combined * 0.30   # maps [-1.0, +1.0] → [0.20, 0.80]
+    combined = belief_sim * 0.70 + culture_sim * 0.30
+    # Map combined [-1.0, +1.0] → [0.05, 0.95].
+    return max(0.05, min(0.95, 0.5 + combined * 0.45))
 
 
 # Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
@@ -4839,13 +4932,12 @@ class TickLoop:
     def _pop_domain_receptivity(self, pop: "Pop", domain_tag: str) -> float:
         """
         Returns a multiplier (≥ 0.2) for how receptive a Pop is to domain influence.
-        Derived from the Pop's religion culture_tags crossing against _RELIGION_DOMAIN_AFFINITY.
+        Derived from all culture_tags (religion + values) crossing against
+        _CULTURE_DOMAIN_AFFINITY.
         """
         bonus = 0.0
         for tag, strength in pop.culture_tags.items():
-            if not tag.startswith("religion:"):
-                continue
-            affinities = _RELIGION_DOMAIN_AFFINITY.get(tag, {})
+            affinities = _CULTURE_DOMAIN_AFFINITY.get(tag, {})
             bonus += affinities.get(domain_tag, 0.0) * strength
         return max(0.2, 1.0 + bonus)
 

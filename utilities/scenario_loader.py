@@ -215,17 +215,26 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
 
     # Compute natural alignment for mortals zeroed-out in the scenario.
     # Savegames always have non-zero values; only scenario DBs use 0.0 as a sentinel.
+    #
+    # "New Demiurge" penalty: starting alignment is reduced proportionally to how
+    # far the natural base is below the NEW_DEMIURGE_THRESHOLD. Mortals already
+    # well-aligned (base ≥ threshold) keep their natural base; mortals farther
+    # below get a steeper dip. Alignment drifts back toward the natural base over
+    # ticks via the standard alignment_drift mechanic, so this only shapes turn-1
+    # perception — the long-run equilibrium is unchanged.
+    NEW_DEMIURGE_THRESHOLD = 0.75
     if any(m.alignment == 0.0 for m in state.mortals.values()):
         from utilities.domain_registry import get_registry as get_domain_registry
         dreg = get_domain_registry()
         for mortal in state.mortals.values():
             if mortal.alignment == 0.0:
-                mortal.alignment = max(0.01, min(
-                    1.0 if mortal.role == MortalRole.PROXIUS else 0.9,
-                    compute_mortal_alignment_base(
-                        mortal, state.demiurge.affiliated_domains, dreg
-                    )
-                ))
+                base = compute_mortal_alignment_base(
+                    mortal, state.demiurge.affiliated_domains, dreg
+                )
+                if base < NEW_DEMIURGE_THRESHOLD:
+                    base = base - (NEW_DEMIURGE_THRESHOLD - base)
+                cap = 1.0 if mortal.role == MortalRole.PROXIUS else 0.9
+                mortal.alignment = max(0.05, min(cap, base))
 
     return state
 
