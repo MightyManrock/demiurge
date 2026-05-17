@@ -500,6 +500,12 @@ class CivilizationMomentum(BaseModel):
     cohesion_delta:   float = 0.0
 
 
+class NarrativeEvent(BaseModel):
+    """A passive-phase narrative line, tagged with whether its subject is in the Demiurge's Window."""
+    text: str
+    in_window: bool = True
+
+
 class PassiveWorldResult(BaseModel):
     """What the passive simulation phase produced."""
     civilization_mutations: list["StateMutation"] = Field(default_factory=list)
@@ -508,7 +514,7 @@ class PassiveWorldResult(BaseModel):
     footprint_mutations:    list["StateMutation"] = Field(default_factory=list)
     concealment_mutations:  list["StateMutation"] = Field(default_factory=list)
     attention_mutations:    list["StateMutation"] = Field(default_factory=list)
-    narrative_events:       list[str] = Field(default_factory=list)
+    narrative_events:       list["NarrativeEvent"] = Field(default_factory=list)
     # Brief descriptions of notable passive developments
     # e.g. "The Verath Confederation collapsed into civil war"
     #      "Proxius Aldren has begun acting outside their directive"
@@ -516,7 +522,7 @@ class PassiveWorldResult(BaseModel):
     # Death mutations held back until after Phase 2 so that a same-tick
     # appoint_proxius action can save a mortal before the death is committed.
     pending_death_mutations:  list["StateMutation"] = Field(default_factory=list)
-    pending_death_narratives: list[str]             = Field(default_factory=list)
+    pending_death_narratives: list["NarrativeEvent"] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────
@@ -812,7 +818,7 @@ class TickLoop:
                 continue  # appointment this tick saved them; suppress death
             if mortal and mortal.status != MortalStatus.DECEASED:
                 mortal.status = MortalStatus.DECEASED
-            result.passive_result.narrative_events.append(narrative)
+            result.passive_result.narrative_events.append(narrative)  # already a NarrativeEvent
 
         # Track how long since the Demiurge last gained Essence (for concealment stall)
         if state.essence.actual > _essence_before:
@@ -980,13 +986,15 @@ class TickLoop:
             # Narrative event if stability crosses a threshold
             projected_stability = max(0.0, min(1.0, civ.health.stability + stability_delta))
             if projected_stability < 0.2 and civ.health.stability >= 0.2:
-                result.narrative_events.append(
-                    f"{civ.name} has entered a state of critical instability."
-                )
+                result.narrative_events.append(NarrativeEvent(
+                    text=f"{civ.name} has entered a state of critical instability.",
+                    in_window=is_in_window(civ),
+                ))
             elif projected_stability > 0.8 and civ.health.stability <= 0.8:
-                result.narrative_events.append(
-                    f"{civ.name} has achieved remarkable stability."
-                )
+                result.narrative_events.append(NarrativeEvent(
+                    text=f"{civ.name} has achieved remarkable stability.",
+                    in_window=is_in_window(civ),
+                ))
 
         # ── Civ → Pop conformity pressure ──────────────
         for pop in state.pops.values():
@@ -1092,10 +1100,11 @@ class TickLoop:
             if (mortal.role == "proxius"
                     and mortal.alignment < 0.4
                     and (mortal.alignment - drift) >= 0.4):
-                result.narrative_events.append(
-                    f"Proxius {mortal.name} appears to be pursuing "
-                    f"their own agenda more than yours."
-                )
+                result.narrative_events.append(NarrativeEvent(
+                    text=f"Proxius {mortal.name} appears to be pursuing "
+                         f"their own agenda more than yours.",
+                    in_window=is_in_window(mortal),
+                ))
 
         # ── Mortal aging ───────────────────────────────
         for mid, mortal in state.mortals.items():
@@ -1145,9 +1154,10 @@ class TickLoop:
                             new_value=MortalStatus.DECEASED.value,
                             note=f"{mortal.name} died of natural causes (bio_age {new_bio_age:.0f})",
                         ))
-                        result.pending_death_narratives.append(
-                            f"{mortal.name} has died of natural causes at age {new_bio_age:.0f}."
-                        )
+                        result.pending_death_narratives.append(NarrativeEvent(
+                            text=f"{mortal.name} has died of natural causes at age {new_bio_age:.0f}.",
+                            in_window=is_in_window(mortal),
+                        ))
 
         # ── Pop affiliation age-out for divine appointments ───
         # An appointed mortal loses their Pop bond once their wall-clock tenure
@@ -1167,10 +1177,11 @@ class TickLoop:
                     target_id=UUID(mid),
                     note=f"{mortal.name} has aged beyond their origin community",
                 ))
-                result.narrative_events.append(
-                    f"{mortal.name} has lived so long beyond their origin community "
-                    f"that the bond no longer holds — they stand apart from the people they were born among."
-                )
+                result.narrative_events.append(NarrativeEvent(
+                    text=f"{mortal.name} has lived so long beyond their origin community "
+                         f"that the bond no longer holds — they stand apart from the people they were born among.",
+                    in_window=is_in_window(mortal),
+                ))
 
         # ── Mortal visibility decay ────────────────────
         for mid, mortal in state.mortals.items():
@@ -1443,7 +1454,10 @@ class TickLoop:
                 new_value=splinter,
                 note=note,
             ))
-            result.narrative_events.append(note)
+            result.narrative_events.append(NarrativeEvent(
+                text=note,
+                in_window=is_in_window(pop) or is_in_window(civ),
+            ))
 
         return result
 

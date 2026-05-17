@@ -52,6 +52,32 @@ SEP2 = "═" * 60
 
 BACK = "__back__"   # sentinel: dismiss with this to go one step back
 
+# Developer mode: enabled by `--dev` CLI flag (set in __main__).
+# When True, out-of-Window narratives and entities are shown in the status log
+# (italicized) instead of being suppressed. Status bar is unaffected.
+DEV_MODE: bool = False
+
+# Sentinel prefixed to display_state lines that describe out-of-Window entities.
+# `_lines_to_text` strips it and styles those lines italic; never written to file.
+_OOW = "\x01"
+
+
+def _lines_to_text(lines: list[str]) -> Text:
+    """Convert a list of lines (some marked with the _OOW sentinel) into a styled Text."""
+    out = Text()
+    for i, line in enumerate(lines):
+        suffix = "\n" if i < len(lines) - 1 else ""
+        if line.startswith(_OOW):
+            out.append(line[len(_OOW):] + suffix, style="italic")
+        else:
+            out.append(line + suffix)
+    return out
+
+
+def _strip_oow(lines: list[str]) -> str:
+    """Plain-text rendering: strip the sentinel for file logs."""
+    return "\n".join(l[len(_OOW):] if l.startswith(_OOW) else l for l in lines)
+
 _LATITUDE_OPTS = [
     ("strict", "Strict", 0.0),
     ("guided", "Guided", 0.5),
@@ -145,7 +171,12 @@ def _get_lum_domain_context(state: "SimulationState"):
     return lum_info, fellow_tags, all_canonical
 
 
-def display_state(state: "SimulationState") -> str:
+def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]:
+    """
+    Returns lines as a list[str]. Out-of-Window entity lines are prefixed with the
+    _OOW sentinel when dev_mode is True; otherwise they are omitted entirely.
+    Use _lines_to_text() for RichLog display or _strip_oow() for plain-text logs.
+    """
     lines = [
         SEP2,
         f"  UNIVERSE: {state.universe.name}",
@@ -173,41 +204,57 @@ def display_state(state: "SimulationState") -> str:
     lines.append(SEP)
     lines.append("WORLDS")
     for wid, world in state.worlds.items():
-        if not is_in_window(world):
+        w_oow = not is_in_window(world)
+        if w_oow and not dev_mode:
             continue
+        wm = _OOW if w_oow else ""
         domain_str = _format_beliefs(world.domain_expression) or "none"
         vis_note = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
-        lines.append(f"  {world.name}  [{world.condition.value}]{vis_note}  domain: {domain_str}")
+        lines.append(f"{wm}  {world.name}  [{world.condition.value}]{vis_note}  domain: {domain_str}")
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
-            if civ and is_in_window(civ):
-                h = civ.health
-                civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+            if not civ:
+                continue
+            c_oow = not is_in_window(civ)
+            if c_oow and not dev_mode:
+                continue
+            cm = _OOW if (w_oow or c_oow) else ""
+            h = civ.health
+            civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+            lines.append(
+                f"{cm}    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
+                f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
+            )
+            lines.append(f"{cm}       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}")
+            for pid in civ.pop_ids:
+                pop = state.pops.get(str(pid))
+                if not pop:
+                    continue
+                p_oow = not is_in_window(pop)
+                if p_oow and not dev_mode:
+                    continue
+                pm = _OOW if (w_oow or c_oow or p_oow) else ""
+                class_label = pop.stratum.title() if pop.stratum else "Pop"
+                sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+                sp_note = f"  ({sp_obj.name})" if sp_obj else ""
+                top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
+                belief_str = "  ".join(
+                    f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                ) or "none"
+                vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                 lines.append(
-                    f"    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
-                    f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
+                    f"{pm}       ↳ {class_label}{sp_note}  sz:{pop.size_magnitude}"
+                    f"  {belief_str}{vis_note}"
                 )
-                lines.append(f"       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}")
-                for pid in civ.pop_ids:
-                    pop = state.pops.get(str(pid))
-                    if pop and is_in_window(pop):
-                        class_label = pop.stratum.title() if pop.stratum else "Pop"
-                        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-                        sp_note = f"  ({sp_obj.name})" if sp_obj else ""
-                        top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
-                        belief_str = "  ".join(
-                            f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
-                        ) or "none"
-                        vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-                        lines.append(
-                            f"       ↳ {class_label}{sp_note}  sz:{pop.size_magnitude}"
-                            f"  {belief_str}{vis_note}"
-                        )
     lines.append(SEP)
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
-        if mortal.status == MortalStatus.DECEASED or (not mortal.pinned and mortal.visibility <= ENTITY_VISIBILITY_FLOOR):
+        if mortal.status == MortalStatus.DECEASED:
             continue
+        m_oow = not mortal.pinned and mortal.visibility <= ENTITY_VISIBILITY_FLOOR
+        if m_oow and not dev_mode:
+            continue
+        mm = _OOW if m_oow else ""
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
         age_str  = f"age:{mortal.chrono_age:.0f}"
         if mortal.bio_age != mortal.chrono_age:
@@ -219,7 +266,7 @@ def display_state(state: "SimulationState") -> str:
         pop_obj  = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
         pop_str  = f"  pop:{pop_obj.stratum.title()}" if pop_obj else ""
         lines.append(
-            f"  {mortal.name:16s} [{role_str}]  align:{mortal.alignment:.2f}  "
+            f"{mm}  {mortal.name:16s} [{role_str}]  align:{mortal.alignment:.2f}  "
             f"{age_str}{vis_note}{sp_str}{pop_str}  {prom_str}"
         )
     lines.append(SEP)
@@ -235,30 +282,43 @@ def display_state(state: "SimulationState") -> str:
     else:
         lines.append("  None")
     lines.append(SEP2)
-    return "\n".join(lines)
+    return lines
 
 
-def display_tick_result(result: "TickResult") -> str:
+def display_tick_result(result: "TickResult", dev_mode: bool = False) -> str:
+    """
+    Returns a Rich-markup string. Out-of-Window narratives are suppressed unless
+    dev_mode is True, in which case they are wrapped in `[italic]…[/italic]`.
+    Dynamic content (names, narratives) is escaped to avoid stray markup.
+    """
     lines = [
         "",
         f"  TICK {result.tick_number} RESULT  "
         f"(age {result.universe_age_before:.1f} → {result.universe_age_after:.1f})",
         SEP,
     ]
-    if result.passive_result.narrative_events:
+    visible_events = [
+        ev for ev in result.passive_result.narrative_events
+        if ev.in_window or dev_mode
+    ]
+    if visible_events:
         lines.append("WORLD EVENTS")
-        for ev in result.passive_result.narrative_events:
-            lines.append(f"  • {ev}")
+        for ev in visible_events:
+            text = _e(ev.text)
+            if not ev.in_window:
+                lines.append(f"  • [italic]{text}[/italic]")
+            else:
+                lines.append(f"  • {text}")
         lines.append("")
     if result.action_result.entries:
         lines.append("YOUR ACTIONS")
         for entry in result.action_result.entries:
-            lines.append(f"  [{entry.outcome.value.upper()}] {entry.narrative}")
+            lines.append(f"  \\[{entry.outcome.value.upper()}] {_e(entry.narrative)}")
         lines.append("")
     if result.agent_narratives:
         lines.append("PROXIUS REPORTS")
         for n in result.agent_narratives:
-            lines.append(f"  • {n}")
+            lines.append(f"  • {_e(n)}")
         lines.append("")
     if result.essence_claimed_by_domain:
         total = sum(result.essence_claimed_by_domain.values())
@@ -285,8 +345,8 @@ def display_tick_result(result: "TickResult") -> str:
         lines.append("DIVINE COMMUNICATIONS")
         for trig in result.dialogue_triggers:
             lines.append(
-                f"  [{trig.trigger_type.value.upper()}]  urgency:{trig.urgency:.1f}  "
-                f"re: {trig.subject_ref or 'general'}"
+                f"  \\[{trig.trigger_type.value.upper()}]  urgency:{trig.urgency:.1f}  "
+                f"re: {_e(trig.subject_ref or 'general')}"
             )
         lines.append("")
     if result.terminal.triggered:
@@ -299,7 +359,7 @@ def display_tick_result(result: "TickResult") -> str:
     return "\n".join(lines)
 
 
-def display_briefing(state: "SimulationState") -> str:
+def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[str]:
     lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  (Age {state.universe.current_age:.1f})", SEP2, ""]
     pan = state.pantheon
     lines.append(f"PANTHEON: {pan.name}")
@@ -353,83 +413,112 @@ def display_briefing(state: "SimulationState") -> str:
     lines.append(SEP)
     lines.append("YOUR UNIVERSE")
     for gid, galaxy in state.galaxies.items():
-        if not is_in_window(galaxy):
+        g_oow = not is_in_window(galaxy)
+        if g_oow and not dev_mode:
             continue
+        gm = _OOW if g_oow else ""
         gal_vis = f"  [vis:{galaxy.visibility:.2f}]" if not galaxy.pinned else ""
-        lines += ["", f"  Galaxy: {galaxy.name}{gal_vis}"]
+        lines += ["", f"{gm}  Galaxy: {galaxy.name}{gal_vis}"]
         for sid in galaxy.child_ids:
             sys_obj  = state.locations.get(str(sid))
-            if not sys_obj or not is_in_window(sys_obj):
+            if not sys_obj:
                 continue
+            s_oow = not is_in_window(sys_obj)
+            if s_oow and not dev_mode:
+                continue
+            sm = _OOW if (g_oow or s_oow) else ""
             star_str = f"  [{sys_obj.star_type.value}]" if hasattr(sys_obj, "star_type") else ""
             sys_vis  = f"  [vis:{sys_obj.visibility:.2f}]" if not sys_obj.pinned else ""
-            lines.append(f"    System: {sys_obj.name}{star_str}{sys_vis}")
+            lines.append(f"{sm}    System: {sys_obj.name}{star_str}{sys_vis}")
             for wid in sys_obj.child_ids:
                 world = state.worlds.get(str(wid))
-                if not world or not is_in_window(world):
+                if not world:
                     continue
+                w_oow = not is_in_window(world)
+                if w_oow and not dev_mode:
+                    continue
+                wm = _OOW if (g_oow or s_oow or w_oow) else ""
                 n_civs   = len(world.civilization_ids)
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
                 w_vis    = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
                 lines.append(
-                    f"      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:.0f}  {life_str}"
+                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:.0f}  {life_str}"
                 )
                 if world.domain_expression:
-                    lines.append(f"        domain expression: {_format_beliefs(world.domain_expression)}")
+                    lines.append(f"{wm}        domain expression: {_format_beliefs(world.domain_expression)}")
                 if world.geo_tags or world.atmo_tags:
                     parts = []
                     if world.geo_tags:
                         parts.append(f"geo: {', '.join(world.geo_tags)}")
                     if world.atmo_tags:
                         parts.append(f"atmo: {', '.join(world.atmo_tags)}")
-                    lines.append(f"        {' · '.join(parts)}")
+                    lines.append(f"{wm}        {' · '.join(parts)}")
                 for cid in world.civilization_ids:
                     civ = state.civilizations.get(str(cid))
-                    if civ and is_in_window(civ):
-                        h = civ.health
-                        civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                    if not civ:
+                        continue
+                    c_oow = not is_in_window(civ)
+                    if c_oow and not dev_mode:
+                        continue
+                    cm = _OOW if (wm or c_oow) else ""
+                    h = civ.health
+                    civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                    lines.append(
+                        f"{cm}        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
+                        f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
+                    )
+                    if civ.dominant_beliefs:
+                        lines.append(f"{cm}           beliefs: {_format_beliefs(civ.dominant_beliefs)}")
+                    if civ.culture_tags:
+                        lines.append(f"{cm}           culture: {_format_culture(civ.culture_tags)}")
+                    for pid in civ.pop_ids:
+                        pop = state.pops.get(str(pid))
+                        if not pop:
+                            continue
+                        p_oow = not is_in_window(pop)
+                        if p_oow and not dev_mode:
+                            continue
+                        pm = _OOW if (cm or p_oow) else ""
+                        class_label = pop.stratum.title() if pop.stratum else "Pop"
+                        top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
+                        belief_str = "  ".join(
+                            f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                        ) or "none"
+                        vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                         lines.append(
-                            f"        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
-                            f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
+                            f"{pm}           ↳ {class_label} (sz {pop.size_magnitude})"
+                            f"  {belief_str}{vis_note}"
                         )
-                        if civ.dominant_beliefs:
-                            lines.append(f"           beliefs: {_format_beliefs(civ.dominant_beliefs)}")
-                        if civ.culture_tags:
-                            lines.append(f"           culture: {_format_culture(civ.culture_tags)}")
-                        for pid in civ.pop_ids:
-                            pop = state.pops.get(str(pid))
-                            if pop and is_in_window(pop):
-                                class_label = pop.stratum.title() if pop.stratum else "Pop"
-                                top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
-                                belief_str = "  ".join(
-                                    f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
-                                ) or "none"
-                                vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-                                lines.append(
-                                    f"           ↳ {class_label} (sz {pop.size_magnitude})"
-                                    f"  {belief_str}{vis_note}"
-                                )
     lines += ["", SEP]
-    visible_species = [(sid, sp) for sid, sp in state.species.items() if is_in_window(sp)]
-    if visible_species:
+    species_view = [
+        (sid, sp, not is_in_window(sp))
+        for sid, sp in state.species.items()
+        if is_in_window(sp) or dev_mode
+    ]
+    if species_view:
         lines.append("SPECIES")
-        for sid, sp in visible_species:
+        for sid, sp, sp_oow in species_view:
+            spm = _OOW if sp_oow else ""
             w_obj   = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
             origin  = w_obj.name if w_obj else "unknown"
             sap_str = "sapient" if sp.sapient else "non-sapient"
             xp_str  = "  [transplanted]" if sp.transplanted else ""
             sp_vis  = f"  [vis:{sp.visibility:.2f}]" if not sp.pinned else ""
             lines.append(
-                f"  {sp.name:16s} [{sap_str}]{sp_vis}  origin:{origin}  "
+                f"{spm}  {sp.name:16s} [{sap_str}]{sp_vis}  origin:{origin}  "
                 f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  [{sp.condition.value}]{xp_str}"
             )
             if sp.bio_tags or sp.domain_tags:
-                lines.append(f"    {', '.join(sp.bio_tags + sp.domain_tags)}")
+                lines.append(f"{spm}    {', '.join(sp.bio_tags + sp.domain_tags)}")
         lines.append(SEP)
     lines.append("NOTABLE MORTALS")
     for mid, mortal in state.mortals.items():
-        if mortal.status == MortalStatus.DECEASED or (not mortal.pinned and mortal.visibility <= ENTITY_VISIBILITY_FLOOR):
+        if mortal.status == MortalStatus.DECEASED:
             continue
+        m_oow = not mortal.pinned and mortal.visibility <= ENTITY_VISIBILITY_FLOOR
+        if m_oow and not dev_mode:
+            continue
+        mm = _OOW if m_oow else ""
         w_obj    = state.locations.get(str(mortal.current_location))
         c_obj    = state.civilizations.get(str(mortal.civilization_id)) if mortal.civilization_id else None
         loc      = w_obj.name if w_obj else "?"
@@ -444,16 +533,16 @@ def display_briefing(state: "SimulationState") -> str:
         prom_str = _prominence_label(mortal)
         vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
         lines.append(
-            f"  {mortal.name:16s} [{role_str:7s}]  align:{mortal.alignment:.2f}  "
+            f"{mm}  {mortal.name:16s} [{role_str:7s}]  align:{mortal.alignment:.2f}  "
             f"{age_str}{sp_note}{vis_note}   {loc}"
         )
-        lines.append(f"    {prom_str}")
+        lines.append(f"{mm}    {prom_str}")
         if mortal.personal_tags:
-            lines.append(f"    Tags: {', '.join(mortal.personal_tags)}")
+            lines.append(f"{mm}    Tags: {', '.join(mortal.personal_tags)}")
         if mortal.culture_tags:
-            lines.append(f"    Culture: {_format_culture(mortal.culture_tags)}")
+            lines.append(f"{mm}    Culture: {_format_culture(mortal.culture_tags)}")
     lines += ["", SEP2]
-    return "\n".join(lines)
+    return lines
 
 
 # ─────────────────────────────────────────
@@ -473,7 +562,9 @@ class SessionLog:
             f.write(text + "\n")
 
     def write_tick(self, result: "TickResult") -> None:
-        self.write(display_tick_result(result))
+        # Strip Rich markup for the plain-text session log.
+        from rich.text import Text as _RText
+        self.write(_RText.from_markup(display_tick_result(result, dev_mode=DEV_MODE)).plain)
 
     def write_action(self, summary: str) -> None:
         self.write(f"  > QUEUED: {summary}")
@@ -2444,12 +2535,12 @@ class GameScreen(Screen):
         self._log = SessionLog(log_path)
         self._refresh_status()
         self._feed_markup(f"[#2a4a6a]Logging to: {log_path}[/]")
-        briefing = display_briefing(self._state)
-        self._feed(briefing)
-        self._log.write(briefing)
-        state_str = display_state(self._state)
-        self._feed(state_str)
-        self._log.write(state_str)
+        briefing_lines = display_briefing(self._state, dev_mode=DEV_MODE)
+        self._feed(_lines_to_text(briefing_lines))
+        self._log.write(_strip_oow(briefing_lines))
+        state_lines = display_state(self._state, dev_mode=DEV_MODE)
+        self._feed(_lines_to_text(state_lines))
+        self._log.write(_strip_oow(state_lines))
 
     # ── Display helpers ───────────────────────
 
@@ -2469,10 +2560,10 @@ class GameScreen(Screen):
     # ── Actions (keyboard bindings) ───────────
 
     def action_briefing(self) -> None:
-        self._feed(display_briefing(self._state))
+        self._feed(_lines_to_text(display_briefing(self._state, dev_mode=DEV_MODE)))
 
     def action_show_state(self) -> None:
-        self._feed(display_state(self._state))
+        self._feed(_lines_to_text(display_state(self._state, dev_mode=DEV_MODE)))
 
     def action_queue_action(self) -> None:
         self._queue_action_flow()
@@ -2531,9 +2622,9 @@ class GameScreen(Screen):
         new_state, result = loop.advance(state)
         self._state = new_state
         self._last_result = result
-        tick_str = display_tick_result(result)
+        tick_markup = display_tick_result(result, dev_mode=DEV_MODE)
         self._log.write_tick(result)
-        self.app.call_from_thread(self._feed, tick_str)
+        self.app.call_from_thread(self._feed_markup, tick_markup)
         self.app.call_from_thread(self._refresh_status)
         if result.terminal.triggered:
             self._log.finalize(new_state, result)
@@ -3616,4 +3707,11 @@ class DemiurgeApp(App):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Demiurge TUI")
+    parser.add_argument("--dev", action="store_true",
+                        help="Developer mode: show out-of-Window entities and events (italicized).")
+    args = parser.parse_args()
+    DEV_MODE = args.dev
     DemiurgeApp().run()
+
