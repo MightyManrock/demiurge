@@ -5,7 +5,7 @@ Classes connected to the universe simulation.
 """
 
 from __future__ import annotations
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
@@ -430,6 +430,10 @@ class NotableMortal(BaseModel):
     # with their patron's Domains.
     belief_tags: dict[str, float] = Field(default_factory=dict)     # Domain beliefs
     personal_tags: list[str] = Field(default_factory=list)
+    # Status-y markers: exiled, imprisoned, fugitive, war_veteran, etc. Rendered
+    # separately from `personal_tags` so descriptive traits (`stoic`, `scarred`)
+    # don't get mixed with situational state.
+    status_tags: list[str] = Field(default_factory=list)
     culture_tags: dict[str, float] = Field(default_factory=dict)
     # Cultural traits inherited from their civilization, e.g. {"culture:hierarchy": 0.8}
 
@@ -477,6 +481,32 @@ class NotableMortal(BaseModel):
     origin_pop_subsumed: bool = False
 
     active_goal: Optional["ProxiusGoal"] = None
+
+    @model_validator(mode="after")
+    def _split_legacy_tags(self) -> "NotableMortal":
+        """
+        Migrate legacy prefixed strings in `personal_tags` into the right
+        bucket. Historical scenarios mixed `status:senator` and
+        `personal:ambitious` entries into a single list; this validator
+        peels them apart so callers always see clean per-bucket lists.
+        Bare strings (no prefix) stay in `personal_tags`.
+        """
+        if not self.personal_tags:
+            return self
+        new_personal: list[str] = []
+        new_status: list[str] = list(self.status_tags)
+        for tag in self.personal_tags:
+            if tag.startswith("status:"):
+                stripped = tag.split(":", 1)[1]
+                if stripped not in new_status:
+                    new_status.append(stripped)
+            elif tag.startswith("personal:"):
+                new_personal.append(tag.split(":", 1)[1])
+            else:
+                new_personal.append(tag)
+        self.personal_tags = new_personal
+        self.status_tags = new_status
+        return self
 
 
 # ─────────────────────────────────────────

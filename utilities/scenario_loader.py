@@ -536,6 +536,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             visibility=row["visibility"],
             belief_tags=_jd(row.get("belief_tags", "{}")),
             personal_tags=_j(row["personal_tags"]),
+            status_tags=_j(row.get("status_tags", "[]")),
             culture_tags=_jd(row.get("culture_tags", "{}")),
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],

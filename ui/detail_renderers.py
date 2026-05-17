@@ -12,7 +12,8 @@ from rich.markup import escape as _e
 from rich.text import Text
 
 from core.universe_core import MortalRole, MortalStatus
-from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
+from logic.tick_logic import is_in_window, is_mortal_visible, ENTITY_VISIBILITY_FLOOR
+import display
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
     _short_tag,
@@ -82,6 +83,8 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         a(f"  overt:{fp.overt_miracles:.2f}  subtle:{fp.subtle_influence:.2f}  "
           f"proxii:{fp.proxius_activity:.2f}  create:{fp.direct_creation:.2f}")
 
+    dev = display.DEV_MODE
+
     a("")
     a("[bold #4a80b0]CIVILIZATIONS[/]")
     any_civ = False
@@ -89,13 +92,18 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         civ = state.civilizations.get(str(cid))
         if not civ:
             continue
+        c_oow = not is_in_window(civ)
+        if c_oow and not dev:
+            continue
         any_civ = True
+        cm = "[dim]" if c_oow else ""
+        ce = "[/]" if c_oow else ""
         h = civ.health
         civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
-        a(f"  ● {civ_link}  \\[{_e(civ.scale.value)}]  "
-          f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}")
+        a(f"  {cm}● {civ_link}  \\[{_e(civ.scale.value)}]  "
+          f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
     if not any_civ:
-        a("  [#5a7090](none)[/]")
+        a("  [#5a7090](none in Window)[/]")
 
     a("")
     a("[bold #4a80b0]NOTABLE MORTALS HERE[/]")
@@ -105,12 +113,15 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
             continue
         if m.status == MortalStatus.DECEASED:
             continue
-        if not is_in_window(m):
+        m_oow = not is_mortal_visible(m)
+        if m_oow and not dev:
             continue
         any_m = True
+        mm = "[dim]" if m_oow else ""
+        me = "[/]" if m_oow else ""
         role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
         m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
-        a(f"  ● {m_link} \\[{role_str}]  align:{m.alignment:.2f}")
+        a(f"  {mm}● {m_link} \\[{role_str}]  align:{m.alignment:.2f}{me}")
     if not any_m:
         a("  [#5a7090](none in Window)[/]")
 
@@ -144,26 +155,30 @@ def render_system_detail(state: "SimulationState", system_id: str) -> Text:
 
     a("")
     a("[bold #4a80b0]WORLDS[/]")
+    dev = display.DEV_MODE
     any_w = False
     for cid in sys_obj.child_ids:
         world = state.worlds.get(str(cid))
         if not world:
             continue
+        w_oow = not is_in_window(world)
+        if w_oow and not dev:
+            continue
         any_w = True
-        in_window_marker = "●" if is_in_window(world) else "○"
-        style = "" if is_in_window(world) else "[dim]"
-        end = "" if is_in_window(world) else "[/]"
+        marker = "●" if not w_oow else "○"
+        style = "[dim]" if w_oow else ""
+        end = "[/]" if w_oow else ""
         n_civs = sum(
             1 for x in world.civilization_ids
             if str(x) in state.civilizations and is_in_window(state.civilizations[str(x)])
         )
         life = f"{n_civs} civ(s) known" if n_civs else "no life known"
         world_link = _click_link("world", str(cid), f"[bold]{_e(world.name)}[/]")
-        a(f"  {style}{in_window_marker} {world_link}  "
+        a(f"  {style}{marker} {world_link}  "
           f"\\[{_e(world.condition.value)}]  {life}{end}")
 
     if not any_w:
-        a("  [#5a7090](no worlds catalogued)[/]")
+        a("  [#5a7090](no worlds known in this system)[/]")
 
     return Text.from_markup("\n".join(lines))
 
@@ -212,6 +227,8 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         a("[bold #4a80b0]CULTURE[/]")
         a(f"  {_e(_format_culture(civ.culture_tags))}")
 
+    dev = display.DEV_MODE
+
     a("")
     a("[bold #4a80b0]POPS[/]")
     any_p = False
@@ -219,7 +236,12 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         pop = state.pops.get(str(pid))
         if not pop:
             continue
+        p_oow = not is_in_window(pop)
+        if p_oow and not dev:
+            continue
         any_p = True
+        pm = "[dim]" if p_oow else ""
+        pe = "[/]" if p_oow else ""
         class_label = pop.stratum.title() if pop.stratum else "Pop"
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
         sp_note = f"  ({sp_obj.name})" if sp_obj else ""
@@ -228,10 +250,30 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
             f"{_short_tag(t)}({v:.2f})" for t, v in top
         ) or "none"
         vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-        a(f"  ↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}{vis}")
-        a(f"      {_e(belief_str)}")
+        a(f"  {pm}↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}{vis}{pe}")
+        a(f"      {pm}{_e(belief_str)}{pe}")
     if not any_p:
-        a("  [#5a7090](no pops)[/]")
+        a("  [#5a7090](no pops visible in Window)[/]")
+
+    a("")
+    a("[bold #4a80b0]NOTABLE MORTALS[/]")
+    any_m = False
+    for mid, m in state.mortals.items():
+        if str(m.civilization_id) != str(civ_id):
+            continue
+        if m.status == MortalStatus.DECEASED:
+            continue
+        m_oow = not is_mortal_visible(m)
+        if m_oow and not dev:
+            continue
+        any_m = True
+        mm = "[dim]" if m_oow else ""
+        me = "[/]" if m_oow else ""
+        role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
+        m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
+        a(f"  {mm}● {m_link} \\[{role_str}]  align:{m.alignment:.2f}{me}")
+    if not any_m:
+        a("  [#5a7090](none in Window)[/]")
 
     return Text.from_markup("\n".join(lines))
 
@@ -284,10 +326,12 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         civ_link = _click_link("civ", str(m.civilization_id), f"[#3a6a8a]{_e(civ.name)}[/]")
         a(f"  civilization: {civ_link}")
 
-    if m.personal_tags:
+    if m.status_tags or m.personal_tags or m.culture_tags:
         a("")
-        a(f"  tags: {_e(', '.join(m.personal_tags))}")
-
+    if m.status_tags:
+        a(f"  status: {_e(', '.join(_short_tag(t) for t in m.status_tags))}")
+    if m.personal_tags:
+        a(f"  tags:   {_e(', '.join(_short_tag(t) for t in m.personal_tags))}")
     if m.culture_tags:
         a(f"  culture: {_e(_format_culture(m.culture_tags))}")
 

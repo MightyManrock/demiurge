@@ -87,12 +87,18 @@ def _personality_label(lum: "Luminary") -> str:
 
 def _short_tag(tag: str) -> str:
     """
-    Strip `domain:` / `culture:` prefix and Title-Case the remainder.
-    `'domain:order'` → `'Order'`. Underscores become spaces.
+    Render a tag in its short, human-readable form.
+
+    - `domain:*` → Title-Cased (`'domain:order'` → `'Order'`) — Domains read
+      as proper nouns in the UI.
+    - everything else (culture tags, personal/status tags, bare strings) →
+      lowercase with underscores converted to spaces.
     """
-    if ":" in tag:
+    if tag.startswith("domain:"):
         return tag.split(":", 1)[1].replace("_", " ").title()
-    return tag.replace("_", " ").title()
+    if ":" in tag:
+        return tag.split(":", 1)[1].replace("_", " ")
+    return tag.replace("_", " ")
 
 
 def _format_beliefs(beliefs: "dict[str, float]") -> str:
@@ -577,8 +583,10 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
             f"{age_str}{sp_note}{vis_note}   {loc}"
         )
         lines.append(f"{mm}    {prom_str}")
+        if mortal.status_tags:
+            lines.append(f"{mm}    Status: {', '.join(_short_tag(t) for t in mortal.status_tags)}")
         if mortal.personal_tags:
-            lines.append(f"{mm}    Tags: {', '.join(mortal.personal_tags)}")
+            lines.append(f"{mm}    Tags: {', '.join(_short_tag(t) for t in mortal.personal_tags)}")
         if mortal.culture_tags:
             lines.append(f"{mm}    Culture: {_format_culture(mortal.culture_tags)}")
     lines += ["", SEP2]

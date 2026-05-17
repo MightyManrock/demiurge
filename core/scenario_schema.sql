@@ -197,7 +197,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     prominence             REAL NOT NULL DEFAULT 0.5,
     visibility             REAL NOT NULL DEFAULT 0.0,
     belief_tags            TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
-    personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
+    personal_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array (descriptive traits)
+    status_tags            TEXT NOT NULL DEFAULT '[]',  -- JSON array (situational state: exiled, imprisoned, …)
     culture_tags           TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}
     alignment              REAL NOT NULL DEFAULT 0.8,
     chrono_age             REAL NOT NULL DEFAULT 0.0,

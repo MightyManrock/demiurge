@@ -398,14 +398,14 @@ def _write_mortals(conn, state: SimulationState):
             """INSERT INTO mortals
                (id, name, description, civilization_id, role, status,
                 species_id, prominence_roles, prominence, visibility,
-                belief_tags, personal_tags, culture_tags,
+                belief_tags, personal_tags, status_tags, culture_tags,
                 alignment, chrono_age, bio_age,
                 appointed_by_demiurge, appointed_by_luminary,
                 home_location, current_location, pinned,
                 active_goal_json,
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -419,6 +419,7 @@ def _write_mortals(conn, state: SimulationState):
                 m.visibility,
                 _j(m.belief_tags),
                 _j(m.personal_tags),
+                _j(m.status_tags),
                 _j(m.culture_tags),
                 m.alignment,
                 m.chrono_age,
