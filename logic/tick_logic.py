@@ -21,7 +21,7 @@ from core.action_core import (
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent,
-    ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope, WeighCivilizationIntent,
+    ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope,
     TargetType,
 )
 from core.eval_core import (
@@ -2398,75 +2398,6 @@ class TickLoop:
                 narrative = "\n".join(report)
 
             return mutations, narrative
-
-        # ── Weigh Civilization ────────────────────────
-        if isinstance(intent, WeighCivilizationIntent):
-            civ = state.civilizations.get(str(instance.target_id)) if instance.target_id else None
-            if not civ:
-                return mutations, "No civilization found to weigh."
-
-            snap = intent
-
-            def _snap_delta(cur: float, prev: float) -> str:
-                d = cur - prev
-                return f"  ({d:+.3f})" if abs(d) >= 0.001 else ""
-
-            theistic_str = "Yes" if civ.theistic else "No"
-            da_d = _snap_delta(civ.divine_awareness, snap.divine_awareness_snapshot)
-            report = [
-                f"Civilization Report: {civ.name}",
-                f"  Scale: {civ.scale.value}  |  Age: {civ.age:.0f}  |  Theistic: {theistic_str}",
-                f"  Divine Awareness: {civ.divine_awareness:.2f}{da_d}",
-            ]
-
-            # Worlds
-            origin_world = state.worlds.get(str(civ.origin_location_id)) if civ.origin_location_id else None
-            if origin_world:
-                report.append(f"  Origin: {origin_world.name}")
-            present_elsewhere = [
-                w for wid, w in state.worlds.items()
-                if any(str(x) == str(civ.id) for x in w.civilization_ids)
-                and wid != str(civ.origin_location_id)
-            ]
-            for w in present_elsewhere:
-                win_note = "" if is_in_window(w) else "  [not in Window]"
-                report.append(f"  Also present: {w.name}{win_note}")
-
-            # Health
-            report.append("  Health (delta from last tick):")
-            for field_name in ("stability", "prosperity", "cohesion"):
-                cur_val = getattr(civ.health, field_name)
-                d = _snap_delta(cur_val, snap.health_snapshot.get(field_name, cur_val))
-                report.append(f"    {field_name.capitalize():<12} {cur_val:.2f}{d}")
-
-            # Domain beliefs
-            all_belief_tags = sorted(set(civ.dominant_beliefs) | set(snap.beliefs_snapshot))
-            if all_belief_tags:
-                report.append("  Domain Beliefs:")
-                for tag in all_belief_tags:
-                    cur_val = civ.dominant_beliefs.get(tag, 0.0)
-                    short = tag.split(":", 1)[1] if ":" in tag else tag
-                    if cur_val < 0.001:
-                        report.append(f"    {short:<16} (removed this tick)")
-                    else:
-                        d = _snap_delta(cur_val, snap.beliefs_snapshot.get(tag, 0.0))
-                        report.append(f"    {short:<16} {cur_val:.3f}{d}")
-
-            # Cultural profile
-            all_culture_tags = sorted(set(civ.culture_tags) | set(snap.culture_snapshot))
-            if all_culture_tags:
-                report.append("  Cultural Profile:")
-                for tag in all_culture_tags:
-                    cur_val = civ.culture_tags.get(tag, 0.0)
-                    short = tag.split(":", 1)[1] if ":" in tag else tag
-                    if cur_val < 0.001:
-                        report.append(f"    {short:<16} (removed this tick)")
-                    else:
-                        d = _snap_delta(cur_val, snap.culture_snapshot.get(tag, 0.0))
-                        report.append(f"    {short:<16} {cur_val:.3f}{d}")
-
-            return mutations, "\n".join(report)
-            # Purely observational — no mutations.
 
         # ── Scry ─────────────────────────────────────
         if isinstance(intent, ScryIntent):

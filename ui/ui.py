@@ -17,7 +17,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
-    Button, Footer, Header, Input, Label, ListItem, ListView, RichLog, Static,
+    Button, Footer, Header, Input, Label, ListItem, ListView, Static,
     TabbedContent, TabPane,
 )
 from textual.containers import Horizontal, Vertical, ScrollableContainer
@@ -28,7 +28,7 @@ from core.action_core import (
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent, ChangeAffiliatedDomainsIntent,
-    WeighCivilizationIntent, ScryIntent, ScryScope, DomainVector, Framing,
+    ScryIntent, ScryScope, DomainVector, Framing,
 )
 from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, PopLocation,
@@ -45,14 +45,15 @@ from utilities.scenario_exporter import export_scenario
 import display
 from display import (
     display_state, display_briefing, display_tick_result,
-    _strip_oow, _name_for_id, _personality_label, _wrap_desc,
+    display_tick_result_categorized,
+    _strip_oow, _name_for_id, _personality_label, _wrap_desc, _short_tag,
 )
 
 from ui.constants import BACK, _SAVES_DIR, _SCENARIOS_DIR, _LOGS_DIR
 from ui.widgets import (
     StatusPanel, LoopingListView,
     LocationsTab, EntitiesTab, ActionsTab,
-    BriefingTab, UniverseTab, LuminariesTab,
+    BriefingTab, UniverseTab, LuminariesTab, LogTab,
 )
 from ui.detail_tabs import DetailTabManager
 from ui.session_log import SessionLog
@@ -204,7 +205,7 @@ class GameScreen(Screen):
                 with TabPane("Luminaries", id="luminaries"):
                     yield LuminariesTab()
                 with TabPane("Log", id="log"):
-                    yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
+                    yield LogTab()
         yield Footer()
 
     def on_mount(self) -> None:
@@ -228,11 +229,13 @@ class GameScreen(Screen):
 
     # ── Display helpers ───────────────────────
 
-    def _feed(self, text) -> None:
-        self.query_one("#main-feed", RichLog).write(text)
-
-    def _feed_markup(self, markup: str) -> None:
-        self.query_one("#main-feed", RichLog).write(Text.from_markup(markup))
+    def _feed_markup(self, markup: str, category: str = "other") -> None:
+        """Append a line to the Log tab, tagged with a chip-filter category."""
+        try:
+            self.query_one(LogTab).append(category, markup)
+        except Exception:
+            # Log tab not yet mounted (e.g. very early in startup).
+            pass
 
     def _refresh_status(self) -> None:
         """Compat alias — refreshes every tab and the subtitle."""
@@ -357,7 +360,7 @@ class GameScreen(Screen):
         state   = self._state
         library = self.app.loop._action_library  # type: ignore[attr-defined]
         if not state.ongoing_actions:
-            self._feed_markup("[#5a7090]No ongoing actions.[/]")
+            self._feed_markup("[#5a7090]No ongoing actions.[/]", "actions")
             return
         items = []
         for cat_val, oa in state.ongoing_actions.items():
@@ -389,7 +392,7 @@ class GameScreen(Screen):
                                 goal_pop.preaching_goal_cooldown_until = state.tick_number
                     elif proxius:
                         proxius.active_goal = None
-                self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}")
+                self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}", "actions")
                 self._refresh_status()
 
     def action_advance_tick(self) -> None:
@@ -399,21 +402,35 @@ class GameScreen(Screen):
     def _advance_tick_work(self) -> None:
         state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
-        self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]")
+        self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]", "other")
         new_state, result = loop.advance(state)
         self._state = new_state
         self._last_result = result
-        tick_markup = display_tick_result(result, dev_mode=display.DEV_MODE)
+        categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE)
         self._log.write_tick(result)
-        self.app.call_from_thread(self._feed_markup, tick_markup)
+        self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
+        # After each tick, surface the freshly-written log so the player sees
+        # the tick result without having to switch tabs manually.
+        self.app.call_from_thread(self._activate_log_tab)
         if result.terminal.triggered:
             self._log.finalize(new_state, result)
             self.app.call_from_thread(
                 self._feed_markup,
                 f"[bold #b04050]SCENARIO END: {result.terminal.condition.value.upper()}[/]\n"
                 f"{result.terminal.note}",
+                "other",
             )
+
+    def _feed_categorized(self, categorized: list[tuple[str, str]]) -> None:
+        for cat, line in categorized:
+            self._feed_markup(line, cat)
+
+    def _activate_log_tab(self) -> None:
+        try:
+            self.query_one("#right-tabs", TabbedContent).active = "log"
+        except Exception:
+            pass
 
     def action_save_game(self) -> None:
         self._save_game_flow()
@@ -490,7 +507,7 @@ class GameScreen(Screen):
             # Build intent; BACK means "re-show action browser"
             instance = await self._build_intent(action_key, defn)
             if instance is None:
-                self._feed_markup("[#5a7090]Cancelled.[/]")
+                self._feed_markup("[#5a7090]Cancelled.[/]", "actions")
                 return
             if instance == BACK:
                 continue
@@ -516,7 +533,7 @@ class GameScreen(Screen):
                     started_at_tick=state.tick_number,
                 )
                 self._log.write_action(f"[ONGOING SET] {defn.name}")
-                self._feed_markup(f"[#60a870][ONGOING SET][/] {defn.name}")
+                self._feed_markup(f"[#60a870][ONGOING SET][/] {defn.name}", "actions")
                 self._refresh_status()
                 return
 
@@ -525,7 +542,7 @@ class GameScreen(Screen):
         if instance.target_id:
             summary += f" → {_name_for_id(instance.target_id, state)}"
         self._log.write_action(summary)
-        self._feed_markup(f"[#a0d080]Queued:[/] {summary}")
+        self._feed_markup(f"[#a0d080]Queued:[/] {summary}", "actions")
         self._refresh_status()
 
     # ── Intent construction ───────────────────
@@ -626,7 +643,8 @@ class GameScreen(Screen):
                     if not eligible_pops:
                         self._feed_markup(
                             "[#5a7090]No visible, targetable Pops at this location. "
-                            "Scry the world to reveal Pops first.[/]"
+                            "Scry the world to reveal Pops first.[/]",
+                            "actions",
                         )
                         step = 1; continue
 
@@ -646,7 +664,7 @@ class GameScreen(Screen):
                             p.dominant_beliefs.items(), key=lambda x: -x[1]
                         )[:2]
                         belief_str = "  ".join(
-                            f"{tag.split(':')[1]}:{val:.2f}" for tag, val in top_beliefs
+                            f"{_short_tag(tag)}:{val:.2f}" for tag, val in top_beliefs
                         ) if top_beliefs else "no beliefs"
                         return (
                             f"{civ_name} [{p.stratum.upper()}]{cross}{origin_marker}"
@@ -759,7 +777,7 @@ class GameScreen(Screen):
                 and mid not in _proxius_ids
             ]
             if not mortals:
-                self._feed_markup("[#5a7090]No mortals currently within perception.[/]")
+                self._feed_markup("[#5a7090]No mortals currently within perception.[/]", "actions")
                 return None
             mortal_items = []
             for mid, m in mortals:
@@ -1233,23 +1251,6 @@ class GameScreen(Screen):
                         break
                 return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
 
-        # ── OBSERVATION ──────────────────────────────
-        elif cat == ActionCategory.OBSERVATION:
-            if action_key == "weigh_civilization":
-                civ = state.civilizations.get(str(target_id)) if target_id else None
-                if not civ:
-                    return None
-                return WeighCivilizationIntent(
-                    beliefs_snapshot=dict(civ.dominant_beliefs),
-                    culture_snapshot=dict(civ.culture_tags),
-                    health_snapshot={
-                        "stability": civ.health.stability,
-                        "prosperity": civ.health.prosperity,
-                        "cohesion": civ.health.cohesion,
-                    },
-                    divine_awareness_snapshot=civ.divine_awareness,
-                )
-
         # No intent needed
         return None
 
@@ -1381,7 +1382,7 @@ class GameScreen(Screen):
                  or (include_dormant and m.status == MortalStatus.DORMANT))
         ]
         if not proxii:
-            self._feed_markup("[#5a7090]No Proxiī available.[/]")
+            self._feed_markup("[#5a7090]No Proxiī available.[/]", "actions")
             return None
         items = []
         for mid, m in proxii:
@@ -1401,7 +1402,7 @@ class GameScreen(Screen):
     ) -> "tuple[UUID | str | None, TargetType]":
         worlds = [(wid, w) for wid, w in state.worlds.items() if is_in_window(w)]
         if not worlds:
-            self._feed_markup("[#5a7090]No worlds available.[/]")
+            self._feed_markup("[#5a7090]No worlds available.[/]", "actions")
             return None, TargetType.WORLD
         items = []
         for wid, w in worlds:
@@ -1421,7 +1422,7 @@ class GameScreen(Screen):
     ) -> "tuple[UUID | str | None, TargetType]":
         systems = [(sid, s) for sid, s in state.systems.items() if is_in_window(s)]
         if not systems:
-            self._feed_markup("[#5a7090]No systems available.[/]")
+            self._feed_markup("[#5a7090]No systems available.[/]", "actions")
             return None, TargetType.SYSTEM
         items = []
         for sid, s in systems:
@@ -1440,7 +1441,7 @@ class GameScreen(Screen):
     ) -> "tuple[UUID | str | None, TargetType]":
         galaxies = [(gid, g) for gid, g in state.galaxies.items() if is_in_window(g)]
         if not galaxies:
-            self._feed_markup("[#5a7090]No galaxies available.[/]")
+            self._feed_markup("[#5a7090]No galaxies available.[/]", "actions")
             return None, TargetType.GALAXY
         items = []
         for gid, g in galaxies:

@@ -15,6 +15,7 @@ from core.universe_core import MortalRole, MortalStatus
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
+    _short_tag,
 )
 from ui.widgets import _click_link
 
@@ -204,7 +205,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         a("")
         a("[bold #4a80b0]DOMINANT BELIEFS[/]")
         for tag, val in sorted(civ.dominant_beliefs.items(), key=lambda kv: -kv[1]):
-            a(f"  {_e(tag)}: {val:.2f}")
+            a(f"  {_e(_short_tag(tag))}: {val:.2f}")
 
     if civ.culture_tags:
         a("")
@@ -224,7 +225,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         sp_note = f"  ({sp_obj.name})" if sp_obj else ""
         top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
         belief_str = "  ".join(
-            f"{t.split(':', 1)[-1]}({v:.2f})" for t, v in top
+            f"{_short_tag(t)}({v:.2f})" for t, v in top
         ) or "none"
         vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
         a(f"  ↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}{vis}")
@@ -338,7 +339,7 @@ def render_luminary_detail(state: "SimulationState", lum_id: str) -> Text:
     a("")
     a("[bold #4a80b0]DOMAIN AFFINITIES[/]")
     for tag, aff in sorted(lum.domains.items(), key=lambda kv: -kv[1]):
-        a(f"  {_e(tag.split(':', 1)[1].title()):16s}  {aff:+.2f}")
+        a(f"  {_e(_short_tag(tag)):16s}  {aff:+.2f}")
 
     if lum.constraints:
         a("")

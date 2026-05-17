@@ -25,7 +25,7 @@ from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
 
-from display import _get_lum_domain_context, _wrap_desc
+from display import _get_lum_domain_context, _wrap_desc, _short_tag
 
 from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, LoopingListView
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
@@ -1006,14 +1006,14 @@ class MortalDetailModal(ModalScreen):
             lines.append(f"  {civ_name}  [{pop_obj.stratum.upper()}]  ·  {pop_loc_name}  sz:{pop_obj.size_magnitude}")
             if pop_obj.dominant_beliefs:
                 top = sorted(pop_obj.dominant_beliefs.items(), key=lambda x: -x[1])[:4]
-                bstr = "  ".join(f"{t.split(':',1)[-1]}:{v:.2f}" for t, v in top)
+                bstr = "  ".join(f"{_short_tag(t)}:{v:.2f}" for t, v in top)
                 lines.append(f"  beliefs: {bstr}")
             lines.append("")
 
         if m.belief_tags:
             lines.append(f"[bold #5a7090]PERSONAL BELIEFS[/]")
             for tag, v in sorted(m.belief_tags.items(), key=lambda x: -x[1]):
-                short = tag.split(":", 1)[-1]
+                short = _short_tag(tag)
                 col   = "#50b870" if v >= 0.5 else "#5a7090"
                 lines.append(f"  [{col}]{short:<16}  {v:.2f}[/]")
             lines.append("")

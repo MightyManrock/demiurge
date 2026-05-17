@@ -460,18 +460,6 @@ class ScryIntent(BaseModel):
     scope: ScryScope = ScryScope.WORLD
 
 
-class WeighCivilizationIntent(BaseModel):
-    """
-    For: weigh_civilization
-    Snapshot of civilization state at queue time; used to compute per-field
-    deltas in the tick-log report.
-    """
-    beliefs_snapshot: dict[str, float] = Field(default_factory=dict)
-    culture_snapshot: dict[str, float] = Field(default_factory=dict)
-    health_snapshot: dict[str, float] = Field(default_factory=dict)
-    divine_awareness_snapshot: float = 0.0
-
-
 # ─────────────────────────────────────────
 # UNIFIED INTENT TYPE
 # ActionInstance.intent replaces .parameters
@@ -493,7 +481,6 @@ ActionIntent = Union[
     CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent,
     ScryIntent,
-    WeighCivilizationIntent,
 ]
 
 

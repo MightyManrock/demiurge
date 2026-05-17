@@ -19,7 +19,6 @@ _LATITUDE_OPTS = [
 # Action keys whose handlers are not yet implemented; the action browser greys
 # them out so the player knows the option is reserved for future content.
 _STUB_ACTIONS: frozenset[str] = frozenset({
-    "read_divine_traces",
     "negotiate_herald",
     "obstruct_herald",
     "petition_luminary_herald",

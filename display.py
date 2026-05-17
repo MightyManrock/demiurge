@@ -26,13 +26,13 @@ SEP  = "─" * 60
 SEP2 = "═" * 60
 
 # Developer mode: set by main.py at startup from the --dev CLI flag.
-# When True, out-of-Window narratives and entities are shown in the status
-# log (italicized) instead of being suppressed. Status bar is unaffected.
+# When True, out-of-Window narratives and entities are shown dimmed instead
+# of being suppressed. Status bar is unaffected.
 DEV_MODE: bool = False
 
 # Sentinel prefixed to display_state/display_briefing lines that describe
-# out-of-Window entities. `_lines_to_text` strips it and styles those lines
-# italic; `_strip_oow` removes it for plain-text file logs.
+# out-of-Window entities. `_lines_to_text` strips it and renders those lines
+# dimmed; `_strip_oow` removes it for plain-text file logs.
 _OOW = "\x01"
 
 
@@ -41,12 +41,16 @@ _OOW = "\x01"
 # ─────────────────────────────────────────
 
 def _lines_to_text(lines: list[str]) -> Text:
-    """Convert a list of lines (some marked with the _OOW sentinel) into a styled Text."""
+    """Convert a list of lines (some marked with the _OOW sentinel) into a styled Text.
+
+    Lines that start with the _OOW sentinel render in `dim` style; the rest
+    render in the default style.
+    """
     out = Text()
     for i, line in enumerate(lines):
         suffix = "\n" if i < len(lines) - 1 else ""
         if line.startswith(_OOW):
-            out.append(line[len(_OOW):] + suffix, style="italic")
+            out.append(line[len(_OOW):] + suffix, style="dim")
         else:
             out.append(line + suffix)
     return out
@@ -81,11 +85,21 @@ def _personality_label(lum: "Luminary") -> str:
     return "/".join(parts) if parts else "neutral"
 
 
+def _short_tag(tag: str) -> str:
+    """
+    Strip `domain:` / `culture:` prefix and Title-Case the remainder.
+    `'domain:order'` → `'Order'`. Underscores become spaces.
+    """
+    if ":" in tag:
+        return tag.split(":", 1)[1].replace("_", " ").title()
+    return tag.replace("_", " ").title()
+
+
 def _format_beliefs(beliefs: "dict[str, float]") -> str:
     if not beliefs:
         return ""
     return "  ".join(
-        f"{tag}({v:.2f})"
+        f"{_short_tag(tag)}({v:.2f})"
         for tag, v in sorted(beliefs.items(), key=lambda kv: -kv[1])
     )
 
@@ -94,7 +108,7 @@ def _format_culture(tags: "dict[str, float]") -> str:
     if not tags:
         return ""
     return ", ".join(
-        t.split(":", 1)[-1]
+        _short_tag(t)
         for t, _ in sorted(tags.items(), key=lambda kv: -kv[1])
     )
 
@@ -233,7 +247,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                 top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                 belief_str = "  ".join(
-                    f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                    f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs
                 ) or "none"
                 vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                 lines.append(
@@ -279,78 +293,110 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     return lines
 
 
-def display_tick_result(result: "TickResult", dev_mode: bool = False) -> str:
+def display_tick_result_categorized(
+    result: "TickResult", dev_mode: bool = False,
+) -> list[tuple[str, str]]:
     """
-    Returns a Rich-markup string. Out-of-Window narratives are suppressed unless
-    dev_mode is True, in which case they are wrapped in `[italic]…[/italic]`.
-    Dynamic content (names, narratives) is escaped to avoid stray markup.
+    Same content as `display_tick_result` but emitted as a list of
+    (category, markup-line) tuples for the Log tab's chip filter.
+
+    Categories:
+      - 'other'    — headers, separators, terminal scenario-end block
+      - 'system'   — passive world events, essence claimed
+      - 'actions'  — your queued action results
+      - 'proxius'  — agent narratives
+      - 'luminary' — disposition changes and dialogue triggers
     """
-    lines = [
-        "",
+    out: list[tuple[str, str]] = []
+
+    out.append(("other", ""))
+    out.append((
+        "other",
         f"  TICK {result.tick_number} RESULT  "
         f"(age {result.universe_age_before:.1f} → {result.universe_age_after:.1f})",
-        SEP,
-    ]
+    ))
+    out.append(("other", SEP))
+
     visible_events = [
         ev for ev in result.passive_result.narrative_events
         if ev.in_window or dev_mode
     ]
     if visible_events:
-        lines.append("WORLD EVENTS")
+        out.append(("system", "WORLD EVENTS"))
         for ev in visible_events:
             text = _e(ev.text)
             if not ev.in_window:
-                lines.append(f"  • [italic]{text}[/italic]")
+                out.append(("system", f"  • [dim]{text}[/dim]"))
             else:
-                lines.append(f"  • {text}")
-        lines.append("")
+                out.append(("system", f"  • {text}"))
+        out.append(("system", ""))
+
     if result.action_result.entries:
-        lines.append("YOUR ACTIONS")
+        out.append(("actions", "YOUR ACTIONS"))
         for entry in result.action_result.entries:
-            lines.append(f"  \\[{entry.outcome.value.upper()}] {_e(entry.narrative)}")
-        lines.append("")
+            out.append((
+                "actions",
+                f"  \\[{entry.outcome.value.upper()}] {_e(entry.narrative)}",
+            ))
+        out.append(("actions", ""))
+
     if result.agent_narratives:
-        lines.append("PROXIUS REPORTS")
+        out.append(("proxius", "PROXIUS REPORTS"))
         for n in result.agent_narratives:
-            lines.append(f"  • {_e(n)}")
-        lines.append("")
+            out.append(("proxius", f"  • {_e(n)}"))
+        out.append(("proxius", ""))
+
     if result.essence_claimed_by_domain:
         total = sum(result.essence_claimed_by_domain.values())
         parts = "  ".join(
-            f"{tag.split(':')[1]}:{amt:.3f}"
-            for tag, amt in sorted(result.essence_claimed_by_domain.items(), key=lambda x: -x[1])
+            f"{_short_tag(tag)}:{amt:.3f}"
+            for tag, amt in sorted(
+                result.essence_claimed_by_domain.items(), key=lambda x: -x[1],
+            )
         )
-        lines.append(f"ESSENCE CLAIMED  (+{total:.3f} total)")
-        lines.append(f"  {parts}")
-        lines.append("")
+        out.append(("system", f"ESSENCE CLAIMED  (+{total:.3f} total)"))
+        out.append(("system", f"  {parts}"))
+        out.append(("system", ""))
+
     if result.disposition_changes:
-        lines.append("LUMINARY REACTIONS")
+        out.append(("luminary", "LUMINARY REACTIONS"))
         for lid, (r, m) in result.disposition_changes.items():
             ev   = next((e for e in result.evaluations if str(e.luminary_id) == lid), None)
             name = ev.summary_note.split(":")[0] if ev else lid[:8]
             dr   = ev.disposition_delta.results if ev else 0.0
             dm   = ev.disposition_delta.methods if ev else 0.0
-            lines.append(
+            out.append((
+                "luminary",
                 f"  {name:12s}  results {r:+.2f} ({dr:+.3f})"
-                f"  methods {m:+.2f} ({dm:+.3f})"
-            )
-        lines.append("")
+                f"  methods {m:+.2f} ({dm:+.3f})",
+            ))
+        out.append(("luminary", ""))
+
     if result.dialogue_triggers:
-        lines.append("DIVINE COMMUNICATIONS")
+        out.append(("luminary", "DIVINE COMMUNICATIONS"))
         for trig in result.dialogue_triggers:
-            lines.append(
+            out.append((
+                "luminary",
                 f"  \\[{trig.trigger_type.value.upper()}]  urgency:{trig.urgency:.1f}  "
-                f"re: {_e(trig.subject_ref or 'general')}"
-            )
-        lines.append("")
+                f"re: {_e(trig.subject_ref or 'general')}",
+            ))
+        out.append(("luminary", ""))
+
     if result.terminal.triggered:
-        lines += [
-            SEP2,
+        out.append(("other", SEP2))
+        out.append((
+            "other",
             f"  SCENARIO END: {result.terminal.condition.value.upper()}",
-            f"  {result.terminal.note}",
-            SEP2,
-        ]
-    return "\n".join(lines)
+        ))
+        out.append(("other", f"  {result.terminal.note}"))
+        out.append(("other", SEP2))
+
+    return out
+
+
+def display_tick_result(result: "TickResult", dev_mode: bool = False) -> str:
+    """Single markup string (no filtering) — used by the plain-text session log."""
+    return "\n".join(line for _, line in display_tick_result_categorized(result, dev_mode))
 
 
 def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[str]:
@@ -371,7 +417,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         lines.append("")
         lines.append(f"  {lum.name.upper()}  [{_personality_label(lum)}]")
         domain_parts = [
-            f"{tag.split(':', 1)[1].title()} ({aff:.2f})"
+            f"{_short_tag(tag)} ({aff:.2f})"
             for tag, aff in sorted(lum.domains.items(), key=lambda x: -x[1])
         ]
         lines.append(f"  Domains: {', '.join(domain_parts)}")
@@ -476,7 +522,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         class_label = pop.stratum.title() if pop.stratum else "Pop"
                         top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                         belief_str = "  ".join(
-                            f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                            f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs
                         ) or "none"
                         vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                         lines.append(

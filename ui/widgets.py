@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING
 from rich.markup import escape as _e
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll
+from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import ListView, Static
+from textual.widgets import ListView, RichLog, Static
 
 from core.universe_core import MortalRole, MortalStatus
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
@@ -30,7 +30,7 @@ from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 import display
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
-    _name_for_id, display_briefing, _lines_to_text,
+    _name_for_id, _short_tag, display_briefing, _lines_to_text,
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 
@@ -42,10 +42,14 @@ if TYPE_CHECKING:
 def _click_link(kind: str, eid: str, label_markup: str) -> str:
     """
     Wrap `label_markup` in a Textual click-action span that opens a detail tab
-    for the given entity. `label_markup` may itself contain markup; UUIDs and
-    fixed-kind strings are safe to inline (only hex+dashes, no quotes).
+    for the given entity.
+
+    Uses the `screen.` namespace so the dispatch goes straight to
+    `GameScreen.action_open_detail_by_id` regardless of which widget owns the
+    markup. UUIDs and fixed-kind strings are safe to inline (only hex+dashes,
+    no quotes).
     """
-    return f"[@click=open_detail_by_id('{kind}','{eid}')]{label_markup}[/]"
+    return f"[@click=screen.open_detail_by_id('{kind}','{eid}')]{label_markup}[/]"
 
 
 # ─────────────────────────────────────────
@@ -540,7 +544,7 @@ class UniverseTab(ContentTab):
                     sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                     top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                     belief_str = "  ".join(
-                        f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
+                        f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs
                     ) or "none"
                     vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                     a(f"{pm}       ↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}  "
@@ -594,7 +598,7 @@ class LuminariesTab(ContentTab):
             a(f"● {lum_link}{tag} "
               f"[#3a5a7a]({_e(_personality_label(lum))})[/]")
             domain_parts = [
-                f"{tag2.split(':', 1)[1].title()} ({aff:.2f})"
+                f"{_short_tag(tag2)} ({aff:.2f})"
                 for tag2, aff in sorted(lum.domains.items(), key=lambda x: -x[1])
             ]
             a(f"    domains: {_e(', '.join(domain_parts))}")
@@ -612,3 +616,88 @@ class LuminariesTab(ContentTab):
                     a(f"        [#7090b0]{_e(c.description)}[/]")
             a("")
         return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# Log tab: chip filter row + filtered RichLog
+# ─────────────────────────────────────────
+
+class LogChip(Static):
+    """One filter chip in the Log tab. Click (or Enter) toggles its category."""
+
+    can_focus = True
+
+    class Toggled(Message):
+        def __init__(self, category: str, active: bool) -> None:
+            super().__init__()
+            self.category = category
+            self.active = active
+
+    def __init__(self, category: str, active: bool = True) -> None:
+        super().__init__(
+            category.title(),
+            classes="log-chip" + (" active" if active else ""),
+        )
+        self._category = category
+        self._active = active
+
+    def _toggle(self) -> None:
+        self._active = not self._active
+        if self._active:
+            self.add_class("active")
+        else:
+            self.remove_class("active")
+        self.post_message(self.Toggled(self._category, self._active))
+
+    def on_click(self) -> None:
+        self._toggle()
+
+    def key_enter(self) -> None:
+        self._toggle()
+
+
+class LogTab(Vertical):
+    """Composite tab body: chip row on top, filtered RichLog beneath.
+
+    Tick-result lines (and ad-hoc status messages) come in via `append(category, markup)`.
+    The full history is retained; chip toggles re-render the visible portion.
+    """
+
+    CATEGORIES = ("actions", "proxius", "luminary", "system", "other")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._active: set[str] = set(self.CATEGORIES)
+        self._entries: list[tuple[str, str]] = []
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="log-chips"):
+            for cat in self.CATEGORIES:
+                yield LogChip(cat, active=True)
+        yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
+
+    def append(self, category: str, markup: str) -> None:
+        """Record an entry and write it to the log if its category is active."""
+        if category not in self.CATEGORIES:
+            category = "other"
+        self._entries.append((category, markup))
+        if category in self._active:
+            self.query_one("#main-feed", RichLog).write(Text.from_markup(markup))
+
+    def clear(self) -> None:
+        self._entries.clear()
+        self.query_one("#main-feed", RichLog).clear()
+
+    def _rerender(self) -> None:
+        log = self.query_one("#main-feed", RichLog)
+        log.clear()
+        for cat, mk in self._entries:
+            if cat in self._active:
+                log.write(Text.from_markup(mk))
+
+    def on_log_chip_toggled(self, event: LogChip.Toggled) -> None:
+        if event.active:
+            self._active.add(event.category)
+        else:
+            self._active.discard(event.category)
+        self._rerender()

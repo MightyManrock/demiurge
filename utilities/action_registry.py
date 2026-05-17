@@ -307,22 +307,25 @@ _ACTION_SEED: list[dict] = [
         "requires_proxius": 0,
         "tags": ["observation", "low_footprint", "intelligence", "can_persist"],
     },
-    {
-        "action_key": "read_divine_traces",
-        "name": "Read Divine Traces",
-        "category": "observation",
-        "description": (
-            "Detect residual footprint and Herald activity on a world. "
-            "Reveals what other divine actors have been doing."
-        ),
-        "valid_targets": ["world"],
-        "reliability": "probable",
-        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.0,
-        "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
-        "essence_cost": 0.0, "concealment_impact": 0.0,
-        "requires_proxius": 0,
-        "tags": ["observation", "zero_footprint", "intelligence", "herald_detection"],
-    },
+    # read_divine_traces — parked pending Herald mechanics. When the Herald
+    # entity class lands and divine-trace detection is specified, restore this
+    # entry. Until then, omitting it keeps it out of the action browser.
+    # {
+    #     "action_key": "read_divine_traces",
+    #     "name": "Read Divine Traces",
+    #     "category": "observation",
+    #     "description": (
+    #         "Detect residual footprint and Herald activity on a world. "
+    #         "Reveals what other divine actors have been doing."
+    #     ),
+    #     "valid_targets": ["world"],
+    #     "reliability": "probable",
+    #     "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.0,
+    #     "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
+    #     "essence_cost": 0.0, "concealment_impact": 0.0,
+    #     "requires_proxius": 0,
+    #     "tags": ["observation", "zero_footprint", "intelligence", "herald_detection"],
+    # },
     {
         "action_key": "audit_proxius",
         "name": "Audit Proxius",
@@ -340,23 +343,6 @@ _ACTION_SEED: list[dict] = [
         "tags": ["observation", "zero_footprint", "proxii", "alignment_check",
                  "include_dormant_proxius"],
     },
-    {
-        "action_key": "weigh_civilization",
-        "name": "Weigh Civilization",
-        "category": "observation",
-        "description": (
-            "Produce a detailed report on a civilization: domain beliefs, cultural profile, "
-            "health, spatial presence, and per-field deltas from the previous tick."
-        ),
-        "valid_targets": ["civilization"],
-        "reliability": "certain",
-        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.0,
-        "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
-        "essence_cost": 0.0, "concealment_impact": 0.0,
-        "requires_proxius": 0,
-        "tags": ["observation", "zero_footprint", "intelligence"],
-    },
-
     # ── Herald Interaction ─────────────────────────────────────────────────────
 
     {

@@ -90,6 +90,43 @@ ContentTab {
     background: $bg-feed;
 }
 
+/* ── Log tab: chip filter row ───────────── */
+
+LogTab {
+    background: $bg-feed;
+}
+
+#log-chips {
+    height: 1;
+    padding: 0 1;
+    background: $bg-feed;
+}
+
+LogChip {
+    background: $highlight;
+    color: $muted;
+    padding: 0 1;
+    margin: 0 1 0 0;
+    height: 1;
+    width: auto;
+    content-align: center middle;
+}
+
+LogChip:focus {
+    background: #24407a;
+    color: #c0d8f0;
+}
+
+LogChip.active {
+    background: #1e5040;
+    color: $good;
+}
+
+LogChip.active:focus {
+    background: #2e6850;
+    color: #70d890;
+}
+
 /* ── Buttons ─────────────────────────── */
 
 Button {
