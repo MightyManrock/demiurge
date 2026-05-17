@@ -185,13 +185,15 @@ def display_state(state: "SimulationState") -> str:
                     pop = state.pops.get(str(pid))
                     if pop and is_in_window(pop):
                         class_label = pop.stratum.title() if pop.stratum else "Pop"
+                        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+                        sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                         top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                         belief_str = "  ".join(
                             f"{t.split(':',1)[-1]}({v:.2f})" for t, v in top_beliefs
                         ) or "none"
                         vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                         lines.append(
-                            f"       ↳ {class_label} (sz {pop.size_magnitude})"
+                            f"       ↳ {class_label}{sp_note}  sz:{pop.size_magnitude}"
                             f"  {belief_str}{vis_note}"
                         )
     lines.append(SEP)
@@ -205,9 +207,13 @@ def display_state(state: "SimulationState") -> str:
             age_str += f"(bio:{mortal.bio_age:.0f})"
         prom_str = _prominence_label(mortal)
         vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+        sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
+        sp_str   = f"  sp:{sp_obj.name}" if sp_obj else ""
+        pop_obj  = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+        pop_str  = f"  pop:{pop_obj.stratum.title()}" if pop_obj else ""
         lines.append(
             f"  {mortal.name:16s} [{role_str}]  align:{mortal.alignment:.2f}  "
-            f"{age_str}{vis_note}  {prom_str}"
+            f"{age_str}{vis_note}{sp_str}{pop_str}  {prom_str}"
         )
     lines.append(SEP)
     lines.append("ONGOING ACTIONS")
@@ -2040,6 +2046,127 @@ class ImagoRevealDetailModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
+# MORTAL DETAIL MODAL
+# Read-only profile shown before appointing a Proxius.
+# Dismisses with True (confirm appoint), BACK sentinel (re-pick), or None (cancel).
+# ─────────────────────────────────────────
+
+class MortalDetailModal(ModalScreen):
+    BINDINGS = [
+        ("escape",      "go_back",      "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+    ]
+
+    def __init__(self, mortal: "NotableMortal", state: "SimulationState") -> None:
+        super().__init__()
+        self._mortal = mortal
+        self._state  = state
+
+    def _body(self) -> "Text":
+        m     = self._mortal
+        state = self._state
+
+        sp_obj  = state.species.get(str(m.species_id)) if m.species_id else None
+        sp_name = sp_obj.name if sp_obj else "Unknown"
+
+        pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
+        civ_obj  = (state.civilizations.get(str(pop_obj.civilization_id))
+                    if pop_obj and pop_obj.civilization_id else None)
+        civ_name = civ_obj.name if civ_obj else (
+            state.civilizations.get(str(m.civilization_id)).name
+            if m.civilization_id and str(m.civilization_id) in state.civilizations else "Unknown"
+        )
+
+        loc_obj  = state.locations.get(str(m.current_location))
+        loc_name = loc_obj.name if loc_obj else "Unknown"
+
+        lines: list[str] = []
+        lines.append(f"[bold #c0ccdc]{_e(m.name)}[/]")
+        lines.append(f"[#3a5a7a]{sp_name}  ·  {civ_name}  ·  {loc_name}[/]")
+        if m.description:
+            lines.append("")
+            lines.append(f"[#9090a8]{_e(m.description)}[/]")
+        lines.append("")
+
+        age_str = f"{m.chrono_age:.0f}"
+        if m.bio_age != m.chrono_age:
+            age_str += f"  (bio {m.bio_age:.0f})"
+        prom_str = "  ".join(r.value for r in m.prominence_roles if r.value != "none") or "none"
+        lines.append(f"[bold #5a7090]OVERVIEW[/]")
+        lines.append(f"  Age         {age_str}")
+        lines.append(f"  Alignment   {m.alignment:.2f}")
+        lines.append(f"  Prominence  {prom_str}")
+        if m.origin_pop_subsumed:
+            lines.append(f"  [#b08020](Origin community has been subsumed)[/]")
+        lines.append("")
+
+        if pop_obj:
+            pop_loc_obj  = state.locations.get(str(pop_obj.current_location))
+            pop_loc_name = pop_loc_obj.name if pop_loc_obj else "?"
+            lines.append(f"[bold #5a7090]ORIGIN COMMUNITY[/]")
+            lines.append(f"  {civ_name}  [{pop_obj.stratum.upper()}]  ·  {pop_loc_name}  sz:{pop_obj.size_magnitude}")
+            if pop_obj.dominant_beliefs:
+                top = sorted(pop_obj.dominant_beliefs.items(), key=lambda x: -x[1])[:4]
+                bstr = "  ".join(f"{t.split(':',1)[-1]}:{v:.2f}" for t, v in top)
+                lines.append(f"  beliefs: {bstr}")
+            lines.append("")
+
+        if m.belief_tags:
+            lines.append(f"[bold #5a7090]PERSONAL BELIEFS[/]")
+            for tag, v in sorted(m.belief_tags.items(), key=lambda x: -x[1]):
+                short = tag.split(":", 1)[-1]
+                col   = "#50b870" if v >= 0.5 else "#5a7090"
+                lines.append(f"  [{col}]{short:<16}  {v:.2f}[/]")
+            lines.append("")
+
+        if m.culture_tags:
+            lines.append(f"[bold #5a7090]CULTURAL TRAITS[/]")
+            for tag, v in sorted(m.culture_tags.items(), key=lambda x: -x[1]):
+                short = tag.split(":", 1)[-1]
+                lines.append(f"  [#5a7090]{short:<16}  {v:.2f}[/]")
+            lines.append("")
+
+        if m.personal_tags:
+            lines.append(f"[bold #5a7090]PERSONAL TRAITS[/]")
+            for tag in m.personal_tags:
+                lines.append(f"  [#7a6090]{_e(tag)}[/]")
+            lines.append("")
+
+        return Text.from_markup("\n".join(lines))
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box-tall"):
+            yield Label("Mortal Profile", classes="modal-title")
+            with ScrollableContainer():
+                yield Static(self._body(), id="mortal-detail-body")
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",            id="back-btn")
+                yield Button("Cancel",             id="cancel-btn",  classes="-danger")
+                yield Button("Appoint as Proxius", id="confirm-btn", classes="-primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-btn", Button).focus()
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
 # ACTION BROWSER MODAL
 # Two-level: category → action.
 # Dismisses with (action_key, ActionDefinition) or None.
@@ -2685,7 +2812,11 @@ class GameScreen(Screen):
                 w_obj    = state.locations.get(str(m.current_location))
                 loc      = w_obj.name if w_obj else "?"
                 role_str = m.role.value if m.role != MortalRole.OTHER else "mortal"
-                mortal_items.append((mid, f"{m.name:<18} [{role_str}]  align:{m.alignment:.2f}  {loc}"))
+                sp_obj   = state.species.get(str(m.species_id)) if m.species_id else None
+                sp_name  = sp_obj.name if sp_obj else "?"
+                pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
+                pop_str  = f"  {pop_obj.stratum.title()}" if pop_obj else ""
+                mortal_items.append((mid, f"{m.name:<18} [{role_str}]  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{pop_str}"))
             intent = None
             while True:
                 picked_id = await app.push_screen_wait(PickerModal("Select Mortal", mortal_items, show_back=True))
@@ -2693,6 +2824,12 @@ class GameScreen(Screen):
                 if picked_id == BACK: return BACK
                 target_id = UUID(picked_id)
                 if action_key in _NO_PARAMS:
+                    if action_key == "appoint_proxius":
+                        mortal_obj = state.mortals.get(picked_id)
+                        if mortal_obj:
+                            result = await app.push_screen_wait(MortalDetailModal(mortal_obj, state))
+                            if result is None: return None
+                            if result == BACK or not result: continue
                     break
                 intent = await self._build_intent_params(action_key, defn, target_id, state)
                 if intent is None: return None
@@ -3301,8 +3438,12 @@ class GameScreen(Screen):
         for mid, m in proxii:
             w_obj     = state.locations.get(str(m.current_location))
             loc       = w_obj.name if w_obj else "?"
+            sp_obj    = state.species.get(str(m.species_id)) if m.species_id else None
+            sp_name   = sp_obj.name if sp_obj else "?"
+            pop_obj   = state.pops.get(str(m.pop_id)) if m.pop_id else None
+            pop_str   = f"  {pop_obj.stratum.title()}" if pop_obj else ""
             dorm_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
-            items.append((mid, f"{m.name:<18}  align:{m.alignment:.2f}  {loc}{dorm_note}"))
+            items.append((mid, f"{m.name:<18}  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{pop_str}{dorm_note}"))
         return await self.app.push_screen_wait(PickerModal("Select Proxius", items, show_back=True))
 
     async def _pick_world(
