@@ -18,6 +18,7 @@ from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
     Button, Footer, Header, Input, Label, ListItem, ListView, RichLog, Static,
+    TabbedContent, TabPane,
 )
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 
@@ -44,11 +45,15 @@ from utilities.scenario_exporter import export_scenario
 import display
 from display import (
     display_state, display_briefing, display_tick_result,
-    _lines_to_text, _strip_oow, _name_for_id, _personality_label, _wrap_desc,
+    _strip_oow, _name_for_id, _personality_label, _wrap_desc,
 )
 
 from ui.constants import BACK, _SAVES_DIR, _SCENARIOS_DIR, _LOGS_DIR
-from ui.widgets import StatusPanel, LoopingListView
+from ui.widgets import (
+    StatusPanel, LoopingListView,
+    LocationsTab, EntitiesTab, ActionsTab,
+    BriefingTab, UniverseTab, LuminariesTab,
+)
 from ui.session_log import SessionLog
 from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
@@ -157,17 +162,43 @@ class GameScreen(Screen):
         ("t",      "advance_tick",    "Advance"),
         ("ctrl+s", "save_game",       "Save"),
         ("q",      "quit_game",       "Quit"),
+        # Tab switching: digits for left, ctrl+digits for right.
+        ("1", "left_tab('status')",      "Status"),
+        ("2", "left_tab('locations')",   "Locs"),
+        ("3", "left_tab('entities')",    "Ents"),
+        ("4", "left_tab('actions')",     "Acts"),
+        ("ctrl+1", "right_tab('briefing')",   ""),
+        ("ctrl+2", "right_tab('universe')",   ""),
+        ("ctrl+3", "right_tab('luminaries')", ""),
+        ("ctrl+4", "right_tab('log')",        ""),
     ]
 
     def __init__(self, state: SimulationState):
         super().__init__()
         self._state = state
+        self._briefing_open: bool = True
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
         with Horizontal():
-            yield StatusPanel(id="status-panel")
-            yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
+            with TabbedContent(id="left-tabs", initial="status"):
+                with TabPane("Status", id="status"):
+                    yield StatusPanel(id="status-panel")
+                with TabPane("Locations", id="locations"):
+                    yield LocationsTab()
+                with TabPane("Entities", id="entities"):
+                    yield EntitiesTab()
+                with TabPane("Actions", id="actions"):
+                    yield ActionsTab()
+            with TabbedContent(id="right-tabs", initial="briefing"):
+                with TabPane("Briefing", id="briefing"):
+                    yield BriefingTab()
+                with TabPane("Universe", id="universe"):
+                    yield UniverseTab()
+                with TabPane("Luminaries", id="luminaries"):
+                    yield LuminariesTab()
+                with TabPane("Log", id="log"):
+                    yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -175,14 +206,15 @@ class GameScreen(Screen):
         _LOGS_DIR.mkdir(exist_ok=True)
         log_path = _LOGS_DIR / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         self._log = SessionLog(log_path)
-        self._refresh_status()
-        self._feed_markup(f"[#2a4a6a]Logging to: {log_path}[/]")
+        # Render all tabs from the initial state.
+        self._refresh_all()
+        # Plain-text session log still receives the full briefing + state snapshot.
         briefing_lines = display_briefing(self._state, dev_mode=display.DEV_MODE)
-        self._feed(_lines_to_text(briefing_lines))
         self._log.write(_strip_oow(briefing_lines))
         state_lines = display_state(self._state, dev_mode=display.DEV_MODE)
-        self._feed(_lines_to_text(state_lines))
         self._log.write(_strip_oow(state_lines))
+        # Quiet header message in the Log tab.
+        self._feed_markup(f"[#2a4a6a]Logging to: {log_path}[/]")
 
     # ── Display helpers ───────────────────────
 
@@ -193,19 +225,71 @@ class GameScreen(Screen):
         self.query_one("#main-feed", RichLog).write(Text.from_markup(markup))
 
     def _refresh_status(self) -> None:
+        """Compat alias — refreshes every tab and the subtitle."""
+        self._refresh_all()
+
+    def _refresh_all(self) -> None:
+        """Re-render every mounted tab body from the current state."""
         state = self._state
-        self.query_one(StatusPanel).refresh_state(state)
         self.app.sub_title = (
             f"{state.universe.name}  ·  Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}"
         )
+        self.query_one(StatusPanel).refresh_state(state)
+        self.query_one(LocationsTab).refresh_state(state)
+        self.query_one(EntitiesTab).refresh_state(state)
+        self.query_one(ActionsTab).refresh_state(state)
+        if self._briefing_open:
+            briefing = self.query(BriefingTab)
+            if briefing:
+                briefing.first().refresh_state(state)
+        self.query_one(UniverseTab).refresh_state(state)
+        self.query_one(LuminariesTab).refresh_state(state)
+
+    # ── Tab actions ───────────────────────────
+
+    def action_left_tab(self, pane_id: str) -> None:
+        self.query_one("#left-tabs", TabbedContent).active = pane_id
+
+    def action_right_tab(self, pane_id: str) -> None:
+        if pane_id == "briefing" and not self._briefing_open:
+            self._open_briefing()
+            return
+        self.query_one("#right-tabs", TabbedContent).active = pane_id
+
+    def _open_briefing(self) -> None:
+        """Re-add the Briefing pane (it had been closed) and activate it."""
+        right = self.query_one("#right-tabs", TabbedContent)
+        pane = TabPane("Briefing", BriefingTab(), id="briefing")
+        right.add_pane(pane, before="universe")
+        self._briefing_open = True
+        # The new pane mounts on the next event-loop turn; defer the render.
+        self.call_after_refresh(self._post_open_briefing)
+
+    def _post_open_briefing(self) -> None:
+        try:
+            self.query_one(BriefingTab).refresh_state(self._state)
+        except Exception:
+            pass
+        self.query_one("#right-tabs", TabbedContent).active = "briefing"
+
+    def _close_briefing(self) -> None:
+        right = self.query_one("#right-tabs", TabbedContent)
+        right.remove_pane("briefing")
+        self._briefing_open = False
+        right.active = "universe"
 
     # ── Actions (keyboard bindings) ───────────
 
     def action_briefing(self) -> None:
-        self._feed(_lines_to_text(display_briefing(self._state, dev_mode=display.DEV_MODE)))
+        """Toggle the Briefing tab — closed becomes opened, open becomes closed."""
+        if self._briefing_open:
+            self._close_briefing()
+        else:
+            self._open_briefing()
 
     def action_show_state(self) -> None:
-        self._feed(_lines_to_text(display_state(self._state, dev_mode=display.DEV_MODE)))
+        """Switch focus to the Universe tab (was: dump snapshot to the log)."""
+        self.query_one("#right-tabs", TabbedContent).active = "universe"
 
     def action_queue_action(self) -> None:
         self._queue_action_flow()

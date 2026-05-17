@@ -29,12 +29,61 @@ Footer {
 
 /* ── Layout ─────────────────────────── */
 
-#status-panel {
-    width: 36;
+#left-tabs {
+    width: 44;
     background: $bg-panel;
     border-right: solid $border;
+}
+
+#right-tabs {
+    background: $bg-feed;
+}
+
+/* TabbedContent uses an internal Tabs bar + ContentSwitcher. */
+#left-tabs Tabs {
+    background: $bg-panel;
+}
+
+#right-tabs Tabs {
+    background: $bg-feed;
+}
+
+#left-tabs Tab {
+    color: $muted;
+    padding: 0 1;
+}
+
+#right-tabs Tab {
+    color: $muted;
+    padding: 0 1;
+}
+
+#left-tabs Tab.-active,
+#right-tabs Tab.-active {
+    color: $accent;
+    text-style: bold;
+}
+
+TabPane {
+    padding: 0;
+}
+
+.tab-body {
     padding: 0 1 1 1;
-    overflow-y: auto;
+    color: $text;
+}
+
+ContentTab {
+    background: $bg-panel;
+}
+
+#right-tabs ContentTab {
+    background: $bg-feed;
+}
+
+#status-panel {
+    background: $bg-panel;
+    padding: 0 1 1 1;
 }
 
 #main-feed {
