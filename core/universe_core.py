@@ -278,6 +278,14 @@ class Pop(BaseModel):
     # Traits introduced via Imago preaching — tracked separately from inherited culture_tags.
     rider_traits: dict[str, float] = Field(default_factory=dict)
 
+    # Set while this Pop is the "goal target" of an active Preach Imāgō directive.
+    # Auto-selected as goal_pop when its source Pop is re-targeted with the same Imāgō.
+    preaching_imago_id: Optional[str] = None
+
+    # Tick before which this Pop cannot be selected as a source target for Preach Imāgō.
+    # Set to (current_tick + 10) when goal target status ends for any reason.
+    preaching_goal_cooldown_until: int = 0
+
     notable_mortal_ids: list[UUID] = Field(default_factory=list)
 
     # Splinter lineage: parent_pop_id set if this Pop was split from another.
@@ -451,6 +459,10 @@ class NotableMortal(BaseModel):
     # Both hold a SignificantLocation UUID for now; will accommodate finer locations later.
     home_location: UUID
     current_location: UUID
+
+    # True when the Pop this mortal originated from was fully absorbed into the goal Pop.
+    # They may poorly represent the new Pop's cultural/belief profile.
+    origin_pop_subsumed: bool = False
 
     active_goal: Optional["ProxiusGoal"] = None
 

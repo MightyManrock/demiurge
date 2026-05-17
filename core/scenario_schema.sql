@@ -178,7 +178,9 @@ CREATE TABLE IF NOT EXISTS pops (
     parent_pop_id    TEXT,                           -- UUID of parent Pop if this is a splinter; NULL otherwise
     child_pop_ids    TEXT NOT NULL DEFAULT '[]',     -- JSON array of splinter Pop UUIDs
     visibility       REAL NOT NULL DEFAULT 0.0,
-    pinned           INTEGER NOT NULL DEFAULT 0
+    pinned           INTEGER NOT NULL DEFAULT 0,
+    preaching_imago_id            TEXT DEFAULT NULL,     -- imago_node_id if this Pop is an active preaching goal target
+    preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0  -- tick before which Pop cannot be a source target
 );
 
 CREATE TABLE IF NOT EXISTS mortals (
@@ -206,7 +208,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     active_goal_json       TEXT DEFAULT NULL,           -- JSON of ProxiusGoal, or NULL
     pop_id                 TEXT DEFAULT NULL,           -- UUID of origin Pop; cleared on age-out
     proxius_appointed_tick INTEGER DEFAULT NULL,        -- tick of first Proxius elevation (wall-clock)
-    herald_appointed_tick  INTEGER DEFAULT NULL         -- tick of first Herald elevation (wall-clock)
+    herald_appointed_tick  INTEGER DEFAULT NULL,        -- tick of first Herald elevation (wall-clock)
+    origin_pop_subsumed    INTEGER NOT NULL DEFAULT 0   -- bool; True when mortal's origin Pop was absorbed into the goal Pop
 );
 
 -- ─────────────────────────────────────────

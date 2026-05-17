@@ -2287,10 +2287,20 @@ class GameScreen(Screen):
                 oa   = state.ongoing_actions.pop(chosen)
                 defn = library.get(oa.action_key)
                 name = defn.name if defn else oa.action_key
-                # Clear the Proxius's active goal when a preach_imago is stopped
+                # Clear the Proxius's active goal when a preach_imago is stopped,
+                # and clean up any goal Pop (Pop B) that was being grown.
                 if oa.action_key == "preach_imago" and oa.proxius_id:
                     proxius = state.mortals.get(str(oa.proxius_id))
-                    if proxius:
+                    if proxius and proxius.active_goal:
+                        old_goal = proxius.active_goal
+                        proxius.active_goal = None
+                        if old_goal.goal_pop_id:
+                            goal_pop = state.pops.get(str(old_goal.goal_pop_id))
+                            if goal_pop:
+                                goal_pop.preaching_imago_id = None
+                                goal_pop.pinned = False
+                                goal_pop.preaching_goal_cooldown_until = state.tick_number
+                    elif proxius:
                         proxius.active_goal = None
                 self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}")
                 self._refresh_status()
@@ -2477,7 +2487,7 @@ class GameScreen(Screen):
                 intent=intent,
             )
 
-        # ── preach_imago: multi-step (proxius → domain/imago → civ) ──
+        # ── preach_imago: multi-step (proxius → domain/imago → civ → pop) ──
         if action_key == "preach_imago":
             already_directed = {
                 str(ai.proxius_id)
@@ -2488,6 +2498,8 @@ class GameScreen(Screen):
             step = 0
             pid = None
             dvs: list = []; imago_id = None
+            target_civ_id = None
+            target_pop_id = None
             while True:
                 if step == 0:
                     result = await self._pick_proxius(
@@ -2503,6 +2515,7 @@ class GameScreen(Screen):
                     dvs, imago_id = domain_result; step = 2
                 if step == 2:
                     target_civ_id = None
+                    target_pop_id = None
                     if dvs:
                         proxius_obj = state.mortals.get(pid)
                         loc_id      = str(proxius_obj.current_location) if proxius_obj else None
@@ -2529,11 +2542,62 @@ class GameScreen(Screen):
                                 target_civ_id = UUID(chosen_civ)
                             else:
                                 dvs = []
+                    if target_civ_id is None:
+                        break  # no civ / dvs discarded — skip Pop step
+                    step = 3
+                if step == 3:
+                    # ── Pop picker ─────────────────────────────────────────
+                    proxius_obj   = state.mortals.get(pid)
+                    origin_pop_id = str(proxius_obj.pop_id) if (proxius_obj and proxius_obj.pop_id) else None
+                    chosen_civ_id = str(target_civ_id)
+
+                    eligible_pops = [
+                        p for p in state.pops.values()
+                        if str(p.civilization_id) == chosen_civ_id
+                        and (
+                            is_in_window(p)
+                            or str(p.id) == origin_pop_id  # origin Pop always eligible
+                        )
+                        and p.preaching_imago_id is None
+                        and p.preaching_goal_cooldown_until <= state.tick_number
+                    ]
+
+                    if not eligible_pops:
+                        self._feed_markup(
+                            "[#5a7090]No visible, targetable Pops in this civilization. "
+                            "Scry the world to reveal Pops first.[/]"
+                        )
+                        step = 2; continue
+
+                    if len(eligible_pops) == 1:
+                        target_pop_id = eligible_pops[0].id
+                    else:
+                        def _pop_label(p) -> str:
+                            origin_marker = " *" if str(p.id) == origin_pop_id else ""
+                            top_beliefs = sorted(
+                                p.dominant_beliefs.items(), key=lambda x: -x[1]
+                            )[:2]
+                            belief_str = "  ".join(
+                                f"{tag.split(':')[1]}:{val:.2f}" for tag, val in top_beliefs
+                            ) if top_beliefs else "no beliefs"
+                            return (
+                                f"[{p.stratum.upper()}]{origin_marker}"
+                                f"  size {p.size_magnitude}"
+                                f"  {belief_str}"
+                            )
+                        pop_items = [(str(p.id), _pop_label(p)) for p in eligible_pops]
+                        chosen_pop = await app.push_screen_wait(
+                            PickerModal("Preach to which community?", pop_items, show_back=True)
+                        )
+                        if chosen_pop == BACK: step = 2; continue
+                        if chosen_pop is None: return None
+                        target_pop_id = UUID(chosen_pop)
                     break
             intent = ProxiusDirectiveIntent(
                 domain_vectors=dvs,
                 latitude=0.5,
                 target_civilization_id=target_civ_id,
+                target_pop_id=target_pop_id,
                 imago_node_id=imago_id,
             )
             return ActionInstance(

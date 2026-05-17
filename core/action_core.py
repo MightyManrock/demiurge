@@ -287,6 +287,10 @@ class ProxiusDirectiveIntent(BaseModel):
     # The civilization the Proxius should promote domain beliefs within.
     # Required when domain_vectors is non-empty; ignored otherwise.
 
+    target_pop_id: Optional[UUID] = None
+    # The source Pop (Pop A) the Proxius will preach to directly.
+    # When set, PROMOTE_DOMAIN targets this Pop rather than the whole civilization.
+
     constraints: list[str] = Field(default_factory=list)
     # Explicit limits on method.
     # e.g. ["do not kill the king directly", "do not reveal your divine appointment"]
@@ -627,6 +631,10 @@ class MutationType(str, Enum):
     POP_VISIBILITY         = "pop_visibility"      # delta/new_value on Pop.visibility; clamp 0–1
     CIV_ESTABLISHED_SHIFT  = "civ_established_shift"  # field=domain_tag, delta on Civilization.established_beliefs
     POP_SPLINTER           = "pop_splinter"        # new_value=Pop object (splinter); target_id=parent Pop UUID
+    POP_SIZE_CHANGE        = "pop_size_change"     # delta on Pop.size_fractional; floor 0.0
+    POP_RIDER_TRAIT        = "pop_rider_trait"     # field=domain_tag, delta on Pop.rider_traits; clamp 0–1
+    POP_ABSORBED           = "pop_absorbed"        # target_id=Pop A UUID, new_value=Pop B UUID; full cleanup
+    POP_CULTURE_SHIFT      = "pop_culture_shift"   # field=culture_tag, delta on Pop.culture_tags; clamp 0–1, prune below BELIEF_FLOOR
     MORTAL_POP_AGED_OUT    = "mortal_pop_aged_out" # target_id=mortal UUID; clears pop_id
 
 

@@ -9,6 +9,7 @@ from core.action_core import DomainVector
 
 class AgentActionChoice(str, Enum):
     PROMOTE_DOMAIN       = "promote_domain"
+    BOLSTER_BELIEFS      = "bolster_beliefs"
     RESEARCH_DOMAIN      = "research_domain"
     TAKE_STOCK           = "take_stock"
     REPORT_TO_DEMIURGE   = "report_to_demiurge"
@@ -25,17 +26,27 @@ class ProxiusGoal(BaseModel):
     imago_node_id: str
     label: str = ""          # human-readable summary, e.g. "Preaching Wheel of Change in Oros"
     target_location_id: UUID
-    target_civilization_id: Optional[UUID] = None  # None = all civs at location
+    target_civilization_id: Optional[UUID] = None  # None = all civs at location (legacy path)
     domain_vectors: list[DomainVector] = Field(default_factory=list)
     latitude: float = 0.5                           # 0.0 strict → 1.0 open
     constraints: list[str] = Field(default_factory=list)
     started_at_tick: int = 0
     last_action_tick: int = -1
     last_action: Optional[AgentActionChoice] = None
-    consecutive_promote_count: int = 0  # streak of PROMOTE_DOMAIN actions
+    consecutive_promote_count: int = 0  # streak of PROMOTE_DOMAIN / BOLSTER_BELIEFS actions
     effectiveness_bonus: float = 0.0    # grows with streak, cap 0.30, resets on break
     petition_pending: bool = False      # true until Demiurge re-issues or revokes
     report_log: list[str] = Field(default_factory=list)  # last 5 entries
     research_domain: Optional[str] = None
     # When set: this is a Commission Inquiry research goal. domain:... tag being studied.
     # Mutually exclusive in practice with domain_vectors / target_civilization_id (directive goals).
+
+    # Pop-level preaching fields (set when preach_imago targets a specific Pop):
+    source_pop_id: Optional[UUID] = None
+    # Pop A: the population being drawn from (player-selected at directive time).
+    goal_pop_id: Optional[UUID] = None
+    # Pop B: the splinter being grown. None until first PROMOTE_DOMAIN success creates it.
+    goal_pop_last_size: float = 0.0
+    # Pop B's size_fractional at end of last tick; used to detect stagnation/re-absorption.
+    stagnation_counter: int = 0
+    # Ticks in a row where Pop B failed to grow. Drives petition weight up.

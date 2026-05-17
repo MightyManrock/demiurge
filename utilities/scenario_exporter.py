@@ -360,8 +360,9 @@ def _write_pops(conn, state: SimulationState):
                 current_location, size_fractional,
                 dominant_beliefs, culture_tags, rider_traits,
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
-                visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                visibility, pinned,
+                preaching_imago_id, preaching_goal_cooldown_until)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 str(p.civilization_id) if p.civilization_id else None,
@@ -378,6 +379,8 @@ def _write_pops(conn, state: SimulationState):
                 _j(p.child_pop_ids),
                 p.visibility,
                 int(p.pinned),
+                p.preaching_imago_id,
+                p.preaching_goal_cooldown_until,
             ),
         )
 
@@ -393,8 +396,9 @@ def _write_mortals(conn, state: SimulationState):
                 appointed_by_demiurge, appointed_by_luminary,
                 home_location, current_location, pinned,
                 active_goal_json,
-                pop_id, proxius_appointed_tick, herald_appointed_tick)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                pop_id, proxius_appointed_tick, herald_appointed_tick,
+                origin_pop_subsumed)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -421,6 +425,7 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.pop_id) if m.pop_id else None,
                 m.proxius_appointed_tick,
                 m.herald_appointed_tick,
+                int(m.origin_pop_subsumed),
             ),
         )
 

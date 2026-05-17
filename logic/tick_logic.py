@@ -105,6 +105,56 @@ LINEAGE_BLEED_FRACTION = 0.20
 # Fraction of a splash delta that bleeds further to a Pop's parent and children.
 # Moderated by cosine similarity — diverged relatives resist the bleed.
 
+RIDER_ATTRITION_BASE = 0.003
+# Base decay rate per tick applied to culture_tags that conflict with a Pop's active rider_traits.
+# Multiplied by (1.0 - synergy): syn=-1 → 2x, syn=0 → 1x, syn=+1 → 0x.
+
+# How much a Pop's religion tags amplify or dampen domain influence on its dominant_beliefs.
+# Values are additive bonuses to the multiplier per unit of culture_tag strength.
+# Applied in omen, whisper, and Proxius PROMOTE_DOMAIN handlers.
+_RELIGION_DOMAIN_AFFINITY: dict[str, dict[str, float]] = {
+    "religion:luminary_worship": {
+        "domain:order": 0.30, "domain:light": 0.30, "domain:truth": 0.20,
+        "domain:mastery": 0.20, "domain:community": 0.15,
+        "domain:void": -0.20, "domain:conflict": -0.15, "domain:decay": -0.20,
+        "domain:sacrifice": -0.15,
+    },
+    "religion:demiurge_worship": {
+        "domain:mastery": 0.30, "domain:truth": 0.25, "domain:order": 0.20,
+        "domain:light": 0.20, "domain:change": 0.10,
+        "domain:void": -0.20, "domain:decay": -0.15,
+    },
+    "religion:animism": {
+        "domain:growth": 0.30, "domain:water": 0.25, "domain:change": 0.25,
+        "domain:fire": 0.20, "domain:sacrifice": 0.20, "domain:memory": 0.20,
+        "domain:community": 0.15,
+        "domain:mastery": -0.15, "domain:truth": -0.10,
+    },
+    "religion:ancestor_worship": {
+        "domain:memory": 0.40, "domain:community": 0.20, "domain:order": 0.10,
+        "domain:growth": 0.15,
+        "domain:change": -0.20, "domain:conflict": -0.10, "domain:void": -0.15,
+    },
+    "religion:maltheism": {
+        "domain:conflict": 0.30, "domain:void": 0.25, "domain:decay": 0.30,
+        "domain:sacrifice": 0.25, "domain:change": 0.20,
+        "domain:order": -0.25, "domain:light": -0.30, "domain:community": -0.20,
+        "domain:truth": -0.15,
+    },
+    "religion:nontheism": {
+        "domain:truth": 0.30, "domain:silence": 0.20, "domain:order": 0.15,
+        "domain:void": 0.15,
+        "domain:sacrifice": -0.20, "domain:mastery": -0.15, "domain:light": -0.10,
+        "domain:decay": -0.10,
+    },
+    "religion:void_worship": {
+        "domain:void": 0.40, "domain:secrecy": 0.25, "domain:silence": 0.25,
+        "domain:decay": 0.25, "domain:conflict": 0.15,
+        "domain:light": -0.35, "domain:community": -0.25, "domain:growth": -0.20,
+        "domain:truth": -0.15,
+    },
+}
+
 # Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
 # Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
 _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
@@ -848,6 +898,9 @@ class TickLoop:
                 * _SCALE_CONFORMITY.get(scale_key, 1.0)
                 * civ.health.cohesion
             )
+            # Actively preached Pops (goal targets) resist institutional pull at half rate
+            if pop.preaching_imago_id is not None:
+                conformity_rate *= 0.5
             for tag in set(civ.established_beliefs) | set(pop.dominant_beliefs):
                 est_val = civ.established_beliefs.get(tag, 0.0)
                 pop_val = pop.dominant_beliefs.get(tag, 0.0)
@@ -861,6 +914,32 @@ class TickLoop:
                         delta=delta,
                         note=f"{civ.name} conformity pressure on Pop ({tag})",
                     ))
+
+        # ── Rider trait → culture tag attrition ───────
+        # Culture tags that conflict with a Pop's active rider traits decay passively.
+        # Positively synergistic traits decay more slowly; negatively synergistic ones faster.
+        creg = self._culture_registry
+        if creg is not None:
+            for pop in state.pops.values():
+                if not pop.rider_traits:
+                    continue
+                for ctag, cstrength in list(pop.culture_tags.items()):
+                    if cstrength <= 0.0:
+                        continue
+                    total_decay = 0.0
+                    for rtag, rstrength in pop.rider_traits.items():
+                        syn = creg.synergy(rtag, ctag)
+                        # syn=-1 → mult=2.0; syn=0 → mult=1.0; syn=+1 → mult=0.0
+                        mult = max(0.0, 1.0 - syn)
+                        total_decay += RIDER_ATTRITION_BASE * rstrength * mult
+                    if total_decay > 1e-5:
+                        result.civilization_mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_CULTURE_SHIFT,
+                            target_id=pop.id,
+                            field=ctag,
+                            delta=-total_decay,
+                            note=f"Rider trait attrition on {ctag}",
+                        ))
 
         # ── Mortal alignment drift ─────────────────────
         for mid, mortal in state.mortals.items():
@@ -2734,7 +2813,8 @@ class TickLoop:
                     for sp in splash_pops:
                         sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
                         for dv in intent.domain_vectors:
-                            splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight
+                            receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
+                            splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight * receptivity
                             if abs(splash_delta) > 1e-5:
                                 mutations.append(StateMutation(
                                     mutation_type=MutationType.POP_BELIEF_SHIFT,
@@ -2807,6 +2887,19 @@ class TickLoop:
                 _imago_name = _node.name if _node else (imago_id.split(":")[-1].title() if imago_id else "directive")
                 _loc = state.locations.get(str(proxius.current_location))
                 _loc_name = _loc.name if _loc else "unknown location"
+
+                # If re-targeting the same Imāgō at the same source Pop, reuse the existing
+                # goal Pop (Pop B) rather than creating a new splinter next tick.
+                _existing_goal_pop_id: Optional[UUID] = None
+                if intent.target_pop_id and imago_id:
+                    _src_pop = state.pops.get(str(intent.target_pop_id))
+                    if _src_pop:
+                        for _child_id in _src_pop.child_pop_ids:
+                            _child = state.pops.get(str(_child_id))
+                            if _child and _child.preaching_imago_id == imago_id:
+                                _existing_goal_pop_id = _child.id
+                                break
+
                 goal = ProxiusGoal(
                     imago_node_id=imago_id,
                     label=f"Preaching {_imago_name} in {_loc_name}",
@@ -2816,6 +2909,8 @@ class TickLoop:
                     latitude=intent.latitude,
                     constraints=list(intent.constraints),
                     started_at_tick=state.tick_number,
+                    source_pop_id=intent.target_pop_id,
+                    goal_pop_id=_existing_goal_pop_id,
                 )
                 mutations.append(StateMutation(
                     mutation_type=MutationType.PROXIUS_GOAL_SET,
@@ -2886,37 +2981,50 @@ class TickLoop:
 
             effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
 
-            target_civs: list = []
-            if intent.civilization_scope:
-                civ_obj = state.civilizations.get(str(intent.civilization_scope))
-                if civ_obj:
-                    target_civs.append((str(intent.civilization_scope), civ_obj))
-            else:
-                target_civs = list(state.civilizations.items())
+            omen_world_id = self._resolve_world_id(instance, state)
+            scope_civ_id = str(intent.civilization_scope) if intent.civilization_scope else None
 
-            for cid, civ_obj in target_civs:
+            # Primary effect: POP_BELIEF_SHIFT on all Pops at this world (or civ scope)
+            target_pops: list = []
+            if omen_world_id:
+                world_pops = self._pops_on_world(str(omen_world_id), state)
+                target_pops = [
+                    p for p in world_pops
+                    if scope_civ_id is None or str(p.civilization_id) == scope_civ_id
+                ]
+
+            for pop in target_pops:
                 for dv in intent.domain_vectors:
+                    receptivity = self._pop_domain_receptivity(pop, dv.domain_tag)
+                    pop_delta = dv.direction * effectiveness * 0.15 * receptivity
+                    if abs(pop_delta) > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_BELIEF_SHIFT,
+                            target_id=pop.id,
+                            field=dv.domain_tag,
+                            delta=pop_delta,
+                            note=f"Omen: '{intent.sign_description[:40]}'",
+                        ))
+                        self._emit_lineage_bleed(
+                            mutations, state, pop, dv.domain_tag, pop_delta, "omen",
+                        )
+
+            # Divine awareness: raise for all civs represented in target Pops
+            for cid in {str(p.civilization_id) for p in target_pops if p.civilization_id}:
+                civ_obj = state.civilizations.get(cid)
+                if civ_obj:
                     mutations.append(StateMutation(
-                        mutation_type=MutationType.BELIEF_SHIFT,
+                        mutation_type=MutationType.CIVILIZATION_STAT,
                         target_id=civ_obj.id,
-                        field="dominant_beliefs",
-                        delta=dv.direction * effectiveness * 0.15,
-                        new_value=dv.domain_tag,
-                        note=f"Omen: '{intent.sign_description[:40]}'",
+                        field="divine_awareness",
+                        delta=0.1 * effectiveness,
+                        note=f"Omen raises divine awareness in {civ_obj.name}",
                     ))
-                mutations.append(StateMutation(
-                    mutation_type=MutationType.CIVILIZATION_STAT,
-                    target_id=civ_obj.id,
-                    field="divine_awareness",
-                    delta=0.1 * effectiveness,
-                    note=f"Omen raises divine awareness in {civ_obj.name}",
-                ))
 
             scope_desc = (
-                state.civilizations[str(intent.civilization_scope)].name
-                if intent.civilization_scope
-                and str(intent.civilization_scope) in state.civilizations
-                else "all civilizations"
+                state.civilizations[scope_civ_id].name
+                if scope_civ_id and scope_civ_id in state.civilizations
+                else "all populations"
             )
             narrative = (
                 f"The omen '{intent.sign_description}' manifested for {scope_desc}. "
@@ -2925,7 +3033,6 @@ class TickLoop:
             )
 
             # Emit a SPIKE_FADE event so the omen echoes for 4 more ticks
-            omen_world_id = self._resolve_world_id(instance, state)
             mutations.append(StateMutation(
                 mutation_type=MutationType.EVENT_EMITTED,
                 target_id=None,
@@ -2938,7 +3045,7 @@ class TickLoop:
                     duration=5,
                     base_strength=effectiveness,
                     decay_rate=0.6,
-                    target_civilization_id=intent.civilization_scope,
+                    target_civilization_id=None,  # echo targets Pops via world branch
                     target_world_id=omen_world_id,
                     domain_vectors=intent.domain_vectors,
                     domain_shift_rate=0.08,
@@ -2948,39 +3055,6 @@ class TickLoop:
                     sign_description=intent.sign_description,
                 ),
             ))
-
-            # Splash: distribute a fraction of the omen's effect across Pops on
-            # the target world, weighted inversely by size (smaller = more impacted).
-            if omen_world_id:
-                omen_world = state.locations.get(str(omen_world_id))
-                if omen_world is not None:
-                    scope_civ_id = str(intent.civilization_scope) if intent.civilization_scope else None
-                    splash_pops = [
-                        p for p in state.pops.values()
-                        if (scope_civ_id is None or str(p.civilization_id) == scope_civ_id)
-                        and any(
-                            str(cid) == str(p.current_location)
-                            for cid in getattr(omen_world, "child_ids", [])
-                        )
-                    ]
-                    if splash_pops:
-                        total_inv = sum(1.0 / p.size_fractional for p in splash_pops)
-                        for sp in splash_pops:
-                            inv_weight = (1.0 / sp.size_fractional) / total_inv if total_inv > 0 else 1.0
-                            for dv in intent.domain_vectors:
-                                splash_delta = dv.direction * effectiveness * 0.08 * OMEN_POP_SPLASH * inv_weight
-                                if abs(splash_delta) > 1e-5:
-                                    mutations.append(StateMutation(
-                                        mutation_type=MutationType.POP_BELIEF_SHIFT,
-                                        target_id=sp.id,
-                                        field=dv.domain_tag,
-                                        delta=splash_delta,
-                                        note=f"Omen splash to {sp.stratum} Pop",
-                                    ))
-                                    self._emit_lineage_bleed(
-                                        mutations, state, sp, dv.domain_tag,
-                                        splash_delta, "omen",
-                                    )
 
         # ── Civilizational Development ────────────────
         elif isinstance(intent, DevelopmentIntent):
@@ -3917,49 +3991,74 @@ class TickLoop:
 
             strength = event.current_strength(state.tick_number)
 
-            # Resolve target civilization IDs
-            target_civ_ids: list[str] = []
-            if event.target_civilization_id is not None:
-                cid = str(event.target_civilization_id)
-                if cid in state.civilizations:
-                    target_civ_ids.append(cid)
-                else:
-                    expired_ids.append(eid)  # target gone; expire the event
-                    continue
-            elif event.target_mortal_id is not None:
-                mortal = state.mortals.get(str(event.target_mortal_id))
-                if mortal and mortal.civilization_id:
-                    cid = str(mortal.civilization_id)
+            # Omen events target Pops directly (Pop beliefs are the canonical store)
+            if event.event_type == EventType.OMEN:
+                wid = str(event.target_world_id) if event.target_world_id else None
+                echo_pops = self._pops_on_world(wid, state) if wid else list(state.pops.values())
+                for pop in echo_pops:
+                    for dv in event.domain_vectors:
+                        delta = dv.direction * strength * event.domain_shift_rate
+                        if abs(delta) > 1e-5:
+                            mutations.append(StateMutation(
+                                mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                target_id=pop.id,
+                                field=dv.domain_tag,
+                                delta=delta,
+                                note=f"Omen echo (offset {offset})",
+                            ))
+                if event.divine_awareness_rate > 0.0 and wid:
+                    for cid, civ in state.civilizations.items():
+                        if str(civ.origin_location_id) == wid:
+                            mutations.append(StateMutation(
+                                mutation_type=MutationType.CIVILIZATION_STAT,
+                                target_id=civ.id,
+                                field="divine_awareness",
+                                delta=event.divine_awareness_rate * strength,
+                                note=f"Omen echo awareness",
+                            ))
+            else:
+                # Resolve target civilization IDs for all other event types
+                target_civ_ids: list[str] = []
+                if event.target_civilization_id is not None:
+                    cid = str(event.target_civilization_id)
                     if cid in state.civilizations:
                         target_civ_ids.append(cid)
-            elif event.target_world_id is not None:
-                wid = str(event.target_world_id)
-                for cid, civ in state.civilizations.items():
-                    if str(civ.origin_location_id) == wid:
-                        target_civ_ids.append(cid)
-            else:
-                target_civ_ids = list(state.civilizations.keys())
+                    else:
+                        expired_ids.append(eid)  # target gone; expire the event
+                        continue
+                elif event.target_mortal_id is not None:
+                    mortal = state.mortals.get(str(event.target_mortal_id))
+                    if mortal and mortal.civilization_id:
+                        cid = str(mortal.civilization_id)
+                        if cid in state.civilizations:
+                            target_civ_ids.append(cid)
+                elif event.target_world_id is not None:
+                    wid = str(event.target_world_id)
+                    for cid, civ in state.civilizations.items():
+                        if str(civ.origin_location_id) == wid:
+                            target_civ_ids.append(cid)
+                else:
+                    target_civ_ids = list(state.civilizations.keys())
 
-            # Emit belief-shift mutations
-            for cid in target_civ_ids:
-                civ_obj = state.civilizations[cid]
-                for dv in event.domain_vectors:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.BELIEF_SHIFT,
-                        target_id=civ_obj.id,
-                        field="dominant_beliefs",
-                        delta=dv.direction * strength * event.domain_shift_rate,
-                        new_value=dv.domain_tag,
-                        note=f"Event echo ({event.event_type}, offset {offset})",
-                    ))
-                if event.divine_awareness_rate > 0.0:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.CIVILIZATION_STAT,
-                        target_id=civ_obj.id,
-                        field="divine_awareness",
-                        delta=event.divine_awareness_rate * strength,
-                        note=f"Event echo ({event.event_type}) awareness",
-                    ))
+                for cid in target_civ_ids:
+                    civ_obj = state.civilizations[cid]
+                    for dv in event.domain_vectors:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.BELIEF_SHIFT,
+                            target_id=civ_obj.id,
+                            field="dominant_beliefs",
+                            delta=dv.direction * strength * event.domain_shift_rate,
+                            new_value=dv.domain_tag,
+                            note=f"Event echo ({event.event_type}, offset {offset})",
+                        ))
+                    if event.divine_awareness_rate > 0.0:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.CIVILIZATION_STAT,
+                            target_id=civ_obj.id,
+                            field="divine_awareness",
+                            delta=event.divine_awareness_rate * strength,
+                            note=f"Event echo ({event.event_type}) awareness",
+                        ))
 
             # Populate attention triggers for Phase 4
             if event.attention_per_tick > 0.0:
@@ -4052,15 +4151,29 @@ class TickLoop:
 
             # Action weight table
             already_audited = str(mortal.id) in state.proxii_audited_this_tick
-            promote_w    = 0.60
-            take_stock_w = 0.10
-            report_w     = 0.0 if already_audited else (0.10 + (1.0 - goal.latitude) * 0.15)
-            petition_w   = 0.05 if not goal.petition_pending else 0.0
-            nothing_w    = max(0.0, 0.15 - dedication * 0.10)
+            has_goal_pop    = goal.goal_pop_id is not None
+            if has_goal_pop:
+                promote_w    = 0.40
+                bolster_w    = 0.30
+                take_stock_w = 0.08
+                report_w     = 0.0 if already_audited else (0.08 + (1.0 - goal.latitude) * 0.10)
+                petition_w   = (
+                    min(0.25, 0.03 + goal.stagnation_counter * 0.03)
+                    if not goal.petition_pending else 0.0
+                )
+                nothing_w    = max(0.0, 0.09 - dedication * 0.06)
+            else:
+                promote_w    = 0.60
+                bolster_w    = 0.0
+                take_stock_w = 0.10
+                report_w     = 0.0 if already_audited else (0.10 + (1.0 - goal.latitude) * 0.15)
+                petition_w   = 0.05 if not goal.petition_pending else 0.0
+                nothing_w    = max(0.0, 0.15 - dedication * 0.10)
 
-            weights = [promote_w, take_stock_w, report_w, petition_w, nothing_w]
+            weights = [promote_w, bolster_w, take_stock_w, report_w, petition_w, nothing_w]
             choices = [
                 AgentActionChoice.PROMOTE_DOMAIN,
+                AgentActionChoice.BOLSTER_BELIEFS,
                 AgentActionChoice.TAKE_STOCK,
                 AgentActionChoice.REPORT_TO_DEMIURGE,
                 AgentActionChoice.PETITION_FOR_RELIEF,
@@ -4071,39 +4184,171 @@ class TickLoop:
             goal.last_action_tick = state.tick_number
 
             if chosen == AgentActionChoice.PROMOTE_DOMAIN and goal.domain_vectors:
-                # Belief shift per domain vector, boosted by streak and Proxius's own beliefs
                 goal.consecutive_promote_count += 1
-                goal.effectiveness_bonus = min(
-                    0.30,
-                    goal.consecutive_promote_count * 0.05,
-                )
+                goal.effectiveness_bonus = min(0.30, goal.consecutive_promote_count * 0.05)
                 base_rate = 0.06
-                target_civ_ids: list[str] = []
-                if goal.target_civilization_id:
-                    cid = str(goal.target_civilization_id)
-                    if cid in state.civilizations:
-                        target_civ_ids.append(cid)
-                else:
-                    loc_id = str(goal.target_location_id)
-                    target_civ_ids = [
-                        cid for cid, civ in state.civilizations.items()
-                        if str(civ.origin_location_id) == loc_id
-                    ]
 
-                for cid in target_civ_ids:
-                    for dv in goal.domain_vectors:
-                        # Proxius's own belief_tags augment aligned vectors
-                        belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
-                        rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
+                if goal.source_pop_id:
+                    # ── Pop-level preaching path ──────────────────────────
+                    pop_a = state.pops.get(str(goal.source_pop_id))
+                    if pop_a is None:
+                        # Source Pop gone — force petition
+                        goal.petition_pending = True
+                        goal.consecutive_promote_count = 0
+                        goal.effectiveness_bonus = 0.0
+                    elif goal.goal_pop_id is None:
+                        # ── First success: create Pop B ───────────────────
+                        # 5-tick escalating pre-shift applied to Pop A's beliefs
+                        # plus culture synergy bonus from Imāgō node mechanics
+                        ireg = get_imago_registry()
+                        imago_node = ireg.get_node(goal.imago_node_id) if goal.imago_node_id else None
+                        culture_mechanics = {}
+                        if imago_node:
+                            culture_mechanics = {
+                                k: v for k, v in imago_node.mechanics.items()
+                                if k.startswith("culture:")
+                            }
+
+                        new_beliefs = dict(pop_a.dominant_beliefs)
+                        for dv in goal.domain_vectors:
+                            belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
+                            # Sum of 5 escalating ticks: streak i=1..5, effectiveness i*0.05
+                            base_shift = sum(
+                                base_rate * (1.0 + i * 0.05) + belief_affinity * 0.02
+                                for i in range(1, 6)
+                            )
+                            # Culture synergy bonus: sum strength × pop A's culture level
+                            culture_bonus = sum(
+                                c_strength * pop_a.culture_tags.get(c_tag, 0.0)
+                                for c_tag, c_strength in culture_mechanics.items()
+                                if dv.direction > 0
+                            )
+                            delta = (base_shift + culture_bonus) * dv.direction
+                            current = new_beliefs.get(dv.domain_tag, 0.0)
+                            new_beliefs[dv.domain_tag] = max(0.0, min(1.0, current + delta))
+
+                        # Prune sub-floor entries
+                        new_beliefs = {
+                            k: v for k, v in new_beliefs.items() if v > BELIEF_FLOOR
+                        }
+
+                        pop_b = Pop(
+                            id=uuid4(),
+                            civilization_id=pop_a.civilization_id,
+                            species_id=pop_a.species_id,
+                            social_class=pop_a.social_class,
+                            wild_stratum=pop_a.wild_stratum,
+                            current_location=pop_a.current_location,
+                            size_fractional=1.0,
+                            dominant_beliefs=new_beliefs,
+                            culture_tags=dict(pop_a.culture_tags),
+                            rider_traits={
+                                dv.domain_tag: 0.30
+                                for dv in goal.domain_vectors
+                                if dv.direction > 0
+                            },
+                            parent_pop_id=pop_a.id,
+                            preaching_imago_id=goal.imago_node_id,
+                            pinned=True,
+                            visibility=pop_a.visibility * 0.5,
+                        )
+                        # Wire goal_pop_id now so next tick uses the ongoing path
+                        goal.goal_pop_id = pop_b.id
+                        goal.goal_pop_last_size = pop_b.size_fractional
                         mutations.append(StateMutation(
-                            mutation_type=MutationType.BELIEF_SHIFT,
-                            target_id=UUID(cid),
-                            field="dominant_beliefs",
-                            delta=dv.direction * rate,
-                            new_value=dv.domain_tag,
-                            note=f"Proxius {mortal.name} promoting {dv.domain_tag} (streak {goal.consecutive_promote_count})",
+                            mutation_type=MutationType.POP_SPLINTER,
+                            target_id=pop_a.id,
+                            field="",
+                            new_value=pop_b,
+                            note=f"Directed Preach Imāgō splinter by {mortal.name}",
                         ))
-                # Passive proxius footprint for the work done
+                        agent_narratives.append(
+                            f"[Tick {state.tick_number + 1}] {mortal.name}'s preaching of "
+                            f"[{goal.imago_node_id or 'directive'}] has drawn a new group "
+                            f"apart from their parent community."
+                        )
+                    else:
+                        # ── Ongoing: shift Pop A beliefs + transfer size ──
+                        pop_b = state.pops.get(str(goal.goal_pop_id))
+                        if pop_b is None:
+                            goal.stagnation_counter = min(10, goal.stagnation_counter + 1)
+                        else:
+                            for dv in goal.domain_vectors:
+                                belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
+                                rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
+                                receptivity = self._pop_domain_receptivity(pop_a, dv.domain_tag)
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_BELIEF_SHIFT,
+                                    target_id=pop_a.id,
+                                    field=dv.domain_tag,
+                                    delta=dv.direction * rate * receptivity,
+                                    note=f"Proxius {mortal.name} nudging source Pop beliefs",
+                                ))
+
+                            size_delta = round(0.05 * (1.0 + goal.effectiveness_bonus), 3)
+                            if pop_a.size_fractional - size_delta <= 0.0:
+                                # Pop A fully absorbed
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_ABSORBED,
+                                    target_id=pop_a.id,
+                                    field="",
+                                    new_value=str(pop_b.id),
+                                    note=f"Pop A absorbed into goal Pop by {mortal.name}",
+                                ))
+                                goal.petition_pending = True
+                                agent_narratives.append(
+                                    f"[Tick {state.tick_number + 1}] {mortal.name} reports: "
+                                    f"the source community has been fully drawn into the new group. "
+                                    f"Directive complete — awaiting new orders."
+                                )
+                            else:
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_SIZE_CHANGE,
+                                    target_id=pop_a.id,
+                                    field="",
+                                    delta=-size_delta,
+                                    note=f"Members leaving for goal Pop (Proxius {mortal.name})",
+                                ))
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_SIZE_CHANGE,
+                                    target_id=pop_b.id,
+                                    field="",
+                                    delta=size_delta,
+                                    note=f"Members joining goal Pop (Proxius {mortal.name})",
+                                ))
+                                # Stagnation tracking against last known size
+                                if pop_b.size_fractional + size_delta <= goal.goal_pop_last_size:
+                                    goal.stagnation_counter = min(10, goal.stagnation_counter + 1)
+                                else:
+                                    goal.stagnation_counter = max(0, goal.stagnation_counter - 1)
+                                goal.goal_pop_last_size = pop_b.size_fractional + size_delta
+                else:
+                    # ── Legacy civ-level path (goals without source_pop_id) ──
+                    target_civ_ids: list[str] = []
+                    if goal.target_civilization_id:
+                        cid = str(goal.target_civilization_id)
+                        if cid in state.civilizations:
+                            target_civ_ids.append(cid)
+                    else:
+                        loc_id = str(goal.target_location_id)
+                        target_civ_ids = [
+                            cid for cid, civ in state.civilizations.items()
+                            if str(civ.origin_location_id) == loc_id
+                        ]
+                    for cid in target_civ_ids:
+                        for dv in goal.domain_vectors:
+                            belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
+                            rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
+                            mutations.append(StateMutation(
+                                mutation_type=MutationType.BELIEF_SHIFT,
+                                target_id=UUID(cid),
+                                field="dominant_beliefs",
+                                delta=dv.direction * rate,
+                                new_value=dv.domain_tag,
+                                note=f"Proxius {mortal.name} promoting {dv.domain_tag} (streak {goal.consecutive_promote_count})",
+                            ))
+
+                # Footprint regardless of path
                 mutations.append(StateMutation(
                     mutation_type=MutationType.FOOTPRINT_CHANGE,
                     target_id=state.demiurge.id,
@@ -4111,6 +4356,41 @@ class TickLoop:
                     delta=0.02,
                     note=f"Proxius {mortal.name} promoting domain",
                 ))
+
+            elif chosen == AgentActionChoice.BOLSTER_BELIEFS and goal.domain_vectors:
+                # Strengthen Pop B's distinctive beliefs directly
+                pop_b = state.pops.get(str(goal.goal_pop_id)) if goal.goal_pop_id else None
+                if pop_b is None:
+                    goal.stagnation_counter = min(10, goal.stagnation_counter + 1)
+                else:
+                    goal.consecutive_promote_count += 1
+                    goal.effectiveness_bonus = min(0.30, goal.consecutive_promote_count * 0.05)
+                    base_rate = 0.06
+                    for dv in goal.domain_vectors:
+                        belief_affinity = mortal.belief_tags.get(dv.domain_tag, 0.0)
+                        rate = base_rate * (1.0 + goal.effectiveness_bonus) + belief_affinity * 0.02
+                        receptivity = self._pop_domain_receptivity(pop_b, dv.domain_tag)
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_BELIEF_SHIFT,
+                            target_id=pop_b.id,
+                            field=dv.domain_tag,
+                            delta=dv.direction * rate * receptivity,
+                            note=f"Proxius {mortal.name} bolstering goal Pop beliefs",
+                        ))
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_RIDER_TRAIT,
+                            target_id=pop_b.id,
+                            field=dv.domain_tag,
+                            delta=dv.direction * rate * 0.5,
+                            note=f"Rider trait from {goal.imago_node_id or 'directive'}",
+                        ))
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.FOOTPRINT_CHANGE,
+                        target_id=state.demiurge.id,
+                        field="proxius_activity",
+                        delta=0.02,
+                        note=f"Proxius {mortal.name} bolstering goal Pop",
+                    ))
 
             elif chosen == AgentActionChoice.TAKE_STOCK:
                 goal.consecutive_promote_count = 0
@@ -4149,12 +4429,17 @@ class TickLoop:
                 goal.petition_pending = True
                 goal.consecutive_promote_count = 0
                 goal.effectiveness_bonus = 0.0
+                goal.stagnation_counter = 0  # fresh start after petition
                 tick = state.tick_number + 1
                 ticks_active = state.tick_number + 1 - goal.started_at_tick
                 imago_short = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
+                if goal.goal_pop_id is not None:
+                    reason = "the splinter population has stalled — they may be losing ground."
+                else:
+                    reason = "directive yields diminishing returns."
                 entry = (
                     f"[Tick {tick}] {mortal.name} petitions after {ticks_active} tick(s): "
-                    f"[{imago_short}] directive yields diminishing returns. Requesting new orders."
+                    f"[{imago_short}] {reason} Requesting new orders."
                 )
                 goal.report_log = (goal.report_log + [entry])[-5:]
                 mutations.append(StateMutation(
@@ -4186,6 +4471,34 @@ class TickLoop:
             mortal = state.mortals.get(str(instance.target_id))
             return mortal.current_location if mortal else None
         return None
+
+    def _pop_domain_receptivity(self, pop: "Pop", domain_tag: str) -> float:
+        """
+        Returns a multiplier (≥ 0.2) for how receptive a Pop is to domain influence.
+        Derived from the Pop's religion culture_tags crossing against _RELIGION_DOMAIN_AFFINITY.
+        """
+        bonus = 0.0
+        for tag, strength in pop.culture_tags.items():
+            if not tag.startswith("religion:"):
+                continue
+            affinities = _RELIGION_DOMAIN_AFFINITY.get(tag, {})
+            bonus += affinities.get(domain_tag, 0.0) * strength
+        return max(0.2, 1.0 + bonus)
+
+    def _pops_on_world(self, world_id: str, state: "SimulationState") -> list["Pop"]:
+        """Return all Pops whose current_location is a PopLocation child of world_id."""
+        world = state.locations.get(world_id)
+        if world is None:
+            return []
+        pops: list = []
+        for child_id in getattr(world, "child_ids", []):
+            child = state.locations.get(str(child_id))
+            if child is not None and hasattr(child, "pop_ids"):
+                for pid in getattr(child, "pop_ids", []):
+                    pop = state.pops.get(str(pid))
+                    if pop is not None:
+                        pops.append(pop)
+        return pops
 
     def _summarize_evaluation(
         self,
@@ -4454,7 +4767,16 @@ class TickLoop:
 
             elif m.mutation_type == MutationType.PROXIUS_GOAL_CLEARED:
                 if tid in state.mortals:
+                    old_goal = state.mortals[tid].active_goal
                     state.mortals[tid].active_goal = None
+                    # If the cleared goal had a goal Pop (Pop B), unpin it and set cooldown
+                    if old_goal and old_goal.goal_pop_id:
+                        gpid = str(old_goal.goal_pop_id)
+                        goal_pop = state.pops.get(gpid)
+                        if goal_pop:
+                            goal_pop.preaching_imago_id = None
+                            goal_pop.pinned = False
+                            goal_pop.preaching_goal_cooldown_until = state.tick_number + 10
 
             elif m.mutation_type == MutationType.REVELATION_GAINED:
                 tag = m.field
@@ -4522,5 +4844,56 @@ class TickLoop:
                         pop_loc = state.locations.get(str(splinter.current_location))
                         if pop_loc and hasattr(pop_loc, "pop_ids") and splinter.id not in pop_loc.pop_ids:
                             pop_loc.pop_ids.append(splinter.id)
+
+            elif m.mutation_type == MutationType.POP_SIZE_CHANGE:
+                if tid and tid in state.pops and m.delta is not None:
+                    state.pops[tid].size_fractional = max(
+                        0.0, state.pops[tid].size_fractional + m.delta
+                    )
+
+            elif m.mutation_type == MutationType.POP_RIDER_TRAIT:
+                tag = m.field
+                if tid and tid in state.pops and tag and m.delta is not None:
+                    pop = state.pops[tid]
+                    pop.rider_traits[tag] = max(
+                        0.0, min(1.0, pop.rider_traits.get(tag, 0.0) + m.delta)
+                    )
+
+            elif m.mutation_type == MutationType.POP_CULTURE_SHIFT:
+                tag = m.field
+                if tid and tid in state.pops and tag and m.delta is not None:
+                    pop = state.pops[tid]
+                    new_val = max(0.0, min(1.0, pop.culture_tags.get(tag, 0.0) + m.delta))
+                    if new_val < BELIEF_FLOOR:
+                        pop.culture_tags.pop(tag, None)
+                    else:
+                        pop.culture_tags[tag] = new_val
+
+            elif m.mutation_type == MutationType.POP_ABSORBED:
+                # target_id = Pop A UUID, new_value = Pop B UUID string
+                pop_a = state.pops.pop(tid, None) if tid else None
+                goal_pid = str(m.new_value) if m.new_value else None
+                pop_b = state.pops.get(goal_pid) if goal_pid else None
+                if pop_a and pop_b:
+                    # Transfer notable mortals; flag them as origin-subsumed
+                    for mid in pop_a.notable_mortal_ids:
+                        mortal_m = state.mortals.get(str(mid))
+                        if mortal_m:
+                            mortal_m.origin_pop_subsumed = True
+                            if mid not in pop_b.notable_mortal_ids:
+                                pop_b.notable_mortal_ids.append(mid)
+                    # Remove Pop A from civilization pop_ids
+                    if pop_a.civilization_id:
+                        civ = state.civilizations.get(str(pop_a.civilization_id))
+                        if civ and pop_a.id in civ.pop_ids:
+                            civ.pop_ids.remove(pop_a.id)
+                    # Remove Pop A from its PopLocation
+                    pop_loc = state.locations.get(str(pop_a.current_location))
+                    if pop_loc and hasattr(pop_loc, "pop_ids") and pop_a.id in pop_loc.pop_ids:
+                        pop_loc.pop_ids.remove(pop_a.id)
+                    # End goal target status on Pop B; unpin; start cooldown
+                    pop_b.preaching_imago_id = None
+                    pop_b.pinned = False
+                    pop_b.preaching_goal_cooldown_until = state.tick_number + 10
 
         return state

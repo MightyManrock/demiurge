@@ -486,6 +486,8 @@ def _load_pops(conn) -> dict[str, Pop]:
             child_pop_ids=[UUID(x) for x in _j(row.get("child_pop_ids", "[]"))],
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
+            preaching_imago_id=row.get("preaching_imago_id"),
+            preaching_goal_cooldown_until=int(row.get("preaching_goal_cooldown_until") or 0),
         )
         out[str(p.id)] = p
     return out
@@ -521,6 +523,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             pop_id=_uuid(row.get("pop_id")),
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
             herald_appointed_tick=row.get("herald_appointed_tick"),
+            origin_pop_subsumed=bool(row.get("origin_pop_subsumed", 0)),
         )
         out[str(m.id)] = m
     return out
