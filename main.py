@@ -34,7 +34,7 @@ from core.action_core import (
     ChangeAffiliatedDomainsIntent, WeighCivilizationIntent,
     DomainVector, Framing,
 )
-from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation, Pop
+from core.universe_core import MortalRole, MortalStatus, MortalProminence, SignificantLocation, PopLocation, Pop
 from logic.tick_logic import (
     SimulationState, TickLoop, TickResult,
     is_in_window, ENTITY_VISIBILITY_FLOOR,
@@ -2487,7 +2487,7 @@ class GameScreen(Screen):
                 intent=intent,
             )
 
-        # ── preach_imago: multi-step (proxius → domain/imago → civ → pop) ──
+        # ── preach_imago: multi-step (proxius → domain/imago → pop) ──
         if action_key == "preach_imago":
             already_directed = {
                 str(ai.proxius_id)
@@ -2514,84 +2514,75 @@ class GameScreen(Screen):
                     if domain_result == BACK: step = 0; continue
                     dvs, imago_id = domain_result; step = 2
                 if step == 2:
+                    # ── Pop picker — all in-window Pops at the Proxius's world ──
                     target_civ_id = None
                     target_pop_id = None
-                    if dvs:
-                        proxius_obj = state.mortals.get(pid)
-                        loc_id      = str(proxius_obj.current_location) if proxius_obj else None
-                        civs_here   = [
-                            (cid, c) for cid, c in state.civilizations.items()
-                            if str(c.origin_location_id) == loc_id
-                        ] if loc_id else []
-                        if not civs_here:
-                            self._feed_markup(
-                                "[#5a7090](No civilizations at Proxius's location — domain vectors discarded.)[/]"
-                            )
-                            dvs = []
-                        elif len(civs_here) == 1:
-                            target_civ_id = UUID(civs_here[0][0])
-                        else:
-                            civ_items = [(cid, f"{c.name}  [{c.scale.value}]") for cid, c in civs_here]
-                            civ_items.append(("__discard__", "Discard domain vectors"))
-                            chosen_civ = await app.push_screen_wait(
-                                PickerModal("Promote belief in which civilization?", civ_items, show_back=True)
-                            )
-                            if chosen_civ == BACK: step = 1; continue
-                            if chosen_civ is None: return None
-                            if chosen_civ != "__discard__":
-                                target_civ_id = UUID(chosen_civ)
-                            else:
-                                dvs = []
-                    if target_civ_id is None:
-                        break  # no civ / dvs discarded — skip Pop step
-                    step = 3
-                if step == 3:
-                    # ── Pop picker ─────────────────────────────────────────
                     proxius_obj   = state.mortals.get(pid)
+                    world_id      = str(proxius_obj.current_location) if proxius_obj else None
                     origin_pop_id = str(proxius_obj.pop_id) if (proxius_obj and proxius_obj.pop_id) else None
-                    chosen_civ_id = str(target_civ_id)
+
+                    # Collect all pops whose PopLocation is a child of this world
+                    world_obj = state.locations.get(world_id) if world_id else None
+                    all_world_pops: list = []
+                    for child_id in getattr(world_obj, "child_ids", []):
+                        child = state.locations.get(str(child_id))
+                        if isinstance(child, PopLocation):
+                            for pop_id_val in getattr(child, "pop_ids", []):
+                                p = state.pops.get(str(pop_id_val))
+                                if p is not None:
+                                    all_world_pops.append(p)
 
                     eligible_pops = [
-                        p for p in state.pops.values()
-                        if str(p.civilization_id) == chosen_civ_id
-                        and (
-                            is_in_window(p)
-                            or str(p.id) == origin_pop_id  # origin Pop always eligible
-                        )
+                        p for p in all_world_pops
+                        if (is_in_window(p) or str(p.id) == origin_pop_id)
                         and p.preaching_imago_id is None
                         and p.preaching_goal_cooldown_until <= state.tick_number
                     ]
 
                     if not eligible_pops:
                         self._feed_markup(
-                            "[#5a7090]No visible, targetable Pops in this civilization. "
+                            "[#5a7090]No visible, targetable Pops at this location. "
                             "Scry the world to reveal Pops first.[/]"
                         )
-                        step = 2; continue
+                        step = 1; continue
+
+                    proxius_civ_id = (
+                        str(state.pops[origin_pop_id].civilization_id)
+                        if origin_pop_id and origin_pop_id in state.pops
+                        and state.pops[origin_pop_id].civilization_id is not None
+                        else None
+                    )
+
+                    def _pop_label(p) -> str:
+                        civ = state.civilizations.get(str(p.civilization_id)) if p.civilization_id else None
+                        civ_name = civ.name if civ else "Unknown"
+                        cross = " [foreign]" if proxius_civ_id and str(p.civilization_id) != proxius_civ_id else ""
+                        origin_marker = " *" if str(p.id) == origin_pop_id else ""
+                        top_beliefs = sorted(
+                            p.dominant_beliefs.items(), key=lambda x: -x[1]
+                        )[:2]
+                        belief_str = "  ".join(
+                            f"{tag.split(':')[1]}:{val:.2f}" for tag, val in top_beliefs
+                        ) if top_beliefs else "no beliefs"
+                        return (
+                            f"{civ_name} [{p.stratum.upper()}]{cross}{origin_marker}"
+                            f"  size {p.size_magnitude}  {belief_str}"
+                        )
 
                     if len(eligible_pops) == 1:
                         target_pop_id = eligible_pops[0].id
+                        target_civ_id = eligible_pops[0].civilization_id
                     else:
-                        def _pop_label(p) -> str:
-                            origin_marker = " *" if str(p.id) == origin_pop_id else ""
-                            top_beliefs = sorted(
-                                p.dominant_beliefs.items(), key=lambda x: -x[1]
-                            )[:2]
-                            belief_str = "  ".join(
-                                f"{tag.split(':')[1]}:{val:.2f}" for tag, val in top_beliefs
-                            ) if top_beliefs else "no beliefs"
-                            return (
-                                f"[{p.stratum.upper()}]{origin_marker}"
-                                f"  size {p.size_magnitude}"
-                                f"  {belief_str}"
-                            )
                         pop_items = [(str(p.id), _pop_label(p)) for p in eligible_pops]
                         chosen_pop = await app.push_screen_wait(
                             PickerModal("Preach to which community?", pop_items, show_back=True)
                         )
-                        if chosen_pop == BACK: step = 2; continue
+                        if chosen_pop == BACK: step = 1; continue
                         if chosen_pop is None: return None
-                        target_pop_id = UUID(chosen_pop)
+                        chosen_obj = next((p for p in eligible_pops if str(p.id) == chosen_pop), None)
+                        if chosen_obj:
+                            target_pop_id = chosen_obj.id
+                            target_civ_id = chosen_obj.civilization_id
                     break
             intent = ProxiusDirectiveIntent(
                 domain_vectors=dvs,

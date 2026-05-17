@@ -4191,6 +4191,12 @@ class TickLoop:
                 if goal.source_pop_id:
                     # ── Pop-level preaching path ──────────────────────────
                     pop_a = state.pops.get(str(goal.source_pop_id))
+                    # Cross-civ preaching: half effectiveness when Proxius preaches to a
+                    # community outside their own civilization.
+                    _proxius_origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+                    _proxius_civ = str(_proxius_origin_pop.civilization_id) if _proxius_origin_pop and _proxius_origin_pop.civilization_id else None
+                    if pop_a and _proxius_civ and str(pop_a.civilization_id) != _proxius_civ:
+                        base_rate *= 0.5
                     if pop_a is None:
                         # Source Pop gone — force petition
                         goal.petition_pending = True
