@@ -39,6 +39,15 @@ if TYPE_CHECKING:
     from utilities.imago_registry import ImagoNode
 
 
+def _click_link(kind: str, eid: str, label_markup: str) -> str:
+    """
+    Wrap `label_markup` in a Textual click-action span that opens a detail tab
+    for the given entity. `label_markup` may itself contain markup; UUIDs and
+    fixed-kind strings are safe to inline (only hex+dashes, no quotes).
+    """
+    return f"[@click=open_detail_by_id('{kind}','{eid}')]{label_markup}[/]"
+
+
 # ─────────────────────────────────────────
 # Looping list view
 # ─────────────────────────────────────────
@@ -366,7 +375,8 @@ class LocationsTab(ContentTab):
                 s_end = "[/]" if (g_oow or s_oow) else ""
                 star = getattr(sys_obj, "star_type", None)
                 star_str = f" \\[{_e(star.value)}]" if star is not None else ""
-                a(f"{s_style}  ◆ {_e(sys_obj.name)}{star_str}{s_end}")
+                sys_link = _click_link("system", str(sid), _e(sys_obj.name))
+                a(f"{s_style}  ◆ {sys_link}{star_str}{s_end}")
                 for wid in getattr(sys_obj, "child_ids", []):
                     world = state.worlds.get(str(wid))
                     if not world:
@@ -376,7 +386,8 @@ class LocationsTab(ContentTab):
                         continue
                     w_style = "[dim]" if (g_oow or s_oow or w_oow) else ""
                     w_end = "[/]" if (g_oow or s_oow or w_oow) else ""
-                    a(f"{w_style}    • {_e(world.name)} "
+                    world_link = _click_link("world", str(wid), _e(world.name))
+                    a(f"{w_style}    • {world_link} "
                       f"[#5a7090]{_e(world.condition.value)}[/]{w_end}")
         if not any_shown:
             a("[#5a7090](nothing within the Window)[/]")
@@ -403,7 +414,8 @@ class EntitiesTab(ContentTab):
             origin_name = origin.name if origin else "?"
             style = "[dim]" if c_oow else ""
             end = "[/]" if c_oow else ""
-            a(f"{style}● [bold]{_e(civ.name)}[/] "
+            civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
+            a(f"{style}● {civ_link} "
               f"[#5a7090]\\[{_e(civ.scale.value)}][/] "
               f"[#3a6a8a]{_e(origin_name)}[/]{end}")
             a(f"{style}    S{h.stability:.1f} P{h.prosperity:.1f} C{h.cohesion:.1f}{end}")
@@ -421,7 +433,8 @@ class EntitiesTab(ContentTab):
             loc = w_obj.name if w_obj else "?"
             tag = " \\[DORMANT]" if m.status == MortalStatus.DORMANT else ""
             goal = m.active_goal.choice.value if m.active_goal else "idle"
-            a(f"● [bold]{_e(m.name)}[/]{tag}")
+            m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
+            a(f"● {m_link}{tag}")
             a(f"    [#3a6a8a]{_e(loc)}[/]  [#5a7090]{_e(goal)}[/]  "
               f"align:[#a0d080]{m.alignment:.2f}[/]")
         if not any_pr:
@@ -490,7 +503,8 @@ class UniverseTab(ContentTab):
             we = "[/]" if w_oow else ""
             vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
             domain_str = _format_beliefs(world.domain_expression) or "none"
-            a(f"{wm}● [bold]{_e(world.name)}[/]  "
+            world_link = _click_link("world", str(wid), f"[bold]{_e(world.name)}[/]")
+            a(f"{wm}● {world_link}  "
               f"\\[{_e(world.condition.value)}]{vis_note}{we}")
             a(f"{wm}    domain: [#a0b8d0]{_e(domain_str)}[/]{we}")
             for cid in world.civilization_ids:
@@ -504,7 +518,8 @@ class UniverseTab(ContentTab):
                 ce = "[/]" if (w_oow or c_oow) else ""
                 h = civ.health
                 civ_vis = f"  \\[vis:{civ.visibility:.2f}]" if not civ.pinned else ""
-                a(f"{cm}    └─ [bold]{_e(civ.name)}[/] "
+                civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
+                a(f"{cm}    └─ {civ_link} "
                   f"\\[{_e(civ.scale.value)}]{civ_vis}  "
                   f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
                 if civ.dominant_beliefs:
@@ -552,7 +567,8 @@ class UniverseTab(ContentTab):
             sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
             sp_str = f"  \\[{_e(sp_obj.name)}]" if sp_obj else ""
             vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
-            a(f"{mm}● [bold]{_e(mortal.name)}[/] \\[{role_str}]  "
+            mortal_link = _click_link("mortal", str(mid), f"[bold]{_e(mortal.name)}[/]")
+            a(f"{mm}● {mortal_link} \\[{role_str}]  "
               f"align:{mortal.alignment:.2f}  {age_str}{vis_note}{sp_str}{me}")
             a(f"{mm}    {_e(_prominence_label(mortal))}{me}")
         if not any_m:
@@ -574,7 +590,8 @@ class LuminariesTab(ContentTab):
             d = lum.disposition
             is_liege = lid in liege_ids
             tag = " [#c09030]\\[LIEGE][/]" if is_liege else ""
-            a(f"● [bold]{_e(lum.name)}[/]{tag} "
+            lum_link = _click_link("luminary", str(lid), f"[bold]{_e(lum.name)}[/]")
+            a(f"● {lum_link}{tag} "
               f"[#3a5a7a]({_e(_personality_label(lum))})[/]")
             domain_parts = [
                 f"{tag2.split(':', 1)[1].title()} ({aff:.2f})"

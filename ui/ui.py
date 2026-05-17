@@ -265,6 +265,25 @@ class GameScreen(Screen):
             return
         self._detail_mgr.open(kind, str(entity_id), name, self._state)
 
+    def open_detail_by_id(self, kind: str, entity_id: str) -> None:
+        """Resolve the entity name from current state and open its detail tab."""
+        name = self._lookup_entity_name(kind, str(entity_id))
+        self.open_detail(kind, entity_id, name)
+
+    def action_open_detail_by_id(self, kind: str, entity_id: str) -> None:
+        """Click-action target — fires from `[@click=...]` markup in tab bodies."""
+        self.open_detail_by_id(kind, entity_id)
+
+    def _lookup_entity_name(self, kind: str, entity_id: str) -> str:
+        s = self._state
+        eid = str(entity_id)
+        if kind == "world"    and eid in s.worlds:        return s.worlds[eid].name
+        if kind == "system"   and eid in s.systems:       return s.systems[eid].name
+        if kind == "civ"      and eid in s.civilizations: return s.civilizations[eid].name
+        if kind == "mortal"   and eid in s.mortals:       return s.mortals[eid].name
+        if kind == "luminary" and eid in s.luminaries:    return s.luminaries[eid].name
+        return eid[:8]
+
     def action_close_detail(self) -> None:
         if self._detail_mgr is None or not self._detail_mgr.close_focused():
             return

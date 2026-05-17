@@ -16,6 +16,7 @@ from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
 )
+from ui.widgets import _click_link
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
@@ -23,6 +24,22 @@ if TYPE_CHECKING:
 
 def _not_found(label: str) -> Text:
     return Text.from_markup(f"[#b04050]{_e(label)} not found in current state.[/]")
+
+
+def _location_kind(state: "SimulationState", location_id) -> "str | None":
+    """Return 'world' / 'system' / None depending on which dict holds the id."""
+    lid = str(location_id)
+    if lid in state.worlds:   return "world"
+    if lid in state.systems:  return "system"
+    return None
+
+
+def _location_link(state: "SimulationState", location_id, label_markup: str) -> str:
+    """Wrap label as a click-link if the location has a detail renderer; else return as-is."""
+    kind = _location_kind(state, location_id)
+    if kind is None:
+        return label_markup
+    return _click_link(kind, str(location_id), label_markup)
 
 
 # ─────────────────────────────────────────
@@ -54,7 +71,8 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
 
     sys_obj = state.locations.get(str(world.parent_id)) if world.parent_id else None
     if sys_obj:
-        a(f"  in system: [#3a6a8a]{_e(sys_obj.name)}[/]")
+        sys_link = _location_link(state, world.parent_id, f"[#3a6a8a]{_e(sys_obj.name)}[/]")
+        a(f"  in system: {sys_link}")
 
     fp = getattr(world, "local_footprint", None)
     if fp is not None:
@@ -72,7 +90,8 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
             continue
         any_civ = True
         h = civ.health
-        a(f"  ● [bold]{_e(civ.name)}[/]  \\[{_e(civ.scale.value)}]  "
+        civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
+        a(f"  ● {civ_link}  \\[{_e(civ.scale.value)}]  "
           f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}")
     if not any_civ:
         a("  [#5a7090](none)[/]")
@@ -89,7 +108,8 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
             continue
         any_m = True
         role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
-        a(f"  ● [bold]{_e(m.name)}[/] \\[{role_str}]  align:{m.alignment:.2f}")
+        m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
+        a(f"  ● {m_link} \\[{role_str}]  align:{m.alignment:.2f}")
     if not any_m:
         a("  [#5a7090](none in Window)[/]")
 
@@ -137,7 +157,8 @@ def render_system_detail(state: "SimulationState", system_id: str) -> Text:
             if str(x) in state.civilizations and is_in_window(state.civilizations[str(x)])
         )
         life = f"{n_civs} civ(s) known" if n_civs else "no life known"
-        a(f"  {style}{in_window_marker} [bold]{_e(world.name)}[/]  "
+        world_link = _click_link("world", str(cid), f"[bold]{_e(world.name)}[/]")
+        a(f"  {style}{in_window_marker} {world_link}  "
           f"\\[{_e(world.condition.value)}]  {life}{end}")
 
     if not any_w:
@@ -176,7 +197,8 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
         a("")
-        a(f"  origin: [#3a6a8a]{_e(origin.name)}[/]")
+        origin_link = _location_link(state, civ.origin_location_id, f"[#3a6a8a]{_e(origin.name)}[/]")
+        a(f"  origin: {origin_link}")
 
     if civ.dominant_beliefs:
         a("")
@@ -248,15 +270,18 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     loc = state.locations.get(str(m.current_location)) if m.current_location else None
     if loc:
-        a(f"  location: [#3a6a8a]{_e(loc.name)}[/]")
+        loc_link = _location_link(state, m.current_location, f"[#3a6a8a]{_e(loc.name)}[/]")
+        a(f"  location: {loc_link}")
 
     home = state.locations.get(str(m.home_location)) if m.home_location else None
     if home and (not loc or home.id != loc.id):
-        a(f"  home: [#3a6a8a]{_e(home.name)}[/]")
+        home_link = _location_link(state, m.home_location, f"[#3a6a8a]{_e(home.name)}[/]")
+        a(f"  home: {home_link}")
 
     civ = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
     if civ:
-        a(f"  civilization: [#3a6a8a]{_e(civ.name)}[/]")
+        civ_link = _click_link("civ", str(m.civilization_id), f"[#3a6a8a]{_e(civ.name)}[/]")
+        a(f"  civilization: {civ_link}")
 
     if m.personal_tags:
         a("")
