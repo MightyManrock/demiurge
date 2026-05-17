@@ -21,7 +21,7 @@ from textual.screen import Screen, ModalScreen
 from textual.widget import Widget
 from textual.widgets import (
     Button, Footer, Header, Label, ListItem, ListView,
-    Input, RichLog, Static,
+    Input, RichLog, Static, RadioSet, RadioButton,
 )
 from textual.containers import Grid, Horizontal, Vertical, ScrollableContainer
 
@@ -51,6 +51,12 @@ SEP  = "─" * 60
 SEP2 = "═" * 60
 
 BACK = "__back__"   # sentinel: dismiss with this to go one step back
+
+_LATITUDE_OPTS = [
+    ("strict", "Strict", 0.0),
+    ("guided", "Guided", 0.5),
+    ("lax",    "Lax",    1.0),
+]
 
 
 # ─────────────────────────────────────────
@@ -1164,6 +1170,87 @@ class PickerModal(ModalScreen):
     def _on_selected(self, event: ListView.Selected) -> None:
         idx = int(event.item.id.split("-", 1)[1])
         self.dismiss(self._items[idx][0])
+
+    @on(Button.Pressed, "#back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK if self._show_back else None)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# POP + LATITUDE PICKER MODAL
+# Variant of PickerModal with a horizontal latitude radio bar.
+# Dismisses with (pop_key, latitude_float), BACK, or None.
+# ─────────────────────────────────────────
+
+class PopLatitudePickerModal(ModalScreen):
+    BINDINGS = [
+        ("escape",      "go_back",      "Back"),
+        ("ctrl+escape", "force_cancel", "Cancel"),
+    ]
+    DEFAULT_CSS = """
+    PopLatitudePickerModal .latitude-section {
+        height: auto;
+        align: center middle;
+        padding: 1 0 0 0;
+    }
+    PopLatitudePickerModal RadioSet {
+        layout: horizontal;
+        border: none;
+        background: transparent;
+        height: 1;
+    }
+    """
+
+    def __init__(
+        self,
+        title: str,
+        items: list[tuple[str, str]],
+        show_back: bool = False,
+    ):
+        super().__init__()
+        self._title     = title
+        self._items     = items
+        self._show_back = show_back
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box-tall"):
+            yield Label(self._title, classes="modal-title")
+            with ScrollableContainer():
+                with LoopingListView(id="picker-list"):
+                    for i, (key, text) in enumerate(self._items):
+                        yield ListItem(Label(text), id=f"pick-{i}")
+            with Horizontal(classes="latitude-section"):
+                with RadioSet(id="latitude-radio"):
+                    yield RadioButton("Strict", id="strict")
+                    yield RadioButton("Guided", id="guided", value=True)
+                    yield RadioButton("Lax",    id="lax")
+            with Horizontal(classes="btn-row"):
+                if self._show_back:
+                    yield Button("← Back",  id="back-btn")
+                yield Button("Cancel", id="cancel-btn", classes="-danger")
+
+    def on_mount(self) -> None:
+        self.query_one("#picker-list", ListView).focus()
+
+    def _latitude(self) -> float:
+        rs = self.query_one("#latitude-radio", RadioSet)
+        bid = rs.pressed_button.id if rs.pressed_button else "guided"
+        return next((v for k, _, v in _LATITUDE_OPTS if k == bid), 0.5)
+
+    @on(ListView.Selected, "#picker-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        idx = int(event.item.id.split("-", 1)[1])
+        self.dismiss((self._items[idx][0], self._latitude()))
 
     @on(Button.Pressed, "#back-btn")
     def _on_back(self, _: Button.Pressed) -> None:
@@ -2697,24 +2784,21 @@ class GameScreen(Screen):
                             f"  size {p.size_magnitude}  {belief_str}"
                         )
 
-                    if len(eligible_pops) == 1:
-                        target_pop_id = eligible_pops[0].id
-                        target_civ_id = eligible_pops[0].civilization_id
-                    else:
-                        pop_items = [(str(p.id), _pop_label(p)) for p in eligible_pops]
-                        chosen_pop = await app.push_screen_wait(
-                            PickerModal("Preach to which community?", pop_items, show_back=True)
-                        )
-                        if chosen_pop == BACK: step = 1; continue
-                        if chosen_pop is None: return None
-                        chosen_obj = next((p for p in eligible_pops if str(p.id) == chosen_pop), None)
-                        if chosen_obj:
-                            target_pop_id = chosen_obj.id
-                            target_civ_id = chosen_obj.civilization_id
+                    pop_items = [(str(p.id), _pop_label(p)) for p in eligible_pops]
+                    pop_result = await app.push_screen_wait(
+                        PopLatitudePickerModal("Preach to which community?", pop_items, show_back=True)
+                    )
+                    if pop_result == BACK: step = 1; continue
+                    if pop_result is None: return None
+                    chosen_pop, chosen_latitude = pop_result
+                    chosen_obj = next((p for p in eligible_pops if str(p.id) == chosen_pop), None)
+                    if chosen_obj:
+                        target_pop_id = chosen_obj.id
+                        target_civ_id = chosen_obj.civilization_id
                     break
             intent = ProxiusDirectiveIntent(
                 domain_vectors=dvs,
-                latitude=0.5,
+                latitude=chosen_latitude,
                 target_civilization_id=target_civ_id,
                 target_pop_id=target_pop_id,
                 imago_node_id=imago_id,

@@ -44,6 +44,7 @@ from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
+    compute_mortal_alignment_base,
 )
 
 _INTENT_CLASSES: dict[str, type] = {
@@ -211,6 +212,20 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
                 if dreg.is_canonical(tag):
                     agg[tag] = agg.get(tag, 0.0) + aff
         state.demiurge.affiliated_domains = sorted(agg, key=lambda t: (-agg[t], t))[:4]
+
+    # Compute natural alignment for mortals zeroed-out in the scenario.
+    # Savegames always have non-zero values; only scenario DBs use 0.0 as a sentinel.
+    if any(m.alignment == 0.0 for m in state.mortals.values()):
+        from utilities.domain_registry import get_registry as get_domain_registry
+        dreg = get_domain_registry()
+        for mortal in state.mortals.values():
+            if mortal.alignment == 0.0:
+                mortal.alignment = max(0.01, min(
+                    1.0 if mortal.role == MortalRole.PROXIUS else 0.9,
+                    compute_mortal_alignment_base(
+                        mortal, state.demiurge.affiliated_domains, dreg
+                    )
+                ))
 
     return state
 

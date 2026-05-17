@@ -160,6 +160,51 @@ _RELIGION_DOMAIN_AFFINITY: dict[str, dict[str, float]] = {
     },
 }
 
+
+def compute_mortal_alignment_base(
+    mortal,
+    affiliated_domains: list,
+    dreg,
+) -> float:
+    """
+    Computes a mortal's natural alignment drift target from two sources:
+      domain belief similarity  — weight 0.70
+      religion tag affinity     — weight 0.30
+    Returns a value in [0.20, 0.80].
+    Falls back to 0.5 if affiliated_domains is empty or mortal has no relevant data.
+    """
+    if not affiliated_domains:
+        return 0.5
+
+    def max_sim_to_affiliated(tag: str) -> float:
+        return max(
+            (dreg.similarity(tag, a) for a in affiliated_domains),
+            default=0.0,
+        )
+
+    # Belief tags — primary signal
+    b_score = b_wt = 0.0
+    for b_tag, strength in mortal.belief_tags.items():
+        b_score += max_sim_to_affiliated(b_tag) * strength
+        b_wt    += strength
+    belief_sim = (b_score / b_wt) if b_wt else 0.0
+
+    # Religion tags via _RELIGION_DOMAIN_AFFINITY.
+    # Negative affinities are dampened (×0.5) — a religion that opposes the Demiurge's
+    # focus matters, but shouldn't drag a mortal down as hard as alignment with it lifts.
+    r_score = r_wt = 0.0
+    for c_tag, c_strength in mortal.culture_tags.items():
+        domain_affinities = _RELIGION_DOMAIN_AFFINITY.get(c_tag, {})
+        for d_tag, d_affinity in domain_affinities.items():
+            eff_aff = d_affinity * 0.5 if d_affinity < 0 else d_affinity
+            r_score += max_sim_to_affiliated(d_tag) * eff_aff * c_strength
+            r_wt    += abs(eff_aff) * c_strength
+    religion_sim = (r_score / r_wt) if r_wt else 0.0
+
+    combined = belief_sim * 0.70 + religion_sim * 0.30
+    return 0.5 + combined * 0.30   # maps [-1.0, +1.0] → [0.20, 0.80]
+
+
 # Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
 # Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
 _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
@@ -1020,15 +1065,19 @@ class TickLoop:
                         ))
 
         # ── Mortal alignment drift ─────────────────────
+        dreg = get_domain_registry()
         for mid, mortal in state.mortals.items():
             if mortal.status != "active":
                 continue
 
-            # Alignment drifts toward 0.5 (personal agenda)
-            # unless a recent directive is holding it up
-            drift_toward = 0.5
-            drift = (drift_toward - mortal.alignment) * cfg.alignment_drift_rate
-            new_alignment = max(0.0, min(1.0, mortal.alignment + drift))
+            # Alignment drifts toward each mortal's computed natural base
+            drift_toward = compute_mortal_alignment_base(
+                mortal, state.demiurge.affiliated_domains, dreg
+            )
+            _rate = cfg.alignment_drift_rate * (0.5 if mortal.role == MortalRole.PROXIUS else 1.0)
+            drift = (drift_toward - mortal.alignment) * _rate
+            _align_cap = 1.0 if mortal.role == MortalRole.PROXIUS else 0.9
+            new_alignment = max(0.01, min(_align_cap, mortal.alignment + drift))
 
             if abs(new_alignment - mortal.alignment) > 0.001:
                 result.mortal_mutations.append(StateMutation(
@@ -4747,6 +4796,13 @@ class TickLoop:
             elif chosen == AgentActionChoice.NOTHING:
                 goal.consecutive_promote_count = 0
                 goal.effectiveness_bonus = max(0.0, goal.effectiveness_bonus - 0.05)
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_ALIGNMENT,
+                    target_id=mortal.id,
+                    field="alignment",
+                    delta=+0.01,
+                    note=f"{mortal.name} idle recovery",
+                ))
 
         return mutations, agent_narratives
 
@@ -4986,9 +5042,11 @@ class TickLoop:
 
             elif m.mutation_type == MutationType.MORTAL_ALIGNMENT:
                 if tid in state.mortals:
-                    current = state.mortals[tid].alignment
-                    state.mortals[tid].alignment = max(
-                        0.0, min(1.0, current + (m.delta or 0))
+                    mortal_ref = state.mortals[tid]
+                    current = mortal_ref.alignment
+                    _align_cap = 1.0 if mortal_ref.role == MortalRole.PROXIUS else 0.9
+                    mortal_ref.alignment = max(
+                        0.01, min(_align_cap, current + (m.delta or 0))
                     )
 
             elif m.mutation_type == MutationType.CIVILIZATION_STAT:
