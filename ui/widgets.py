@@ -367,11 +367,18 @@ class StatusPanel(Static):
 # ─────────────────────────────────────────
 
 class TabBodyStatic(Static):
-    """Static with link styling disabled so inner markup colors (e.g. the
-    discovery-gold highlight) survive — Textual's default `auto_links` layers
-    `link-color`/`link-style` over `@click=` spans, overriding inner color and
-    forcing an underline. Clicks still dispatch from `style.meta`."""
-    auto_links = False
+    """Static whose base link styling is suppressed so inner markup colors
+    (e.g. the discovery-gold highlight) survive. Textual's default base
+    `link_style` would otherwise composite `link-color`/`link-style` on top of
+    every `@click=` span, overriding our inner color and forcing an underline.
+
+    `auto_links` stays True so that hover styling (`link-background-hover`
+    etc.) is still applied — that path uses `link_style_hover` separately and
+    isn't affected by suppressing the base `link_style`."""
+
+    @property
+    def link_style(self):  # type: ignore[override]
+        return None
 
 
 class ContentTab(VerticalScroll):

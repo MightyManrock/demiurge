@@ -318,20 +318,35 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         sp_md = _maybe_gold("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
         a(f"  species: {sp_md}")
 
+    dev = display.DEV_MODE
+
+    def _gated(entity, line_markup: str) -> None:
+        """Emit a line only if the referenced entity is in the Window
+        (or always, when running with --dev — dimmed if OOW)."""
+        if entity is None:
+            return
+        oow = not is_in_window(entity)
+        if oow and not dev:
+            return
+        if oow:
+            a(f"  [dim]{line_markup}[/dim]")
+        else:
+            a(f"  {line_markup}")
+
     loc = state.locations.get(str(m.current_location)) if m.current_location else None
     if loc:
         loc_link = _location_link(state, m.current_location, f"[#3a6a8a]{_e(loc.name)}[/]")
-        a(f"  location: {loc_link}")
+        _gated(loc, f"location: {loc_link}")
 
     home = state.locations.get(str(m.home_location)) if m.home_location else None
-    if home:
+    if home and (not loc or str(home.id) != str(loc.id)):
         home_link = _location_link(state, m.home_location, f"[#3a6a8a]{_e(home.name)}[/]")
-        a(f"  origin:   {home_link}")
+        _gated(home, f"origin:   {home_link}")
 
     civ = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
     if civ:
         civ_link = _click_link("civ", str(m.civilization_id), f"[#3a6a8a]{_e(civ.name)}[/]")
-        a(f"  civilization: {civ_link}")
+        _gated(civ, f"civilization: {civ_link}")
 
     pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
     if pop:
@@ -340,9 +355,9 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         pop_md = _maybe_gold("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
         if sp_obj:
             sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
-            a(f"  pop:      {pop_md} ({sp_md})  sz:{pop.size_magnitude}")
+            _gated(pop, f"pop:      {pop_md} ({sp_md})  sz:{pop.size_magnitude}")
         else:
-            a(f"  pop:      {pop_md}  sz:{pop.size_magnitude}")
+            _gated(pop, f"pop:      {pop_md}  sz:{pop.size_magnitude}")
 
     if m.status_tags or m.personal_tags or m.belief_tags or m.culture_tags:
         a("")
