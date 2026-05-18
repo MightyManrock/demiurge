@@ -1292,7 +1292,7 @@ def build_scenario_default() -> SimulationState:
     pop_neran_artisan_col = Pop(
         civilization_id=neran_confed.id, species_id=naran_species.id,
         social_class=SocialClass.ARTISAN,
-        current_location=pop_loc_neran.id,
+        current_location=pop_loc_sethis.id,
         size_fractional=2.7,
         dominant_beliefs={"domain:mastery": 0.70, "domain:change": 0.35, "domain:order": 0.50},
         culture_tags={"techno:science": 0.85, "techno:industrialism": 0.90,

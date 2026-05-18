@@ -267,11 +267,6 @@ class GameScreen(Screen):
     def _refresh_all(self) -> None:
         """Re-render every mounted tab body from the current state."""
         state = self._state
-        # Apply any pending discovery clears from tab activations since last refresh.
-        for pane_id in self._pending_clear:
-            for kind in self._TAB_DISCOVERY_KINDS.get(pane_id, ()):
-                self._unseen_by_kind[kind].clear()
-        self._pending_clear.clear()
         # Install the predicate widgets._click_link consults for gold highlighting.
         set_unseen_predicate(
             lambda kind, eid: eid in self._unseen_by_kind.get(kind, ())
@@ -323,6 +318,13 @@ class GameScreen(Screen):
 
     def _record_discoveries(self, before_ids: dict[str, set[str]]) -> None:
         """Diff in-Window IDs before/after a tick to populate unseen sets."""
+        # Apply deferred clears from tab activations *before* recording this
+        # tick's discoveries, so newly revealed IDs aren't wiped by a pending
+        # clear scheduled before the tick.
+        for pane_id in self._pending_clear:
+            for kind in self._TAB_DISCOVERY_KINDS.get(pane_id, ()):
+                self._unseen_by_kind[kind].clear()
+        self._pending_clear.clear()
         after = self._current_window_ids()
         for kind, ids_after in after.items():
             new_ids = ids_after - before_ids.get(kind, set())
@@ -669,6 +671,7 @@ class GameScreen(Screen):
                 self._log.write_action(f"[ONGOING SET] {defn.name}")
                 self._feed_markup(f"[#60a870][ONGOING SET][/] {defn.name}", "actions")
                 self._refresh_status()
+                self._focus_actions_tab()
                 return
 
         state.action_queue.append(instance)
@@ -678,6 +681,13 @@ class GameScreen(Screen):
         self._log.write_action(summary)
         self._feed_markup(f"[#a0d080]Queued:[/] {summary}", "actions")
         self._refresh_status()
+        self._focus_actions_tab()
+
+    def _focus_actions_tab(self) -> None:
+        try:
+            self.query_one("#left-tabs", TabbedContent).active = "actions"
+        except Exception:
+            pass
 
     # ── Intent construction ───────────────────
 

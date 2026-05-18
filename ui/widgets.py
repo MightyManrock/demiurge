@@ -425,7 +425,8 @@ class LocationsTab(ContentTab):
             any_shown = True
             g_style = "[dim]" if g_oow else ""
             g_end = "[/]" if g_oow else ""
-            a(f"{g_style}◇ [bold]{_e(galaxy.name)}[/]{g_end}")
+            galaxy_md = _maybe_gold("galaxy", str(gid), f"[bold]{_e(galaxy.name)}[/]")
+            a(f"{g_style}◇ {galaxy_md}{g_end}")
             for sid in galaxy.child_ids:
                 sys_obj = state.locations.get(str(sid))
                 if not sys_obj:
