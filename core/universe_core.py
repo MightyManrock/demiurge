@@ -482,6 +482,11 @@ class NotableMortal(BaseModel):
 
     active_goal: Optional["ProxiusGoal"] = None
 
+    # Captured narrative + tick from the most recent Audit Proxius action.
+    # Surfaced in the mortal detail tab as part of the Proxius fog-of-war view.
+    last_audit_text: Optional[str] = None
+    last_audit_tick: Optional[int] = None
+
     @model_validator(mode="after")
     def _split_legacy_tags(self) -> "NotableMortal":
         """

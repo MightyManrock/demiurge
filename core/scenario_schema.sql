@@ -46,7 +46,12 @@ CREATE TABLE IF NOT EXISTS luminaries (
     status_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array
     essence_received_log         TEXT NOT NULL DEFAULT '[]',  -- JSON array of floats (last 2 evaluation totals)
     essence_expectation_raised   REAL NOT NULL DEFAULT 0.0,   -- additive bonus above base threshold
-    consecutive_essence_shortfalls INTEGER NOT NULL DEFAULT 0  -- back-to-back shortfall counter
+    consecutive_essence_shortfalls INTEGER NOT NULL DEFAULT 0,  -- back-to-back shortfall counter
+    last_evaluation              TEXT,           -- JSON of LuminaryEvaluation.model_dump() or NULL
+    previous_evaluation          TEXT,           -- JSON; one cycle behind last_evaluation
+    last_evaluation_tick         INTEGER,        -- tick the last evaluation was recorded
+    last_orders_response         TEXT,           -- narrative text from most recent Ask for Orders
+    last_orders_response_tick    INTEGER         -- tick the orders response was recorded
 );
 
 -- Constraints belong to either a Luminary or a Pantheon.
@@ -212,7 +217,9 @@ CREATE TABLE IF NOT EXISTS mortals (
     pop_id                 TEXT DEFAULT NULL,           -- UUID of origin Pop; cleared on age-out
     proxius_appointed_tick INTEGER DEFAULT NULL,        -- tick of first Proxius elevation (wall-clock)
     herald_appointed_tick  INTEGER DEFAULT NULL,        -- tick of first Herald elevation (wall-clock)
-    origin_pop_subsumed    INTEGER NOT NULL DEFAULT 0   -- bool; True when mortal's origin Pop was absorbed into the goal Pop
+    origin_pop_subsumed    INTEGER NOT NULL DEFAULT 0,  -- bool; True when mortal's origin Pop was absorbed into the goal Pop
+    last_audit_text        TEXT,                         -- narrative from last Audit Proxius
+    last_audit_tick        INTEGER                       -- tick the last audit was recorded
 );
 
 -- ─────────────────────────────────────────

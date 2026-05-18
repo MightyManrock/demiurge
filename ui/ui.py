@@ -386,6 +386,12 @@ class GameScreen(Screen):
         if kind == "civ"      and eid in s.civilizations: return s.civilizations[eid].name
         if kind == "mortal"   and eid in s.mortals:       return s.mortals[eid].name
         if kind == "luminary" and eid in s.luminaries:    return s.luminaries[eid].name
+        if kind == "species"  and eid in s.species:       return s.species[eid].name
+        if kind == "pop"      and eid in s.pops:
+            pop = s.pops[eid]
+            stratum = pop.stratum.title() if pop.stratum else "Pop"
+            sp = s.species.get(str(pop.species_id)) if pop.species_id else None
+            return f"{stratum} ({sp.name})" if sp else f"{stratum} Pop"
         return eid[:8]
 
     def action_close_detail(self) -> None:

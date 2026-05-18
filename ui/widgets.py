@@ -321,11 +321,18 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     aff = state.demiurge.affiliated_domains
     if aff:
         a("[bold #4a80b0]AFFINITIES[/]")
-        parts = [
-            f"[@click=screen.open_divine_wisdom('{t}')][#a0c0e0]{_e(_short_tag(t))}[/][/]"
-            for t in aff
-        ]
-        a(f"  {'  '.join(parts)}")
+        show_essence = state.tick_number > 0
+        last_tick = state.last_tick_essence_by_domain if show_essence else {}
+        for t in aff:
+            label = _short_tag(t)
+            name = f"[@click=screen.open_divine_wisdom('{t}')][#a0c0e0]{_e(label)}[/][/]"
+            if show_essence:
+                v = last_tick.get(t, 0.0)
+                essence = f"[#c09030]+{v:.2f}[/]" if v > 0.0 else "[dim]—[/]"
+                pad = " " * max(1, 14 - len(label))
+                a(f"  {name}{pad}{essence}")
+            else:
+                a(f"  {name}")
         a("")
 
     # Footprint
@@ -608,9 +615,9 @@ class UniverseTab(ContentTab):
                     pe = "[/]" if (w_oow or c_oow or p_oow) else ""
                     class_label = pop.stratum.title() if pop.stratum else "Pop"
                     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-                    pop_stratum_md = _maybe_gold("pop", str(pid), class_label)
+                    pop_stratum_md = _click_link("pop", str(pid), class_label)
                     if sp_obj:
-                        sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+                        sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
                         pop_label = f"{pop_stratum_md}  ({sp_md})"
                     else:
                         pop_label = pop_stratum_md
@@ -642,7 +649,7 @@ class UniverseTab(ContentTab):
                 age_str += f"(bio:{mortal.bio_age:.0f})"
             sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
             if sp_obj:
-                sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+                sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
                 sp_str = f"  \\[{sp_md}]"
             else:
                 sp_str = ""
@@ -651,6 +658,56 @@ class UniverseTab(ContentTab):
             a(f"{mm}● {mortal_link} \\[{role_str}]  "
               f"align:{mortal.alignment:.2f}  {age_str}{vis_note}{sp_str}{me}")
             a(f"{mm}    {_e(_prominence_label(mortal))}{me}")
+
+            # Location + civilization (linked)
+            loc_obj = state.locations.get(str(mortal.current_location)) if mortal.current_location else None
+            civ_obj = state.civilizations.get(str(mortal.civilization_id)) if mortal.civilization_id else None
+            loc_str = ""
+            if loc_obj:
+                loc_kind = ("world" if str(mortal.current_location) in state.worlds
+                            else ("system" if str(mortal.current_location) in state.systems else None))
+                if loc_kind:
+                    loc_link = _click_link(loc_kind, str(mortal.current_location),
+                                           f"[#3a6a8a]{_e(loc_obj.name)}[/]")
+                else:
+                    loc_link = f"[#3a6a8a]{_e(loc_obj.name)}[/]"
+                loc_str = f"location: {loc_link}"
+            civ_str = ""
+            if civ_obj:
+                civ_link = _click_link("civ", str(civ_obj.id), f"[#3a6a8a]{_e(civ_obj.name)}[/]")
+                civ_str = f"  civ: {civ_link}"
+            if loc_str or civ_str:
+                a(f"{mm}    {loc_str}{civ_str}{me}")
+
+            # Rule-of-four: status / personal tags (alphabetical, unranked)
+            if mortal.status_tags:
+                stags = sorted(mortal.status_tags)
+                shown = stags[:4]
+                extra = len(stags) - len(shown)
+                suffix = f"  [#5a7090](+{extra} more)[/]" if extra > 0 else ""
+                a(f"{mm}    status: {_e(', '.join(_short_tag(t) for t in shown))}{suffix}{me}")
+            if mortal.personal_tags:
+                ptags = sorted(mortal.personal_tags)
+                shown = ptags[:4]
+                extra = len(ptags) - len(shown)
+                suffix = f"  [#5a7090](+{extra} more)[/]" if extra > 0 else ""
+                a(f"{mm}    tags:   {_e(', '.join(_short_tag(t) for t in shown))}{suffix}{me}")
+            # Rule-of-four: top-4 beliefs (by weight)
+            if mortal.belief_tags:
+                a(f"{mm}    beliefs: {_format_beliefs_markup(mortal.belief_tags, top_n=4)}{me}")
+
+            # Fog-of-warred directive label for Proxii on assignment
+            if mortal.role == MortalRole.PROXIUS and mortal.active_goal:
+                g = mortal.active_goal
+                if g.label:
+                    dlabel = g.label
+                elif g.imago_node_id:
+                    dlabel = f"preaching [{g.imago_node_id.split(':')[-1]}]"
+                elif g.research_domain:
+                    dlabel = f"researching {_short_tag(g.research_domain)}"
+                else:
+                    dlabel = "on assignment"
+                a(f"{mm}    [#c09030]directive:[/] {_e(dlabel)}{me}")
         if not any_m:
             a("[#5a7090](no notable mortals in Window)[/]")
         return Text.from_markup("\n".join(lines))

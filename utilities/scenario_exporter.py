@@ -121,8 +121,10 @@ def _write_luminaries(conn, state: SimulationState):
                (id, name, domains, pantheon_id,
                 disposition_results, disposition_methods, herald_ids, status_tags,
                 essence_received_log, essence_expectation_raised,
-                consecutive_essence_shortfalls)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                consecutive_essence_shortfalls,
+                last_evaluation, previous_evaluation, last_evaluation_tick,
+                last_orders_response, last_orders_response_tick)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(luminary.id),
                 luminary.name,
@@ -135,6 +137,11 @@ def _write_luminaries(conn, state: SimulationState):
                 json.dumps(luminary.essence_received_log),
                 luminary.essence_expectation_raised,
                 luminary.consecutive_essence_shortfalls,
+                json.dumps(luminary.last_evaluation) if luminary.last_evaluation else None,
+                json.dumps(luminary.previous_evaluation) if luminary.previous_evaluation else None,
+                luminary.last_evaluation_tick,
+                luminary.last_orders_response,
+                luminary.last_orders_response_tick,
             ),
         )
         for c in luminary.constraints:
@@ -404,8 +411,8 @@ def _write_mortals(conn, state: SimulationState):
                 home_location, current_location, pinned,
                 active_goal_json,
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
-                origin_pop_subsumed)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                origin_pop_subsumed, last_audit_text, last_audit_tick)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -434,6 +441,8 @@ def _write_mortals(conn, state: SimulationState):
                 m.proxius_appointed_tick,
                 m.herald_appointed_tick,
                 int(m.origin_pop_subsumed),
+                m.last_audit_text,
+                m.last_audit_tick,
             ),
         )
 

@@ -795,6 +795,10 @@ class SimulationState(BaseModel):
     # Persisted so the player can see long-run domain income.
     domain_essence_claimed: dict[str, float] = Field(default_factory=dict)
 
+    # Per-tick breakdown of Demiurge Essence claims by domain (affiliated only).
+    # Overwritten each tick by Phase 1 essence generation; surfaced in the Status tab.
+    last_tick_essence_by_domain: dict[str, float] = Field(default_factory=dict)
+
     # Entity IDs (str(UUID)) that were pinned at scenario creation.
     # At tick 10 Phase 1, all are unpinned and this list is cleared.
     starting_pinned_ids: list[str] = Field(default_factory=list)
@@ -862,6 +866,7 @@ class TickLoop:
         essence_gen_mutations, essence_by_domain = self._process_essence_generation(state, cfg)
         state = self._apply_mutations(state, essence_gen_mutations)
         result.essence_claimed_by_domain = essence_by_domain
+        state.last_tick_essence_by_domain = dict(essence_by_domain)
 
         # ── Inject ongoing actions (appended after manual queue) ──────────
         # Manually queued actions in the same category take priority;
@@ -2242,6 +2247,14 @@ class TickLoop:
                     target_id=mortal.id,
                     note=f"Audit of {mortal.name} this tick",
                 ))
+                # Persist the audit narrative on the mortal for the detail tab.
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.PROXIUS_AUDIT_RECORDED,
+                    target_id=mortal.id,
+                    field=str(state.tick_number),
+                    new_value=narrative,
+                    note=f"Audit narrative captured for {mortal.name}",
+                ))
 
             elif defn.name == "Read Divine Traces":
                 target_world_id = str(instance.target_id) if instance.target_id else None
@@ -2396,6 +2409,15 @@ class TickLoop:
                         report.append(f"    · {con.name}  ({weight_str})")
 
                 narrative = "\n".join(report)
+
+                # Persist the orders text on the Luminary so the detail tab can show it.
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.LUMINARY_ORDERS_RESPONSE,
+                    target_id=luminary.id,
+                    field=str(state.tick_number),
+                    new_value=narrative,
+                    note=f"Ask for Orders narrative captured for {luminary.name}",
+                ))
 
             return mutations, narrative
 
@@ -4160,6 +4182,17 @@ class TickLoop:
             luminary.disposition.methods = new_methods
             changes[lid] = (new_results, new_methods)
 
+            # Snapshot the evaluation for the Luminary detail tab. Shift the prior
+            # snapshot into previous_evaluation so the UI can show deltas.
+            try:
+                snap = ev.model_dump(mode="json")
+            except Exception:
+                snap = None
+            if snap is not None:
+                luminary.previous_evaluation = luminary.last_evaluation
+                luminary.last_evaluation = snap
+                luminary.last_evaluation_tick = state.tick_number
+
             # Update attention
             att_delta = sum(
                 t.delta for t in ev.attention_triggers
@@ -5318,6 +5351,24 @@ class TickLoop:
             elif m.mutation_type == MutationType.PROXIUS_AUDITED:
                 if tid:
                     state.proxii_audited_this_tick.add(tid)
+
+            elif m.mutation_type == MutationType.PROXIUS_AUDIT_RECORDED:
+                if tid and tid in state.mortals and m.new_value is not None:
+                    mortal = state.mortals[tid]
+                    mortal.last_audit_text = str(m.new_value)
+                    try:
+                        mortal.last_audit_tick = int(m.field) if m.field else state.tick_number
+                    except (TypeError, ValueError):
+                        mortal.last_audit_tick = state.tick_number
+
+            elif m.mutation_type == MutationType.LUMINARY_ORDERS_RESPONSE:
+                if tid and tid in state.luminaries and m.new_value is not None:
+                    lum = state.luminaries[tid]
+                    lum.last_orders_response = str(m.new_value)
+                    try:
+                        lum.last_orders_response_tick = int(m.field) if m.field else state.tick_number
+                    except (TypeError, ValueError):
+                        lum.last_orders_response_tick = state.tick_number
 
             elif m.mutation_type == MutationType.PROXIUS_GOAL_SET:
                 if tid in state.mortals and isinstance(m.new_value, ProxiusGoal):

@@ -278,6 +278,11 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
             essence_received_log=[float(x) for x in _j(row.get("essence_received_log", "[]"))],
             essence_expectation_raised=float(row.get("essence_expectation_raised", 0.0)),
             consecutive_essence_shortfalls=int(row.get("consecutive_essence_shortfalls", 0)),
+            last_evaluation=(json.loads(row["last_evaluation"]) if row.get("last_evaluation") else None),
+            previous_evaluation=(json.loads(row["previous_evaluation"]) if row.get("previous_evaluation") else None),
+            last_evaluation_tick=(int(row["last_evaluation_tick"]) if row.get("last_evaluation_tick") is not None else None),
+            last_orders_response=row.get("last_orders_response"),
+            last_orders_response_tick=(int(row["last_orders_response_tick"]) if row.get("last_orders_response_tick") is not None else None),
         )
         lums[str(l.id)] = l
 
@@ -551,6 +556,8 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
             herald_appointed_tick=row.get("herald_appointed_tick"),
             origin_pop_subsumed=bool(row.get("origin_pop_subsumed", 0)),
+            last_audit_text=row.get("last_audit_text"),
+            last_audit_tick=(int(row["last_audit_tick"]) if row.get("last_audit_tick") is not None else None),
         )
         out[str(m.id)] = m
     return out

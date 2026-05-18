@@ -248,9 +248,9 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         pe = "[/]" if p_oow else ""
         class_label = pop.stratum.title() if pop.stratum else "Pop"
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-        pop_stratum_md = _maybe_gold("pop", str(pid), class_label)
+        pop_stratum_md = _click_link("pop", str(pid), class_label)
         if sp_obj:
-            sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+            sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
             pop_label = f"{pop_stratum_md}  ({sp_md})"
         else:
             pop_label = pop_stratum_md
@@ -318,7 +318,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
     if sp_obj:
-        sp_md = _maybe_gold("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
+        sp_md = _click_link("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
         a(f"  species: {sp_md}")
 
     dev = display.DEV_MODE
@@ -355,9 +355,9 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     if pop:
         stratum = pop.stratum.title() if pop.stratum else "Pop"
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-        pop_md = _maybe_gold("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
+        pop_md = _click_link("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
         if sp_obj:
-            sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+            sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
             _gated(pop, f"pop:      {pop_md} ({sp_md})  sz:{pop.size_magnitude}")
         else:
             _gated(pop, f"pop:      {pop_md}  sz:{pop.size_magnitude}")
@@ -378,18 +378,18 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         a("[bold #4a80b0]PROXIUS GOAL[/]")
         if m.active_goal:
             g = m.active_goal
+            # Directive label — derived from the imago the player chose.
             if g.label:
                 a(f"  directive: {_e(g.label)}")
-            if g.last_action is not None:
-                a(f"  last action: [#a0d080]{_e(g.last_action.value.replace('_', ' '))}[/]")
-            else:
-                a(f"  last action: [#5a7090](not yet acted)[/]")
-            if g.imago_node_id:
+            elif g.imago_node_id:
                 from utilities.imago_registry import get_registry as get_imago_registry
                 ireg = get_imago_registry()
                 node = ireg.get_node(g.imago_node_id)
                 imago_label = node.name if node else g.imago_node_id
-                a(f"  imago: [#a0b8d0]{_e(imago_label)}[/]")
+                a(f"  directive: preaching [#a0b8d0]{_e(imago_label)}[/]")
+            elif g.research_domain:
+                a(f"  directive: researching {_e(_short_tag(g.research_domain))}")
+            # Targets — only what the player explicitly set.
             if g.target_civilization_id:
                 civ = state.civilizations.get(str(g.target_civilization_id))
                 if civ:
@@ -397,23 +397,34 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                         "civ", str(g.target_civilization_id),
                         f"[#3a6a8a]{_e(civ.name)}[/]",
                     )
-                    a(f"  target civilization: {civ_link}")
-            if g.source_pop_id:
-                src = state.pops.get(str(g.source_pop_id))
-                if src:
-                    label = src.stratum.title() if src.stratum else "Pop"
-                    a(f"  source pop: [#3a6a8a]{_e(label)}[/]  sz:{src.size_magnitude}")
-            if g.goal_pop_id:
-                gp = state.pops.get(str(g.goal_pop_id))
-                if gp:
-                    label = gp.stratum.title() if gp.stratum else "Pop"
-                    a(f"  goal pop:   [#3a6a8a]{_e(label)}[/]  sz:{gp.size_magnitude}")
-            if g.research_domain:
-                a(f"  researching: {_e(_short_tag(g.research_domain))}")
+                    a(f"  target: {civ_link}")
+            if g.target_location_id:
+                loc = state.locations.get(str(g.target_location_id))
+                if loc:
+                    loc_link = _location_link(state, g.target_location_id, f"[#3a6a8a]{_e(loc.name)}[/]")
+                    a(f"  location: {loc_link}")
+            ticks_active = state.tick_number - g.started_at_tick
+            a(f"  ticks at task: {ticks_active}")
             if g.petition_pending:
-                a(f"  [#c09030]petition pending ({g.petition_pending_ticks}/5 ticks)[/]")
+                a(f"  [#c09030]petition pending — awaiting new orders[/]")
         else:
             a("  [#5a7090](idle — no active directive)[/]")
+
+        # Last report from the Proxius (Phase 2.5 REPORT_TO_DEMIURGE action).
+        if m.active_goal and m.active_goal.report_log:
+            a("")
+            a("[bold #4a80b0]LAST REPORT[/]")
+            last = m.active_goal.report_log[-1]
+            for raw_line in str(last).splitlines():
+                a(f"  [#7090b0]{_e(raw_line)}[/]")
+
+        # Last audit text (from Audit Proxius action).
+        if m.last_audit_text:
+            tick_str = f" (tick {m.last_audit_tick})" if m.last_audit_tick is not None else ""
+            a("")
+            a(f"[bold #4a80b0]LAST AUDIT{tick_str}[/]")
+            for raw_line in m.last_audit_text.splitlines():
+                a(f"  [#7090b0]{_e(raw_line)}[/]")
 
     return Text.from_markup("\n".join(lines))
 
@@ -459,6 +470,214 @@ def render_luminary_detail(state: "SimulationState", lum_id: str) -> Text:
             a(f"  • {_e(c.name)}  [#5a7090]\\[enf {c.enforcement_weight:.2f}][/]")
             a(f"    [#7090b0]{_e(c.description)}[/]")
 
+    # Last evaluation (with delta vs. prior cycle)
+    if lum.last_evaluation:
+        ev = lum.last_evaluation
+        prev = lum.previous_evaluation or {}
+        tick_str = f" (tick {lum.last_evaluation_tick})" if lum.last_evaluation_tick is not None else ""
+        a("")
+        a(f"[bold #4a80b0]LAST EVALUATION{tick_str}[/]")
+
+        def _delta_str(cur: float, prev_v) -> str:
+            if prev_v is None:
+                return ""
+            d = cur - float(prev_v)
+            color = "#50b870" if d > 0 else ("#b04050" if d < 0 else "#5a7090")
+            return f"  [{color}]({d:+.2f})[/]"
+
+        # Overall alignment
+        cur_align = float(ev.get("overall_domain_alignment", 0.0))
+        prev_align = prev.get("overall_domain_alignment")
+        a(f"  overall alignment: {cur_align:+.2f}{_delta_str(cur_align, prev_align)}")
+
+        # Attention level (enum string)
+        att_lvl = ev.get("attention_level", "—")
+        a(f"  attention level:   {_e(str(att_lvl).upper())}")
+
+        # Disposition delta this cycle
+        dd = ev.get("disposition_delta") or {}
+        dd_prev = prev.get("disposition_delta") or {}
+        dd_r = float(dd.get("results", 0.0))
+        dd_m = float(dd.get("methods", 0.0))
+        r_color = "#50b870" if dd_r >= 0 else "#b04050"
+        m_color = "#50b870" if dd_m >= 0 else "#b04050"
+        prev_note = ""
+        if dd_prev:
+            pr = float(dd_prev.get("results", 0.0))
+            pm = float(dd_prev.get("methods", 0.0))
+            prev_note = f"   [#5a7090](prev R:{pr:+.2f} M:{pm:+.2f})[/]"
+        a(f"  disposition delta: "
+          f"R[{r_color}]{dd_r:+.2f}[/]  M[{m_color}]{dd_m:+.2f}[/]{prev_note}")
+
+        # Summary note
+        summary = ev.get("summary_note", "")
+        if summary:
+            a(f"  [#7090b0]{_e(summary)}[/]")
+
+        # Top reasons from the disposition delta
+        reasons = dd.get("reasons") or []
+        if reasons:
+            a("  reasons:")
+            for r in reasons[:5]:
+                if isinstance(r, dict):
+                    note = r.get("note") or r.get("reason") or ""
+                else:
+                    note = str(r)
+                if note:
+                    a(f"    · [#7090b0]{_e(str(note))}[/]")
+
+    # Last orders response
+    if lum.last_orders_response:
+        tick_str = f" (tick {lum.last_orders_response_tick})" if lum.last_orders_response_tick is not None else ""
+        a("")
+        a(f"[bold #4a80b0]LAST ORDERS RESPONSE{tick_str}[/]")
+        for raw_line in lum.last_orders_response.splitlines():
+            a(f"  [#7090b0]{_e(raw_line)}[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# POP
+# ─────────────────────────────────────────
+
+def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
+    pop = state.pops.get(str(pop_id))
+    if not pop:
+        return _not_found(f"Pop {pop_id}")
+
+    lines: list[str] = []
+    a = lines.append
+
+    stratum = pop.stratum.title() if pop.stratum else "Pop"
+    sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+    header = f"{stratum} Pop"
+    if sp_obj:
+        header += f" ({_e(sp_obj.name)})"
+    a(f"[bold #4a80b0]POP: {header}[/]")
+    a("")
+
+    a(f"  size: ~10^{pop.size_magnitude}")
+    if pop.pinned:
+        a(f"  [#5a7090]pinned (always in Window)[/]")
+    else:
+        a(f"  visibility: {pop.visibility:.2f}")
+
+    if sp_obj:
+        sp_link = _click_link("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
+        a(f"  species: {sp_link}")
+
+    civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+    if civ:
+        civ_link = _click_link("civ", str(civ.id), f"[#3a6a8a]{_e(civ.name)}[/]")
+        a(f"  civilization: {civ_link}")
+
+    loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+    if loc:
+        loc_link = _location_link(state, pop.current_location, f"[#3a6a8a]{_e(loc.name)}[/]")
+        a(f"  location: {loc_link}")
+
+    if pop.dominant_beliefs:
+        a("")
+        a("[bold #4a80b0]BELIEFS[/]")
+        for tag, weight in sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1]):
+            chip = _color_short_tag(tag, weight, with_value=False)
+            a(f"  {chip}  {weight:.2f}")
+
+    if pop.culture_tags:
+        a("")
+        a("[bold #4a80b0]CULTURE[/]")
+        for tag, weight in sorted(pop.culture_tags.items(), key=lambda kv: -kv[1]):
+            a(f"  {_e(_short_tag(tag))}  {weight:.2f}")
+
+    if pop.rider_traits:
+        a("")
+        a("[bold #4a80b0]RIDER TRAITS (from Preaching)[/]")
+        for tag, weight in sorted(pop.rider_traits.items(), key=lambda kv: -kv[1]):
+            a(f"  {_e(_short_tag(tag))}  {weight:.2f}")
+
+    if pop.preaching_imago_id:
+        from utilities.imago_registry import get_registry as get_imago_registry
+        ireg = get_imago_registry()
+        node = ireg.get_node(pop.preaching_imago_id)
+        imago_label = node.name if node else pop.preaching_imago_id
+        a("")
+        a(f"  [#c09030]goal target of Preach Imāgō: {_e(imago_label)}[/]")
+
+    if pop.notable_mortal_ids:
+        a("")
+        a("[bold #4a80b0]NOTABLE MORTALS[/]")
+        for mid in pop.notable_mortal_ids:
+            m = state.mortals.get(str(mid))
+            if not m:
+                continue
+            m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
+            role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
+            a(f"  ● {m_link} \\[{role_str}]  align:{m.alignment:+.2f}")
+
+    return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# SPECIES
+# ─────────────────────────────────────────
+
+def render_species_detail(state: "SimulationState", species_id: str) -> Text:
+    sp = state.species.get(str(species_id))
+    if not sp:
+        return _not_found(f"Species {species_id}")
+
+    lines: list[str] = []
+    a = lines.append
+
+    a(f"[bold #4a80b0]SPECIES: {_e(sp.name)}[/]")
+    a("")
+    if sp.description:
+        a(f"  [#7090b0]{_e(sp.description)}[/]")
+        a("")
+
+    sapient_str = "sapient" if sp.sapient else "non-sapient"
+    a(f"  \\[{sapient_str}]   condition: \\[{_e(sp.condition.value)}]")
+    if sp.transplanted:
+        a(f"  [#c09030](transplanted from origin world)[/]")
+    a(f"  lifespan: {sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}")
+    if sp.pinned:
+        a(f"  [#5a7090]pinned (always in Window)[/]")
+    else:
+        a(f"  visibility: {sp.visibility:.2f}")
+
+    origin = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
+    if origin:
+        origin_link = _location_link(state, sp.origin_world_id, f"[#3a6a8a]{_e(origin.name)}[/]")
+        a(f"  origin world: {origin_link}")
+
+    if sp.domain_tags:
+        a("")
+        a("[bold #4a80b0]DOMAIN AFFINITIES[/]")
+        for t in sp.domain_tags:
+            a(f"  {_e(_short_tag(t))}")
+
+    if sp.bio_tags:
+        a("")
+        a("[bold #4a80b0]BIOLOGY[/]")
+        for t in sp.bio_tags:
+            a(f"  {_e(_short_tag(t))}")
+
+    # List Pops belonging to this species
+    pops_of_species = [p for p in state.pops.values() if str(p.species_id) == str(sp.id)]
+    if pops_of_species:
+        a("")
+        a(f"[bold #4a80b0]POPS ({len(pops_of_species)})[/]")
+        for pop in pops_of_species:
+            stratum = pop.stratum.title() if pop.stratum else "Pop"
+            pop_link = _click_link("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
+            civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+            civ_str = ""
+            if civ:
+                civ_link = _click_link("civ", str(civ.id), f"[#3a6a8a]{_e(civ.name)}[/]")
+                civ_str = f"  in {civ_link}"
+            a(f"  ↳ {pop_link}  sz:{pop.size_magnitude}{civ_str}")
+
     return Text.from_markup("\n".join(lines))
 
 
@@ -472,4 +691,6 @@ RENDERERS = {
     "civ":       render_civ_detail,
     "mortal":    render_mortal_detail,
     "luminary":  render_luminary_detail,
+    "pop":       render_pop_detail,
+    "species":   render_species_detail,
 }

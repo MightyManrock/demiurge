@@ -612,6 +612,8 @@ class MutationType(str, Enum):
     PROXIUS_GOAL_SET       = "proxius_goal_set"    # new_value = ProxiusGoal instance
     PROXIUS_GOAL_CLEARED   = "proxius_goal_cleared"
     PROXIUS_AUDITED        = "proxius_audited"      # transient; marks mortal audited this tick
+    PROXIUS_AUDIT_RECORDED = "proxius_audit_recorded"  # new_value=narrative text, field=str(tick); stores on mortal
+    LUMINARY_ORDERS_RESPONSE = "luminary_orders_response"  # new_value=narrative text, field=str(tick); stores on Luminary
     REVELATION_GAINED      = "revelation_gained"   # field=domain_tag, delta=amount (negative to spend)
     IMAGO_REVEALED         = "imago_revealed"      # new_value=node_id; appends to unlocked_imagines, increments revealed_imagines
     POP_BELIEF_SHIFT       = "pop_belief_shift"    # field=domain_tag, delta on Pop.dominant_beliefs

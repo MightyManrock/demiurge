@@ -75,6 +75,17 @@ class Luminary(BaseModel):
     # Tracks back-to-back evaluation periods where production fell short of the raised threshold.
     # Resets to 0 on any above-threshold period or after triggering a 0.10 expectation reduction.
 
+    # Snapshot of the most recent LuminaryEvaluation as a plain dict (model_dump'd).
+    # Surfaced in the Luminary detail tab. The dict form sidesteps the
+    # onto_core ↔ eval_core circular-import problem.
+    last_evaluation: Optional[dict] = None
+    previous_evaluation: Optional[dict] = None
+    last_evaluation_tick: Optional[int] = None
+
+    # Captured narrative from the most recent "Ask for Orders" action.
+    last_orders_response: Optional[str] = None
+    last_orders_response_tick: Optional[int] = None
+
 
 class Pantheon(BaseModel):
     """
