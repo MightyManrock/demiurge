@@ -65,6 +65,12 @@ Footer {
     text-style: bold;
 }
 
+#left-tabs Tab.discovered,
+#right-tabs Tab.discovered {
+    color: #e8c060;
+    text-style: bold;
+}
+
 TabPane {
     padding: 0;
 }

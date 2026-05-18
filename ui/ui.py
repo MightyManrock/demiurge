@@ -54,6 +54,7 @@ from ui.widgets import (
     StatusPanel, LoopingListView,
     LocationsTab, EntitiesTab, ActionsTab,
     BriefingTab, UniverseTab, LuminariesTab, LogTab,
+    set_unseen_predicate,
 )
 from ui.detail_tabs import DetailTabManager
 from ui.session_log import SessionLog
@@ -181,11 +182,27 @@ class GameScreen(Screen):
         ("alt+left",   "back_detail",    "Back"),
     ]
 
+    # Map from a left/right tab pane id to the entity kinds whose discoveries
+    # should highlight that tab's title and entries.
+    _TAB_DISCOVERY_KINDS = {
+        "locations": ("world", "system", "galaxy"),
+        "entities":  ("civ",),
+        "universe":  ("world", "civ", "mortal", "pop", "species"),
+    }
+
     def __init__(self, state: SimulationState):
         super().__init__()
         self._state = state
         self._briefing_open: bool = True
         self._detail_mgr: DetailTabManager | None = None
+        # Newly-discovered entity IDs since the last time their tab was accessed.
+        self._unseen_by_kind: dict[str, set[str]] = {
+            "world": set(), "system": set(), "galaxy": set(),
+            "civ": set(), "mortal": set(), "pop": set(), "species": set(),
+        }
+        # Tab pane IDs whose unseen sets should be cleared on the next refresh
+        # (set when the user activates the tab; the active render still shows gold).
+        self._pending_clear: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -246,10 +263,19 @@ class GameScreen(Screen):
     def _refresh_all(self) -> None:
         """Re-render every mounted tab body from the current state."""
         state = self._state
+        # Apply any pending discovery clears from tab activations since last refresh.
+        for pane_id in self._pending_clear:
+            for kind in self._TAB_DISCOVERY_KINDS.get(pane_id, ()):
+                self._unseen_by_kind[kind].clear()
+        self._pending_clear.clear()
+        # Install the predicate widgets._click_link consults for gold highlighting.
+        set_unseen_predicate(
+            lambda kind, eid: eid in self._unseen_by_kind.get(kind, ())
+        )
         self.app.sub_title = (
             f"{state.universe.name}  ·  Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}"
         )
-        self.query_one(StatusPanel).refresh_state(state)
+        self.query_one(StatusPanel).refresh_state(state, self.app.loop)
         self.query_one(LocationsTab).refresh_state(state)
         self.query_one(EntitiesTab).refresh_state(state)
         self.query_one(ActionsTab).refresh_state(state)
@@ -261,6 +287,56 @@ class GameScreen(Screen):
         self.query_one(LuminariesTab).refresh_state(state)
         if self._detail_mgr is not None:
             self._detail_mgr.refresh_all(state)
+        self._refresh_tab_discovery_styles()
+
+    def _refresh_tab_discovery_styles(self) -> None:
+        """Toggle the `discovered` class on tabs whose unseen sets are non-empty."""
+        left  = self.query_one("#left-tabs", TabbedContent)
+        right = self.query_one("#right-tabs", TabbedContent)
+        for pane_id, kinds in self._TAB_DISCOVERY_KINDS.items():
+            has = any(self._unseen_by_kind.get(k) for k in kinds)
+            tabbed = right if pane_id == "universe" else left
+            try:
+                tab = tabbed.get_tab(pane_id)
+            except Exception:
+                continue
+            if has:
+                tab.add_class("discovered")
+            else:
+                tab.remove_class("discovered")
+
+    @on(TabbedContent.TabActivated)
+    def _on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        # Schedule discovery clear on next refresh; this render still shows gold.
+        pane_id = event.pane.id if event.pane else None
+        if pane_id in self._TAB_DISCOVERY_KINDS:
+            self._pending_clear.add(pane_id)
+            try:
+                event.tab.remove_class("discovered")
+            except Exception:
+                pass
+
+    def _record_discoveries(self, before_ids: dict[str, set[str]]) -> None:
+        """Diff in-Window IDs before/after a tick to populate unseen sets."""
+        after = self._current_window_ids()
+        for kind, ids_after in after.items():
+            new_ids = ids_after - before_ids.get(kind, set())
+            if new_ids:
+                self._unseen_by_kind[kind] |= new_ids
+
+    def _current_window_ids(self) -> dict[str, set[str]]:
+        s = self._state
+        return {
+            "world":  {eid for eid, w in s.worlds.items() if is_in_window(w)},
+            "system": {eid for eid, sy in s.systems.items() if is_in_window(sy)},
+            "galaxy": {eid for eid, g in s.galaxies.items() if is_in_window(g)},
+            "civ":    {eid for eid, c in s.civilizations.items() if is_in_window(c)},
+            "mortal": {eid for eid, m in s.mortals.items()
+                       if m.status != MortalStatus.DECEASED
+                       and (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR)},
+            "pop":     {eid for eid, p in s.pops.items() if is_in_window(p)},
+            "species": {eid for eid, sp in s.species.items() if is_in_window(sp)},
+        }
 
     # ── Detail-tab integration ────────────────
 
@@ -409,10 +485,12 @@ class GameScreen(Screen):
     def _advance_tick_work(self) -> None:
         state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
+        before_ids = self._current_window_ids()
         self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]", "other")
         new_state, result = loop.advance(state)
         self._state = new_state
         self._last_result = result
+        self.app.call_from_thread(self._record_discoveries, before_ids)
         categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE)
         self._log.write_tick(result)
         self.app.call_from_thread(self._feed_categorized, categorized)

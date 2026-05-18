@@ -19,7 +19,7 @@ from display import (
     _short_tag, _trait_color, _format_beliefs_markup, _format_culture_markup,
     _color_short_tag,
 )
-from ui.widgets import _click_link
+from ui.widgets import _click_link, _maybe_gold
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
@@ -245,13 +245,18 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         pe = "[/]" if p_oow else ""
         class_label = pop.stratum.title() if pop.stratum else "Pop"
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-        sp_note = f"  ({sp_obj.name})" if sp_obj else ""
+        pop_stratum_md = _maybe_gold("pop", str(pid), class_label)
+        if sp_obj:
+            sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+            pop_label = f"{pop_stratum_md}  ({sp_md})"
+        else:
+            pop_label = pop_stratum_md
         top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
         belief_str = "  ".join(
             _color_short_tag(t, v) for t, v in top
         ) or "[#5a7090]none[/]"
         vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-        a(f"  {pm}↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}{vis}{pe}")
+        a(f"  {pm}↳ {pop_label}  sz:{pop.size_magnitude}{vis}{pe}")
         a(f"      {pm}{belief_str}{pe}")
     if not any_p:
         a("  [#5a7090](no pops visible in Window)[/]")
@@ -310,7 +315,8 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
     if sp_obj:
-        a(f"  species: [#3a6a8a]{_e(sp_obj.name)}[/]")
+        sp_md = _maybe_gold("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
+        a(f"  species: {sp_md}")
 
     loc = state.locations.get(str(m.current_location)) if m.current_location else None
     if loc:
@@ -331,8 +337,12 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     if pop:
         stratum = pop.stratum.title() if pop.stratum else "Pop"
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-        sp_note = f" ({sp_obj.name})" if sp_obj else ""
-        a(f"  pop:      [#3a6a8a]{_e(stratum)}[/]{_e(sp_note)}  sz:{pop.size_magnitude}")
+        pop_md = _maybe_gold("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
+        if sp_obj:
+            sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+            a(f"  pop:      {pop_md} ({sp_md})  sz:{pop.size_magnitude}")
+        else:
+            a(f"  pop:      {pop_md}  sz:{pop.size_magnitude}")
 
     if m.status_tags or m.personal_tags or m.belief_tags or m.culture_tags:
         a("")

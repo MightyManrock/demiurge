@@ -41,6 +41,24 @@ if TYPE_CHECKING:
     from utilities.imago_registry import ImagoNode
 
 
+# Gold highlight for newly-discovered entities. The GameScreen swaps in a
+# concrete callable each refresh; default returns False.
+_is_unseen: "callable[[str, str], bool]" = lambda kind, eid: False
+
+
+def set_unseen_predicate(fn) -> None:
+    """Install the predicate used by `_click_link` to gold-highlight new IDs."""
+    global _is_unseen
+    _is_unseen = fn
+
+
+def _maybe_gold(kind: str, eid: str, label_markup: str) -> str:
+    """Wrap label in gold if this entity ID is currently flagged as unseen."""
+    if _is_unseen(kind, eid):
+        return f"[#e8c060]{label_markup}[/]"
+    return label_markup
+
+
 def _click_link(kind: str, eid: str, label_markup: str) -> str:
     """
     Wrap `label_markup` in a Textual click-action span that opens a detail tab
@@ -51,7 +69,8 @@ def _click_link(kind: str, eid: str, label_markup: str) -> str:
     markup. UUIDs and fixed-kind strings are safe to inline (only hex+dashes,
     no quotes).
     """
-    return f"[@click=screen.open_detail_by_id('{kind}','{eid}')]{label_markup}[/]"
+    inner = _maybe_gold(kind, eid, label_markup)
+    return f"[@click=screen.open_detail_by_id('{kind}','{eid}')]{inner}[/]"
 
 
 # ─────────────────────────────────────────
@@ -255,7 +274,26 @@ class ImagoRevealCell(Widget):
 # Status panel
 # ─────────────────────────────────────────
 
-def _render_status(state: "SimulationState") -> Text:
+def _committed_essence(state: "SimulationState", loop) -> float:
+    """Sum of Essence costs from queued + ongoing actions."""
+    if loop is None:
+        return 0.0
+    library = loop._action_library
+    key_by_id = loop._action_key_by_id
+    total = 0.0
+    for ai in state.action_queue:
+        key = key_by_id.get(str(ai.action_definition_id))
+        defn = library.get(key) if key else None
+        if defn and defn.essence_cost > 0:
+            total += defn.essence_cost
+    for oa in state.ongoing_actions.values():
+        defn = library.get(oa.action_key)
+        if defn and defn.essence_cost > 0:
+            total += defn.essence_cost
+    return total
+
+
+def _render_status(state: "SimulationState", loop=None) -> Text:
     """Build a Rich Text object for the status panel."""
     lines: list[str] = []
     a = lines.append
@@ -270,10 +308,22 @@ def _render_status(state: "SimulationState") -> Text:
     fp = state.demiurge.footprint
     ci = es.concealment_integrity
     ci_col = "#50b870" if ci > 0.6 else ("#c09030" if ci > 0.3 else "#b04050")
+    committed = _committed_essence(state, loop)
     a("[bold #4a80b0]ESSENCE[/]")
     a(f"  actual [bold]{es.actual:.2f}[/]  apparent [bold]{es.apparent:.2f}[/]")
+    if committed > 0.0:
+        free = max(0.0, es.actual - committed)
+        a(f"  committed [#c09030]{committed:.2f}[/]  free [bold]{free:.2f}[/]")
     a(f"  concealment [{ci_col}]{ci:.2f}[/]")
     a("")
+
+    # Affiliated domains
+    aff = state.demiurge.affiliated_domains
+    if aff:
+        a("[bold #4a80b0]AFFINITIES[/]")
+        parts = [f"[#a0c0e0]{_e(_short_tag(t))}[/]" for t in aff]
+        a(f"  {'  '.join(parts)}")
+        a("")
 
     # Footprint
     a("[bold #4a80b0]FOOTPRINT[/]")
@@ -297,29 +347,6 @@ def _render_status(state: "SimulationState") -> Text:
           f"att[{ac}]{att:.2f}[/]")
     a("")
 
-    # Worlds
-    a("[bold #4a80b0]WORLDS[/]")
-    cond_colors = {
-        "thriving": "#50b870",
-        "stable":   "#3a6a8a",
-        "stressed": "#c09030",
-        "dying":    "#b04050",
-        "barren":   "#604040",
-    }
-    for wid, world in state.worlds.items():
-        if not is_in_window(world):
-            continue
-        cc = cond_colors.get(world.condition.value, "#707070")
-        vis_tag = f" [#5a7090]\\[vis:{world.visibility:.2f}][/]" if not world.pinned else ""
-        a(f"  [{cc}]●[/] [bold]{_e(world.name)}[/] [{cc}]{_e(world.condition.value)}[/]{vis_tag}")
-        for cid in world.civilization_ids:
-            civ = state.civilizations.get(str(cid))
-            if civ and is_in_window(civ):
-                h = civ.health
-                a(f"    [#2a4060]└[/] [#8090a0]{_e(civ.name)}[/]")
-                a(f"      [#2a4060]S{h.stability:.1f} P{h.prosperity:.1f} C{h.cohesion:.1f}[/]")
-    a("")
-
     # At-a-glance reminder; full list lives on the Actions tab.
     q_count = len(state.action_queue)
     o_count = len(state.ongoing_actions)
@@ -331,13 +358,21 @@ def _render_status(state: "SimulationState") -> Text:
 
 
 class StatusPanel(Static):
-    def refresh_state(self, state: "SimulationState") -> None:
-        self.update(_render_status(state))
+    def refresh_state(self, state: "SimulationState", loop=None) -> None:
+        self.update(_render_status(state, loop))
 
 
 # ─────────────────────────────────────────
 # Tab body widgets (Phase 1 of UI overhaul)
 # ─────────────────────────────────────────
+
+class TabBodyStatic(Static):
+    """Static with link styling disabled so inner markup colors (e.g. the
+    discovery-gold highlight) survive — Textual's default `auto_links` layers
+    `link-color`/`link-style` over `@click=` spans, overriding inner color and
+    forcing an underline. Clicks still dispatch from `style.meta`."""
+    auto_links = False
+
 
 class ContentTab(VerticalScroll):
     """Base class for scrollable tab bodies; subclasses implement _render()."""
@@ -347,7 +382,7 @@ class ContentTab(VerticalScroll):
         # word-wrap calculation matches the visible area instead of the
         # renderable's natural width. Without this, long colored markup lines
         # overshoot the right edge before wrapping.
-        yield Static(classes="tab-body", expand=True)
+        yield TabBodyStatic(classes="tab-body", expand=True)
 
     def _render_body(self, state: "SimulationState") -> "Text | str":
         raise NotImplementedError
@@ -545,6 +580,9 @@ class UniverseTab(ContentTab):
                     pop = state.pops.get(str(pid))
                     if not pop:
                         continue
+                    pop_loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+                    if not pop_loc or str(pop_loc.parent_id) != str(wid):
+                        continue
                     p_oow = not is_in_window(pop)
                     if p_oow and not dev:
                         continue
@@ -552,13 +590,18 @@ class UniverseTab(ContentTab):
                     pe = "[/]" if (w_oow or c_oow or p_oow) else ""
                     class_label = pop.stratum.title() if pop.stratum else "Pop"
                     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-                    sp_note = f"  ({sp_obj.name})" if sp_obj else ""
+                    pop_stratum_md = _maybe_gold("pop", str(pid), class_label)
+                    if sp_obj:
+                        sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+                        pop_label = f"{pop_stratum_md}  ({sp_md})"
+                    else:
+                        pop_label = pop_stratum_md
                     top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                     belief_str = "  ".join(
                         _color_short_tag(t, v) for t, v in top_beliefs
                     ) or "[#5a7090]none[/]"
                     vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-                    a(f"{pm}       ↳ {class_label}{_e(sp_note)}  sz:{pop.size_magnitude}  "
+                    a(f"{pm}       ↳ {pop_label}  sz:{pop.size_magnitude}  "
                       f"{belief_str}{vn}{pe}")
         if not any_w:
             a("[#5a7090](no worlds in Window)[/]")
@@ -580,7 +623,11 @@ class UniverseTab(ContentTab):
             if mortal.bio_age != mortal.chrono_age:
                 age_str += f"(bio:{mortal.bio_age:.0f})"
             sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
-            sp_str = f"  \\[{_e(sp_obj.name)}]" if sp_obj else ""
+            if sp_obj:
+                sp_md = _maybe_gold("species", str(sp_obj.id), _e(sp_obj.name))
+                sp_str = f"  \\[{sp_md}]"
+            else:
+                sp_str = ""
             vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
             mortal_link = _click_link("mortal", str(mid), f"[bold]{_e(mortal.name)}[/]")
             a(f"{mm}● {mortal_link} \\[{role_str}]  "
