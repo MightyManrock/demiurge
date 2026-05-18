@@ -54,6 +54,7 @@ from ui.widgets import (
     StatusPanel, LoopingListView,
     LocationsTab, EntitiesTab, ActionsTab,
     BriefingTab, UniverseTab, LuminariesTab, LogTab,
+    DivineWisdomTab,
     set_unseen_predicate,
 )
 from ui.detail_tabs import DetailTabManager
@@ -175,7 +176,8 @@ class GameScreen(Screen):
         ("ctrl+1", "right_tab('briefing')",   ""),
         ("ctrl+2", "right_tab('universe')",   ""),
         ("ctrl+3", "right_tab('luminaries')", ""),
-        ("ctrl+4", "right_tab('log')",        ""),
+        ("ctrl+4", "right_tab('divine_wisdom')", ""),
+        ("ctrl+5", "right_tab('log')",        ""),
         # Detail-tab controls (Phase 2).
         ("escape",     "close_detail",   "Close"),
         ("ctrl+p",     "pin_detail",     "Pin"),
@@ -223,6 +225,8 @@ class GameScreen(Screen):
                     yield UniverseTab()
                 with TabPane("Luminaries", id="luminaries"):
                     yield LuminariesTab()
+                with TabPane("Divine Wisdom", id="divine_wisdom"):
+                    yield DivineWisdomTab()
                 with TabPane("Log", id="log"):
                     yield LogTab()
         yield Footer()
@@ -285,6 +289,7 @@ class GameScreen(Screen):
                 briefing.first().refresh_state(state)
         self.query_one(UniverseTab).refresh_state(state)
         self.query_one(LuminariesTab).refresh_state(state)
+        self.query_one(DivineWisdomTab).refresh_state(state)
         if self._detail_mgr is not None:
             self._detail_mgr.refresh_all(state)
         self._refresh_tab_discovery_styles()
@@ -354,6 +359,22 @@ class GameScreen(Screen):
     def action_open_detail_by_id(self, kind: str, entity_id: str) -> None:
         """Click-action target — fires from `[@click=...]` markup in tab bodies."""
         self.open_detail_by_id(kind, entity_id)
+
+    def action_open_divine_wisdom(self, domain_tag: str = "") -> None:
+        """Switch to the Divine Wisdom tab and (optionally) jump to a Domain tree."""
+        right = self.query_one("#right-tabs", TabbedContent)
+        right.active = "divine_wisdom"
+        tab = self.query_one(DivineWisdomTab)
+        if domain_tag:
+            tab.show_domain(domain_tag)
+        else:
+            tab.show_list()
+
+    def action_open_imago_node(self, node_id: str) -> None:
+        """Switch to the Divine Wisdom tab and show a specific Imago node."""
+        right = self.query_one("#right-tabs", TabbedContent)
+        right.active = "divine_wisdom"
+        self.query_one(DivineWisdomTab).show_node(node_id)
 
     def _lookup_entity_name(self, kind: str, entity_id: str) -> str:
         s = self._state

@@ -213,9 +213,12 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
 
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
-        a("")
-        origin_link = _location_link(state, civ.origin_location_id, f"[#3a6a8a]{_e(origin.name)}[/]")
-        a(f"  origin: {origin_link}")
+        oow = not is_in_window(origin)
+        if not oow or display.DEV_MODE:
+            origin_link = _location_link(state, civ.origin_location_id, f"[#3a6a8a]{_e(origin.name)}[/]")
+            line = f"origin: {origin_link}"
+            a("")
+            a(f"  [dim]{line}[/dim]" if oow else f"  {line}")
 
     if civ.dominant_beliefs:
         a("")

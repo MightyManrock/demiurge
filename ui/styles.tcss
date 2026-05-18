@@ -81,16 +81,20 @@ TabPane {
    the parent width with `width: 1fr` so Rich's wrap calc matches the
    visible area. */
 
+.tab-body, #status-panel {
+    /* Hover affordance for clickable entity names. The base link styling is
+       suppressed in TabBodyStatic / StatusPanel so inner markup colors
+       (gold highlights, value colors) show through; only the hover backdrop
+       remains. */
+    link-background-hover: $highlight;
+    link-color-hover: #e0eaf8;
+    link-style-hover: not underline;
+}
+
 .tab-body {
     width: 1fr;
     padding: 0 4 1 1;
     color: $text;
-    /* Hover affordance for clickable entity names. The base link styling is
-       suppressed in TabBodyStatic so inner markup colors (gold highlights)
-       show through; only the hover backdrop remains. */
-    link-background-hover: $highlight;
-    link-color-hover: #e0eaf8;
-    link-style-hover: not underline;
 }
 
 ContentTab {

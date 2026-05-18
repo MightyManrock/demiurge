@@ -150,28 +150,59 @@ def _format_culture(tags: "dict[str, float]") -> str:
     )
 
 
-def _format_beliefs_markup(beliefs: "dict[str, float]", scale: float = 1.0) -> str:
+def _maybe_domain_link(tag: str, markup: str) -> str:
+    """If `tag` is a Domain tag, wrap `markup` in a click action that opens the
+    Divine Wisdom tab on that Domain's tree. Non-Domain tags pass through."""
+    if tag.startswith("domain:"):
+        return f"[@click=screen.open_divine_wisdom('{tag}')]{markup}[/]"
+    return markup
+
+
+def _format_beliefs_markup(
+    beliefs: "dict[str, float]", scale: float = 1.0, top_n: "int | None" = None,
+) -> str:
     """Like `_format_beliefs` but each tag is wrapped in a `[#color]…[/]` span
     keyed off its value. Output is Rich markup; feed through `Text.from_markup`
-    and do NOT pass through `_e()` (it would escape the color brackets)."""
+    and do NOT pass through `_e()` (it would escape the color brackets).
+
+    If `top_n` is set, only the highest-valued entries are rendered and any
+    remainder is summarized as `(+N others)`.
+    """
     if not beliefs:
         return ""
+    sorted_items = sorted(beliefs.items(), key=lambda kv: -kv[1])
+    shown = sorted_items if top_n is None else sorted_items[:top_n]
     parts = []
-    for tag, v in sorted(beliefs.items(), key=lambda kv: -kv[1]):
+    for tag, v in shown:
         color = _trait_color(v, scale=scale)
-        parts.append(f"[{color}]{_short_tag(tag)}({v:.2f})[/]")
-    return "  ".join(parts)
+        chip = f"[{color}]{_short_tag(tag)}({v:.2f})[/]"
+        parts.append(_maybe_domain_link(tag, chip))
+    rendered = "  ".join(parts)
+    extra = len(sorted_items) - len(shown)
+    if extra > 0:
+        rendered += f"  [#5a7090](+{extra} others)[/]"
+    return rendered
 
 
-def _format_culture_markup(tags: "dict[str, float]", scale: float = 1.0) -> str:
-    """Markup variant of `_format_culture` — colors per strength, value appended."""
+def _format_culture_markup(
+    tags: "dict[str, float]", scale: float = 1.0, top_n: "int | None" = None,
+) -> str:
+    """Markup variant of `_format_culture` — colors per strength, value appended.
+    Optional `top_n` truncates with a `(+N others)` summary suffix."""
     if not tags:
         return ""
+    sorted_items = sorted(tags.items(), key=lambda kv: -kv[1])
+    shown = sorted_items if top_n is None else sorted_items[:top_n]
     parts = []
-    for tag, v in sorted(tags.items(), key=lambda kv: -kv[1]):
+    for tag, v in shown:
         color = _trait_color(v, scale=scale)
-        parts.append(f"[{color}]{_short_tag(tag)}({v:.2f})[/]")
-    return ", ".join(parts)
+        chip = f"[{color}]{_short_tag(tag)}({v:.2f})[/]"
+        parts.append(_maybe_domain_link(tag, chip))
+    rendered = ", ".join(parts)
+    extra = len(sorted_items) - len(shown)
+    if extra > 0:
+        rendered += f"  [#5a7090](+{extra} others)[/]"
+    return rendered
 
 
 def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: float = 1.0) -> str:
@@ -179,7 +210,7 @@ def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: 
     color = _trait_color(value, scale=scale)
     label = _short_tag(tag)
     suffix = f"({value:.2f})" if with_value else ""
-    return f"[{color}]{label}{suffix}[/]"
+    return _maybe_domain_link(tag, f"[{color}]{label}{suffix}[/]")
 
 
 def _prominence_label(mortal) -> str:

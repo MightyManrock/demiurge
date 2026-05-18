@@ -321,7 +321,10 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     aff = state.demiurge.affiliated_domains
     if aff:
         a("[bold #4a80b0]AFFINITIES[/]")
-        parts = [f"[#a0c0e0]{_e(_short_tag(t))}[/]" for t in aff]
+        parts = [
+            f"[@click=screen.open_divine_wisdom('{t}')][#a0c0e0]{_e(_short_tag(t))}[/][/]"
+            for t in aff
+        ]
         a(f"  {'  '.join(parts)}")
         a("")
 
@@ -358,6 +361,13 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
 
 
 class StatusPanel(Static):
+    """Like TabBodyStatic, suppresses base link styling so clickable Domain
+    tags in the Affinities row aren't underlined or recolored."""
+
+    @property
+    def link_style(self):  # type: ignore[override]
+        return None
+
     def refresh_state(self, state: "SimulationState", loop=None) -> None:
         self.update(_render_status(state, loop))
 
@@ -559,7 +569,7 @@ class UniverseTab(ContentTab):
             wm = "[dim]" if w_oow else ""
             we = "[/]" if w_oow else ""
             vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
-            domain_str = _format_beliefs_markup(world.domain_expression) or "[#5a7090]none[/]"
+            domain_str = _format_beliefs_markup(world.domain_expression, top_n=4) or "[#5a7090]none[/]"
             world_link = _click_link("world", str(wid), f"[bold]{_e(world.name)}[/]")
             a(f"{wm}● {world_link}  "
               f"\\[{_e(world.condition.value)}]{vis_note}{we}")
@@ -580,9 +590,9 @@ class UniverseTab(ContentTab):
                   f"\\[{_e(civ.scale.value)}]{civ_vis}  "
                   f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
                 if civ.dominant_beliefs:
-                    a(f"{cm}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs)}{ce}")
+                    a(f"{cm}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs, top_n=4)}{ce}")
                 if civ.culture_tags:
-                    a(f"{cm}       culture: {_format_culture_markup(civ.culture_tags)}{ce}")
+                    a(f"{cm}       culture: {_format_culture_markup(civ.culture_tags, top_n=4)}{ce}")
                 for pid in civ.pop_ids:
                     pop = state.pops.get(str(pid))
                     if not pop:
@@ -603,10 +613,10 @@ class UniverseTab(ContentTab):
                         pop_label = f"{pop_stratum_md}  ({sp_md})"
                     else:
                         pop_label = pop_stratum_md
-                    top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
-                    belief_str = "  ".join(
-                        _color_short_tag(t, v) for t, v in top_beliefs
-                    ) or "[#5a7090]none[/]"
+                    belief_str = (
+                        _format_beliefs_markup(pop.dominant_beliefs, top_n=4)
+                        or "[#5a7090]none[/]"
+                    )
                     vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                     a(f"{pm}       ↳ {pop_label}  sz:{pop.size_magnitude}  "
                       f"{belief_str}{vn}{pe}")
@@ -691,6 +701,214 @@ class LuminariesTab(ContentTab):
         else:
             a("  [#5a7090](none)[/]")
 
+        return Text.from_markup("\n".join(lines))
+
+
+# ─────────────────────────────────────────
+# Divine Wisdom tab — Domain list / Imago tree / Imago node detail
+# ─────────────────────────────────────────
+
+class DivineWisdomTab(ContentTab):
+    """Right-panel tab. Three navigable views, switched by clicking entries:
+
+        list  — all 16 Domains, with revelation/cap per Domain.
+        tree  — one Domain's Imago tree, with cost or ✓ Revealed marker per node.
+        node  — full description + mechanics for one Imago node.
+
+    The tab reverts to `list` automatically when the simulation tick advances.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._state: "SimulationState | None" = None
+        self._mode: str = "list"
+        self._domain_tag: str | None = None
+        self._node_id: str | None = None
+        self._last_tick: int = -1
+
+    # Public navigation methods invoked from GameScreen click handlers.
+
+    def show_list(self) -> None:
+        self._mode = "list"
+        self._refresh_self()
+
+    def show_domain(self, domain_tag: str) -> None:
+        self._mode = "tree"
+        self._domain_tag = domain_tag
+        self._refresh_self()
+
+    def show_node(self, node_id: str) -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(node_id)
+        if node is None:
+            return
+        self._mode = "node"
+        self._domain_tag = f"domain:{node.tree}"
+        self._node_id = node_id
+        self._refresh_self()
+
+    def _refresh_self(self) -> None:
+        if self._state is not None:
+            self.query_one(Static).update(self._render_body(self._state))
+
+    def refresh_state(self, state: "SimulationState") -> None:
+        self._state = state
+        super().refresh_state(state)
+
+    def _render_body(self, state: "SimulationState") -> Text:
+        # Tick advance → revert to list view.
+        if state.tick_number != self._last_tick:
+            self._last_tick = state.tick_number
+            self._mode = "list"
+            self._domain_tag = None
+            self._node_id = None
+        if self._mode == "tree" and self._domain_tag:
+            return self._render_tree(state, self._domain_tag)
+        if self._mode == "node" and self._node_id:
+            return self._render_node(state, self._node_id)
+        return self._render_list(state)
+
+    # ── List view ─────────────────────────────────────────────────
+
+    def _render_list(self, state: "SimulationState") -> Text:
+        from logic.tick_logic import _compute_revelation_cap
+        from utilities.domain_registry import get_registry as get_domain_registry
+        dreg = get_domain_registry()
+        ireg = get_imago_registry()
+        unlocked = set(state.demiurge.unlocked_imagines)
+
+        lines: list[str] = []
+        a = lines.append
+        a("[bold #4a80b0]━━ DIVINE WISDOM ━━[/]")
+        a("[#5a7090]Conceptual frameworks (Imagines) revealed and yet to be revealed,[/]")
+        a("[#5a7090]organized by Domain. Click a Domain to explore its tree.[/]")
+        a("")
+        a(f"[#5a7090]revealed Imagines:[/] [bold]{len(unlocked)}[/]   "
+          f"[#5a7090]affiliated domains:[/] "
+          + ", ".join(_short_tag(t) for t in state.demiurge.affiliated_domains))
+        a("")
+
+        for tag in dreg.all_tags:
+            tree = tag.split(":", 1)[1]
+            tree_nodes = ireg.nodes_for_tree(tree)
+            n_revealed = sum(1 for n in tree_nodes if n.node_id in unlocked)
+            n_total = len(tree_nodes)
+            pool = state.demiurge.revelation_pools.get(tag, 0.0)
+            cap = _compute_revelation_cap(state, tag)
+            if cap > 0.0:
+                pool_str = f"[#a0c0e0]{pool:.1f}[/] / [#5a7090]{cap:.0f}[/]"
+            else:
+                pool_str = "[#5a7090](fully revealed)[/]"
+            label = _short_tag(tag)
+            label_md = f"[@click=screen.open_divine_wisdom('{tag}')][bold #c0ccdc]{_e(label)}[/][/]"
+            counts = f"[#5a7090]{n_revealed}/{n_total} revealed[/]"
+            a(f"  ● {label_md}  {counts}  {pool_str}")
+        return Text.from_markup("\n".join(lines))
+
+    # ── Tree view ─────────────────────────────────────────────────
+
+    def _render_tree(self, state: "SimulationState", domain_tag: str) -> Text:
+        from logic.tick_logic import _compute_revelation_cap, _revelation_adjusted_cost
+        ireg = get_imago_registry()
+        tree = domain_tag.split(":", 1)[1]
+        nodes = ireg.nodes_for_tree(tree)
+        unlocked = set(state.demiurge.unlocked_imagines)
+        rev_count = state.demiurge.revealed_imagines
+        pool = state.demiurge.revelation_pools.get(domain_tag, 0.0)
+        cap = _compute_revelation_cap(state, domain_tag)
+
+        lines: list[str] = []
+        a = lines.append
+        crumb_home = "[@click=screen.open_divine_wisdom('')][#5a7090]Divine Wisdom[/][/]"
+        a(f"{crumb_home}  [#3a4a60]›[/]  [bold #c0ccdc]{_e(_short_tag(domain_tag))}[/]")
+        a("")
+        a(f"[bold #4a80b0]━━ {_e(_short_tag(domain_tag).upper())} — IMAGO TREE ━━[/]")
+        a("")
+        if cap > 0.0:
+            a(f"  revelation: [#a0c0e0]{pool:.1f}[/] / [#5a7090]{cap:.0f}[/]  "
+              f"[#5a7090]({len(unlocked & {n.node_id for n in nodes})}/{len(nodes)} revealed)[/]")
+        else:
+            a(f"  [#5a7090](every Imago in this tree is already revealed)[/]")
+        a("")
+
+        # Group by tier: T1, T2, T3, T4.
+        for tier in (1, 2, 3, 4):
+            tier_nodes = [n for n in nodes if n.tier == tier]
+            if not tier_nodes:
+                continue
+            a(f"[#5a7090]── Tier {tier} ──[/]")
+            for node in tier_nodes:
+                is_unlocked = node.node_id in unlocked
+                prereqs_met = ireg.is_unlockable(node.node_id, unlocked)
+                cost = _revelation_adjusted_cost(node.tier, rev_count)
+                if is_unlocked:
+                    status = "[#50b870]✓ revealed[/]"
+                elif not prereqs_met:
+                    status = "[#5a7090](prereqs unmet)[/]"
+                elif pool >= cost:
+                    status = f"[#e8c060]{cost} Rev — affordable[/]"
+                else:
+                    status = f"[#5a7090]{cost} Rev[/]"
+                name_md = (
+                    f"[@click=screen.open_imago_node('{node.node_id}')]"
+                    f"[bold #c0ccdc]{_e(node.name)}[/][/]"
+                )
+                a(f"  • {name_md}  {status}")
+                if node.tooltip_blurb:
+                    a(f"      [#7090b0]{_e(node.tooltip_blurb)}[/]")
+            a("")
+        return Text.from_markup("\n".join(lines))
+
+    # ── Node view ─────────────────────────────────────────────────
+
+    def _render_node(self, state: "SimulationState", node_id: str) -> Text:
+        from logic.tick_logic import _revelation_adjusted_cost
+        ireg = get_imago_registry()
+        node = ireg.get_node(node_id)
+        if node is None:
+            return Text.from_markup("[#b04050]Imago not found.[/]")
+        domain_tag = f"domain:{node.tree}"
+        unlocked = set(state.demiurge.unlocked_imagines)
+        is_unlocked = node.node_id in unlocked
+        prereqs_met = ireg.is_unlockable(node.node_id, unlocked)
+        rev_count = state.demiurge.revealed_imagines
+        cost = _revelation_adjusted_cost(node.tier, rev_count)
+        pool = state.demiurge.revelation_pools.get(domain_tag, 0.0)
+
+        lines: list[str] = []
+        a = lines.append
+        domain_short = _short_tag(domain_tag)
+        crumb_home = "[@click=screen.open_divine_wisdom('')][#5a7090]Divine Wisdom[/][/]"
+        crumb_dom = (
+            f"[@click=screen.open_divine_wisdom('{domain_tag}')]"
+            f"[#5a7090]{_e(domain_short)}[/][/]"
+        )
+        a(f"{crumb_home}  [#3a4a60]›[/]  {crumb_dom}  [#3a4a60]›[/]  "
+          f"[bold #c0ccdc]{_e(node.name)}[/]")
+        a("")
+        a(f"[bold #4a80b0]IMAGO: {_e(node.name)}[/]")
+        a(f"  [#5a7090]Tier {node.tier}[/]  [#3a4a60]·[/]  "
+          f"[#5a7090]{_e(domain_short)} tree[/]")
+        a("")
+        if node.tooltip_blurb:
+            a(f"  [#a0b8d0]\"{_e(node.tooltip_blurb)}\"[/]")
+            a("")
+        if is_unlocked:
+            a(f"  [#50b870]✓ Already revealed[/]")
+        elif not prereqs_met:
+            a(f"  [#5a7090]Prerequisites unmet.[/]")
+        elif pool >= cost:
+            a(f"  [#e8c060]Affordable:[/] {cost} Rev (pool: {pool:.1f})")
+        else:
+            a(f"  [#5a7090]Cost:[/] {cost} Rev (pool: {pool:.1f})")
+        a("")
+        a("[bold #4a80b0]DESCRIPTION[/]")
+        a(f"  [#c0ccdc]{_e(node.description)}[/]")
+        a("")
+        if node.mechanics:
+            a("[bold #4a80b0]MECHANICS[/]")
+            for tag, mod in sorted(node.mechanics.items(), key=lambda kv: -kv[1]):
+                a(f"  {_color_short_tag(tag, mod)}")
         return Text.from_markup("\n".join(lines))
 
 
