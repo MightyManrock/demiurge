@@ -2536,6 +2536,27 @@ class TickLoop:
                 lid for lid, loc in state.locations.items() if is_in_window(loc)
             }
 
+            # First-contact carve-out: a GALAXY-scope scry on a galaxy whose
+            # interior is wholly outside the Window bypasses the spatial-factor
+            # falloff for systems inside it and applies a discovery bonus, so
+            # an unexplored galaxy doesn't become a dead zone. (Without this,
+            # _effective_pos's parent-scaling makes intra-galaxy systems sit
+            # ~1000× their offset away from the focus point.)
+            _uncharted_galaxy_id: Optional[str] = None
+            if scope == ScryScope.GALAXY and instance.target_id:
+                tgt_id = str(instance.target_id)
+                tgt_loc = state.locations.get(tgt_id)
+                if tgt_loc is not None and tgt_loc.location_type == "galaxy":
+                    has_known_child = any(
+                        loc.location_type == "system"
+                        and loc.parent_id is not None
+                        and str(loc.parent_id) == tgt_id
+                        and lid in eligible_locs
+                        for lid, loc in state.locations.items()
+                    )
+                    if not has_known_child:
+                        _uncharted_galaxy_id = tgt_id
+
             # Build PopLocation → parent world index for Pop discovery gating
             _pop_loc_to_world: dict[str, str] = {}
             for wid, world in state.worlds.items():
@@ -2596,6 +2617,17 @@ class TickLoop:
                     delta = abs(depth - anchor)
                     base = _depth_chance(delta)
                     sf = _spatial_factor(lid)
+                    # Uncharted-galaxy carve-out: systems inside the targeted
+                    # galaxy ignore the spatial falloff and get a bonus.
+                    in_uncharted = (
+                        _uncharted_galaxy_id is not None
+                        and loc.location_type == "system"
+                        and loc.parent_id is not None
+                        and str(loc.parent_id) == _uncharted_galaxy_id
+                    )
+                    if in_uncharted:
+                        sf = 1.0
+                        base = min(0.95, base + 0.25)
                     expr_tags = list(getattr(loc, "domain_expression", {}).keys())
                     p = max(0.0, min(1.0, (base + _domain_bonus(expr_tags + loc.traits, base)) * sf))
                     if rng.random() < p:
