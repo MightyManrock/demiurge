@@ -288,8 +288,13 @@ class GameScreen(Screen):
         return eid[:8]
 
     def action_close_detail(self) -> None:
-        if self._detail_mgr is None or not self._detail_mgr.close_focused():
+        # Close a focused detail tab, or the Briefing tab if it's the one active.
+        right = self.query_one("#right-tabs", TabbedContent)
+        if right.active == "briefing" and self._briefing_open:
+            self._close_briefing()
             return
+        if self._detail_mgr is not None:
+            self._detail_mgr.close_focused()
 
     def action_pin_detail(self) -> None:
         if self._detail_mgr is None:
@@ -411,8 +416,9 @@ class GameScreen(Screen):
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
         # After each tick, surface the freshly-written log so the player sees
-        # the tick result without having to switch tabs manually.
-        self.app.call_from_thread(self._activate_log_tab)
+        # the tick result without having to switch tabs manually, and snap the
+        # left panel to Status for an at-a-glance numbers check.
+        self.app.call_from_thread(self._activate_post_tick_tabs)
         if result.terminal.triggered:
             self._log.finalize(new_state, result)
             self.app.call_from_thread(
@@ -426,9 +432,13 @@ class GameScreen(Screen):
         for cat, line in categorized:
             self._feed_markup(line, cat)
 
-    def _activate_log_tab(self) -> None:
+    def _activate_post_tick_tabs(self) -> None:
         try:
             self.query_one("#right-tabs", TabbedContent).active = "log"
+        except Exception:
+            pass
+        try:
+            self.query_one("#left-tabs", TabbedContent).active = "status"
         except Exception:
             pass
 

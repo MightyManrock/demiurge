@@ -617,6 +617,17 @@ class LuminariesTab(ContentTab):
                     a(f"      • {_e(c.name)}  [#5a7090]\\[enf {c.enforcement_weight:.2f}][/]")
                     a(f"        [#7090b0]{_e(c.description)}[/]")
             a("")
+
+        pan = state.pantheon
+        a(f"[bold #4a80b0]━━ {_e(pan.name.upper())} — COLLECTIVE CONSTRAINTS ━━[/]")
+        a("")
+        if pan.collective_constraints:
+            for c in pan.collective_constraints:
+                a(f"  • {_e(c.name)}  [#5a7090]\\[enf {c.enforcement_weight:.2f}][/]")
+                a(f"    [#7090b0]{_e(c.description)}[/]")
+        else:
+            a("  [#5a7090](none)[/]")
+
         return Text.from_markup("\n".join(lines))
 
 
