@@ -59,6 +59,21 @@ def _maybe_gold(kind: str, eid: str, label_markup: str) -> str:
     return label_markup
 
 
+# Per-kind colors for clickable entity-name links. Picked to sit outside the
+# trait-value gradient (greens/teals/blues/purples ↔ ambers/oranges/reds) so a
+# link color cannot be mistaken for a strength signal. PopLocations are not
+# links and intentionally have no entry (they render as plain text).
+_LINK_COLORS: dict[str, str] = {
+    "world":   "#d4b070",  # sandy gold
+    "system":  "#d4b070",
+    "civ":     "#c89050",  # warm bronze
+    "mortal":  "#d890a8",  # rose
+    "species": "#b090d0",  # lavender
+    "pop":     "#80b8c8",  # pale cyan
+    # luminary: deferred — separate scheme planned
+}
+
+
 def _click_link(kind: str, eid: str, label_markup: str) -> str:
     """
     Wrap `label_markup` in a Textual click-action span that opens a detail tab
@@ -68,8 +83,15 @@ def _click_link(kind: str, eid: str, label_markup: str) -> str:
     `GameScreen.action_open_detail_by_id` regardless of which widget owns the
     markup. UUIDs and fixed-kind strings are safe to inline (only hex+dashes,
     no quotes).
+
+    Also paints the label in the per-kind link color, unless `_maybe_gold`
+    overrides it (unseen-entity highlight).
     """
-    inner = _maybe_gold(kind, eid, label_markup)
+    if _is_unseen(kind, eid):
+        inner = _maybe_gold(kind, eid, label_markup)
+    else:
+        color = _LINK_COLORS.get(kind)
+        inner = f"[{color}]{label_markup}[/]" if color else label_markup
     return f"[@click=screen.open_detail_by_id('{kind}','{eid}')]{inner}[/]"
 
 
@@ -504,13 +526,20 @@ class EntitiesTab(ContentTab):
             tag = " \\[DORMANT]" if m.status == MortalStatus.DORMANT else ""
             if m.active_goal is None:
                 goal = "idle"
-            elif m.active_goal.last_action is not None:
+            elif dev and m.active_goal.last_action is not None:
+                # Dev mode: surface the concrete internal action choice.
                 goal = m.active_goal.last_action.value.replace("_", " ")
+            elif m.active_goal.label:
+                goal = m.active_goal.label
+            elif m.active_goal.imago_node_id:
+                goal = "preaching"
+            elif m.active_goal.research_domain:
+                goal = "researching"
             else:
-                goal = "directed"
+                goal = "on assignment"
             m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
             a(f"● {m_link}{tag}")
-            a(f"    [#3a6a8a]{_e(loc)}[/]  [#5a7090]{_e(goal)}[/]  "
+            a(f"    {_e(loc)}  [#5a7090]{_e(goal)}[/]  "
               f"align:[#a0d080]{m.alignment:.2f}[/]")
         if not any_pr:
             a("[#5a7090](no Proxiī appointed)[/]")
@@ -520,7 +549,16 @@ class EntitiesTab(ContentTab):
 class ActionsTab(ContentTab):
     """Left-panel tab: queued (this tick) + ongoing actions."""
 
+    _loop = None
+
+    def refresh_state(self, state: "SimulationState", loop=None) -> None:
+        self._loop = loop
+        self.query_one(Static).update(self._render_body(state))
+
     def _render_body(self, state: "SimulationState") -> Text:
+        loop = self._loop
+        library = loop._action_library if loop else {}
+        key_by_id = loop._action_key_by_id if loop else {}
         lines: list[str] = []
         a = lines.append
         a("[bold #4a80b0]━━ QUEUED THIS TICK ━━[/]")
@@ -530,8 +568,12 @@ class ActionsTab(ContentTab):
                 tgt = ""
                 if ai.target_id:
                     tgt = f"  → [#3a6a8a]{_e(_name_for_id(ai.target_id, state))}[/]"
-                a(f"  • [#a0d080]{_e(ai.intent.__class__.__name__ if ai.intent else 'Action')}[/]"
-                  f"{tgt}")
+                key = key_by_id.get(str(ai.action_definition_id))
+                defn = library.get(key) if key else None
+                label = defn.name if defn else (
+                    key.replace("_", " ").title() if key else "Action"
+                )
+                a(f"  • [#a0d080]{_e(label)}[/]{tgt}")
         else:
             a("[#5a7090]  (none queued)[/]")
         a("")
@@ -668,13 +710,13 @@ class UniverseTab(ContentTab):
                             else ("system" if str(mortal.current_location) in state.systems else None))
                 if loc_kind:
                     loc_link = _click_link(loc_kind, str(mortal.current_location),
-                                           f"[#3a6a8a]{_e(loc_obj.name)}[/]")
+                                           _e(loc_obj.name))
                 else:
-                    loc_link = f"[#3a6a8a]{_e(loc_obj.name)}[/]"
+                    loc_link = _e(loc_obj.name)
                 loc_str = f"location: {loc_link}"
             civ_str = ""
             if civ_obj:
-                civ_link = _click_link("civ", str(civ_obj.id), f"[#3a6a8a]{_e(civ_obj.name)}[/]")
+                civ_link = _click_link("civ", str(civ_obj.id), _e(civ_obj.name))
                 civ_str = f"  civ: {civ_link}"
             if loc_str or civ_str:
                 a(f"{mm}    {loc_str}{civ_str}{me}")

@@ -29,6 +29,24 @@ def _not_found(label: str) -> Text:
     return Text.from_markup(f"[#b04050]{_e(label)} not found in current state.[/]")
 
 
+_SIZE_MAGNITUDE_WORDS = {
+    0: "ones", 1: "tens", 2: "hundreds",
+    3: "thousands", 4: "tens of thousands", 5: "hundreds of thousands",
+    6: "millions", 7: "tens of millions", 8: "hundreds of millions",
+    9: "billions", 10: "tens of billions", 11: "hundreds of billions",
+    12: "trillions", 13: "tens of trillions", 14: "hundreds of trillions",
+    15: "quadrillions",
+}
+
+
+def _size_magnitude_word(mag: int) -> str:
+    if mag in _SIZE_MAGNITUDE_WORDS:
+        return _SIZE_MAGNITUDE_WORDS[mag]
+    if mag < 0:
+        return "fewer than 1"
+    return f"~10^{mag}"
+
+
 def _location_kind(state: "SimulationState", location_id) -> "str | None":
     """Return 'world' / 'system' / None depending on which dict holds the id."""
     lid = str(location_id)
@@ -43,6 +61,26 @@ def _location_link(state: "SimulationState", location_id, label_markup: str) -> 
     if kind is None:
         return label_markup
     return _click_link(kind, str(location_id), label_markup)
+
+
+def _format_location_chain(state: "SimulationState", location_id) -> "str | None":
+    """
+    Render a Mortal/Pop location reference. If the id resolves to a PopLocation,
+    returns 'WorldLink (poploc_name)'; otherwise returns the link for whatever
+    Location it is (world/system). Returns None if the id can't be resolved.
+    """
+    loc = state.locations.get(str(location_id)) if location_id else None
+    if loc is None:
+        return None
+    kind = _location_kind(state, location_id)
+    if kind is not None:
+        return _location_link(state, location_id, _e(loc.name))
+    # PopLocation: render parent world (linked) with PopLocation name in parens.
+    parent = state.locations.get(str(loc.parent_id)) if loc.parent_id else None
+    if parent is not None:
+        parent_link = _location_link(state, parent.id, _e(parent.name))
+        return f"{parent_link} ({_e(loc.name)})"
+    return _e(loc.name)
 
 
 # ─────────────────────────────────────────
@@ -74,7 +112,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
 
     sys_obj = state.locations.get(str(world.parent_id)) if world.parent_id else None
     if sys_obj:
-        sys_link = _location_link(state, world.parent_id, f"[#3a6a8a]{_e(sys_obj.name)}[/]")
+        sys_link = _location_link(state, world.parent_id, f"{_e(sys_obj.name)}")
         a(f"  in system: {sys_link}")
 
     fp = getattr(world, "local_footprint", None)
@@ -215,7 +253,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     if origin:
         oow = not is_in_window(origin)
         if not oow or display.DEV_MODE:
-            origin_link = _location_link(state, civ.origin_location_id, f"[#3a6a8a]{_e(origin.name)}[/]")
+            origin_link = _location_link(state, civ.origin_location_id, f"{_e(origin.name)}")
             line = f"origin: {origin_link}"
             a("")
             a(f"  [dim]{line}[/dim]" if oow else f"  {line}")
@@ -318,7 +356,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
     if sp_obj:
-        sp_md = _click_link("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
+        sp_md = _click_link("species", str(sp_obj.id), f"{_e(sp_obj.name)}")
         a(f"  species: {sp_md}")
 
     dev = display.DEV_MODE
@@ -338,24 +376,24 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     loc = state.locations.get(str(m.current_location)) if m.current_location else None
     if loc:
-        loc_link = _location_link(state, m.current_location, f"[#3a6a8a]{_e(loc.name)}[/]")
-        _gated(loc, f"location: {loc_link}")
+        loc_str = _format_location_chain(state, m.current_location)
+        _gated(loc, f"location: {loc_str}")
 
     home = state.locations.get(str(m.home_location)) if m.home_location else None
     if home and (not loc or str(home.id) != str(loc.id)):
-        home_link = _location_link(state, m.home_location, f"[#3a6a8a]{_e(home.name)}[/]")
-        _gated(home, f"origin:   {home_link}")
+        home_str = _format_location_chain(state, m.home_location)
+        _gated(home, f"origin:   {home_str}")
 
     civ = state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
     if civ:
-        civ_link = _click_link("civ", str(m.civilization_id), f"[#3a6a8a]{_e(civ.name)}[/]")
+        civ_link = _click_link("civ", str(m.civilization_id), f"{_e(civ.name)}")
         _gated(civ, f"civilization: {civ_link}")
 
     pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
     if pop:
         stratum = pop.stratum.title() if pop.stratum else "Pop"
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-        pop_md = _click_link("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
+        pop_md = _click_link("pop", str(pop.id), f"{_e(stratum)}")
         if sp_obj:
             sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
             _gated(pop, f"pop:      {pop_md} ({sp_md})  sz:{pop.size_magnitude}")
@@ -395,13 +433,13 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 if civ:
                     civ_link = _click_link(
                         "civ", str(g.target_civilization_id),
-                        f"[#3a6a8a]{_e(civ.name)}[/]",
+                        f"{_e(civ.name)}",
                     )
                     a(f"  target: {civ_link}")
             if g.target_location_id:
                 loc = state.locations.get(str(g.target_location_id))
                 if loc:
-                    loc_link = _location_link(state, g.target_location_id, f"[#3a6a8a]{_e(loc.name)}[/]")
+                    loc_link = _location_link(state, g.target_location_id, f"{_e(loc.name)}")
                     a(f"  location: {loc_link}")
             ticks_active = state.tick_number - g.started_at_tick
             a(f"  ticks at task: {ticks_active}")
@@ -557,25 +595,25 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     a(f"[bold #4a80b0]POP: {header}[/]")
     a("")
 
-    a(f"  size: ~10^{pop.size_magnitude}")
+    a(f"  size: {pop.size_magnitude} ({_size_magnitude_word(pop.size_magnitude)})")
     if pop.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
         a(f"  visibility: {pop.visibility:.2f}")
 
     if sp_obj:
-        sp_link = _click_link("species", str(sp_obj.id), f"[#3a6a8a]{_e(sp_obj.name)}[/]")
+        sp_link = _click_link("species", str(sp_obj.id), f"{_e(sp_obj.name)}")
         a(f"  species: {sp_link}")
 
     civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
     if civ:
-        civ_link = _click_link("civ", str(civ.id), f"[#3a6a8a]{_e(civ.name)}[/]")
+        civ_link = _click_link("civ", str(civ.id), f"{_e(civ.name)}")
         a(f"  civilization: {civ_link}")
 
     loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
     if loc:
-        loc_link = _location_link(state, pop.current_location, f"[#3a6a8a]{_e(loc.name)}[/]")
-        a(f"  location: {loc_link}")
+        loc_str = _format_location_chain(state, pop.current_location)
+        a(f"  location: {loc_str}")
 
     if pop.dominant_beliefs:
         a("")
@@ -648,7 +686,7 @@ def render_species_detail(state: "SimulationState", species_id: str) -> Text:
 
     origin = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
     if origin:
-        origin_link = _location_link(state, sp.origin_world_id, f"[#3a6a8a]{_e(origin.name)}[/]")
+        origin_link = _location_link(state, sp.origin_world_id, f"{_e(origin.name)}")
         a(f"  origin world: {origin_link}")
 
     if sp.domain_tags:
@@ -663,20 +701,25 @@ def render_species_detail(state: "SimulationState", species_id: str) -> Text:
         for t in sp.bio_tags:
             a(f"  {_e(_short_tag(t))}")
 
-    # List Pops belonging to this species
+    # List Pops belonging to this species (Window-gated; dimmed in dev mode)
+    dev = display.DEV_MODE
     pops_of_species = [p for p in state.pops.values() if str(p.species_id) == str(sp.id)]
-    if pops_of_species:
+    visible_pops = [p for p in pops_of_species if is_in_window(p) or dev]
+    if visible_pops:
         a("")
-        a(f"[bold #4a80b0]POPS ({len(pops_of_species)})[/]")
-        for pop in pops_of_species:
+        a(f"[bold #4a80b0]POPS ({len(visible_pops)})[/]")
+        for pop in visible_pops:
+            p_oow = not is_in_window(pop)
+            pm = "[dim]" if p_oow else ""
+            pe = "[/]" if p_oow else ""
             stratum = pop.stratum.title() if pop.stratum else "Pop"
-            pop_link = _click_link("pop", str(pop.id), f"[#3a6a8a]{_e(stratum)}[/]")
+            pop_link = _click_link("pop", str(pop.id), f"{_e(stratum)}")
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
             civ_str = ""
             if civ:
-                civ_link = _click_link("civ", str(civ.id), f"[#3a6a8a]{_e(civ.name)}[/]")
+                civ_link = _click_link("civ", str(civ.id), f"{_e(civ.name)}")
                 civ_str = f"  in {civ_link}"
-            a(f"  ↳ {pop_link}  sz:{pop.size_magnitude}{civ_str}")
+            a(f"  {pm}↳ {pop_link}  sz:{pop.size_magnitude}{civ_str}{pe}")
 
     return Text.from_markup("\n".join(lines))
 

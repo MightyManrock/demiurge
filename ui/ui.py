@@ -277,7 +277,7 @@ class GameScreen(Screen):
         self.query_one(StatusPanel).refresh_state(state, self.app.loop)
         self.query_one(LocationsTab).refresh_state(state)
         self.query_one(EntitiesTab).refresh_state(state)
-        self.query_one(ActionsTab).refresh_state(state)
+        self.query_one(ActionsTab).refresh_state(state, self.app.loop)
         if self._briefing_open:
             briefing = self.query(BriefingTab)
             if briefing:
