@@ -343,7 +343,11 @@ class ContentTab(VerticalScroll):
     """Base class for scrollable tab bodies; subclasses implement _render()."""
 
     def compose(self) -> ComposeResult:
-        yield Static(classes="tab-body")
+        # `expand=True` makes the Static fill the container's width so Rich's
+        # word-wrap calculation matches the visible area instead of the
+        # renderable's natural width. Without this, long colored markup lines
+        # overshoot the right edge before wrapping.
+        yield Static(classes="tab-body", expand=True)
 
     def _render_body(self, state: "SimulationState") -> "Text | str":
         raise NotImplementedError
@@ -438,7 +442,12 @@ class EntitiesTab(ContentTab):
             w_obj = state.locations.get(str(m.current_location)) if m.current_location else None
             loc = w_obj.name if w_obj else "?"
             tag = " \\[DORMANT]" if m.status == MortalStatus.DORMANT else ""
-            goal = m.active_goal.choice.value if m.active_goal else "idle"
+            if m.active_goal is None:
+                goal = "idle"
+            elif m.active_goal.last_action is not None:
+                goal = m.active_goal.last_action.value.replace("_", " ")
+            else:
+                goal = "directed"
             m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
             a(f"● {m_link}{tag}")
             a(f"    [#3a6a8a]{_e(loc)}[/]  [#5a7090]{_e(goal)}[/]  "

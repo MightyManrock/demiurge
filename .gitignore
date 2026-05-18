@@ -13,6 +13,8 @@ scenarios/*.bak
 core/*.bak
 resources/*
 
+ERROR.txt
+
 # Claude Code
 CLAUDE.md
 .claude/

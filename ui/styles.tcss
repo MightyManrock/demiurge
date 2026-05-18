@@ -36,6 +36,7 @@ Footer {
 }
 
 #right-tabs {
+    width: 1fr;
     background: $bg-feed;
 }
 
@@ -68,9 +69,20 @@ TabPane {
     padding: 0;
 }
 
+/* Tab bodies: keep a couple of cols of breathing room on the right so long
+   wrapped lines (notably culture trait lists with appended values) don't
+   bleed into or past the visible edge before re-wrapping. The Static fills
+   the parent width with `width: 1fr` so Rich's wrap calc matches the
+   visible area. */
+
 .tab-body {
-    padding: 0 1 1 1;
+    width: 1fr;
+    padding: 0 4 1 1;
     color: $text;
+}
+
+ContentTab {
+    scrollbar-gutter: stable;
 }
 
 ContentTab {
@@ -88,6 +100,7 @@ ContentTab {
 
 #main-feed {
     background: $bg-feed;
+    padding: 0 1 0 1;
 }
 
 /* ── Log tab: chip filter row ───────────── */

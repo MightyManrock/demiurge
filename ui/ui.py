@@ -59,6 +59,7 @@ from ui.detail_tabs import DetailTabManager
 from ui.session_log import SessionLog
 from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
+    QuitConfirmModal,
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
     ActionBrowserModal,
@@ -163,7 +164,8 @@ class GameScreen(Screen):
         ("o",      "manage_ongoing",  "Ongoing"),
         ("t",      "advance_tick",    "Advance"),
         ("ctrl+s", "save_game",       "Save"),
-        ("q",      "quit_game",       "Quit"),
+        ("q",      "quit_confirm",    "Quit"),
+        ("ctrl+q", "quit_immediate",  "Force quit"),
         # Tab switching: digits for left, ctrl+digits for right.
         ("1", "left_tab('status')",      "Status"),
         ("2", "left_tab('locations')",   "Locs"),
@@ -469,7 +471,30 @@ class GameScreen(Screen):
         export_scenario(state, db_path, scenario_name=name, description=description)
         self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
 
-    def action_quit_game(self) -> None:
+    def action_quit_confirm(self) -> None:
+        self._quit_confirm_flow()
+
+    def action_quit_immediate(self) -> None:
+        """Ctrl+Q — skip the modal, finalise the session log, exit."""
+        self._log.finalize(self._state, self._last_result)
+        self.app.exit()
+
+    @work
+    async def _quit_confirm_flow(self) -> None:
+        choice = await self.app.push_screen_wait(QuitConfirmModal())
+        if choice is None:
+            return  # Keep playing
+        if choice == "save":
+            state = self._state
+            _SAVES_DIR.mkdir(exist_ok=True)
+            dt = datetime.now().strftime("%Y%m%d%H%M%S")
+            name = f"{state.universe.save_name}_{dt}"
+            db_path = _SAVES_DIR / f"{name}.db"
+            description = (
+                f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
+            )
+            export_scenario(state, db_path, scenario_name=name, description=description)
+            self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
         self._log.finalize(self._state, self._last_result)
         self.app.exit()
 

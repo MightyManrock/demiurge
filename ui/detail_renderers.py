@@ -66,9 +66,9 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         a(f"  visibility: {world.visibility:.2f}")
 
     if world.geo_tags:
-        a(f"  geography: {_e(', '.join(world.geo_tags))}")
+        a(f"  geography:  {_e(', '.join(_short_tag(t) for t in world.geo_tags))}")
     if world.atmo_tags:
-        a(f"  atmosphere: {_e(', '.join(world.atmo_tags))}")
+        a(f"  atmosphere: {_e(', '.join(_short_tag(t) for t in world.atmo_tags))}")
     if world.domain_expression:
         a(f"  domain expression: {_format_beliefs_markup(world.domain_expression)}")
 
@@ -350,13 +350,40 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         a("[bold #4a80b0]PROXIUS GOAL[/]")
         if m.active_goal:
             g = m.active_goal
-            a(f"  current: [#a0d080]{_e(g.choice.value)}[/]")
-            if g.goal_pop_id:
-                pop = state.pops.get(str(g.goal_pop_id))
-                if pop:
-                    a(f"  target pop: {_e(pop.stratum.title())}")
+            if g.label:
+                a(f"  directive: {_e(g.label)}")
+            if g.last_action is not None:
+                a(f"  last action: [#a0d080]{_e(g.last_action.value.replace('_', ' '))}[/]")
+            else:
+                a(f"  last action: [#5a7090](not yet acted)[/]")
             if g.imago_node_id:
-                a(f"  imago: {_e(g.imago_node_id)}")
+                from utilities.imago_registry import get_registry as get_imago_registry
+                ireg = get_imago_registry()
+                node = ireg.get_node(g.imago_node_id)
+                imago_label = node.name if node else g.imago_node_id
+                a(f"  imago: [#a0b8d0]{_e(imago_label)}[/]")
+            if g.target_civilization_id:
+                civ = state.civilizations.get(str(g.target_civilization_id))
+                if civ:
+                    civ_link = _click_link(
+                        "civ", str(g.target_civilization_id),
+                        f"[#3a6a8a]{_e(civ.name)}[/]",
+                    )
+                    a(f"  target civilization: {civ_link}")
+            if g.source_pop_id:
+                src = state.pops.get(str(g.source_pop_id))
+                if src:
+                    label = src.stratum.title() if src.stratum else "Pop"
+                    a(f"  source pop: [#3a6a8a]{_e(label)}[/]  sz:{src.size_magnitude}")
+            if g.goal_pop_id:
+                gp = state.pops.get(str(g.goal_pop_id))
+                if gp:
+                    label = gp.stratum.title() if gp.stratum else "Pop"
+                    a(f"  goal pop:   [#3a6a8a]{_e(label)}[/]  sz:{gp.size_magnitude}")
+            if g.research_domain:
+                a(f"  researching: {_e(_short_tag(g.research_domain))}")
+            if g.petition_pending:
+                a(f"  [#c09030]petition pending ({g.petition_pending_ticks}/5 ticks)[/]")
         else:
             a("  [#5a7090](idle — no active directive)[/]")
 

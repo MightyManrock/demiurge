@@ -257,6 +257,42 @@ class YesNoModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
+# QUIT CONFIRM MODAL
+# Returns "quit" | "save" | None (cancel/Esc)
+# ─────────────────────────────────────────
+
+class QuitConfirmModal(ModalScreen):
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box"):
+            yield Label("Quit?", classes="modal-title")
+            yield Label(
+                "Unsaved progress will be lost.",
+                classes="modal-desc",
+            )
+            with Horizontal(classes="btn-row"):
+                yield Button("Save and quit",   id="save-btn", classes="-primary")
+                yield Button("Quit",            id="quit-btn", classes="-danger")
+                yield Button("Keep playing",    id="cancel-btn")
+
+    @on(Button.Pressed, "#save-btn")
+    def _save(self, _: Button.Pressed) -> None:
+        self.dismiss("save")
+
+    @on(Button.Pressed, "#quit-btn")
+    def _quit(self, _: Button.Pressed) -> None:
+        self.dismiss("quit")
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
 # TEXT FORM MODAL
 # fields: list of (label, field_id, default)
 # Dismisses with dict[str, str] or None.
