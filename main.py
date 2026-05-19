@@ -104,6 +104,32 @@ def main() -> None:
         from tools.imago_editor import main as imago_main
         imago_main()
         sys.exit(0)
+    if "--inject" in argv:
+        # `python main.py [--edit-scenario|--build-scenario] --inject <scenario_ref> <patch_ref>`
+        # The --edit-scenario / --build-scenario flags are accepted alongside
+        # --inject for clarity but don't change behavior.
+        rest = [a for a in argv if a not in ("--edit-scenario", "--build-scenario")]
+        try:
+            inject_idx = rest.index("--inject")
+        except ValueError:
+            inject_idx = -1
+        positional = rest[inject_idx + 1:] if inject_idx >= 0 else []
+        if len(positional) != 2:
+            print(
+                "--inject takes exactly two arguments: <scenario_ref> <patch_ref>\n"
+                "  scenario_ref:  bare name, name.db, or path/to/file.db (created if missing)\n"
+                "  patch_ref:     path/to/patch.json, or bare JSON starting with '{'",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        if rest[:inject_idx]:
+            print(
+                f"--inject does not accept other flags: {' '.join(rest[:inject_idx])}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        from tools.scenario_builder.injector import main as inject_main
+        sys.exit(inject_main(positional[0], positional[1]))
     if "--edit-scenario" in argv or "--build-scenario" in argv:
         rest = [a for a in argv if a not in ("--edit-scenario", "--build-scenario")]
         if rest:
@@ -131,7 +157,8 @@ def main() -> None:
             "  python main.py --build-scenario      # alias for --edit-scenario\n"
             "  python main.py --rebuild             # database rebuilder TUI\n"
             "  python main.py --rebuild --all       # rebuild everything non-interactively\n"
-            "  python main.py --rebuild --help      # show all rebuilder flags"
+            "  python main.py --rebuild --help      # show all rebuilder flags\n"
+            "  python main.py --inject NAME PATCH   # apply JSON patch to scenarios/NAME.db"
         ),
     )
     parser.add_argument(
@@ -161,6 +188,16 @@ def main() -> None:
     parser.add_argument(
         "--build-scenario", action="store_true", dest="build_scenario",
         help="Alias for --edit-scenario; enters the same chooser flow.",
+    )
+    parser.add_argument(
+        "--inject", nargs=2, default=None,
+        metavar=("SCENARIO", "PATCH"),
+        help=(
+            "Apply a JSON-patch file (or bare JSON string) to a scenario .db, "
+            "creating the .db if it does not exist. SCENARIO is a bare name, "
+            "name.db, or path; PATCH is a path or a JSON literal starting "
+            "with '{'. See CLAUDE.md for the operation vocabulary."
+        ),
     )
     args = parser.parse_args()
 

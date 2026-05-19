@@ -73,14 +73,16 @@ def run_operations(
                 results.append("  Action registry reinstated")
 
     if scenario:
-        from utilities.scenario_exporter import build_scenario_default, export_scenario
-        _scenario_db = _PROJECT_ROOT / "scenarios" / "wardens_compact.db"
-        export_scenario(
-            build_scenario_default(),
-            _scenario_db,
-            scenario_name="The Warden's Compact",
-        )
-        results.append("Default scenario exported to scenarios/wardens_compact.db")
+        from utilities.scenario_migrator import migrate_all
+        _scenarios_dir = _PROJECT_ROOT / "scenarios"
+        migration_results = migrate_all(_scenarios_dir)
+        if not migration_results:
+            results.append(f"No scenarios found in {_scenarios_dir}.")
+        else:
+            results.append(f"Migrated {len(migration_results)} scenario(s):")
+            for r in migration_results:
+                tick = "✓" if r.migrated else "✗"
+                results.append(f"  {tick} {r.path.name} — {r.note}")
 
     return results
 
@@ -101,7 +103,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--cultures", action="store_true", help="Rebuild culture registry in core/core.db")
     p.add_argument("--imagines", action="store_true", help="Rebuild imago registry in core/core.db")
     p.add_argument("--actions",  action="store_true", help="Rebuild action registry in core/core.db")
-    p.add_argument("--scenario", action="store_true", help="Rebuild default scenario (wardens_compact.db)")
+    p.add_argument("--scenario", action="store_true", help="Migrate every scenarios/*.db to the current schema (load → re-export round-trip)")
     p.add_argument("--all",      action="store_true", help="Rebuild everything (equivalent to all five flags)")
     return p.parse_args(argv)
 

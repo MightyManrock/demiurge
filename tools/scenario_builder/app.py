@@ -10,6 +10,7 @@ from textual.app import App
 from ui import display
 from ui.constants import _SCENARIOS_DIR
 from utilities.scenario_loader import load_scenario, validate_luminary_affinities
+from utilities.scenario_migrator import migrate_scenario
 
 from .chooser import ScenarioChooserScreen
 from .meta_io import peek_meta
@@ -35,6 +36,16 @@ class BuilderApp(App):
             self.push_screen(NewScenarioWizardScreen())
             return
         path = Path(sel)
+        # Migrate the .db to the current schema before opening it. The
+        # migrator is a load → re-export round-trip; if the load fails the
+        # file is left untouched and we surface the error.
+        mr = migrate_scenario(path)
+        if not mr.migrated and mr.error is not None:
+            self.notify(
+                f"Failed to migrate {path.name}: {mr.note}",
+                severity="error", timeout=8,
+            )
+            return
         try:
             state = load_scenario(path)
         except Exception as exc:
