@@ -182,6 +182,10 @@ class SignificantLocation(Location):
 class PopLocation(Location):
     """Low-tier locations that house Pops (cities, towns, space stations, etc.)"""
     pop_ids: list[UUID] = Field(default_factory=list)
+    # Travel/perception distance from the parent SignificantLocation's "core"
+    # (surface settlement). 0 = the core itself. Higher values add to the
+    # effective depth used by Scry and (future) travel mechanics.
+    distance_from_core: int = 0
 
 
 # ─────────────────────────────────────────
@@ -225,6 +229,8 @@ class Species(BaseModel):
 # ─────────────────────────────────────────
 
 class SocialClass(str, Enum):
+    WILD       = "wild"         # No social structure at all (pre-sapient pods, true wilderness).
+    FERAL      = "feral"        # Partially or recently de-civilized — outside class but not pre-social.
     UNDERCLASS = "underclass"   # Slaves, serfs, the dispossessed
     COMMON     = "common"       # Peasants, laborers, the broad base
     ARTISAN    = "artisan"      # Skilled specialists and craftspeople
@@ -301,6 +307,8 @@ class Pop(BaseModel):
 # ─────────────────────────────────────────
 
 class CivilizationScale(str, Enum):
+    NON_SENTIENT  = "non_sentient"  # No mind in any meaningful sense (future-reserved).
+    PRE_SAPIENT   = "pre_sapient"   # Aware but not yet civilized (wild populations).
     NASCENT       = "nascent"       # Pre-organized society
     TRIBAL        = "tribal"
     CITY_STATE    = "city_state"
@@ -310,6 +318,29 @@ class CivilizationScale(str, Enum):
     INTERPLANETARY = "interplanetary"
     INTERSTELLAR  = "interstellar"
     INTERGALACTIC  = "intergalactic"
+
+
+# Civilization scales considered "wild" — i.e., not real civilizations in the
+# player-facing sense. Used by `is_wild_civ` to drive UI hiding and to gate
+# discovery/scry from treating these as discoverable entities.
+WILD_CIV_SCALES: frozenset = frozenset({
+    CivilizationScale.PRE_SAPIENT,
+    CivilizationScale.NON_SENTIENT,
+})
+
+
+def is_wild_civ(civ) -> bool:
+    """True if `civ` is a 'wild' civilization (pre-sapient or non-sentient).
+
+    Wild civs exist as bookkeeping for cross-pop contact math but are hidden
+    from the player UI: no info page, not listed under their parent world,
+    not discoverable via scry, and Pops attached to them render as 'wild'
+    rather than as members of the civilization.
+
+    Accepts a Civilization, an id+state pair via the helpers, or None."""
+    if civ is None:
+        return False
+    return getattr(civ, "scale", None) in WILD_CIV_SCALES
 
 
 class CivilizationHealth(BaseModel):

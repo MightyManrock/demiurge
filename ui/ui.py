@@ -47,6 +47,7 @@ from display import (
     display_state, display_briefing, display_tick_result,
     display_tick_result_categorized,
     _strip_oow, _name_for_id, _personality_label, _wrap_desc, _short_tag,
+    _pop_stratum_label,
 )
 
 from ui.constants import BACK, _SAVES_DIR, _SCENARIOS_DIR, _LOGS_DIR
@@ -415,13 +416,15 @@ class GameScreen(Screen):
         eid = str(entity_id)
         if kind == "world"    and eid in s.worlds:        return s.worlds[eid].name
         if kind == "system"   and eid in s.systems:       return s.systems[eid].name
+        if kind == "galaxy"   and eid in s.galaxies:      return s.galaxies[eid].name
+        if kind == "poploc"   and eid in s.locations:     return s.locations[eid].name
         if kind == "civ"      and eid in s.civilizations: return s.civilizations[eid].name
         if kind == "mortal"   and eid in s.mortals:       return s.mortals[eid].name
         if kind == "luminary" and eid in s.luminaries:    return s.luminaries[eid].name
         if kind == "species"  and eid in s.species:       return s.species[eid].name
         if kind == "pop"      and eid in s.pops:
             pop = s.pops[eid]
-            stratum = pop.stratum.title() if pop.stratum else "Pop"
+            stratum = _pop_stratum_label(pop)
             sp = s.species.get(str(pop.species_id)) if pop.species_id else None
             return f"{stratum} ({sp.name})" if sp else f"{stratum} Pop"
         return eid[:8]
@@ -802,7 +805,10 @@ class GameScreen(Screen):
                     target_civ_id = None
                     target_pop_id = None
                     proxius_obj   = state.mortals.get(pid)
-                    world_id      = str(proxius_obj.current_location) if proxius_obj else None
+                    # proxius.current_location is a PopLocation now — resolve
+                    # to its parent world so child_ids iteration finds sibling PopLocs.
+                    from logic.tick_logic import _resolve_world_id_for
+                    world_id      = _resolve_world_id_for(state, proxius_obj.current_location) if proxius_obj else None
                     origin_pop_id = str(proxius_obj.pop_id) if (proxius_obj and proxius_obj.pop_id) else None
 
                     world_obj = state.locations.get(world_id) if world_id else None
@@ -969,7 +975,7 @@ class GameScreen(Screen):
                 sp_obj   = state.species.get(str(m.species_id)) if m.species_id else None
                 sp_name  = sp_obj.name if sp_obj else "?"
                 pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
-                pop_str  = f"  {pop_obj.stratum.title()}" if pop_obj else ""
+                pop_str  = f"  {_pop_stratum_label(pop_obj)}" if pop_obj else ""
                 mortal_items.append((mid, f"{m.name:<18} [{role_str}]  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{pop_str}"))
             intent = None
             while True:
@@ -1573,7 +1579,7 @@ class GameScreen(Screen):
             sp_obj    = state.species.get(str(m.species_id)) if m.species_id else None
             sp_name   = sp_obj.name if sp_obj else "?"
             pop_obj   = state.pops.get(str(m.pop_id)) if m.pop_id else None
-            pop_str   = f"  {pop_obj.stratum.title()}" if pop_obj else ""
+            pop_str   = f"  {_pop_stratum_label(pop_obj)}" if pop_obj else ""
             dorm_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             items.append((mid, f"{m.name:<18}  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{pop_str}{dorm_note}"))
         return await self.app.push_screen_wait(PickerModal("Select Proxius", items, show_back=True))

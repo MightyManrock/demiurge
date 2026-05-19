@@ -124,7 +124,8 @@ CREATE TABLE IF NOT EXISTS locations (
     atmo_tags        TEXT NOT NULL DEFAULT '[]',    -- JSON array
     age              REAL NOT NULL DEFAULT 0.0,
     -- PopLocation-specific (populated for subclass='pop_location')
-    pop_ids          TEXT NOT NULL DEFAULT '[]',     -- JSON array
+    pop_ids             TEXT    NOT NULL DEFAULT '[]',  -- JSON array
+    distance_from_core  INTEGER NOT NULL DEFAULT 0,     -- 0 = core surface; >0 adds to scry/travel distance
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0       -- bool; 1 = never decays (all starting locations)

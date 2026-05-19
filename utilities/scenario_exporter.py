@@ -28,7 +28,7 @@ from core.universe_core import (
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
-    Pop, SocialClass,
+    Pop, SocialClass, WildStratum,
     Universe,
 )
 from core.action_core import EssenceStockpile
@@ -243,6 +243,7 @@ def _write_locations(conn, state: SimulationState):
         geo_tags = atmo_tags = "[]"
         age = 0.0
         pop_ids = "[]"
+        distance_from_core = 0
 
         if isinstance(loc, System):
             star_type = loc.star_type.value
@@ -262,6 +263,7 @@ def _write_locations(conn, state: SimulationState):
             age = loc.age
         elif isinstance(loc, PopLocation):
             pop_ids = _j(loc.pop_ids)
+            distance_from_core = int(loc.distance_from_core)
 
         conn.execute(
             """INSERT INTO locations
@@ -272,14 +274,14 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt_miracles, lf_subtle_influence, lf_proxius_activity, lf_direct_creation,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids, visibility, pinned)
+                pop_ids, distance_from_core, visibility, pinned)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?,
                        ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?, ?, ?,
-                       ?, ?, ?)""",
+                       ?, ?, ?, ?)""",
             (
                 str(loc.id),
                 loc.name,
@@ -296,7 +298,7 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt, lf_subtle, lf_proxius, lf_direct,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids, loc.visibility, int(loc.pinned),
+                pop_ids, distance_from_core, loc.visibility, int(loc.pinned),
             ),
         )
 
@@ -1197,6 +1199,21 @@ def build_scenario_default() -> SimulationState:
         name="Neran Surface", location_type="pop_location", parent_id=neran.id,
         visibility=1.0, pinned=True,
     )
+    pop_loc_neran_bathy = PopLocation(
+        name="Neran Bathypelagic Zone", location_type="pop_location",
+        parent_id=neran.id, distance_from_core=1,
+        visibility=0.0, pinned=False,
+    )
+    pop_loc_neran_orbital = PopLocation(
+        name="Neran Orbital Ring", location_type="pop_location",
+        parent_id=neran.id, distance_from_core=2,
+        visibility=1.0, pinned=True,
+    )
+    pop_loc_sethis_orbital = PopLocation(
+        name="Sethis Orbital Station", location_type="pop_location",
+        parent_id=sethis.id, distance_from_core=2,
+        visibility=0.0, pinned=False,
+    )
     pop_loc_oros = PopLocation(
         name="Oros Surface", location_type="pop_location", parent_id=oros.id,
         visibility=1.0, pinned=True,
@@ -1219,9 +1236,12 @@ def build_scenario_default() -> SimulationState:
     )
 
     neran.child_ids.append(pop_loc_neran.id)
+    neran.child_ids.append(pop_loc_neran_bathy.id)
+    neran.child_ids.append(pop_loc_neran_orbital.id)
     oros.child_ids.append(pop_loc_oros.id)
     kiddis.child_ids.append(pop_loc_kiddis.id)
     sethis.child_ids.append(pop_loc_sethis.id)
+    sethis.child_ids.append(pop_loc_sethis_orbital.id)
     mireth.child_ids.append(pop_loc_mireth.id)
     ossian.child_ids.append(pop_loc_ossian.id)
 
@@ -1313,6 +1333,61 @@ def build_scenario_default() -> SimulationState:
     for p in (pop_neran_elite_col, pop_neran_common_col, pop_neran_artisan_col):
         neran_confed.pop_ids.append(p.id)
         pop_loc_sethis.pop_ids.append(p.id)
+
+    # Neran Orbital Ring — military/research station above the homeworld.
+    # Small but pinned-visible (the Confederacy's flagship; impossible to miss).
+    pop_neran_orbital_elite = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.ELITE,
+        current_location=pop_loc_neran_orbital.id,
+        size_fractional=2.0,
+        dominant_beliefs={"domain:mastery": 0.80, "domain:order": 0.70, "domain:conflict": 0.35},
+        culture_tags={"structure:hierarchy": 0.90, "techno:science": 0.85,
+                      "techno:industrialism": 0.75, "relations:diplomacy": 0.55,
+                      "values:ambition": 0.75, "values:pragmatism": 0.60, "values:tenacity": 0.50},
+        visibility=1.0, pinned=True,
+    )
+    pop_neran_orbital_common = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_neran_orbital.id,
+        size_fractional=2.6,
+        dominant_beliefs={"domain:order": 0.65, "domain:mastery": 0.45, "domain:community": 0.40},
+        culture_tags={"structure:hierarchy": 0.75, "techno:industrialism": 0.80,
+                      "techno:science": 0.65, "religion:luminary_worship": 0.55,
+                      "values:pragmatism": 0.60, "values:tenacity": 0.55, "values:folk_wisdom": 0.40},
+        visibility=1.0, pinned=True,
+    )
+    for p in (pop_neran_orbital_elite, pop_neran_orbital_common):
+        neran_confed.pop_ids.append(p.id)
+        pop_loc_neran_orbital.pop_ids.append(p.id)
+
+    # Sethis Orbital Station — colonial trade-and-watch outpost. Hidden at start.
+    pop_sethis_orbital_elite = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.ELITE,
+        current_location=pop_loc_sethis_orbital.id,
+        size_fractional=1.8,
+        dominant_beliefs={"domain:mastery": 0.65, "domain:order": 0.55, "domain:change": 0.30},
+        culture_tags={"structure:hierarchy": 0.85, "relations:diplomacy": 0.70,
+                      "relations:commerce": 0.65, "techno:science": 0.70,
+                      "values:pragmatism": 0.65, "values:ambition": 0.55, "values:adaptability": 0.45},
+        visibility=0.0, pinned=False,
+    )
+    pop_sethis_orbital_common = Pop(
+        civilization_id=neran_confed.id, species_id=naran_species.id,
+        social_class=SocialClass.COMMON,
+        current_location=pop_loc_sethis_orbital.id,
+        size_fractional=2.4,
+        dominant_beliefs={"domain:order": 0.55, "domain:mastery": 0.40, "domain:community": 0.45},
+        culture_tags={"relations:commerce": 0.70, "techno:industrialism": 0.65,
+                      "structure:hierarchy": 0.65, "religion:luminary_worship": 0.45,
+                      "values:pragmatism": 0.55, "values:adaptability": 0.50, "values:folk_wisdom": 0.40},
+        visibility=0.0, pinned=False,
+    )
+    for p in (pop_sethis_orbital_elite, pop_sethis_orbital_common):
+        neran_confed.pop_ids.append(p.id)
+        pop_loc_sethis_orbital.pop_ids.append(p.id)
 
     neran_confed.established_beliefs = dict(neran_confed.dominant_beliefs)
     neran_confed.established_culture_tags = dict(neran_confed.culture_tags)
@@ -1498,7 +1573,7 @@ def build_scenario_default() -> SimulationState:
                       "values:ambition": 0.70, "values:pragmatism": 0.60, "values:erudition": 0.40},
         belief_tags={"domain:order": 0.80, "domain:mastery": 0.50, "domain:truth": 0.25, "domain:community": 0.30},
         alignment=0.0, chrono_age=170.0, bio_age=170.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran.id,
         pinned=True, pop_id=pop_neran_elite.id,
     )
     neran_confed.notable_mortal_ids.append(senna.id)
@@ -1512,8 +1587,8 @@ def build_scenario_default() -> SimulationState:
                       "values:ambition": 0.85, "values:tenacity": 0.65, "values:pragmatism": 0.55},
         belief_tags={"domain:conflict": 0.65, "domain:mastery": 0.70, "domain:order": 0.45, "domain:sacrifice": 0.30},
         alignment=0.30, chrono_age=380.0, bio_age=205.0,
-        home_location=neran.id, current_location=neran.id,
-        pinned=True, pop_id=pop_neran_elite.id,
+        home_location=neran.id, current_location=pop_loc_neran_orbital.id,
+        pinned=True, pop_id=pop_neran_orbital_elite.id,
     )
     neran_confed.notable_mortal_ids.append(karath.id)
 
@@ -1526,7 +1601,7 @@ def build_scenario_default() -> SimulationState:
                       "values:humility": 0.75, "values:patience": 0.65, "values:moderation": 0.50, "values:sincerity": 0.40},
         belief_tags={"domain:order": 0.70, "domain:silence": 0.60, "domain:truth": 0.40},
         alignment=0.0, chrono_age=260.0, bio_age=260.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran.id,
         pinned=True, pop_id=pop_neran_elite.id,
     )
     neran_confed.notable_mortal_ids.append(veth.id)
@@ -1540,7 +1615,7 @@ def build_scenario_default() -> SimulationState:
                       "values:prosperity": 0.75, "values:indulgence": 0.55, "values:pragmatism": 0.35, "values:adaptability": 0.40},
         belief_tags={"domain:community": 0.50, "domain:order": 0.55, "domain:mastery": 0.30, "domain:change": 0.20},
         alignment=0.0, chrono_age=235.0, bio_age=235.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran.id,
         pinned=True, pop_id=pop_neran_common.id,
     )
     neran_confed.notable_mortal_ids.append(durenn.id)
@@ -1555,7 +1630,7 @@ def build_scenario_default() -> SimulationState:
                       "values:tenacity": 0.70, "values:folk_wisdom": 0.55, "values:charity": 0.40},
         belief_tags={"domain:conflict": 0.75, "domain:change": 0.40, "domain:growth": 0.30, "domain:memory": 0.25},
         alignment=0.0, chrono_age=145.0, bio_age=145.0,
-        home_location=oros.id, current_location=oros.id,
+        home_location=oros.id, current_location=pop_loc_oros.id,
         pinned=True, pop_id=pop_keth_warrior.id,
     )
     keth_civ.notable_mortal_ids.append(asha.id)
@@ -1569,7 +1644,7 @@ def build_scenario_default() -> SimulationState:
                       "values:adaptability": 0.75, "values:wit": 0.55, "values:sincerity": 0.40},
         belief_tags={"domain:change": 0.70, "domain:conflict": 0.55, "domain:truth": 0.35, "domain:order": 0.15},
         alignment=0.0, chrono_age=155.0, bio_age=155.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran.id,
         pop_id=pop_neran_artisan.id,
     )
     neran_confed.notable_mortal_ids.append(orryn.id)
@@ -1583,7 +1658,7 @@ def build_scenario_default() -> SimulationState:
                       "values:erudition": 0.80, "values:patience": 0.55, "values:humility": 0.40},
         belief_tags={"domain:secrecy": 0.70, "domain:silence": 0.50, "domain:mastery": 0.50, "domain:truth": 0.15, "domain:order": 0.20},
         alignment=0.0, chrono_age=190.0, bio_age=190.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran.id,
         pop_id=pop_neran_artisan.id,
     )
     neran_confed.notable_mortal_ids.append(thessal.id)
@@ -1597,7 +1672,7 @@ def build_scenario_default() -> SimulationState:
                       "values:humility": 0.70, "values:patience": 0.55, "values:sincerity": 0.40},
         belief_tags={"domain:silence": 0.55, "domain:order": 0.65, "domain:truth": 0.35, "domain:memory": 0.30},
         alignment=0.0, chrono_age=85.0, bio_age=85.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran.id,
         pop_id=pop_neran_common.id,
     )
     neran_confed.notable_mortal_ids.append(maeva.id)
@@ -1611,7 +1686,7 @@ def build_scenario_default() -> SimulationState:
                       "values:ambition": 0.75, "values:tenacity": 0.55, "values:wit": 0.40},
         belief_tags={"domain:conflict": 0.70, "domain:change": 0.40, "domain:mastery": 0.30, "domain:memory": 0.20, "domain:decay": 0.45},
         alignment=0.0, chrono_age=130.0, bio_age=130.0,
-        home_location=oros.id, current_location=oros.id,
+        home_location=oros.id, current_location=pop_loc_oros.id,
         pop_id=pop_keth_warrior.id,
     )
     keth_civ.notable_mortal_ids.append(kael.id)
@@ -1626,21 +1701,50 @@ def build_scenario_default() -> SimulationState:
                       "values:folk_wisdom": 0.75, "values:patience": 0.55, "values:erudition": 0.40},
         belief_tags={"domain:memory": 0.65, "domain:change": 0.40, "domain:growth": 0.35, "domain:conflict": 0.25},
         alignment=0.0, chrono_age=175.0, bio_age=175.0,
-        home_location=oros.id, current_location=oros.id,
+        home_location=oros.id, current_location=pop_loc_oros.id,
         pop_id=pop_keth_common.id,
     )
     keth_civ.notable_mortal_ids.append(urren.id)
 
+    # ── Wild Ultir population in the Neran abyss (Korax's pod) ─────────
+    # Synthetic "civilization" for the wild Ultir pod. Wild civs exist as
+    # bookkeeping (so Pops have a real civ_id and cross-civ math works
+    # cleanly) but are hidden from the UI and not scry-able.
+    ultir_pod_civ = Civilization(
+        name="Ultir Pod",
+        scale=CivilizationScale.PRE_SAPIENT,
+        primary_species_id=ultir_species.id,
+        origin_location_id=neran.id,
+        theistic=False,
+        divine_awareness=0.0,
+        health=CivilizationHealth(stability=0.5, prosperity=0.5, cohesion=0.5),
+        visibility=0.0, pinned=False,
+    )
+    pop_ultir_bathy = Pop(
+        civilization_id=ultir_pod_civ.id, species_id=ultir_species.id,
+        social_class=SocialClass.WILD,
+        wild_stratum=WildStratum.APEX,
+        current_location=pop_loc_neran_bathy.id,
+        size_fractional=4.5,
+        dominant_beliefs={"domain:void": 0.45, "domain:secrecy": 0.30},
+        culture_tags={"values:tenacity": 0.40},
+        visibility=0.0, pinned=False,
+    )
+    ultir_pod_civ.pop_ids.append(pop_ultir_bathy.id)
+    pop_loc_neran_bathy.pop_ids.append(pop_ultir_bathy.id)
+
     korax = NotableMortal(
-        name="Korax", civilization_id=None,
+        name="Korax", civilization_id=ultir_pod_civ.id,
         role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=ultir_species.id,
         prominence_roles=[MortalProminence.APEX], prominence=0.16, visibility=0.0,
         personal_tags=["status:biggest_fish", "personal:almost_sapient", "personal:ambitious"],
         culture_tags={"values:tenacity": 0.50, "values:ambition": 0.40, "values:indulgence": 0.65},
         belief_tags={"domain:void": 0.80, "domain:secrecy": 0.55, "domain:memory": 0.30, "domain:conflict": 0.20},
         alignment=0.0, chrono_age=534.0, bio_age=534.0,
-        home_location=neran.id, current_location=neran.id,
+        home_location=neran.id, current_location=pop_loc_neran_bathy.id,
+        pop_id=pop_ultir_bathy.id,
     )
+    ultir_pod_civ.notable_mortal_ids.append(korax.id)
 
     # ── Sethis mortals — Naran colonists ─────────────
     ren_caleth = NotableMortal(
@@ -1652,10 +1756,25 @@ def build_scenario_default() -> SimulationState:
                       "values:pragmatism": 0.70, "values:patience": 0.55, "values:humility": 0.40},
         belief_tags={"domain:order": 0.70, "domain:community": 0.45, "domain:mastery": 0.40, "domain:truth": 0.20},
         alignment=0.0, chrono_age=148.0, bio_age=148.0,
-        home_location=sethis.id, current_location=sethis.id,
+        home_location=sethis.id, current_location=pop_loc_sethis.id,
         pop_id=pop_neran_elite_col.id,
     )
     neran_confed.notable_mortal_ids.append(ren_caleth.id)
+
+    # Orbital governor of the Sethis station — homeworld-born, station-posted.
+    aren_velar = NotableMortal(
+        name="Aren Velar", civilization_id=neran_confed.id,
+        role=MortalRole.OTHER, status=MortalStatus.ACTIVE, species_id=naran_species.id,
+        prominence_roles=[MortalProminence.LEADER], prominence=0.38, visibility=0.0,
+        personal_tags=["status:station_governor", "personal:methodical", "personal:diplomatic"],
+        culture_tags={"structure:hierarchy": 0.85, "relations:diplomacy": 0.80, "relations:commerce": 0.65,
+                      "values:pragmatism": 0.70, "values:patience": 0.55, "values:ambition": 0.45},
+        belief_tags={"domain:order": 0.75, "domain:mastery": 0.50, "domain:community": 0.35, "domain:truth": 0.20},
+        alignment=0.0, chrono_age=162.0, bio_age=162.0,
+        home_location=neran.id, current_location=pop_loc_sethis_orbital.id,
+        pop_id=pop_sethis_orbital_elite.id,
+    )
+    neran_confed.notable_mortal_ids.append(aren_velar.id)
 
     yssa_tharn = NotableMortal(
         name="Yssa Tharn", civilization_id=neran_confed.id,
@@ -1666,7 +1785,7 @@ def build_scenario_default() -> SimulationState:
                       "values:erudition": 0.70, "values:pragmatism": 0.55, "values:patience": 0.45},
         belief_tags={"domain:mastery": 0.65, "domain:order": 0.50, "domain:truth": 0.40, "domain:change": 0.25},
         alignment=0.0, chrono_age=112.0, bio_age=112.0,
-        home_location=sethis.id, current_location=sethis.id,
+        home_location=sethis.id, current_location=pop_loc_sethis.id,
         pop_id=pop_neran_artisan_col.id,
     )
     neran_confed.notable_mortal_ids.append(yssa_tharn.id)
@@ -1681,7 +1800,7 @@ def build_scenario_default() -> SimulationState:
                       "values:folk_wisdom": 0.75, "values:patience": 0.65, "values:charity": 0.45},
         belief_tags={"domain:community": 0.60, "domain:change": 0.40, "domain:memory": 0.30, "domain:growth": 0.25},
         alignment=0.0, chrono_age=74.0, bio_age=74.0,
-        home_location=sethis.id, current_location=sethis.id,
+        home_location=sethis.id, current_location=pop_loc_sethis.id,
         pop_id=pop_surathi_common.id,
     )
     surathi_clans.notable_mortal_ids.append(orrath.id)
@@ -1695,7 +1814,7 @@ def build_scenario_default() -> SimulationState:
                       "values:folk_wisdom": 0.70, "values:charity": 0.55, "values:humility": 0.45},
         belief_tags={"domain:community": 0.65, "domain:memory": 0.50, "domain:growth": 0.35, "domain:change": 0.25},
         alignment=0.0, chrono_age=58.0, bio_age=58.0,
-        home_location=sethis.id, current_location=sethis.id,
+        home_location=sethis.id, current_location=pop_loc_sethis.id,
         pop_id=pop_surathi_priest.id,
     )
     surathi_clans.notable_mortal_ids.append(deva.id)
@@ -1709,7 +1828,7 @@ def build_scenario_default() -> SimulationState:
                       "values:tenacity": 0.70, "values:charity": 0.45, "values:folk_wisdom": 0.40},
         belief_tags={"domain:conflict": 0.55, "domain:community": 0.50, "domain:change": 0.30, "domain:growth": 0.25},
         alignment=0.0, chrono_age=41.0, bio_age=41.0,
-        home_location=sethis.id, current_location=sethis.id,
+        home_location=sethis.id, current_location=pop_loc_sethis.id,
         pop_id=pop_surathi_common.id,
     )
     surathi_clans.notable_mortal_ids.append(yakkel.id)
@@ -1724,7 +1843,7 @@ def build_scenario_default() -> SimulationState:
                       "values:adaptability": 0.70, "values:wit": 0.55, "values:ambition": 0.45},
         belief_tags={"domain:community": 0.50, "domain:order": 0.45, "domain:change": 0.30, "domain:mastery": 0.20},
         alignment=0.0, chrono_age=36.0, bio_age=36.0,
-        home_location=sethis.id, current_location=sethis.id,
+        home_location=sethis.id, current_location=pop_loc_sethis.id,
         pop_id=pop_surathi_confederate.id,
     )
     neran_confed.notable_mortal_ids.append(sirak.id)
@@ -1739,7 +1858,7 @@ def build_scenario_default() -> SimulationState:
                       "values:ambition": 0.80, "values:tenacity": 0.55, "values:prosperity": 0.45},
         belief_tags={"domain:mastery": 0.65, "domain:conflict": 0.40, "domain:community": 0.35, "domain:order": 0.25},
         alignment=0.0, chrono_age=52.0, bio_age=52.0,
-        home_location=kiddis.id, current_location=kiddis.id,
+        home_location=kiddis.id, current_location=pop_loc_kiddis.id,
         pop_id=pop_damtal_elite.id,
     )
     damtal_civ.notable_mortal_ids.append(var_keth.id)
@@ -1753,7 +1872,7 @@ def build_scenario_default() -> SimulationState:
                       "values:folk_wisdom": 0.70, "values:patience": 0.65, "values:charity": 0.40},
         belief_tags={"domain:growth": 0.55, "domain:community": 0.45, "domain:memory": 0.30, "domain:water": 0.20},
         alignment=0.0, chrono_age=67.0, bio_age=67.0,
-        home_location=kiddis.id, current_location=kiddis.id,
+        home_location=kiddis.id, current_location=pop_loc_kiddis.id,
         pop_id=pop_damtal_elite.id,
     )
     damtal_civ.notable_mortal_ids.append(issel.id)
@@ -1767,7 +1886,7 @@ def build_scenario_default() -> SimulationState:
                       "values:tenacity": 0.75, "values:ambition": 0.55, "values:pragmatism": 0.45},
         belief_tags={"domain:conflict": 0.65, "domain:mastery": 0.55, "domain:growth": 0.20, "domain:sacrifice": 0.20},
         alignment=0.0, chrono_age=45.0, bio_age=45.0,
-        home_location=kiddis.id, current_location=kiddis.id,
+        home_location=kiddis.id, current_location=pop_loc_kiddis.id,
         pop_id=pop_damtal_elite.id,
     )
     damtal_civ.notable_mortal_ids.append(durrak.id)
@@ -1781,7 +1900,7 @@ def build_scenario_default() -> SimulationState:
                       "values:erudition": 0.75, "values:folk_wisdom": 0.55, "values:patience": 0.40},
         belief_tags={"domain:memory": 0.55, "domain:growth": 0.45, "domain:community": 0.30, "domain:truth": 0.30},
         alignment=0.0, chrono_age=78.0, bio_age=78.0,
-        home_location=kiddis.id, current_location=kiddis.id,
+        home_location=kiddis.id, current_location=pop_loc_kiddis.id,
         pop_id=pop_damtal_common.id,
     )
     damtal_civ.notable_mortal_ids.append(yellan.id)
@@ -1796,7 +1915,7 @@ def build_scenario_default() -> SimulationState:
                       "values:erudition": 0.75, "values:patience": 0.65, "values:sincerity": 0.45},
         belief_tags={"domain:memory": 0.60, "domain:mastery": 0.50, "domain:truth": 0.35, "domain:order": 0.30},
         alignment=0.0, chrono_age=198.0, bio_age=198.0,
-        home_location=mireth.id, current_location=mireth.id,
+        home_location=mireth.id, current_location=pop_loc_mireth.id,
         pop_id=pop_veldan_council.id,
     )
     veldan_assembly.notable_mortal_ids.append(councilor_yeth.id)
@@ -1811,7 +1930,7 @@ def build_scenario_default() -> SimulationState:
                       "values:erudition": 0.80, "values:patience": 0.55, "values:humility": 0.45},
         belief_tags={"domain:memory": 0.65, "domain:silence": 0.55, "domain:truth": 0.40, "domain:secrecy": 0.30},
         alignment=0.0, chrono_age=231.0, bio_age=231.0,
-        home_location=mireth.id, current_location=mireth.id,
+        home_location=mireth.id, current_location=pop_loc_mireth.id,
         pop_id=pop_veldan_council.id,
     )
     veldan_assembly.notable_mortal_ids.append(keeper_orvan.id)
@@ -1826,7 +1945,7 @@ def build_scenario_default() -> SimulationState:
                       "values:patience": 0.75, "values:humility": 0.55, "values:moderation": 0.45},
         belief_tags={"domain:silence": 0.75, "domain:secrecy": 0.55, "domain:truth": 0.50, "domain:order": 0.35},
         alignment=0.0, chrono_age=312.0, bio_age=312.0,
-        home_location=ossian.id, current_location=ossian.id,
+        home_location=ossian.id, current_location=pop_loc_ossian.id,
         pop_id=pop_vehn_council.id,
     )
     vehn_quietude.notable_mortal_ids.append(sivel.id)
@@ -1841,7 +1960,7 @@ def build_scenario_default() -> SimulationState:
                       "values:erudition": 0.75, "values:patience": 0.65, "values:humility": 0.50},
         belief_tags={"domain:silence": 0.70, "domain:memory": 0.55, "domain:secrecy": 0.55, "domain:truth": 0.40},
         alignment=0.82, chrono_age=700.0, bio_age=388.0,
-        home_location=ossian.id, current_location=ossian.id,
+        home_location=ossian.id, current_location=pop_loc_ossian.id,
         pop_id=pop_vehn_council.id,
     )
     vehn_quietude.notable_mortal_ids.append(orveth.id)
@@ -1855,7 +1974,7 @@ def build_scenario_default() -> SimulationState:
                       "values:pragmatism": 0.70, "values:tenacity": 0.55, "values:patience": 0.45},
         belief_tags={"domain:mastery": 0.60, "domain:secrecy": 0.50, "domain:silence": 0.45, "domain:conflict": 0.30},
         alignment=0.0, chrono_age=245.0, bio_age=245.0,
-        home_location=ossian.id, current_location=ossian.id,
+        home_location=ossian.id, current_location=pop_loc_ossian.id,
         pop_id=pop_vehn_common.id,
     )
     vehn_quietude.notable_mortal_ids.append(valn.id)
@@ -1869,7 +1988,7 @@ def build_scenario_default() -> SimulationState:
                       "values:wit": 0.70, "values:sincerity": 0.55, "values:adaptability": 0.45},
         belief_tags={"domain:truth": 0.55, "domain:change": 0.55, "domain:conflict": 0.30, "domain:silence": 0.15},
         alignment=0.0, chrono_age=178.0, bio_age=178.0,
-        home_location=ossian.id, current_location=ossian.id,
+        home_location=ossian.id, current_location=pop_loc_ossian.id,
         pop_id=pop_vehn_common.id,
     )
     vehn_quietude.notable_mortal_ids.append(taleth.id)
@@ -1910,21 +2029,26 @@ def build_scenario_default() -> SimulationState:
         neran, vel_arath, oros, kiddis, pellum, sethis,
         galaxy_b, system_b1, system_b2, cinder, mireth,
         galaxy_c, system_c1, ossian, lethis,
-        pop_loc_neran, pop_loc_oros, pop_loc_kiddis,
-        pop_loc_sethis, pop_loc_mireth, pop_loc_ossian,
+        pop_loc_neran, pop_loc_neran_bathy, pop_loc_neran_orbital,
+        pop_loc_oros, pop_loc_kiddis,
+        pop_loc_sethis, pop_loc_sethis_orbital,
+        pop_loc_mireth, pop_loc_ossian,
         pop_neran_elite, pop_neran_common, pop_neran_artisan,
+        pop_neran_orbital_elite, pop_neran_orbital_common,
+        pop_sethis_orbital_elite, pop_sethis_orbital_common,
         pop_keth_warrior, pop_keth_common,
         pop_damtal_elite, pop_damtal_common,
         pop_surathi_priest, pop_surathi_common, pop_surathi_confederate,
         pop_veldan_council, pop_veldan_common,
         pop_vehn_council, pop_vehn_common,
+        pop_ultir_bathy,
         naran_species, ultir_species, keth_species, damtal_species,
         surathi_species, veldan_species, vehn_species,
         neran_confed, keth_civ, damtal_civ, surathi_clans,
-        veldan_assembly, vehn_quietude,
+        veldan_assembly, vehn_quietude, ultir_pod_civ,
         senna, karath, veth, durenn, asha, orryn, thessal, maeva,
         kael, urren, korax,
-        ren_caleth, yssa_tharn, orrath, deva, yakkel, sirak,
+        ren_caleth, aren_velar, yssa_tharn, orrath, deva, yakkel, sirak,
         var_keth, issel, durrak, yellan,
         councilor_yeth, keeper_orvan, sivel, orveth, valn, taleth, kern,
     ]
@@ -1935,11 +2059,14 @@ def build_scenario_default() -> SimulationState:
     _all_pops = [
         pop_neran_elite, pop_neran_common, pop_neran_artisan,
         pop_neran_elite_col, pop_neran_common_col, pop_neran_artisan_col,
+        pop_neran_orbital_elite, pop_neran_orbital_common,
+        pop_sethis_orbital_elite, pop_sethis_orbital_common,
         pop_keth_warrior, pop_keth_common,
         pop_damtal_elite, pop_damtal_common,
         pop_surathi_priest, pop_surathi_common, pop_surathi_confederate,
         pop_veldan_council, pop_veldan_common,
         pop_vehn_council, pop_vehn_common,
+        pop_ultir_bathy,
     ]
     _pops_by_id = {p.id: p for p in _all_pops}
     for _m in _all_scenario_entities:
@@ -1987,7 +2114,10 @@ def build_scenario_default() -> SimulationState:
             str(system_c1.id):        system_c1,
             str(ossian.id):           ossian,
             str(lethis.id):           lethis,
-            str(pop_loc_neran.id):    pop_loc_neran,
+            str(pop_loc_neran.id):         pop_loc_neran,
+            str(pop_loc_neran_bathy.id):   pop_loc_neran_bathy,
+            str(pop_loc_neran_orbital.id): pop_loc_neran_orbital,
+            str(pop_loc_sethis_orbital.id):pop_loc_sethis_orbital,
             str(pop_loc_oros.id):     pop_loc_oros,
             str(pop_loc_kiddis.id):   pop_loc_kiddis,
             str(pop_loc_sethis.id):   pop_loc_sethis,
@@ -2001,6 +2131,7 @@ def build_scenario_default() -> SimulationState:
             str(surathi_clans.id):   surathi_clans,
             str(veldan_assembly.id): veldan_assembly,
             str(vehn_quietude.id):   vehn_quietude,
+            str(ultir_pod_civ.id):   ultir_pod_civ,
         },
         mortals={
             str(senna.id):          senna,          str(karath.id):       karath,
@@ -2009,7 +2140,8 @@ def build_scenario_default() -> SimulationState:
             str(thessal.id):        thessal,         str(maeva.id):        maeva,
             str(kael.id):           kael,            str(urren.id):        urren,
             str(korax.id):          korax,
-            str(ren_caleth.id):     ren_caleth,      str(yssa_tharn.id):   yssa_tharn,
+            str(ren_caleth.id):     ren_caleth,      str(aren_velar.id):   aren_velar,
+            str(yssa_tharn.id):     yssa_tharn,
             str(orrath.id):         orrath,          str(deva.id):         deva,
             str(yakkel.id):         yakkel,          str(sirak.id):        sirak,
             str(var_keth.id):       var_keth,        str(issel.id):        issel,
@@ -2026,6 +2158,10 @@ def build_scenario_default() -> SimulationState:
             str(pop_neran_elite_col.id): pop_neran_elite_col,
             str(pop_neran_common_col.id): pop_neran_common_col,
             str(pop_neran_artisan_col.id): pop_neran_artisan_col,
+            str(pop_neran_orbital_elite.id):  pop_neran_orbital_elite,
+            str(pop_neran_orbital_common.id): pop_neran_orbital_common,
+            str(pop_sethis_orbital_elite.id):  pop_sethis_orbital_elite,
+            str(pop_sethis_orbital_common.id): pop_sethis_orbital_common,
             str(pop_keth_warrior.id):  pop_keth_warrior,
             str(pop_keth_common.id):   pop_keth_common,
             str(pop_damtal_elite.id):  pop_damtal_elite,
@@ -2037,6 +2173,7 @@ def build_scenario_default() -> SimulationState:
             str(pop_veldan_common.id):  pop_veldan_common,
             str(pop_vehn_council.id):   pop_vehn_council,
             str(pop_vehn_common.id):    pop_vehn_common,
+            str(pop_ultir_bathy.id):    pop_ultir_bathy,
         },
         species={
             str(naran_species.id):   naran_species,

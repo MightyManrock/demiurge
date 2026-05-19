@@ -98,23 +98,40 @@ def _trait_color(value: float, scale: float = 1.0) -> str:
     magnitude is narrower (e.g. Imago mechanics in roughly ±0.3), pass a
     smaller scale so the gradient compresses to that range.
     """
-    v = (value / scale) if scale else value
-    if v >= 0.85:    return "#9040c8"   # purple
-    if v >= 0.70:    return "#6050d0"   # blue-violet
-    if v >= 0.60:    return "#4070d0"   # blue
-    if v >= 0.50:    return "#4090c8"   # teal-blue
-    if v >= 0.40:    return "#40b8c0"   # teal
-    if v >= 0.30:    return "#40c0a0"   # green-teal
-    if v >= 0.20:    return "#50b880"   # green
-    if v >= 0.10:    return "#60a070"   # light green
-    if v >= 0.05:    return "#6a8070"   # greenish-gray
-    if v >= 0.00:    return "#707070"   # mid-gray
-    if v >= -0.05:   return "#807060"   # yellowish-gray
-    if v >= -0.15:   return "#a07050"   # amber
-    if v >= -0.30:   return "#b06040"   # orange
-    if v >= -0.50:   return "#b85040"   # red-orange
-    return "#b04040"                    # red
+    # v = (value / scale) if scale else value
+    # if v >= 0.85:    return "#9040c8"   # purple
+    # if v >= 0.70:    return "#6050d0"   # blue-violet
+    # if v >= 0.60:    return "#4070d0"   # blue
+    # if v >= 0.50:    return "#4090c8"   # teal-blue
+    # if v >= 0.40:    return "#40b8c0"   # teal
+    # if v >= 0.30:    return "#40c0a0"   # green-teal
+    # if v >= 0.20:    return "#50b880"   # green
+    # if v >= 0.10:    return "#60a070"   # light green
+    # if v >= 0.05:    return "#6a8070"   # greenish-gray
+    # if v >= 0.00:    return "#707070"   # mid-gray
+    # if v >= -0.05:   return "#807060"   # yellowish-gray
+    # if v >= -0.15:   return "#a07050"   # amber
+    # if v >= -0.30:   return "#b06040"   # orange
+    # if v >= -0.50:   return "#b85040"   # red-orange
+    # return "#b04040"                    # red
 
+    v = (value / scale) if scale else value
+    if v >= 0.85:    return "#B818B0"   # purple
+    if v >= 0.80:    return "#9430A1"   # violet-purple
+    if v >= 0.70:    return "#6F23AD"   # blue-violet
+    if v >= 0.60:    return "#5040B8"   # blue
+    if v >= 0.50:    return "#4949A6"   # teal-blue
+    if v >= 0.40:    return "#465B88"   # teal
+    if v >= 0.30:    return "#426D6A"   # green-teal
+    if v >= 0.20:    return "#577D71"   # green
+    if v >= 0.10:    return "#6B8C77"   # light green
+    if v >= 0.05:    return "#8FA194"   # greenish-gray
+    if v >= 0.00:    return "#8F8F8F"   # mid-gray
+    if v >= -0.05:   return "#807060"   # yellowish-gray
+    if v >= -0.15:   return "#A17555"   # amber
+    if v >= -0.30:   return "#B06040"   # orange
+    if v >= -0.50:   return "#b85040"   # red-orange
+    return "#D11111"                    # red
 
 def _short_tag(tag: str) -> str:
     """
@@ -211,6 +228,16 @@ def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: 
     label = _short_tag(tag)
     suffix = f"({value:.2f})" if with_value else ""
     return _maybe_domain_link(tag, f"[{color}]{label}{suffix}[/]")
+
+
+def _pop_stratum_label(pop) -> str:
+    """Player-facing label for a Pop's stratum. Wild pops always render as
+    the single word 'wild' (lowercase); everything else is Title Case."""
+    if not pop.stratum:
+        return "Pop"
+    if pop.stratum == "wild":
+        return "wild"
+    return pop.stratum.title()
 
 
 def _prominence_label(mortal) -> str:

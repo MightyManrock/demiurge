@@ -403,6 +403,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 visibility=visibility,
                 pinned=pinned,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
+                distance_from_core=int(row.get("distance_from_core", 0) or 0),
             )
         else:
             # Base Location (galaxies and any freeform locations)

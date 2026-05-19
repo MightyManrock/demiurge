@@ -45,7 +45,7 @@ from core.universe_core import (
     Civilization, NotableMortal,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
-    Pop, SocialClass,
+    Pop, SocialClass, is_wild_civ,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
@@ -267,15 +267,62 @@ def _compute_universal_expression(state: "SimulationState", domain_tag: str) -> 
     return max(0.1, min(1.0, normalized))
 
 
+def _resolve_world_id_for(state: "SimulationState", loc_id) -> "Optional[str]":
+    """Return the id of the SignificantLocation (world) covering `loc_id`.
+
+    If `loc_id` is already a SignificantLocation, returns it. If it's a
+    PopLocation, walks up to its parent. Returns None for anything else
+    (system, galaxy, unknown, etc.)."""
+    if loc_id is None:
+        return None
+    loc = state.locations.get(str(loc_id))
+    if isinstance(loc, SignificantLocation):
+        return str(loc.id)
+    if isinstance(loc, PopLocation) and loc.parent_id is not None:
+        parent = state.locations.get(str(loc.parent_id))
+        if isinstance(parent, SignificantLocation):
+            return str(parent.id)
+    return None
+
+
+def _resolve_world_for(state: "SimulationState", loc_id) -> "Optional[SignificantLocation]":
+    """Same as `_resolve_world_id_for` but returns the SignificantLocation object."""
+    wid = _resolve_world_id_for(state, loc_id)
+    return state.worlds.get(wid) if wid else None
+
+
+def _location_distance_from_core(state: "SimulationState", loc_id) -> int:
+    """Return the PopLocation's `distance_from_core` for `loc_id`, or 0 for any
+    other location type (world surface, system, galaxy, unknown)."""
+    if loc_id is None:
+        return 0
+    loc = state.locations.get(str(loc_id))
+    if isinstance(loc, PopLocation):
+        return int(getattr(loc, "distance_from_core", 0) or 0)
+    return 0
+
+
+def _pop_distance_factor(state: "SimulationState", src_loc_id, tgt_loc_id) -> float:
+    """Symmetric distance-from-core penalty multiplier between two PopLocations
+    on the same world. Compounds `0.7` per step of `|src.distance - tgt.distance|`.
+    Same PopLocation → 1.0; surface ↔ orbital (d2) → 0.49; etc."""
+    delta = abs(
+        _location_distance_from_core(state, src_loc_id)
+        - _location_distance_from_core(state, tgt_loc_id)
+    )
+    return 0.7 ** delta
+
+
 def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id: "UUID") -> float:
     """
     Normalized domain expression at a single SignificantLocation: 0.0–1.0.
-    Used for Proxius Commission Inquiry bonus calculation.
+    Used for Proxius Commission Inquiry bonus calculation. Accepts a PopLocation
+    id and walks up to its parent world transparently.
     """
-    loc = state.locations.get(str(loc_id))
-    if not isinstance(loc, SignificantLocation):
+    world = _resolve_world_for(state, loc_id)
+    if world is None:
         return 0.0
-    raw = loc.domain_expression.get(domain_tag, 0.0)
+    raw = world.domain_expression.get(domain_tag, 0.0)
     return max(0.0, min(1.0, raw))
 
 
@@ -286,14 +333,18 @@ def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id:
 # ─────────────────────────────────────────
 
 _SOCIAL_CLASS_RANK: dict[str, int] = {
-    "underclass": 0, "common": 1, "artisan": 2, "merchant": 3,
-    "warrior": 4, "priest": 5, "elite": 6,
+    "wild":       -2,   # No social structure at all (pre-sapient pods, true wilderness).
+    "feral":      -1,   # Partially or recently de-civilized — outside class but not pre-social.
+    "underclass":  0, "common": 1, "artisan": 2, "merchant": 3,
+    "warrior":     4, "priest": 5, "elite":   6,
 }
 
 _CIV_SCALE_CONTACT_RANK: dict[str, int] = {
-    "nascent": 0, "tribal": 1, "city_state": 2, "regional": 3,
-    "continental": 4, "planetary": 5, "interplanetary": 6,
-    "interstellar": 7, "intergalactic": 8,
+    "non_sentient": -2,  # Reserved for future non-sentient Pops.
+    "pre_sapient":  -1,  # Pop with no civilization_id (wild population).
+    "nascent":       0, "tribal":  1, "city_state":     2, "regional":     3,
+    "continental":   4, "planetary":     5, "interplanetary": 6,
+    "interstellar":  7, "intergalactic": 8,
 }
 
 # Flat susceptibility modifier applied after all other resistance factors.
@@ -1271,8 +1322,10 @@ class TickLoop:
             for mortal in state.mortals.values():
                 if (mortal.role == MortalRole.PROXIUS
                         and mortal.status == MortalStatus.ACTIVE):
-                    loc = str(mortal.current_location)
-                    proxii_by_world[loc] = proxii_by_world.get(loc, 0) + 1
+                    wid = _resolve_world_id_for(state, mortal.current_location)
+                    if wid is None:
+                        continue
+                    proxii_by_world[wid] = proxii_by_world.get(wid, 0) + 1
 
             total_passive_fp = 0.0
             for count in proxii_by_world.values():
@@ -1483,8 +1536,9 @@ class TickLoop:
         mortals_by_world: dict[str, list["NotableMortal"]] = {}
         for mortal in state.mortals.values():
             if mortal.status == "active":
-                wid = str(mortal.current_location)
-                mortals_by_world.setdefault(wid, []).append(mortal)
+                wid = _resolve_world_id_for(state, mortal.current_location)
+                if wid is not None:
+                    mortals_by_world.setdefault(wid, []).append(mortal)
 
         # World location weight: distribute each world's domain_expression contribution
         # evenly rather than per-Pop (location is an inherent property of the world).
@@ -2153,7 +2207,8 @@ class TickLoop:
                             continue
                     if ev.target_mortal_id is not None:
                         mortal = state.mortals.get(str(ev.target_mortal_id))
-                        if mortal and str(mortal.current_location) == target_world_id:
+                        m_wid = _resolve_world_id_for(state, mortal.current_location) if mortal else None
+                        if m_wid == target_world_id:
                             relevant.append(ev)
 
                 if not relevant:
@@ -2548,6 +2603,8 @@ class TickLoop:
             for cid, civ in state.civilizations.items():
                 if civ.pinned:
                     continue
+                if is_wild_civ(civ):
+                    continue  # wild "civs" exist for bookkeeping only — not discoverable
                 anchor_id, depth = _civ_anchor(civ)
                 if anchor_id is not None and anchor_id not in eligible_locs:
                     continue
@@ -2609,7 +2666,10 @@ class TickLoop:
                     continue
                 if str(mortal.current_location) not in eligible_locs:
                     continue
-                delta = abs(5 - anchor)
+                # PopLocations distant from the world core are harder to scry.
+                m_loc = state.locations.get(str(mortal.current_location))
+                m_dist = m_loc.distance_from_core if isinstance(m_loc, PopLocation) else 0
+                delta = abs(5 - anchor) + m_dist
                 base = _depth_chance(delta)
                 sf = _spatial_factor(str(mortal.current_location))
                 p = max(0.0, min(1.0,
@@ -2637,11 +2697,12 @@ class TickLoop:
             for pid, pop in state.pops.items():
                 if pop.pinned:
                     continue
-                if not pop.civilization_id:
-                    continue
-                civ = state.civilizations.get(str(pop.civilization_id))
-                if civ is None or not is_in_window(civ):
-                    continue
+                # Civ-bound pops require their civilization to be in-window; wild
+                # (non-civ) pops anchor directly on their world's eligibility below.
+                if pop.civilization_id:
+                    civ = state.civilizations.get(str(pop.civilization_id))
+                    if civ is None or not is_in_window(civ):
+                        continue
                 pop_loc = state.locations.get(str(pop.current_location))
                 pop_world_id = (
                     _pop_loc_to_world.get(str(pop.current_location))
@@ -2653,7 +2714,10 @@ class TickLoop:
                 size_factor = min(1.0, pop.size_fractional / 9.0)
                 stratum_factor = 1.3 if (pop.social_class and pop.social_class.value in _PROMINENT_CLASSES) else 1.0
                 world_scry_base = start_vis * 0.5  # Pops revealed at half start_vis
-                p = min(1.0, world_scry_base * size_factor * stratum_factor)
+                # PopLocations distant from the world core are harder to scry.
+                dist = pop_loc.distance_from_core if isinstance(pop_loc, PopLocation) else 0
+                distance_factor = 0.7 ** dist
+                p = min(1.0, world_scry_base * size_factor * stratum_factor * distance_factor)
                 if rng.random() < p:
                     was_visible = pop.visibility > ENTITY_VISIBILITY_FLOOR
                     new_vis = max(pop.visibility, world_scry_base)
@@ -2899,9 +2963,10 @@ class TickLoop:
             ))
 
             # Splash: ripple fraction of the whisper's effect to all Pops on the same world.
-            # Cross-civ/cross-species/cross-stratum Pops receive reduced splash via resistance.
-            mortal_world_id = str(mortal.current_location)
-            splash_pops = self._pops_on_world(mortal_world_id, state)
+            # Cross-civ/cross-species/cross-stratum Pops receive reduced splash via resistance;
+            # PopLocation distance-from-core delta further dampens cross-PopLocation splash.
+            mortal_world_id = _resolve_world_id_for(state, mortal.current_location)
+            splash_pops = self._pops_on_world(mortal_world_id, state) if mortal_world_id else []
             if splash_pops:
                 _splash_cfg = state.config
                 # Derive source attributes from the mortal for resistance calculations
@@ -2910,6 +2975,7 @@ class TickLoop:
                 _src_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
                 _src_class = ((_src_pop.social_class.value if hasattr(_src_pop.social_class, "value") else str(_src_pop.social_class or "")) if _src_pop else None) or None
                 _src_size = _src_pop.size_fractional if _src_pop else 1.0
+                _src_loc_id = mortal.current_location
                 total_sz = sum(p.size_fractional for p in splash_pops)
                 for sp in splash_pops:
                     sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
@@ -2917,9 +2983,10 @@ class TickLoop:
                         sp, _src_civ_id, _src_species_id, _src_class, state, _splash_cfg,
                         src_size=_src_size,
                     )
+                    dist_factor = _pop_distance_factor(state, _src_loc_id, sp.current_location)
                     for dv in intent.domain_vectors:
                         receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
-                        splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight * receptivity * resistance
+                        splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight * receptivity * resistance * dist_factor
                         if abs(splash_delta) > 1e-5:
                             mutations.append(StateMutation(
                                 mutation_type=MutationType.POP_BELIEF_SHIFT,
@@ -4631,7 +4698,12 @@ class TickLoop:
                         if cid in state.civilizations:
                             target_civ_ids.append(cid)
                     else:
-                        loc_id = str(goal.target_location_id)
+                        # goal.target_location_id may be a PopLocation; resolve
+                        # to its parent world so it matches civ.origin_location_id.
+                        loc_id = (
+                            _resolve_world_id_for(state, goal.target_location_id)
+                            or str(goal.target_location_id)
+                        )
                         target_civ_ids = [
                             cid for cid, civ in state.civilizations.items()
                             if str(civ.origin_location_id) == loc_id
@@ -4798,7 +4870,11 @@ class TickLoop:
             return civ.origin_location_id if civ else None
         elif instance.target_type == TargetType.MORTAL:
             mortal = state.mortals.get(str(instance.target_id))
-            return mortal.current_location if mortal else None
+            if mortal is None:
+                return None
+            # Mortals live at PopLocations; walk up to the parent world.
+            wid = _resolve_world_id_for(state, mortal.current_location)
+            return UUID(wid) if wid else None
         return None
 
     def _pop_domain_receptivity(self, pop: "Pop", domain_tag: str) -> float:
@@ -4843,18 +4919,18 @@ class TickLoop:
         return 1.0
 
     def _pops_on_world(self, world_id: str, state: "SimulationState") -> list["Pop"]:
-        """Return all Pops whose current_location is a PopLocation child of world_id."""
-        world = state.locations.get(world_id)
-        if world is None:
-            return []
+        """Return all Pops whose current_location is a PopLocation whose parent
+        is `world_id`. Authoritative source is `pop.current_location` (not
+        `PopLocation.pop_ids` or any home reference), so a Pop's presence on a
+        world is decided solely by where it currently is."""
+        wid = str(world_id)
         pops: list = []
-        for child_id in getattr(world, "child_ids", []):
-            child = state.locations.get(str(child_id))
-            if child is not None and hasattr(child, "pop_ids"):
-                for pid in getattr(child, "pop_ids", []):
-                    pop = state.pops.get(str(pid))
-                    if pop is not None:
-                        pops.append(pop)
+        for pop in state.pops.values():
+            ploc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+            if not isinstance(ploc, PopLocation):
+                continue
+            if str(ploc.parent_id) == wid:
+                pops.append(pop)
         return pops
 
     def _pop_contact_resistance(
@@ -4878,31 +4954,38 @@ class TickLoop:
         target_civ_id = str(target_pop.civilization_id) if target_pop.civilization_id else None
         if target_civ_id != src_civ_id:
             r *= cfg.cross_civ_contact_factor
-            # Additional penalty when the target civ is larger/more established
-            if src_civ_id:
-                src_civ = state.civilizations.get(src_civ_id)
-                tgt_civ = state.civilizations.get(target_civ_id) if target_civ_id else None
-                if src_civ and tgt_civ:
-                    src_scale_str = src_civ.scale.value if hasattr(src_civ.scale, "value") else str(src_civ.scale)
-                    tgt_scale_str = tgt_civ.scale.value if hasattr(tgt_civ.scale, "value") else str(tgt_civ.scale)
-                    src_rank = _CIV_SCALE_CONTACT_RANK.get(src_scale_str, 0)
-                    tgt_rank = _CIV_SCALE_CONTACT_RANK.get(tgt_scale_str, 0)
-                    scale_gap = max(0, tgt_rank - src_rank)
-                    r *= max(0.05, 1.0 - scale_gap * cfg.cross_civ_scale_penalty)
+            # Scale-gap penalty: civilizations have ranks; wild populations
+            # (no civ_id) are treated as one step below `nascent`. This makes
+            # wild→civ drift face the gap penalty too, since the conceptual
+            # distance from a pre-sapient pod to a starfaring empire is at
+            # least as large as the distance between any two civ scales.
+            def _scale_rank_for(civ_id: str | None) -> int:
+                if not civ_id:
+                    return _CIV_SCALE_CONTACT_RANK["pre_sapient"]
+                civ = state.civilizations.get(civ_id)
+                if civ is None:
+                    return _CIV_SCALE_CONTACT_RANK["pre_sapient"]
+                scale = civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale)
+                return _CIV_SCALE_CONTACT_RANK.get(scale, 0)
+            src_rank = _scale_rank_for(src_civ_id)
+            tgt_rank = _scale_rank_for(target_civ_id)
+            scale_gap = max(0, tgt_rank - src_rank)
+            r *= max(0.05, 1.0 - scale_gap * cfg.cross_civ_scale_penalty)
 
         # Cross-species resistance
         target_species_id = str(target_pop.species_id) if target_pop.species_id else None
         if src_species_id and target_species_id and target_species_id != src_species_id:
             r *= cfg.cross_species_contact_factor
 
-        # Cross-stratum resistance
+        # Cross-stratum resistance — wild populations (no social_class) are
+        # assigned the `wild` rank, one step below `underclass`, so a wild Pop
+        # talking to any actual stratum gets a distance-based penalty.
         tgt_class_str = target_pop.social_class.value if hasattr(target_pop.social_class, "value") else str(target_pop.social_class or "")
-        if src_class:
-            src_rank = _SOCIAL_CLASS_RANK.get(src_class, 0)
-            tgt_rank = _SOCIAL_CLASS_RANK.get(tgt_class_str, 0)
-            stratum_distance = abs(tgt_rank - src_rank)
-            if stratum_distance > 0:
-                r *= cfg.cross_stratum_contact_factor ** stratum_distance
+        src_rank = _SOCIAL_CLASS_RANK.get(src_class or "wild", _SOCIAL_CLASS_RANK["wild"])
+        tgt_rank = _SOCIAL_CLASS_RANK.get(tgt_class_str or "wild", _SOCIAL_CLASS_RANK["wild"])
+        stratum_distance = abs(tgt_rank - src_rank)
+        if stratum_distance > 0:
+            r *= cfg.cross_stratum_contact_factor ** stratum_distance
 
         # Values-tag stubbornness
         values_strength = sum(
@@ -4948,12 +5031,17 @@ class TickLoop:
                         pop_b, src_civ_id, src_species_id, src_class, state, cfg,
                         src_size=pop_a.size_fractional,
                     )
+                    # PopLocation distance penalty: bridges across orbital/abyssal
+                    # PopLocations still contact, just at diminished strength.
+                    dist_factor = _pop_distance_factor(
+                        state, pop_a.current_location, pop_b.current_location,
+                    )
                     for tag, a_strength in pop_a.dominant_beliefs.items():
                         if a_strength <= BELIEF_FLOOR:
                             continue
                         b_strength = pop_b.dominant_beliefs.get(tag, 0.0)
                         raw_delta = (a_strength - b_strength) * cfg.pop_contact_base_rate
-                        delta = raw_delta * resistance
+                        delta = raw_delta * resistance * dist_factor
                         if abs(delta) > 1e-5:
                             mutations.append(StateMutation(
                                 mutation_type=MutationType.POP_BELIEF_SHIFT,
@@ -4998,9 +5086,15 @@ class TickLoop:
                     # e.g. field = "local_footprint.overt_miracles"
                     parts = m.field.split(".")
                     if len(parts) == 2:
-                        obj = getattr(state.locations[tid], parts[0])
-                        current = getattr(obj, parts[1], 0.0)
-                        setattr(obj, parts[1], max(0.0, min(1.0, current + (m.delta or 0))))
+                        # PopLocations don't carry footprint themselves; redirect
+                        # to their parent SignificantLocation (world).
+                        loc = state.locations[tid]
+                        if isinstance(loc, PopLocation) and loc.parent_id is not None:
+                            loc = state.locations.get(str(loc.parent_id), loc)
+                        obj = getattr(loc, parts[0], None)
+                        if obj is not None:
+                            current = getattr(obj, parts[1], 0.0)
+                            setattr(obj, parts[1], max(0.0, min(1.0, current + (m.delta or 0))))
                 elif tid in state.luminary_attention:
                     current = state.luminary_attention[tid]
                     state.luminary_attention[tid] = max(0.0, min(1.0, current + (m.delta or 0)))
@@ -5080,11 +5174,9 @@ class TickLoop:
                         mortal.proxius_appointed_tick = state.tick_number
                     if mortal.id not in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.append(mortal.id)
-                    loc_id_str = str(mortal.current_location)
-                    loc = state.locations.get(loc_id_str)
-                    if loc and isinstance(loc, SignificantLocation):
-                        if mortal.id not in loc.proxius_ids:
-                            loc.proxius_ids.append(mortal.id)
+                    world = _resolve_world_for(state, mortal.current_location)
+                    if world and mortal.id not in world.proxius_ids:
+                        world.proxius_ids.append(mortal.id)
 
             elif m.mutation_type == MutationType.PROXIUS_DISMISSED:
                 if tid in state.mortals:
@@ -5093,11 +5185,9 @@ class TickLoop:
                     mortal.pinned = False
                     if mortal.id in state.demiurge.proxius_ids:
                         state.demiurge.proxius_ids.remove(mortal.id)
-                    loc_id_str = str(mortal.current_location)
-                    loc = state.locations.get(loc_id_str)
-                    if loc and isinstance(loc, SignificantLocation):
-                        if mortal.id in loc.proxius_ids:
-                            loc.proxius_ids.remove(mortal.id)
+                    world = _resolve_world_for(state, mortal.current_location)
+                    if world and mortal.id in world.proxius_ids:
+                        world.proxius_ids.remove(mortal.id)
 
             elif m.mutation_type == MutationType.MORTAL_POP_AGED_OUT:
                 if tid in state.mortals:
@@ -5163,7 +5253,7 @@ class TickLoop:
                 elif tid in state.mortals:
                     mortal = state.mortals[tid]
                     mortal.status = MortalStatus.DECEASED
-                    world = state.worlds.get(str(mortal.current_location))
+                    world = _resolve_world_for(state, mortal.current_location)
                     if world:
                         world.domain_expression["domain:underreal_trace"] = min(
                             1.0,

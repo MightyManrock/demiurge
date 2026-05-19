@@ -24,13 +24,13 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import ListView, RichLog, Static
 
-from core.universe_core import MortalRole, MortalStatus
+from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 
 import display
 from display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
-    _name_for_id, _short_tag, _trait_color,
+    _name_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,
     display_briefing, _lines_to_text,
 )
@@ -72,15 +72,16 @@ def _maybe_gold(kind: str, eid: str, label_markup: str) -> str:
 
 # Per-kind colors for clickable entity-name links. Picked to sit outside the
 # trait-value gradient (greens/teals/blues/purples ↔ ambers/oranges/reds) so a
-# link color cannot be mistaken for a strength signal. PopLocations are not
-# links and intentionally have no entry (they render as plain text).
+# link color cannot be mistaken for a strength signal.
 _LINK_COLORS: dict[str, str] = {
-    "world":   "#d4b070",  # sandy gold
-    "system":  "#d4b070",
-    "civ":     "#c89050",  # warm bronze
-    "mortal":  "#d890a8",  # rose
-    "species": "#b090d0",  # lavender
-    "pop":     "#80b8c8",  # pale cyan
+    "galaxy":   "#60a070",  # muted green
+    "system":   "#9aa870",  # halfway between galaxy and world
+    "world":    "#d4b070",  # sandy gold
+    "civ":      "#c89050",  # warm bronze
+    "mortal":   "#d890a8",  # rose
+    "species":  "#b090d0",  # lavender
+    "pop":      "#80b8c8",  # pale cyan
+    "poploc":   "#3070c0",  # cobalt blue — reserved; not clickable yet
     # luminary: deferred — separate scheme planned
 }
 
@@ -473,7 +474,7 @@ class LocationsTab(ContentTab):
             any_shown = True
             g_style = "[dim]" if g_oow else ""
             g_end = "[/]" if g_oow else ""
-            galaxy_md = _maybe_gold("galaxy", str(gid), f"[bold]{_e(galaxy.name)}[/]")
+            galaxy_md = _click_link("galaxy", str(gid), f"[bold]{_e(galaxy.name)}[/]")
             a(f"{g_style}◇ {galaxy_md}{g_end}")
             for sid in galaxy.child_ids:
                 sys_obj = state.locations.get(str(sid))
@@ -516,6 +517,8 @@ class EntitiesTab(ContentTab):
         a("")
         any_civ = False
         for cid, civ in state.civilizations.items():
+            if is_wild_civ(civ):
+                continue  # hidden from player UI
             c_oow = not is_in_window(civ)
             if c_oow and not dev:
                 continue
@@ -657,11 +660,17 @@ def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -
     civ_obj = state.civilizations.get(str(mortal.civilization_id)) if mortal.civilization_id else None
     loc_str = ""
     if loc_obj:
-        loc_kind = ("world" if str(mortal.current_location) in state.worlds
-                    else ("system" if str(mortal.current_location) in state.systems else None))
+        cl_id = str(mortal.current_location)
+        if cl_id in state.worlds:
+            loc_kind = "world"
+        elif cl_id in state.systems:
+            loc_kind = "system"
+        elif isinstance(loc_obj, PopLocation):
+            loc_kind = "poploc"
+        else:
+            loc_kind = None
         if loc_kind:
-            loc_link = _click_link(loc_kind, str(mortal.current_location),
-                                   _e(loc_obj.name))
+            loc_link = _click_link(loc_kind, cl_id, _e(loc_obj.name))
         else:
             loc_link = _e(loc_obj.name)
         loc_str = f"location: {loc_link}"
@@ -711,65 +720,160 @@ class UniverseTab(ContentTab):
         a("[bold #4a80b0]━━ WORLDS ━━[/]")
         a("")
         any_w = False
-        for wid, world in state.worlds.items():
-            w_oow = not is_in_window(world)
-            if w_oow and not dev:
+
+        # Walk galaxies → systems → worlds. Galaxies sit flush at column 0,
+        # systems indent +1, worlds indent +2 (so the existing world block —
+        # marker, domain line, civ tree — is prefixed with two extra spaces).
+        # OOW galaxies/systems are hidden in non-dev mode.
+        def _dim(text: str, oow: bool) -> str:
+            return f"[dim]{text}[/]" if oow else text
+
+        # Pre-emit base indent prefix used by every line inside a world block.
+        IDX = "  "  # two spaces — the "world depth" offset
+
+        for gid, galaxy in state.galaxies.items():
+            g_oow = not is_in_window(galaxy)
+            if g_oow and not dev:
                 continue
-            any_w = True
-            wm = "[dim]" if w_oow else ""
-            we = "[/]" if w_oow else ""
-            vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
-            domain_str = _format_beliefs_markup(world.domain_expression, top_n=4) or "[#5a7090]none[/]"
-            world_link = _click_link("world", str(wid), f"[bold]{_e(world.name)}[/]")
-            a(f"{wm}● {world_link}  "
-              f"\\[{_e(world.condition.value)}]{vis_note}{we}")
-            a(f"{wm}    domain: {domain_str}{we}")
-            for cid in world.civilization_ids:
-                civ = state.civilizations.get(str(cid))
-                if not civ:
+            gal_link = _click_link("galaxy", str(gid), _e(galaxy.name))
+            a(_dim(gal_link, g_oow))
+
+            for sid in galaxy.child_ids:
+                sys_obj = state.systems.get(str(sid))
+                if not sys_obj:
                     continue
-                c_oow = not is_in_window(civ)
-                if c_oow and not dev:
+                s_oow = not is_in_window(sys_obj)
+                if s_oow and not dev:
                     continue
-                cm = "[dim]" if (w_oow or c_oow) else ""
-                ce = "[/]" if (w_oow or c_oow) else ""
-                h = civ.health
-                civ_vis = f"  \\[vis:{civ.visibility:.2f}]" if not civ.pinned else ""
-                civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
-                a(f"{cm}    └─ {civ_link} "
-                  f"\\[{_e(civ.scale.value)}]{civ_vis}  "
-                  f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
-                if civ.dominant_beliefs:
-                    a(f"{cm}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs, top_n=4)}{ce}")
-                if civ.culture_tags:
-                    a(f"{cm}       culture: {_format_culture_markup(civ.culture_tags, top_n=4)}{ce}")
-                for pid in civ.pop_ids:
-                    pop = state.pops.get(str(pid))
-                    if not pop:
+                sys_link = _click_link("system", str(sid), _e(sys_obj.name))
+                a(_dim(f" {sys_link}", g_oow or s_oow))
+
+                for cid in sys_obj.child_ids:
+                    wid = str(cid)
+                    world = state.worlds.get(wid)
+                    if not world:
                         continue
-                    pop_loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
-                    if not pop_loc or str(pop_loc.parent_id) != str(wid):
+                    w_oow = not is_in_window(world)
+                    if w_oow and not dev:
                         continue
-                    p_oow = not is_in_window(pop)
-                    if p_oow and not dev:
-                        continue
-                    pm = "[dim]" if (w_oow or c_oow or p_oow) else ""
-                    pe = "[/]" if (w_oow or c_oow or p_oow) else ""
-                    class_label = pop.stratum.title() if pop.stratum else "Pop"
-                    sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-                    pop_stratum_md = _click_link("pop", str(pid), class_label)
-                    if sp_obj:
-                        sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
-                        pop_label = f"{pop_stratum_md}  ({sp_md})"
-                    else:
-                        pop_label = pop_stratum_md
-                    belief_str = (
-                        _format_beliefs_markup(pop.dominant_beliefs, top_n=4)
-                        or "[#5a7090]none[/]"
+                    any_w = True
+                    any_oow_above = g_oow or s_oow or w_oow
+                    wm = "[dim]" if any_oow_above else ""
+                    we = "[/]" if any_oow_above else ""
+                    vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
+                    domain_str = _format_beliefs_markup(world.domain_expression, top_n=4) or "[#5a7090]none[/]"
+                    world_link = _click_link("world", wid, f"[bold]{_e(world.name)}[/]")
+                    a(f"{wm}{IDX}● {world_link}  "
+                      f"\\[{_e(world.condition.value)}]{vis_note}{we}")
+                    a(f"{wm}{IDX}    domain: {domain_str}{we}")
+
+                    # Collect every visible pop on this world, bucketed by
+                    # civilization → PopLocation → [pops]. None-keyed bucket
+                    # holds wild (no civ or wild-civ) pops.
+                    pops_by_civ_loc: dict = {}
+                    for _p in state.pops.values():
+                        _ploc = state.locations.get(str(_p.current_location)) if _p.current_location else None
+                        if not isinstance(_ploc, PopLocation):
+                            continue
+                        if str(_ploc.parent_id) != wid:
+                            continue
+                        if not is_in_window(_p) and not dev:
+                            continue
+                        civ_obj = state.civilizations.get(str(_p.civilization_id)) if _p.civilization_id else None
+                        civ_key = str(_p.civilization_id) if (civ_obj and not is_wild_civ(civ_obj)) else None
+                        pops_by_civ_loc.setdefault(civ_key, {}).setdefault(str(_ploc.id), []).append(_p)
+
+                    def _render_pop_line(pop, indent: str, civ_oow_local: bool, prefix: str) -> None:
+                        p_oow = not is_in_window(pop)
+                        if p_oow and not dev:
+                            return
+                        pm = "[dim]" if (w_oow or civ_oow_local or p_oow) else ""
+                        pe = "[/]" if (w_oow or civ_oow_local or p_oow) else ""
+                        class_label = _pop_stratum_label(pop)
+                        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+                        pop_stratum_md = _click_link("pop", str(pop.id), class_label)
+                        if sp_obj:
+                            sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
+                            pop_label = f"{pop_stratum_md}  ({sp_md})"
+                        else:
+                            pop_label = pop_stratum_md
+                        belief_str = (
+                            _format_beliefs_markup(pop.dominant_beliefs, top_n=4)
+                            or "[#5a7090]none[/]"
+                        )
+                        vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                        a(f"{pm}{indent}{prefix}{pop_label}  sz:{pop.size_magnitude}  "
+                          f"{belief_str}{vn}{pe}")
+
+                    def _ploc_sort_key(plid: str):
+                        pl = state.locations[plid]
+                        return (pl.distance_from_core, pl.name)
+
+                    attached_wild_pop_ids: set[str] = set()
+
+                    for cid_iter in world.civilization_ids:
+                        civ = state.civilizations.get(str(cid_iter))
+                        if not civ:
+                            continue
+                        if is_wild_civ(civ):
+                            continue
+                        c_oow = not is_in_window(civ)
+                        if c_oow and not dev:
+                            continue
+                        cm = "[dim]" if (w_oow or c_oow) else ""
+                        ce = "[/]" if (w_oow or c_oow) else ""
+                        h = civ.health
+                        civ_vis = f"  \\[vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                        civ_link = _click_link("civ", str(cid_iter), f"[bold]{_e(civ.name)}[/]")
+                        a(f"{cm}{IDX}    └─ {civ_link} "
+                          f"\\[{_e(civ.scale.value)}]{civ_vis}  "
+                          f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
+                        if civ.dominant_beliefs:
+                            a(f"{cm}{IDX}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs, top_n=4)}{ce}")
+                        if civ.culture_tags:
+                            a(f"{cm}{IDX}       culture: {_format_culture_markup(civ.culture_tags, top_n=4)}{ce}")
+
+                        civ_pops_by_loc = pops_by_civ_loc.get(str(cid_iter), {})
+                        wild_by_loc = pops_by_civ_loc.get(None, {})
+                        multi_loc = len(civ_pops_by_loc) > 1
+
+                        for ploc_id in sorted(civ_pops_by_loc.keys(), key=_ploc_sort_key):
+                            if multi_loc:
+                                ploc = state.locations[ploc_id]
+                                dist_note = (
+                                    f"  [#5a7090](d{ploc.distance_from_core})[/]"
+                                    if ploc.distance_from_core > 0 else ""
+                                )
+                                a(f"{cm}{IDX}       ↳ \\[{_click_link('poploc', str(ploc.id), _e(ploc.name))}]{dist_note}{ce}")
+                                pop_indent = f"{IDX}           "
+                            else:
+                                pop_indent = f"{IDX}       "
+                            for pop in civ_pops_by_loc[ploc_id]:
+                                _render_pop_line(pop, pop_indent, c_oow, prefix="↳ ")
+                            for wpop in wild_by_loc.get(ploc_id, []):
+                                if str(wpop.id) in attached_wild_pop_ids:
+                                    continue
+                                attached_wild_pop_ids.add(str(wpop.id))
+                                _render_pop_line(wpop, pop_indent, c_oow, prefix="")
+
+                    # PopLocations containing only wild pops — listed last.
+                    wild_by_loc = pops_by_civ_loc.get(None, {})
+                    standalone_wild = sorted(
+                        [(plid, plops) for plid, plops in wild_by_loc.items()
+                         if any(str(p.id) not in attached_wild_pop_ids for p in plops)],
+                        key=lambda kv: _ploc_sort_key(kv[0]),
                     )
-                    vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-                    a(f"{pm}       ↳ {pop_label}  sz:{pop.size_magnitude}  "
-                      f"{belief_str}{vn}{pe}")
+                    for ploc_id, wild_pops in standalone_wild:
+                        ploc = state.locations[ploc_id]
+                        dist_note = (
+                            f"  [#5a7090](d{ploc.distance_from_core})[/]"
+                            if ploc.distance_from_core > 0 else ""
+                        )
+                        a(f"{wm}{IDX}    \\[{_click_link('poploc', str(ploc.id), _e(ploc.name))}]{dist_note}{we}")
+                        for wpop in wild_pops:
+                            if str(wpop.id) in attached_wild_pop_ids:
+                                continue
+                            _render_pop_line(wpop, f"{IDX}        ", False, prefix="")
         if not any_w:
             a("[#5a7090](no worlds in Window)[/]")
         a("")
