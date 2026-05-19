@@ -389,16 +389,18 @@ def _write_pops(conn, state: SimulationState):
     for p in state.pops.values():
         conn.execute(
             """INSERT INTO pops
-               (id, name, civilization_id, species_id, social_class, wild_stratum,
+               (id, name, demiurge_authored, civilization_id, species_id,
+                social_class, wild_stratum,
                 current_location, size_fractional,
                 dominant_beliefs, culture_tags, rider_traits,
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
                 visibility, pinned,
                 preaching_imago_id, preaching_goal_cooldown_until)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
+                int(p.demiurge_authored),
                 str(p.civilization_id) if p.civilization_id else None,
                 str(p.species_id) if p.species_id else None,
                 p.social_class.value if p.social_class else None,

@@ -56,7 +56,7 @@ from ui.widgets import (
     LocationsTab, EntitiesTab, ActionsTab,
     BriefingTab, UniverseTab, LuminariesTab, LogTab,
     DivineWisdomTab,
-    set_unseen_predicate,
+    set_detail_action_provider, set_unseen_predicate,
 )
 from ui.detail_tabs import DetailTabManager
 from ui.session_log import SessionLog
@@ -272,6 +272,10 @@ class GameScreen(Screen):
         set_unseen_predicate(
             lambda kind, eid: eid in self._unseen_by_kind.get(kind, ())
         )
+        # Install the detail-tab action provider — used by DetailTab to render
+        # inline buttons in the header strip. In the core game, only
+        # Demiurge-authored Pops get a [ Rename ] button.
+        set_detail_action_provider(self._detail_actions_for)
         self.app.sub_title = (
             f"{state.universe.name}  ·  Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}"
         )
@@ -362,6 +366,52 @@ class GameScreen(Screen):
     def action_open_detail_by_id(self, kind: str, entity_id: str) -> None:
         """Click-action target — fires from `[@click=...]` markup in tab bodies."""
         self.open_detail_by_id(kind, entity_id)
+
+    def _detail_actions_for(self, kind: str, eid: str) -> list[tuple[str, str]]:
+        """Inline detail-tab buttons. In the core game, the only such button
+        is [ Rename ] on Demiurge-authored Pops — granted by `Pop.demiurge_authored`,
+        which is set True when a splinter forms via Proxius preaching."""
+        if kind != "pop":
+            return []
+        pop = self._state.pops.get(eid)
+        if pop is None or not getattr(pop, "demiurge_authored", False):
+            return []
+        return [("Rename", "rename_entity_by_id")]
+
+    def action_rename_entity_by_id(self, kind: str, eid: str) -> None:
+        """Click target for the detail-tab [ Rename ] button. Currently only
+        wired for `kind == 'pop'` (the only thing the player can rename
+        in-game)."""
+        if kind == "pop":
+            self._rename_pop_flow(eid)
+
+    @work
+    async def _rename_pop_flow(self, pid: str) -> None:
+        pop = self._state.pops.get(pid)
+        if pop is None:
+            return
+        if not getattr(pop, "demiurge_authored", False):
+            # Defense in depth: someone clicked Rename on a non-authored pop.
+            return
+        sp = self._state.species.get(str(pop.species_id)) if pop.species_id else None
+        species_suffix = f"  ({sp.name})" if sp else ""
+        default_name = pop.name or f"New {pop.stratum.title()}"
+        result = await self.app.push_screen_wait(TextFormModal(
+            title=f"Rename Pop{species_suffix}",
+            description=(
+                "This Pop was drawn forth by your Proxius's preaching, so you "
+                "may rename it freely while it exists. Clearing the field "
+                "reverts the name to the computed stratum label."
+            ),
+            fields=[("Name", "name", default_name)],
+        ))
+        if not result:
+            return
+        raw = (result.get("name") or "").strip()
+        pop.name = raw or None
+        self._refresh_all()
+        new_label = pop.name or pop.stratum.title()
+        self._feed_markup(f"[#80c0a0]Renamed pop → {new_label}[/]")
 
     def action_navigate_detail_by_id(self, kind: str, entity_id: str) -> None:
         """Click target emitted by links rendered inside a detail tab — push
@@ -785,6 +835,8 @@ class GameScreen(Screen):
             dvs: list = []; imago_id = None
             target_civ_id = None
             target_pop_id = None
+            goal_pop_name: str | None = None
+            chosen_obj = None
             while True:
                 if step == 0:
                     result = await self._pick_proxius(
@@ -869,6 +921,40 @@ class GameScreen(Screen):
                     if chosen_obj:
                         target_pop_id = chosen_obj.id
                         target_civ_id = chosen_obj.civilization_id
+                    step = 3
+                if step == 3:
+                    # Step 3 — name the splinter Pop B, but only when no
+                    # splinter for this imago already exists under Pop A.
+                    existing_splinter = None
+                    if chosen_obj is not None:
+                        for child_id in chosen_obj.child_pop_ids:
+                            child = state.pops.get(str(child_id))
+                            if child is not None and child.preaching_imago_id == imago_id:
+                                existing_splinter = child
+                                break
+                    if existing_splinter is not None:
+                        # An ongoing splinter is already growing — skip the prompt.
+                        break
+                    stratum_label = (
+                        chosen_obj.social_class.value.title()
+                        if chosen_obj and chosen_obj.social_class else "Splinter"
+                    )
+                    default_name = f"New {stratum_label}"
+                    name_result = await app.push_screen_wait(TextFormModal(
+                        title="Name the splinter Pop",
+                        description=(
+                            "If your Proxius succeeds in drawing followers from "
+                            "this Pop, the resulting splinter will receive this "
+                            "name when it forms. If the directive ends without "
+                            "producing a splinter, the name is simply discarded."
+                        ),
+                        fields=[("Name", "name", default_name)],
+                        show_back=True,
+                    ))
+                    if name_result == BACK: step = 2; continue
+                    if name_result is None: return None
+                    raw = (name_result.get("name") or "").strip()
+                    goal_pop_name = raw or None
                     break
             intent = ProxiusDirectiveIntent(
                 domain_vectors=dvs,
@@ -876,6 +962,7 @@ class GameScreen(Screen):
                 target_civilization_id=target_civ_id,
                 target_pop_id=target_pop_id,
                 imago_node_id=imago_id,
+                goal_pop_name=goal_pop_name,
             )
             return ActionInstance(
                 action_definition_id=defn.id,

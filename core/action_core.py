@@ -298,6 +298,12 @@ class ProxiusDirectiveIntent(BaseModel):
 
     imago_node_id: Optional[str] = None
 
+    goal_pop_name: Optional[str] = None
+    # Optional player-supplied name for the splinter Pop B that will form when
+    # this directive succeeds. Used when the Pop A doesn't already have a
+    # splinter for this imago at directive time. Plumbs through to
+    # `ProxiusGoal.goal_pop_name`, which the splinter-creation path reads.
+
 
 class LuminaryPetitionIntent(BaseModel):
     """

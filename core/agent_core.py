@@ -46,6 +46,11 @@ class ProxiusGoal(BaseModel):
     # Pop A: the population being drawn from (player-selected at directive time).
     goal_pop_id: Optional[UUID] = None
     # Pop B: the splinter being grown. None until first PROMOTE_DOMAIN success creates it.
+    goal_pop_name: Optional[str] = None
+    # Player-supplied name for Pop B, captured at directive time when no splinter
+    # exists yet. The Proxius "holds" this name until a successful action first
+    # creates the splinter, at which point it is applied as `Pop.name`. Discarded
+    # silently if the directive ends before a splinter forms.
     goal_pop_last_size: float = 0.0
     # Pop B's size_fractional at end of last tick; used to detect stagnation/re-absorption.
     stagnation_counter: int = 0

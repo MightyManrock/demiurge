@@ -506,6 +506,7 @@ def _load_pops(conn) -> dict[str, Pop]:
         p = Pop(
             id=UUID(row["id"]),
             name=row.get("name") or None,
+            demiurge_authored=bool(row.get("demiurge_authored", 0)),
             civilization_id=_uuid(row.get("civilization_id")),
             species_id=_uuid(row.get("species_id")),
             social_class=SocialClass(sc_raw) if sc_raw else None,

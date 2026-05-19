@@ -254,6 +254,13 @@ class Pop(BaseModel):
     # Optional authored identity. When set, the UI prefers it over the
     # computed stratum label everywhere ("The Bathy Cult" rather than
     # "Common"). When unset, displays fall back to the stratum.
+    demiurge_authored: bool = False
+    # True if the Demiurge was directly involved in this Pop's creation
+    # (currently: splinter Pops formed by a Proxius preach_imago directive).
+    # Grants the Demiurge naming rights — the pop's detail tab in the core
+    # game shows a [ Rename ] button on demiurge-authored pops only.
+    # Scenario-authored pops keep this False even when they have a `name`,
+    # because their identity belongs to the scenario author, not the player.
     civilization_id: Optional[UUID] = None
     species_id: Optional[UUID] = None
 

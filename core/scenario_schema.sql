@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
 CREATE TABLE IF NOT EXISTS pops (
     id               TEXT PRIMARY KEY,
     name             TEXT,                           -- optional authored identity; UI falls back to stratum when NULL
+    demiurge_authored INTEGER NOT NULL DEFAULT 0,    -- 1 if the Demiurge created this pop via Proxius preaching
     civilization_id  TEXT,                           -- UUID of owning Civilization (nullable)
     species_id       TEXT,                           -- UUID of Species (nullable)
     social_class     TEXT,                           -- SocialClass value; NULL for non-sapient Pops

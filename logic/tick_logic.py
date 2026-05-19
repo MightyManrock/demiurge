@@ -3089,6 +3089,10 @@ class TickLoop:
                     started_at_tick=state.tick_number,
                     source_pop_id=intent.target_pop_id,
                     goal_pop_id=_existing_goal_pop_id,
+                    # Held until the splinter actually forms (or the directive
+                    # ends, whichever happens first). Only set when there was
+                    # no pre-existing splinter at directive time.
+                    goal_pop_name=intent.goal_pop_name if _existing_goal_pop_id is None else None,
                 )
                 mutations.append(StateMutation(
                     mutation_type=MutationType.PROXIUS_GOAL_SET,
@@ -4609,6 +4613,11 @@ class TickLoop:
 
                         pop_b = Pop(
                             id=uuid4(),
+                            name=goal.goal_pop_name,
+                            # Splinters formed via Proxius preaching are
+                            # Demiurge-authored — grants the player naming
+                            # rights via the in-game [ Rename ] button.
+                            demiurge_authored=True,
                             civilization_id=pop_a.civilization_id,
                             species_id=pop_a.species_id,
                             social_class=pop_a.social_class,
@@ -4627,9 +4636,12 @@ class TickLoop:
                             pinned=True,
                             visibility=pop_a.visibility * 0.5,
                         )
-                        # Wire goal_pop_id now so next tick uses the ongoing path
+                        # Wire goal_pop_id now so next tick uses the ongoing path.
+                        # Also clear goal_pop_name — the name has been applied; if
+                        # the goal continues, we don't want to re-apply it.
                         goal.goal_pop_id = pop_b.id
                         goal.goal_pop_last_size = pop_b.size_fractional
+                        goal.goal_pop_name = None
                         mutations.append(StateMutation(
                             mutation_type=MutationType.POP_SPLINTER,
                             target_id=pop_a.id,
