@@ -478,9 +478,9 @@ def _write_demiurge(conn, state: SimulationState):
             fp_overt_miracles, fp_subtle_influence,
             fp_proxius_activity, fp_direct_creation,
             proxius_ids, unlocked_domain_tags, unlocked_imagines,
-            affiliated_domains, tracked_essence_domains,
+            affiliated_domains, max_affiliated_domains, tracked_essence_domains,
             revelation_pools, revealed_imagines)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(d.id),
             d.name,
@@ -493,6 +493,7 @@ def _write_demiurge(conn, state: SimulationState):
             _j(d.unlocked_domain_tags),
             _j(d.unlocked_imagines),
             _j(d.affiliated_domains),
+            d.max_affiliated_domains,
             _j(d.tracked_essence_domains),
             _j(d.revelation_pools),
             d.revealed_imagines,

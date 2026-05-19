@@ -440,7 +440,7 @@ class BuilderScreen(Screen):
                 title=f"Edit Demiurge: {d.name}",
                 items=[
                     ("basics",     "Basics (name)"),
-                    ("affiliated", f"Affiliated domains ({len(d.affiliated_domains)}/4)"),
+                    ("affiliated", f"Affiliated domains ({len(d.affiliated_domains)}/{d.max_affiliated_domains})"),
                     ("imagines",   f"Unlocked Imagines ({len(d.unlocked_imagines)})"),
                     ("done",       "Done"),
                 ],
@@ -454,7 +454,7 @@ class BuilderScreen(Screen):
                     self, d.affiliated_domains,
                     title_prefix=f"{d.name} — Affiliated domains",
                     tag_namespace="domain",
-                    max_items=4,
+                    max_items=d.max_affiliated_domains,
                 )
             elif choice == "imagines":
                 await self._edit_demiurge_imagines(d)

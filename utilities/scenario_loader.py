@@ -202,7 +202,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     )
 
     # If the scenario DB didn't specify starting affiliated domains, derive them:
-    # top-4 by aggregate Luminary affinity, alphabetical tiebreak.
+    # top-N by aggregate Luminary affinity, alphabetical tiebreak, where
+    # N = demiurge.max_affiliated_domains.
     if not state.demiurge.affiliated_domains:
         from utilities.domain_registry import get_registry as get_domain_registry
         dreg = get_domain_registry()
@@ -211,7 +212,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
             for tag, aff in lum.domains.items():
                 if dreg.is_canonical(tag):
                     agg[tag] = agg.get(tag, 0.0) + aff
-        state.demiurge.affiliated_domains = sorted(agg, key=lambda t: (-agg[t], t))[:4]
+        cap = state.demiurge.max_affiliated_domains
+        state.demiurge.affiliated_domains = sorted(agg, key=lambda t: (-agg[t], t))[:cap]
 
     # Compute natural alignment for mortals zeroed-out in the scenario.
     # Savegames always have non-zero values; only scenario DBs use 0.0 as a sentinel.
@@ -607,6 +609,7 @@ def _load_demiurge(conn) -> Demiurge:
         unlocked_domain_tags=_j(row.get("unlocked_domain_tags", "[]")),
         unlocked_imagines=_j(row.get("unlocked_imagines", "[]")),
         affiliated_domains=_j(row.get("affiliated_domains", "[]")),
+        max_affiliated_domains=int(row.get("max_affiliated_domains", 3) or 3),
         tracked_essence_domains=_j(row.get("tracked_essence_domains", "[]")),
         revelation_pools=_load_revelation_pools(row),
         revealed_imagines=int(row.get("revealed_imagines", 0) or 0),

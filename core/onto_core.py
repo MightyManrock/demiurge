@@ -139,7 +139,12 @@ class Demiurge(BaseModel):
     # imago node_ids (e.g. "change:t1:wheel") the Demiurge has purchased or drawn.
     affiliated_domains: list[str] = Field(default_factory=list)
     # domain:... tags the Demiurge has claimed as their own conceptual focus.
-    # Default: the 4 domains with highest aggregate affinity sum across all lieges.
+    # Default: top-N by aggregate Luminary affinity sum across all lieges,
+    # where N = max_affiliated_domains.
+    max_affiliated_domains: int = 3
+    # Cap on len(affiliated_domains). Stronghold building slots are expected to
+    # raise this at runtime; loader/UI cap and default-derivation slice both
+    # honor it.
     tracked_essence_domains: list[str] = Field(default_factory=list)
     # Subset of domain:... tags for which per-tick Demiurge Essence claims are
     # recorded in SimulationState.domain_essence_claimed. Empty by default.
