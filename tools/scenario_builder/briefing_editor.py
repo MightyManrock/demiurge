@@ -26,7 +26,7 @@ from typing import Callable, Optional, TYPE_CHECKING
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Label, Static, TextArea
 
 from ui.display import display_briefing, _lines_to_text
@@ -61,9 +61,12 @@ class BriefingEditorTab(Vertical):
         height: 1fr;
         min-height: 6;
     }
-    BriefingEditorTab .briefing-preview {
+    BriefingEditorTab #briefing-preview {
         height: 1fr;
         padding: 0 1;
+    }
+    BriefingEditorTab #briefing-preview-body {
+        height: auto;
     }
     """
 
@@ -99,8 +102,9 @@ class BriefingEditorTab(Vertical):
                 self._universe_desc, id="briefing-universe-desc",
                 classes="briefing-textarea", show_line_numbers=False,
             )
-        # Preview panel
-        yield Static("", id="briefing-preview", classes="briefing-preview")
+        # Preview panel — VerticalScroll so long briefings can scroll.
+        with VerticalScroll(id="briefing-preview"):
+            yield Static("", id="briefing-preview-body")
 
     def on_mount(self) -> None:
         self._apply_mode()
@@ -155,7 +159,7 @@ class BriefingEditorTab(Vertical):
 
     def _apply_mode(self) -> None:
         edit_panel    = self.query_one("#briefing-edit",    Vertical)
-        preview_panel = self.query_one("#briefing-preview", Static)
+        preview_panel = self.query_one("#briefing-preview", VerticalScroll)
         # Mode button styling
         for btn_id, name in (
             ("#mode-edit",         "edit"),
@@ -178,7 +182,7 @@ class BriefingEditorTab(Vertical):
     # ── Preview rendering ──────────────────────────────────────────────────
 
     def _render_preview(self) -> None:
-        preview = self.query_one("#briefing-preview", Static)
+        preview = self.query_one("#briefing-preview-body", Static)
         if self._state is None:
             preview.update("[#5a7090](no state loaded)[/]")
             return

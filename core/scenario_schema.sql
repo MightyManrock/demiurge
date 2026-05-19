@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS constraints (
     id                TEXT PRIMARY KEY,
     name              TEXT NOT NULL,
     description       TEXT NOT NULL,
-    domain_source     TEXT,                -- UUID or NULL
+    domain_tag        TEXT,                -- canonical 'domain:...' tag, or NULL
     enforcement_weight REAL NOT NULL DEFAULT 0.5,
     owner_id          TEXT NOT NULL,       -- luminary or pantheon UUID
     owner_type        TEXT NOT NULL        -- 'luminary' | 'pantheon'

@@ -92,6 +92,8 @@ def construct_mortal(
     status: MortalStatus,
     civilization_id: Optional[UUID],
     pop_id: Optional[UUID],
+    seed_beliefs: Optional[dict[str, float]] = None,
+    seed_culture: Optional[dict[str, float]] = None,
 ) -> NotableMortal:
     return NotableMortal(
         name=fields["name"].strip(),
@@ -106,6 +108,8 @@ def construct_mortal(
         alignment=float(fields["alignment"]),
         chrono_age=float(fields["chrono_age"]),
         bio_age=float(fields["bio_age"]),
+        belief_tags=dict(seed_beliefs) if seed_beliefs else {},
+        culture_tags=dict(seed_culture) if seed_culture else {},
         visibility=1.0, pinned=True,
     )
 

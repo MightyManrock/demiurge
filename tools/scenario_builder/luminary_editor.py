@@ -85,6 +85,16 @@ def constraint_fields(c: Optional[Constraint] = None) -> list[tuple[str, str, st
     ]
 
 
+def constraint_domain_tag_items() -> list[tuple[str, str]]:
+    """Picker items for the optional `domain_tag` on a Constraint.
+    First entry is the '(none)' sentinel that maps to None on the model."""
+    items: list[tuple[str, str]] = [("__none__", "(no domain — general expectation)")]
+    items.extend(
+        (tag, tag.removeprefix("domain:").title()) for tag in DOMAIN_TAGS
+    )
+    return items
+
+
 def affinity_field(tag: str, current: Optional[float] = None) -> list[tuple[str, str, str]]:
     label = f"Affinity for {tag.removeprefix('domain:').title()} (0.0 to {MAX_INDIVIDUAL_AFFINITY})"
     return [(label, "affinity", f"{current}" if current is not None else "0.3")]
@@ -194,18 +204,24 @@ def apply_basics(lum: Luminary, fields: dict[str, str]) -> None:
     lum.disposition.methods = float(fields["methods"])
 
 
-def construct_constraint(fields: dict[str, str]) -> Constraint:
+def construct_constraint(
+    fields: dict[str, str], domain_tag: Optional[str] = None,
+) -> Constraint:
     return Constraint(
         name=fields["name"].strip(),
         description=fields["description"],
         enforcement_weight=float(fields["enforcement_weight"]),
+        domain_tag=domain_tag,
     )
 
 
-def apply_constraint_fields(c: Constraint, fields: dict[str, str]) -> None:
+def apply_constraint_fields(
+    c: Constraint, fields: dict[str, str], domain_tag: Optional[str] = None,
+) -> None:
     c.name = fields["name"].strip()
     c.description = fields["description"]
     c.enforcement_weight = float(fields["enforcement_weight"])
+    c.domain_tag = domain_tag
 
 
 # ── Back-reference housekeeping ────────────────────────────────────────────

@@ -221,6 +221,8 @@ def construct_pop(
     current_location: UUID,
     social_class: Optional[SocialClass],
     wild_stratum: Optional[WildStratum],
+    seed_beliefs: Optional[dict[str, float]] = None,
+    seed_culture: Optional[dict[str, float]] = None,
 ) -> Pop:
     return Pop(
         civilization_id=civilization_id,
@@ -229,6 +231,8 @@ def construct_pop(
         social_class=social_class,
         wild_stratum=wild_stratum,
         size_fractional=float(fields["size_fractional"]),
+        dominant_beliefs=dict(seed_beliefs) if seed_beliefs else {},
+        culture_tags=dict(seed_culture) if seed_culture else {},
         visibility=1.0, pinned=True,
     )
 

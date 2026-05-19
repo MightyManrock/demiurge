@@ -14,6 +14,7 @@ from __future__ import annotations
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from uuid import UUID
 
 from textual import on, work
@@ -30,7 +31,7 @@ from ui.constants import BACK
 from ui.modals import QuitConfirmModal, ErrorModal, PickerModal, TextFormModal
 from ui.widgets import (
     DivineWisdomTab, LocationsTab, LuminariesTab, UniverseTab,
-    set_unseen_predicate,
+    set_flag_predicate, set_unseen_predicate,
 )
 from utilities.scenario_exporter import export_scenario
 
@@ -41,6 +42,7 @@ from . import location_editor as locedit
 from . import entity_editor as entedit
 from . import mortal_editor as medit
 from . import luminary_editor as ledit
+from .flag_check import find_broken_refs, render_flag_report
 
 
 class BuilderScreen(Screen):
@@ -81,6 +83,13 @@ class BuilderScreen(Screen):
         # export_scenario(..., description=...). Universe.description is read
         # from state.universe.description.
         self._scenario_description: str = scenario_description
+        # IDs of entities with broken outgoing references (populated each
+        # refresh by `_recompute_flags`). Rendered in red wherever they
+        # appear; saving is refused while non-empty.
+        self._flagged_ids: set[str] = set()
+        # Verbose reasons keyed by the same entity id — surfaced in the
+        # save / quit guards' diagnostic listings.
+        self._flag_reasons: dict[str, list[str]] = {}
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -136,16 +145,28 @@ class BuilderScreen(Screen):
     def _update_subtitle(self) -> None:
         s = self._state
         dirty = " · [modified]" if self._dirty else ""
+        flagged = (
+            f" · ⚠ {len(self._flagged_ids)} flagged"
+            if self._flagged_ids else ""
+        )
         self.app.sub_title = (
-            f"{s.universe.name}  ·  {self._db_path.name}{dirty}"
+            f"{s.universe.name}  ·  {self._db_path.name}{dirty}{flagged}"
         )
 
     # ── Refresh fan-out ────────────────────────────────────────────────────
+
+    def _recompute_flags(self) -> None:
+        """Re-scan state for broken references and refresh the flag set."""
+        self._flag_reasons = find_broken_refs(self._state)
+        self._flagged_ids = set(self._flag_reasons.keys())
 
     def _refresh_all(self) -> None:
         # Widgets consult this predicate for "unseen" gold highlighting.
         # The builder has no discovery system, so always return False.
         set_unseen_predicate(lambda *_: False)
+        # Recompute broken-ref flags and install the red-link predicate.
+        self._recompute_flags()
+        set_flag_predicate(lambda eid: eid in self._flagged_ids)
         state = self._state
         self._update_subtitle()
         self.query_one(LocationsTab).refresh_state(state)
@@ -379,6 +400,15 @@ class BuilderScreen(Screen):
         return bak
 
     def _save_to(self, path: Path) -> None:
+        # Refresh flags right before saving so the guard sees current state.
+        self._recompute_flags()
+        if self._flagged_ids:
+            report = render_flag_report(self._state, self._flag_reasons)
+            self.app.push_screen(ErrorModal(
+                f"Cannot save: {len(self._flagged_ids)} entity/entities have "
+                "broken references. Fix or delete them first.\n\n" + report
+            ))
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         bak = self._backup(path)
         export_scenario(
@@ -418,11 +448,143 @@ class BuilderScreen(Screen):
         """Ctrl+Q — skip the modal and exit immediately."""
         self.app.exit()
 
+    # ── Cascade helpers (delete dependents along with the target) ──────────
+
+    def _cascade_delete_location(self, eid: str) -> int:
+        """Recursively delete a location subtree. Also clears civ/pop/mortal/
+        species references that pointed at any deleted location. Returns the
+        number of locations removed."""
+        loc = self._state.locations.get(eid)
+        if loc is None:
+            return 0
+        removed = 0
+        for cid in list(loc.child_ids):
+            removed += self._cascade_delete_location(str(cid))
+        locedit.remove_from_parent(self._state, loc)
+        self._state.locations.pop(eid, None)
+        removed += 1
+        return removed
+
+    def _cascade_delete_civ(self, eid: str) -> dict[str, int]:
+        """Delete a civilization and every pop/mortal owned by it. Returns a
+        small counts dict for the user-facing report."""
+        counts = {"civ": 0, "pops": 0, "mortals": 0}
+        civ = self._state.civilizations.get(eid)
+        if civ is None:
+            return counts
+        # Delete pops referring to this civ (with their own back-ref cleanup).
+        for pid in [pid for pid, p in self._state.pops.items() if p.civilization_id == civ.id]:
+            pop = self._state.pops[pid]
+            entedit.unlink_pop_back_refs(self._state, pop)
+            self._state.pops.pop(pid, None)
+            counts["pops"] += 1
+        # Delete mortals referring to this civ.
+        for mid in [mid for mid, m in self._state.mortals.items() if m.civilization_id == civ.id]:
+            mortal = self._state.mortals[mid]
+            medit.unlink_back_refs(self._state, mortal)
+            self._state.mortals.pop(mid, None)
+            counts["mortals"] += 1
+        entedit.unlink_civ_back_refs(self._state, civ)
+        self._state.civilizations.pop(eid, None)
+        counts["civ"] = 1
+        return counts
+
+    def _cascade_delete_species(self, eid: str) -> dict[str, int]:
+        """Delete a species and every pop/mortal using it."""
+        counts = {"species": 0, "pops": 0, "mortals": 0}
+        sp = self._state.species.get(eid)
+        if sp is None:
+            return counts
+        for pid in [pid for pid, p in self._state.pops.items() if p.species_id == sp.id]:
+            pop = self._state.pops[pid]
+            entedit.unlink_pop_back_refs(self._state, pop)
+            self._state.pops.pop(pid, None)
+            counts["pops"] += 1
+        for mid in [mid for mid, m in self._state.mortals.items() if m.species_id == sp.id]:
+            mortal = self._state.mortals[mid]
+            medit.unlink_back_refs(self._state, mortal)
+            self._state.mortals.pop(mid, None)
+            counts["mortals"] += 1
+        # Clear primary_species_id on any civ still pointing at this species
+        # (the ref check won't blow up; the civ just has a dangling pointer).
+        for civ in self._state.civilizations.values():
+            if civ.primary_species_id == sp.id:
+                civ.primary_species_id = None
+        entedit.unlink_species_back_refs(self._state, sp)
+        self._state.species.pop(eid, None)
+        counts["species"] = 1
+        return counts
+
+    async def _prompt_delete_with_refs(
+        self,
+        target_label: str,
+        blocking_refs: list[str],
+        offer_cascade: bool,
+    ) -> Optional[str]:
+        """Show the three-way delete prompt when a target has blocking
+        references. Returns 'cascade', 'flag', 'cancel', or None."""
+        preview = "\n  • ".join(blocking_refs[:8])
+        extra = f"\n  …and {len(blocking_refs) - 8} more" if len(blocking_refs) > 8 else ""
+        items = []
+        if offer_cascade:
+            items.append(("cascade", "Delete and cascade through dependent entities"))
+        items.extend([
+            ("flag",   "Delete only — flag affected entities with broken refs"),
+            ("cancel", "Cancel — keep everything"),
+        ])
+        choice = await self.app.push_screen_wait(PickerModal(
+            title=f"Delete {target_label}?",
+            description=(
+                f"{len(blocking_refs)} reference(s) point at it:\n\n"
+                f"  • {preview}{extra}\n\n"
+                "Cascade removes dependents along with the target. Flagging "
+                "removes only the target; the references become broken and "
+                "those entities will be highlighted in red, blocking save."
+            ),
+            items=items,
+        ))
+        return choice
+
     @work
     async def _quit_confirm_flow(self) -> None:
         choice = await self.app.push_screen_wait(QuitConfirmModal())
         if choice is None:
             return  # Keep editing
+        # If there are flagged entities, gate the quit on an extra
+        # confirmation. Saving with flags is already refused upstream.
+        self._recompute_flags()
+        if self._flagged_ids:
+            if choice == "save":
+                report = render_flag_report(self._state, self._flag_reasons)
+                await self.app.push_screen_wait(ErrorModal(
+                    f"Cannot save while {len(self._flagged_ids)} entity/entities "
+                    "have broken references. Fix them or choose 'discard and "
+                    "quit'.\n\n" + report
+                ))
+                return
+            # User picked "Quit" but has flagged entities — extra confirm.
+            second = await self.app.push_screen_wait(PickerModal(
+                title=f"⚠  {len(self._flagged_ids)} flagged entity/entities",
+                items=[
+                    ("discard", "Discard flagged entities and quit"),
+                    ("cancel",  "Cancel — keep editing"),
+                ],
+                description=(
+                    "These entities have broken references and will not be "
+                    "saved. Choosing 'discard and quit' drops them entirely.\n\n"
+                    + render_flag_report(self._state, self._flag_reasons)
+                ),
+            ))
+            if second != "discard":
+                return
+            for eid in list(self._flagged_ids):
+                self._state.mortals.pop(eid, None)
+                self._state.pops.pop(eid, None)
+                self._state.civilizations.pop(eid, None)
+                self._state.species.pop(eid, None)
+                self._state.locations.pop(eid, None)
+            self.app.exit()
+            return
         if choice == "save":
             self._save_to(self._db_path)
         self.app.exit()
@@ -605,31 +767,42 @@ class BuilderScreen(Screen):
             await self.app.push_screen_wait(ErrorModal("Location not found."))
             return
 
-        # Reference check — refuse if anything points at this location.
+        # Reference check.
         blocks = locedit.find_blocking_references(self._state, target_id)
-        if blocks:
-            preview = "\n  • ".join(blocks[:8])
-            extra = f"\n  …and {len(blocks) - 8} more" if len(blocks) > 8 else ""
-            await self.app.push_screen_wait(ErrorModal(
-                f"Cannot delete {loc.name}: {len(blocks)} reference(s) "
-                f"point at it. Clear them first.\n\n  • {preview}{extra}"
+        if not blocks:
+            confirm = await self.app.push_screen_wait(PickerModal(
+                title=f"Delete {loc.name}?",
+                items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
+                description="This cannot be undone within the current session.",
             ))
+            if confirm != "yes":
+                return
+            locedit.remove_from_parent(self._state, loc)
+            self._state.locations.pop(target_id, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(f"Deleted: {loc.name}", timeout=3)
             return
 
-        # Confirm deletion.
-        choice = await self.app.push_screen_wait(PickerModal(
-            title=f"Delete {loc.name}?",
-            items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
-            description="This cannot be undone within the current session.",
-        ))
-        if choice != "yes":
+        choice = await self._prompt_delete_with_refs(
+            target_label=loc.name,
+            blocking_refs=blocks,
+            offer_cascade=True,
+        )
+        if choice in (None, "cancel"):
             return
-
-        locedit.remove_from_parent(self._state, loc)
-        self._state.locations.pop(target_id, None)
-        self.mark_dirty()
-        self._refresh_all()
-        self.notify(f"Deleted: {loc.name}", timeout=3)
+        if choice == "cascade":
+            removed = self._cascade_delete_location(target_id)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(f"Deleted {removed} location(s) (cascade).", timeout=4)
+            return
+        if choice == "flag":
+            locedit.remove_from_parent(self._state, loc)
+            self._state.locations.pop(target_id, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Deleted {loc.name}. {len(self._flagged_ids)} entity/entities flagged.",
+                severity="warning", timeout=5,
+            )
 
     # ── Civilization / Species / Pop button handlers ───────────────────────
 
@@ -769,23 +942,41 @@ class BuilderScreen(Screen):
         if sp is None:
             await self.app.push_screen_wait(ErrorModal("Species not found.")); return
         blocks = entedit.find_species_references(self._state, sid)
-        if blocks:
-            preview = "\n  • ".join(blocks[:8])
-            extra = f"\n  …and {len(blocks) - 8} more" if len(blocks) > 8 else ""
-            await self.app.push_screen_wait(ErrorModal(
-                f"Cannot delete {sp.name}: {len(blocks)} reference(s) point at it.\n\n  • {preview}{extra}"
+        if not blocks:
+            confirm = await self.app.push_screen_wait(PickerModal(
+                title=f"Delete species {sp.name}?",
+                items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
             ))
+            if confirm != "yes":
+                return
+            entedit.unlink_species_back_refs(self._state, sp)
+            self._state.species.pop(sid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(f"Deleted species: {sp.name}", timeout=3)
             return
-        choice = await self.app.push_screen_wait(PickerModal(
-            title=f"Delete species {sp.name}?",
-            items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
-        ))
-        if choice != "yes":
+        choice = await self._prompt_delete_with_refs(
+            target_label=f"species {sp.name}",
+            blocking_refs=blocks,
+            offer_cascade=True,
+        )
+        if choice in (None, "cancel"):
             return
-        entedit.unlink_species_back_refs(self._state, sp)
-        self._state.species.pop(sid, None)
-        self.mark_dirty(); self._refresh_all()
-        self.notify(f"Deleted species: {sp.name}", timeout=3)
+        if choice == "cascade":
+            counts = self._cascade_delete_species(sid)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Cascaded: {counts['species']} species, {counts['pops']} pop(s), "
+                f"{counts['mortals']} mortal(s).", timeout=5,
+            )
+            return
+        if choice == "flag":
+            entedit.unlink_species_back_refs(self._state, sp)
+            self._state.species.pop(sid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Deleted {sp.name}. {len(self._flagged_ids)} entity/entities flagged.",
+                severity="warning", timeout=5,
+            )
 
     # ── Civilization flows ─────────────────────────────────────────────────
 
@@ -889,23 +1080,41 @@ class BuilderScreen(Screen):
         if civ is None:
             await self.app.push_screen_wait(ErrorModal("Civilization not found.")); return
         blocks = entedit.find_civ_references(self._state, cid)
-        if blocks:
-            preview = "\n  • ".join(blocks[:8])
-            extra = f"\n  …and {len(blocks) - 8} more" if len(blocks) > 8 else ""
-            await self.app.push_screen_wait(ErrorModal(
-                f"Cannot delete {civ.name}: {len(blocks)} reference(s) point at it.\n\n  • {preview}{extra}"
+        if not blocks:
+            confirm = await self.app.push_screen_wait(PickerModal(
+                title=f"Delete civilization {civ.name}?",
+                items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
             ))
+            if confirm != "yes":
+                return
+            entedit.unlink_civ_back_refs(self._state, civ)
+            self._state.civilizations.pop(cid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(f"Deleted civilization: {civ.name}", timeout=3)
             return
-        choice = await self.app.push_screen_wait(PickerModal(
-            title=f"Delete civilization {civ.name}?",
-            items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
-        ))
-        if choice != "yes":
+        choice = await self._prompt_delete_with_refs(
+            target_label=f"civilization {civ.name}",
+            blocking_refs=blocks,
+            offer_cascade=True,
+        )
+        if choice in (None, "cancel"):
             return
-        entedit.unlink_civ_back_refs(self._state, civ)
-        self._state.civilizations.pop(cid, None)
-        self.mark_dirty(); self._refresh_all()
-        self.notify(f"Deleted civilization: {civ.name}", timeout=3)
+        if choice == "cascade":
+            counts = self._cascade_delete_civ(cid)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Cascaded: {counts['civ']} civ, {counts['pops']} pop(s), "
+                f"{counts['mortals']} mortal(s).", timeout=5,
+            )
+            return
+        if choice == "flag":
+            entedit.unlink_civ_back_refs(self._state, civ)
+            self._state.civilizations.pop(cid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Deleted {civ.name}. {len(self._flagged_ids)} entity/entities flagged.",
+                severity="warning", timeout=5,
+            )
 
     # ── Pop flows ──────────────────────────────────────────────────────────
 
@@ -971,9 +1180,18 @@ class BuilderScreen(Screen):
         err = entedit.validate_pop_fields(fields)
         if err:
             await self.app.push_screen_wait(ErrorModal(err)); return
+        # Auto-seed beliefs/culture from the parent civ's established profile,
+        # if a civ is selected. A wild pop (civ=None) starts with empty dicts.
+        seed_beliefs = seed_culture = None
+        if civ_uuid is not None:
+            parent_civ = self._state.civilizations.get(str(civ_uuid))
+            if parent_civ is not None:
+                seed_beliefs = parent_civ.established_beliefs or None
+                seed_culture = parent_civ.established_culture_tags or None
         pop = entedit.construct_pop(
             fields, civ_uuid, UUID(sp_id), UUID(loc_id),
             social_class, wild_stratum,
+            seed_beliefs=seed_beliefs, seed_culture=seed_culture,
         )
         self._state.pops[str(pop.id)] = pop
         if civ_uuid is not None:
@@ -1029,23 +1247,47 @@ class BuilderScreen(Screen):
         if pop is None:
             await self.app.push_screen_wait(ErrorModal("Pop not found.")); return
         blocks = entedit.find_pop_references(self._state, pid)
-        if blocks:
-            preview = "\n  • ".join(blocks[:8])
-            extra = f"\n  …and {len(blocks) - 8} more" if len(blocks) > 8 else ""
-            await self.app.push_screen_wait(ErrorModal(
-                f"Cannot delete pop: {len(blocks)} reference(s) point at it.\n\n  • {preview}{extra}"
+        if not blocks:
+            confirm = await self.app.push_screen_wait(PickerModal(
+                title="Delete this pop?",
+                items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
             ))
+            if confirm != "yes":
+                return
+            entedit.unlink_pop_back_refs(self._state, pop)
+            self._state.pops.pop(pid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify("Deleted pop.", timeout=3)
             return
-        choice = await self.app.push_screen_wait(PickerModal(
-            title="Delete this pop?",
-            items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
-        ))
-        if choice != "yes":
+        choice = await self._prompt_delete_with_refs(
+            target_label="this pop",
+            blocking_refs=blocks,
+            offer_cascade=True,
+        )
+        if choice in (None, "cancel"):
             return
-        entedit.unlink_pop_back_refs(self._state, pop)
-        self._state.pops.pop(pid, None)
-        self.mark_dirty(); self._refresh_all()
-        self.notify("Deleted pop.", timeout=3)
+        if choice == "cascade":
+            removed_mortals = 0
+            for mid in [mid for mid, m in self._state.mortals.items() if m.pop_id == pop.id]:
+                mortal = self._state.mortals[mid]
+                medit.unlink_back_refs(self._state, mortal)
+                self._state.mortals.pop(mid, None)
+                removed_mortals += 1
+            entedit.unlink_pop_back_refs(self._state, pop)
+            self._state.pops.pop(pid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Cascaded: 1 pop, {removed_mortals} mortal(s).", timeout=5,
+            )
+            return
+        if choice == "flag":
+            entedit.unlink_pop_back_refs(self._state, pop)
+            self._state.pops.pop(pid, None)
+            self.mark_dirty(); self._refresh_all()
+            self.notify(
+                f"Deleted pop. {len(self._flagged_ids)} entity/entities flagged.",
+                severity="warning", timeout=5,
+            )
 
     # ── Notable Mortal handlers ────────────────────────────────────────────
 
@@ -1142,6 +1384,14 @@ class BuilderScreen(Screen):
         if err:
             await self.app.push_screen_wait(ErrorModal(err)); return
         from core.universe_core import MortalRole, MortalStatus
+        # Auto-seed belief_tags/culture_tags from the parent civ's established
+        # profile, if one is selected. Wild mortals start with empty dicts.
+        seed_beliefs = seed_culture = None
+        if civ_uuid is not None:
+            parent_civ = self._state.civilizations.get(str(civ_uuid))
+            if parent_civ is not None:
+                seed_beliefs = parent_civ.established_beliefs or None
+                seed_culture = parent_civ.established_culture_tags or None
         m = medit.construct_mortal(
             fields,
             species_id=UUID(sp_id),
@@ -1151,6 +1401,7 @@ class BuilderScreen(Screen):
             status=MortalStatus(status),
             civilization_id=civ_uuid,
             pop_id=pop_uuid,
+            seed_beliefs=seed_beliefs, seed_culture=seed_culture,
         )
         self._state.mortals[str(m.id)] = m
         medit.link_back_refs(self._state, m)
@@ -1418,6 +1669,14 @@ class BuilderScreen(Screen):
             if choice in (None, "done"):
                 return
             if choice == "add":
+                tag_pick = await self.app.push_screen_wait(PickerModal(
+                    title="Domain this constraint flows from",
+                    items=ledit.constraint_domain_tag_items(),
+                    show_back=True,
+                ))
+                if tag_pick in (None, BACK):
+                    continue
+                dtag = None if tag_pick == "__none__" else tag_pick
                 fields = await self.app.push_screen_wait(TextFormModal(
                     title="New constraint",
                     fields=ledit.constraint_fields(None),
@@ -1428,7 +1687,7 @@ class BuilderScreen(Screen):
                 err = ledit.validate_constraint(fields)
                 if err:
                     await self.app.push_screen_wait(ErrorModal(err)); continue
-                constraints.append(ledit.construct_constraint(fields))
+                constraints.append(ledit.construct_constraint(fields, domain_tag=dtag))
                 self.mark_dirty(); self._refresh_all()
             elif choice == "edit":
                 if not constraints:
@@ -1447,6 +1706,19 @@ class BuilderScreen(Screen):
                 )
                 if target is None:
                     continue
+                # Default the picker selection to the existing domain_tag
+                # so the user sees what's currently set.
+                current_tag_label = (
+                    target.domain_tag or "(no domain — general expectation)"
+                )
+                tag_pick = await self.app.push_screen_wait(PickerModal(
+                    title=f"Domain (current: {current_tag_label})",
+                    items=ledit.constraint_domain_tag_items(),
+                    show_back=True,
+                ))
+                if tag_pick in (None, BACK):
+                    continue
+                dtag = None if tag_pick == "__none__" else tag_pick
                 fields = await self.app.push_screen_wait(TextFormModal(
                     title=f"Edit constraint: {target.name}",
                     fields=ledit.constraint_fields(target),
@@ -1457,7 +1729,7 @@ class BuilderScreen(Screen):
                 err = ledit.validate_constraint(fields)
                 if err:
                     await self.app.push_screen_wait(ErrorModal(err)); continue
-                ledit.apply_constraint_fields(target, fields)
+                ledit.apply_constraint_fields(target, fields, domain_tag=dtag)
                 self.mark_dirty(); self._refresh_all()
             elif choice == "remove":
                 if not constraints:

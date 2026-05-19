@@ -45,6 +45,11 @@ if TYPE_CHECKING:
 # concrete callable each refresh; default returns False.
 _is_unseen: "callable[[str, str], bool]" = lambda kind, eid: False
 
+# Red highlight for "flagged" entities — used by the scenario builder when
+# an entity has broken outgoing references after a cascade-skip delete.
+# Builder swaps in a concrete callable on each refresh; default returns False.
+_is_flagged: "callable[[str], bool]" = lambda eid: False
+
 # When True, `_click_link` emits a navigate-in-place action instead of
 # opening a new detail tab. Toggled on by DetailTab._render_body while a
 # detail renderer is running; cleared on the way out.
@@ -63,10 +68,26 @@ def set_unseen_predicate(fn) -> None:
     _is_unseen = fn
 
 
+def set_flag_predicate(fn) -> None:
+    """Install the predicate used by `_click_link` to red-highlight entities
+    with broken references. Returning True wraps the link in `[bold #ff5555]`
+    and overrides the per-kind link color."""
+    global _is_flagged
+    _is_flagged = fn
+
+
 def _maybe_gold(kind: str, eid: str, label_markup: str) -> str:
     """Wrap label in gold if this entity ID is currently flagged as unseen."""
     if _is_unseen(kind, eid):
         return f"[#e8c060]{label_markup}[/]"
+    return label_markup
+
+
+def _maybe_flag(eid: str, label_markup: str) -> str:
+    """Wrap label in bright red if the entity has broken refs in the builder.
+    Takes precedence over per-kind link colors and gold-unseen highlighting."""
+    if _is_flagged(eid):
+        return f"[bold #ff5555]{label_markup}[/]"
     return label_markup
 
 
@@ -99,7 +120,10 @@ def _click_link(kind: str, eid: str, label_markup: str) -> str:
     Also paints the label in the per-kind link color, unless `_maybe_gold`
     overrides it (unseen-entity highlight).
     """
-    if _is_unseen(kind, eid):
+    if _is_flagged(eid):
+        # Builder mode: broken-ref red overrides everything else.
+        inner = _maybe_flag(eid, label_markup)
+    elif _is_unseen(kind, eid):
         inner = _maybe_gold(kind, eid, label_markup)
     else:
         color = _LINK_COLORS.get(kind)

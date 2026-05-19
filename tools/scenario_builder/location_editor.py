@@ -192,6 +192,10 @@ def construct_location(
             parent_id=parent_id,
             condition=LocCondition(condition) if condition else LocCondition.STABLE,
             age=float(fields["age"]),
+            # Earth-like defaults — authors can later strip or replace these
+            # via the per-world geo/atmo editor (polish-pass backlog).
+            geo_tags=["geo:terrestrial"],
+            atmo_tags=["atmo:nitrogen_oxygen"],
             visibility=1.0, pinned=True,
         )
     if kind == "poploc":

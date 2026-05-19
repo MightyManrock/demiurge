@@ -26,6 +26,12 @@ _NEW_ID = "file-__new__"
 class ScenarioChooserScreen(Screen):
     """First screen shown by the scenario builder."""
 
+    DEFAULT_CSS = """
+    ScenarioChooserScreen {
+        align: center middle;
+    }
+    """
+
     BINDINGS = [("q", "quit_app", "Quit")]
 
     def compose(self) -> ComposeResult:

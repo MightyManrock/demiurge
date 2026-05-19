@@ -147,14 +147,14 @@ def _write_luminaries(conn, state: SimulationState):
         for c in luminary.constraints:
             conn.execute(
                 """INSERT INTO constraints
-                   (id, name, description, domain_source, enforcement_weight,
+                   (id, name, description, domain_tag, enforcement_weight,
                     owner_id, owner_type)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(c.id),
                     c.name,
                     c.description,
-                    str(c.domain_source) if c.domain_source else None,
+                    c.domain_tag,
                     c.enforcement_weight,
                     str(luminary.id),
                     "luminary",
@@ -171,14 +171,14 @@ def _write_pantheon(conn, state: SimulationState):
     for c in p.collective_constraints:
         conn.execute(
             """INSERT INTO constraints
-               (id, name, description, domain_source, enforcement_weight,
+               (id, name, description, domain_tag, enforcement_weight,
                 owner_id, owner_type)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
                 c.description,
-                str(c.domain_source) if c.domain_source else None,
+                c.domain_tag,
                 c.enforcement_weight,
                 str(p.id),
                 "pantheon",

@@ -46,7 +46,12 @@ class Constraint(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     description: str
-    domain_source: Optional[UUID] = None    # Which Domain this flows from, if any
+    domain_tag: Optional[str] = None
+    # Canonical `domain:...` tag this constraint flows from, if any.
+    # Replaces the deprecated `domain_source: UUID` field that pointed at a
+    # Domain class which no longer exists. Optional — most constraints
+    # express a Luminary's general expectation rather than a domain-specific
+    # mandate.
     enforcement_weight: float = Field(ge=0.0, le=1.0, default=0.5)
     # 0.0 = they'll grumble but not act; 1.0 = hard line
 

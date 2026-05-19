@@ -7,6 +7,7 @@ from pathlib import Path
 
 from textual.app import App
 
+from ui import display
 from ui.constants import _SCENARIOS_DIR
 from utilities.scenario_loader import load_scenario, validate_luminary_affinities
 
@@ -72,6 +73,14 @@ class BuilderApp(App):
 
 def main(argv: list[str] | None = None) -> None:
     """Entry point invoked by main.py for --edit-scenario / --build-scenario.
-    Both flags enter the same chooser."""
+    Both flags enter the same chooser.
+
+    The builder always renders with `display.DEV_MODE=True` so authors can
+    see every entity (out-of-Window ones dimmed) and can tell at a glance
+    which entities start in-Window vs. pinned-only — `pinned=False` +
+    `visibility=0.0` is the "lives outside the player's starting view"
+    signal that authors need to see while editing.
+    """
     _SCENARIOS_DIR.mkdir(parents=True, exist_ok=True)
+    display.DEV_MODE = True
     BuilderApp().run()

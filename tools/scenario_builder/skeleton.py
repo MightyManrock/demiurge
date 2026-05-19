@@ -44,6 +44,7 @@ def build_skeleton_state(scenario_name: str, initialism: str) -> SimulationState
     )
     planet = SignificantLocation(
         name="Planet", location_type="planet", parent_id=system.id,
+        geo_tags=["geo:terrestrial"], atmo_tags=["atmo:nitrogen_oxygen"],
         visibility=1.0, pinned=True,
     )
     settlement = PopLocation(

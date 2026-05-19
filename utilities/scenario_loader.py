@@ -248,14 +248,15 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
     # Load all constraints first, grouped by owner
     constraints_by_owner: dict[str, list[Constraint]] = {}
     for row in conn.execute("SELECT * FROM constraints"):
+        d = dict(row)
         c = Constraint(
-            id=UUID(row["id"]),
-            name=row["name"],
-            description=row["description"],
-            domain_source=_uuid(row["domain_source"]),
-            enforcement_weight=row["enforcement_weight"],
+            id=UUID(d["id"]),
+            name=d["name"],
+            description=d["description"],
+            domain_tag=d.get("domain_tag"),  # absent in pre-cleanup DBs
+            enforcement_weight=d["enforcement_weight"],
         )
-        constraints_by_owner.setdefault(row["owner_id"], []).append(c)
+        constraints_by_owner.setdefault(d["owner_id"], []).append(c)
 
     lums = {}
     for raw in conn.execute("SELECT * FROM luminaries"):
