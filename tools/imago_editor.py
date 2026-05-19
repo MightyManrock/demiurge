@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-imago_editor.py
+tools/imago_editor.py
 Standalone Textual TUI for editing Imago node mechanics and text fields.
-Run with: python imago_editor.py
+Run with: python main.py --edit-imago
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from utilities.culture_registry import (
     PRACTICE_TAGS, RELATIONS_TAGS, VALUES_TAGS,
 )
 
-_DB_PATH = Path(__file__).parent / "core" / "core.db"
+_DB_PATH = Path(__file__).resolve().parent.parent / "core" / "core.db"
 
 # (cat_id, label, tag_list) — drives the Status tab culture sections
 _STAT_CATEGORIES: list[tuple[str, str, list[str]]] = [
@@ -1042,5 +1042,6 @@ class ImagoEditorApp(App):
         self.exit()
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    """Entry point used by main.py --edit-imago."""
     ImagoEditorApp().run()

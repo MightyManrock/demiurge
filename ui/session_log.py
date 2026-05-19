@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text as _RText
 
-import display
+from ui import display
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState, TickResult

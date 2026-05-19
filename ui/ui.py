@@ -42,8 +42,8 @@ from utilities.imago_registry import get_registry as get_imago_registry
 from utilities.scenario_loader import load_scenario, validate_luminary_affinities
 from utilities.scenario_exporter import export_scenario
 
-import display
-from display import (
+from ui import display
+from ui.display import (
     display_state, display_briefing, display_tick_result,
     display_tick_result_categorized,
     _strip_oow, _name_for_id, _personality_label, _wrap_desc, _short_tag,

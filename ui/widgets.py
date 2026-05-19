@@ -27,8 +27,8 @@ from textual.widgets import ListView, RichLog, Static
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 
-import display
-from display import (
+from ui import display
+from ui.display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
     _name_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,

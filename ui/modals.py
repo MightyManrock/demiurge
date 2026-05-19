@@ -25,7 +25,7 @@ from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
 
-from display import _get_lum_domain_context, _wrap_desc, _short_tag
+from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag
 
 from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, LoopingListView
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS

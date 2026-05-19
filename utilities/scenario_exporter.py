@@ -1201,7 +1201,7 @@ def build_scenario_default() -> SimulationState:
     )
     pop_loc_neran_bathy = PopLocation(
         name="Neran Bathypelagic Zone", location_type="pop_location",
-        parent_id=neran.id, distance_from_core=1,
+        parent_id=neran.id, distance_from_core=3,
         visibility=0.0, pinned=False,
     )
     pop_loc_neran_orbital = PopLocation(
@@ -1212,6 +1212,11 @@ def build_scenario_default() -> SimulationState:
     pop_loc_sethis_orbital = PopLocation(
         name="Sethis Orbital Station", location_type="pop_location",
         parent_id=sethis.id, distance_from_core=2,
+        visibility=0.0, pinned=False,
+    )
+    pop_loc_sethis_canyon = PopLocation(
+        name="Canyon of Surath", location_type="pop_location",
+        parent_id=sethis.id, distance_from_core=1,
         visibility=0.0, pinned=False,
     )
     pop_loc_oros = PopLocation(
@@ -1242,6 +1247,7 @@ def build_scenario_default() -> SimulationState:
     kiddis.child_ids.append(pop_loc_kiddis.id)
     sethis.child_ids.append(pop_loc_sethis.id)
     sethis.child_ids.append(pop_loc_sethis_orbital.id)
+    sethis.child_ids.append(pop_loc_sethis_canyon.id)
     mireth.child_ids.append(pop_loc_mireth.id)
     ossian.child_ids.append(pop_loc_ossian.id)
 
@@ -1479,7 +1485,31 @@ def build_scenario_default() -> SimulationState:
                       "values:adaptability": 0.65, "values:folk_wisdom": 0.55, "values:tenacity": 0.40},
         visibility=0.0, pinned=False,
     )
-    for p in (pop_surathi_priest, pop_surathi_common):
+    pop_surathi_warrior = Pop(
+        civilization_id=surathi_clans.id, species_id=surathi_species.id,
+        social_class=SocialClass.WARRIOR,
+        current_location=pop_loc_sethis_canyon.id,
+        size_fractional=2.2,
+        dominant_beliefs={"domain:conflict": 0.5, "domain:community": 0.40, "domain:secrecy": 0.20},
+        culture_tags={"practice:nomadism": 0.70, "religion:animism": 0.82,
+                      "practice:foraging": 0.50, "structure:egalitarianism": 0.65,
+                      "religion:ancestor_worship": 0.50, "values:adaptability": 0.25,
+                      "values:folk_wisdom": 0.65, "values:tenacity": 0.60},
+        visibility=0.0, pinned=False,
+    )
+    pop_surathi_priest_canyon = Pop(
+        civilization_id=surathi_clans.id, species_id=surathi_species.id,
+        social_class=SocialClass.PRIEST,
+        current_location=pop_loc_sethis_canyon.id,
+        size_fractional=1.6,
+        dominant_beliefs={"domain:community": 0.68, "domain:memory": 0.50, "domain:growth": 0.16, "domain:secrecy": 0.20},
+        culture_tags={"religion:animism": 0.90, "religion:ancestor_worship": 0.70,
+                      "practice:nomadism": 0.70, "practice:foraging": 0.55,
+                      "structure:egalitarianism": 0.55, "values:patience": 0.2,
+                      "values:folk_wisdom": 0.75, "values:charity": 0.45, "values:humility": 0.42},
+        visibility=0.0, pinned=False,
+    )
+    for p in (pop_surathi_priest, pop_surathi_common, pop_surathi_warrior, pop_surathi_priest_canyon):
         surathi_clans.pop_ids.append(p.id)
         pop_loc_sethis.pop_ids.append(p.id)
     surathi_clans.established_beliefs = dict(surathi_clans.dominant_beliefs)
@@ -2064,6 +2094,7 @@ def build_scenario_default() -> SimulationState:
         pop_keth_warrior, pop_keth_common,
         pop_damtal_elite, pop_damtal_common,
         pop_surathi_priest, pop_surathi_common, pop_surathi_confederate,
+        pop_surathi_warrior, pop_surathi_priest_canyon,
         pop_veldan_council, pop_veldan_common,
         pop_vehn_council, pop_vehn_common,
         pop_ultir_bathy,
@@ -2121,6 +2152,7 @@ def build_scenario_default() -> SimulationState:
             str(pop_loc_oros.id):     pop_loc_oros,
             str(pop_loc_kiddis.id):   pop_loc_kiddis,
             str(pop_loc_sethis.id):   pop_loc_sethis,
+            str(pop_loc_sethis_canyon.id):  pop_loc_sethis_canyon,
             str(pop_loc_mireth.id):   pop_loc_mireth,
             str(pop_loc_ossian.id):   pop_loc_ossian,
         },
@@ -2168,6 +2200,8 @@ def build_scenario_default() -> SimulationState:
             str(pop_damtal_common.id): pop_damtal_common,
             str(pop_surathi_priest.id):       pop_surathi_priest,
             str(pop_surathi_common.id):       pop_surathi_common,
+            str(pop_surathi_warrior.id):    pop_surathi_warrior,
+            str(pop_surathi_priest_canyon.id): pop_surathi_priest_canyon,
             str(pop_surathi_confederate.id):  pop_surathi_confederate,
             str(pop_veldan_council.id): pop_veldan_council,
             str(pop_veldan_common.id):  pop_veldan_common,

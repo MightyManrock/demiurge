@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
 """
-Rebuild Demiurge databases selectively.
+Rebuild Demiurge databases selectively. Invoked via `python main.py --rebuild`.
 
-  python rebuild_databases.py                  # interactive TUI checklist
-  python rebuild_databases.py --all            # rebuild everything non-interactively
-  python rebuild_databases.py --domains        # rebuild only domain registry
-  python rebuild_databases.py --cultures       # rebuild only culture registry
-  python rebuild_databases.py --imagines       # rebuild only imago registry
-  python rebuild_databases.py --actions        # rebuild only action registry
-  python rebuild_databases.py --scenario       # rebuild only default scenario
-  python rebuild_databases.py --actions --scenario   # any combination works
+  python main.py --rebuild                  # interactive TUI checklist
+  python main.py --rebuild --all            # rebuild everything non-interactively
+  python main.py --rebuild --domains        # rebuild only domain registry
+  python main.py --rebuild --cultures       # rebuild only culture registry
+  python main.py --rebuild --imagines       # rebuild only imago registry
+  python main.py --rebuild --actions        # rebuild only action registry
+  python main.py --rebuild --scenario       # rebuild only default scenario
+  python main.py --rebuild --actions --scenario   # any combination works
 
 When all four registries are selected, core/core.db is deleted and fully
 re-bootstrapped. When fewer than four are selected, core/core.db is preserved
 and only the selected registries' tables are dropped and re-populated —
-leaving imago_editor.py edits intact if Imago is unchecked.
+leaving imago_editor edits intact if Imago is unchecked.
 
 To rebuild actions without touching Imago edits:
-  python rebuild_databases.py --actions --scenario
+  python main.py --rebuild --actions --scenario
 """
 
 import argparse
 from pathlib import Path
 
-CORE_DB = Path(__file__).parent / "core" / "core.db"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CORE_DB = _PROJECT_ROOT / "core" / "core.db"
 
 
 # ── Shared dispatcher ──────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ def run_operations(
 
     if scenario:
         from utilities.scenario_exporter import build_scenario_default, export_scenario
-        _scenario_db = Path(__file__).parent / "scenarios" / "wardens_compact.db"
+        _scenario_db = _PROJECT_ROOT / "scenarios" / "wardens_compact.db"
         export_scenario(
             build_scenario_default(),
             _scenario_db,
@@ -86,8 +87,9 @@ def run_operations(
 
 # ── CLI mode ───────────────────────────────────────────────────────────────────
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
+        prog="main.py --rebuild",
         description="Rebuild Demiurge databases (TUI if no flags given).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
@@ -101,7 +103,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--actions",  action="store_true", help="Rebuild action registry in core/core.db")
     p.add_argument("--scenario", action="store_true", help="Rebuild default scenario (wardens_compact.db)")
     p.add_argument("--all",      action="store_true", help="Rebuild everything (equivalent to all five flags)")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def _run_cli(args: argparse.Namespace) -> None:
@@ -228,8 +230,10 @@ def _build_tui_app():
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    args = _parse_args()
+def main(argv: list[str] | None = None) -> None:
+    """Entry point used by main.py --rebuild. Dispatches to TUI when no flags
+    are given, CLI mode otherwise."""
+    args = _parse_args(argv)
     any_flag = any([args.domains, args.cultures, args.imagines, args.actions, args.scenario, args.all])
     if any_flag:
         _run_cli(args)

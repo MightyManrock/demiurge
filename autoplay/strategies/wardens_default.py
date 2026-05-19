@@ -17,62 +17,17 @@ from __future__ import annotations
 from uuid import UUID
 
 from core.action_core import (
-    ActionInstance, TargetType,
+    TargetType,
     WhisperIntent, EssenceHarvestIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, ProbabilityNudgeIntent,
     DomainVector, Framing, ScryIntent, ScryScope,
 )
-from logic.tick_logic import TickLoop, SimulationState, is_mortal_visible
-from core.universe_core import MortalRole, MortalStatus
+from logic.tick_logic import TickLoop, SimulationState
+from core.universe_core import MortalRole
 
-
-# ── Helpers ────────────────────────────────────────────────────────────────
-
-def queue(loop: TickLoop, state: SimulationState, key: str,
-          target_type: TargetType, target_id, intent=None, proxius_id=None):
-    defn = loop._action_library[key]
-    inst = ActionInstance(
-        action_definition_id=defn.id,
-        target_type=target_type,
-        target_id=target_id,
-        timestamp=state.universe.current_age,
-        demiurge_id=state.demiurge.id,
-        proxius_id=proxius_id,
-        intent=intent,
-    )
-    state.action_queue.append(inst)
-    return inst
-
-
-def mortal_named(state: SimulationState, name: str):
-    for mid, m in state.mortals.items():
-        if m.name == name:
-            return mid, m
-    return None, None
-
-
-def visible_named(state: SimulationState, name: str):
-    mid, m = mortal_named(state, name)
-    if mid and is_mortal_visible(m):
-        return mid, m
-    return None, None
-
-
-def active_proxii(state: SimulationState):
-    return [(mid, m) for mid, m in state.mortals.items()
-            if m.role == MortalRole.PROXIUS and m.status == MortalStatus.ACTIVE]
-
-
-def world_id(state: SimulationState, name: str) -> UUID:
-    return UUID(next(wid for wid, w in state.worlds.items() if w.name == name))
-
-
-def civ_id(state: SimulationState, name: str) -> UUID:
-    return UUID(next(cid for cid, c in state.civilizations.items() if c.name == name))
-
-
-def lum_id(state: SimulationState, name: str) -> UUID:
-    return UUID(next(lid for lid, l in state.luminaries.items() if l.name == name))
+from autoplay.strategies._helpers import (
+    queue, mortal_named, visible_named, world_id, civ_id, lum_id,
+)
 
 
 # ── Decision logic ─────────────────────────────────────────────────────────
