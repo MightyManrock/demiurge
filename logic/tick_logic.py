@@ -2175,6 +2175,7 @@ class TickLoop:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.PROXIUS_AUDITED,
                     target_id=mortal.id,
+                    field="audited",
                     note=f"Audit of {mortal.name} this tick",
                 ))
                 # Persist the audit narrative on the mortal for the detail tab.

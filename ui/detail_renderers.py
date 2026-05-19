@@ -91,6 +91,94 @@ def _format_location_chain(state: "SimulationState", location_id) -> "str | None
 
 
 # ─────────────────────────────────────────
+# Species-presence helpers
+# ─────────────────────────────────────────
+
+def _species_in_civ(state: "SimulationState", civ) -> list[tuple[str, str]]:
+    """Distinct species among this civ's pops; returns [(species_id, name)] sorted by name."""
+    seen: dict[str, str] = {}
+    for pid in civ.pop_ids:
+        pop = state.pops.get(str(pid))
+        if not pop or not pop.species_id:
+            continue
+        sp = state.species.get(str(pop.species_id))
+        if not sp:
+            continue
+        seen[str(sp.id)] = sp.name
+    return sorted(seen.items(), key=lambda kv: kv[1])
+
+
+def _species_at_location(state: "SimulationState", loc_id) -> list[tuple[str, str, bool]]:
+    """Distinct species at a SignificantLocation or PopLocation.
+
+    SigLoc: Pops at child PopLocs + mortals at the SigLoc or any child PopLoc.
+    PopLoc: Pops at this PopLoc + mortals at this PopLoc.
+
+    A species is 'foreign' if represented only by a notable mortal (no Pop has it).
+    Returns [(species_id, name, foreign)] with natives first (by name), foreigners last.
+    """
+    lid = str(loc_id)
+    loc = state.locations.get(lid)
+    if loc is None:
+        return []
+
+    if isinstance(loc, PopLocation):
+        ploc_ids: set[str] = {lid}
+        relevant_loc_ids: set[str] = {lid}
+    else:
+        ploc_ids = set()
+        for cid in getattr(loc, "child_ids", []):
+            child = state.locations.get(str(cid))
+            if isinstance(child, PopLocation):
+                ploc_ids.add(str(cid))
+        relevant_loc_ids = ploc_ids | {lid}
+
+    native: dict[str, str] = {}
+    for pop in state.pops.values():
+        if str(pop.current_location) not in ploc_ids:
+            continue
+        if not pop.species_id:
+            continue
+        sp = state.species.get(str(pop.species_id))
+        if not sp:
+            continue
+        native[str(sp.id)] = sp.name
+
+    foreign: dict[str, str] = {}
+    for m in state.mortals.values():
+        if m.status == MortalStatus.DECEASED:
+            continue
+        if str(m.current_location) not in relevant_loc_ids:
+            continue
+        if not m.species_id:
+            continue
+        sid = str(m.species_id)
+        if sid in native:
+            continue
+        sp = state.species.get(sid)
+        if not sp:
+            continue
+        foreign[sid] = sp.name
+
+    natives = [(sid, name, False) for sid, name in sorted(native.items(), key=lambda kv: kv[1])]
+    foreigners = [(sid, name, True) for sid, name in sorted(foreign.items(), key=lambda kv: kv[1])]
+    return natives + foreigners
+
+
+def _render_species_section(items: list[tuple[str, str, bool]], heading: str) -> list[str]:
+    out: list[str] = ["", f"[bold #4a80b0]{heading}[/]"]
+    if not items:
+        out.append("  [#5a7090](none in Window)[/]")
+        return out
+    parts = []
+    for sid, name, foreign in items:
+        link = _click_link("species", sid, _e(name))
+        parts.append(f"{link} (foreign)" if foreign else link)
+    out.append("  " + ", ".join(parts))
+    return out
+
+
+# ─────────────────────────────────────────
 # WORLD
 # ─────────────────────────────────────────
 
@@ -201,6 +289,9 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         )
         wrap = ("[dim]", "[/]") if dim else ("", "")
         return f"  {wrap[0]}↳ \\[{link}]{dist_note}{wrap[1]}"
+
+    # ── Species here ─────────────────────────────────────────
+    lines.extend(_render_species_section(_species_at_location(state, world_id), "SPECIES HERE"))
 
     # ── Pops here ────────────────────────────────────────────
     pop_buckets = _bucket_by_ploc(
@@ -386,36 +477,86 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
 
     dev = display.DEV_MODE
 
-    a("")
-    a("[bold #4a80b0]POPS[/]")
-    any_p = False
+    # ── Constituent species ──────────────────────────────────
+    species_items = _species_in_civ(state, civ)
+    if species_items:
+        a("")
+        a("[bold #4a80b0]CONSTITUENT SPECIES[/]")
+        parts = [_click_link("species", sid, _e(name)) for sid, name in species_items]
+        a("  " + ", ".join(parts))
+
+    # ── Pops, grouped by World → (PopLocation if >1) → Pops ──
+    pops_by_world: dict = {}
     for pid in civ.pop_ids:
         pop = state.pops.get(str(pid))
         if not pop:
             continue
-        p_oow = not is_in_window(pop)
-        if p_oow and not dev:
+        if not is_in_window(pop) and not dev:
             continue
-        any_p = True
-        pm = "[dim]" if p_oow else ""
-        pe = "[/]" if p_oow else ""
-        class_label = _pop_stratum_label(pop)
-        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-        pop_stratum_md = _click_link("pop", str(pid), class_label)
-        if sp_obj:
-            sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
-            pop_label = f"{pop_stratum_md}  ({sp_md})"
-        else:
-            pop_label = pop_stratum_md
-        top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
-        belief_str = "  ".join(
-            _color_short_tag(t, v) for t, v in top
-        ) or "[#5a7090]none[/]"
-        vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
-        a(f"  {pm}↳ {pop_label}  sz:{pop.size_magnitude}{vis}{pe}")
-        a(f"      {pm}{belief_str}{pe}")
-    if not any_p:
+        ploc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+        if not isinstance(ploc, PopLocation):
+            continue
+        world_id = str(ploc.parent_id) if ploc.parent_id else None
+        pops_by_world.setdefault(world_id, {}).setdefault(str(ploc.id), []).append(pop)
+
+    a("")
+    a("[bold #4a80b0]POPS[/]")
+    if not pops_by_world:
         a("  [#5a7090](no pops visible in Window)[/]")
+    else:
+        world_keys = sorted(
+            pops_by_world.keys(),
+            key=lambda wid: state.worlds[wid].name if (wid and wid in state.worlds) else "~",
+        )
+        for wid in world_keys:
+            ploc_buckets = pops_by_world[wid]
+            world = state.worlds.get(wid) if wid else None
+            if world:
+                w_oow = not is_in_window(world)
+                if w_oow and not dev:
+                    continue
+                wm = "[dim]" if w_oow else ""
+                we = "[/]" if w_oow else ""
+                world_link = _click_link("world", wid, f"[bold]{_e(world.name)}[/]")
+                a(f"  {wm}● {world_link}{we}")
+            else:
+                a("  ● [#5a7090](unknown world)[/]")
+            multi = len(ploc_buckets) > 1
+            ploc_keys = sorted(
+                ploc_buckets.keys(),
+                key=lambda k: (state.locations[k].distance_from_core, state.locations[k].name),
+            )
+            for ploc_id in ploc_keys:
+                if multi:
+                    ploc = state.locations[ploc_id]
+                    ploc_link = _click_link("poploc", ploc_id, _e(ploc.name))
+                    dist_note = (
+                        f"  [#5a7090](d{ploc.distance_from_core})[/]"
+                        if ploc.distance_from_core > 0 else ""
+                    )
+                    a(f"      ↳ \\[{ploc_link}]{dist_note}")
+                    pop_indent = "          "
+                else:
+                    pop_indent = "      "
+                for pop in ploc_buckets[ploc_id]:
+                    p_oow = not is_in_window(pop)
+                    pm = "[dim]" if p_oow else ""
+                    pe = "[/]" if p_oow else ""
+                    class_label = _pop_stratum_label(pop)
+                    sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+                    pop_stratum_md = _click_link("pop", str(pop.id), class_label)
+                    if sp_obj:
+                        sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
+                        pop_label = f"{pop_stratum_md}  ({sp_md})"
+                    else:
+                        pop_label = pop_stratum_md
+                    top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
+                    belief_str = "  ".join(
+                        _color_short_tag(t, v) for t, v in top
+                    ) or "[#5a7090]none[/]"
+                    vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                    a(f"{pop_indent}{pm}↳ {pop_label}  sz:{pop.size_magnitude}{vis}{pe}")
+                    a(f"{pop_indent}    {pm}{belief_str}{pe}")
 
     a("")
     a("[bold #4a80b0]NOTABLE MORTALS[/]")
@@ -993,6 +1134,8 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
         civ_obj = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
         civ_key = str(pop.civilization_id) if (civ_obj and not is_wild_civ(civ_obj)) else None
         civ_buckets.setdefault(civ_key, []).append((pop, p_oow))
+
+    lines.extend(_render_species_section(_species_at_location(state, loc.id), "SPECIES HERE"))
 
     a("")
     a("[bold #4a80b0]POPS HERE[/]")
