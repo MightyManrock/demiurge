@@ -95,7 +95,11 @@ def _format_location_chain(state: "SimulationState", location_id) -> "str | None
 # ─────────────────────────────────────────
 
 def _species_in_civ(state: "SimulationState", civ) -> list[tuple[str, str]]:
-    """Distinct species among this civ's pops; returns [(species_id, name)] sorted by name."""
+    """Distinct species among this civ's pops; returns [(species_id, name)] sorted by name.
+
+    Species not currently in the Window are excluded (or dimmed under dev mode via the
+    OOW flag injected at render time)."""
+    dev = display.DEV_MODE
     seen: dict[str, str] = {}
     for pid in civ.pop_ids:
         pop = state.pops.get(str(pid))
@@ -103,6 +107,8 @@ def _species_in_civ(state: "SimulationState", civ) -> list[tuple[str, str]]:
             continue
         sp = state.species.get(str(pop.species_id))
         if not sp:
+            continue
+        if not is_in_window(sp) and not dev:
             continue
         seen[str(sp.id)] = sp.name
     return sorted(seen.items(), key=lambda kv: kv[1])
@@ -121,6 +127,8 @@ def _species_at_location(state: "SimulationState", loc_id) -> list[tuple[str, st
     loc = state.locations.get(lid)
     if loc is None:
         return []
+
+    dev = display.DEV_MODE
 
     if isinstance(loc, PopLocation):
         ploc_ids: set[str] = {lid}
@@ -142,6 +150,8 @@ def _species_at_location(state: "SimulationState", loc_id) -> list[tuple[str, st
         sp = state.species.get(str(pop.species_id))
         if not sp:
             continue
+        if not is_in_window(sp) and not dev:
+            continue
         native[str(sp.id)] = sp.name
 
     foreign: dict[str, str] = {}
@@ -157,6 +167,8 @@ def _species_at_location(state: "SimulationState", loc_id) -> list[tuple[str, st
             continue
         sp = state.species.get(sid)
         if not sp:
+            continue
+        if not is_in_window(sp) and not dev:
             continue
         foreign[sid] = sp.name
 
