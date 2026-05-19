@@ -36,6 +36,9 @@ class ScenarioTab(Vertical):
 
     def compose(self) -> ComposeResult:
         with ScrollableContainer():
+            yield Label("Scenario",       classes="scenario-section")
+            yield Button("↪ Open another scenario", id="switch-scenario-btn")
+
             yield Label("Meta",          classes="scenario-section")
             yield Button("Edit Universe", id="edit-universe-btn")
             yield Button("Edit Demiurge", id="edit-demiurge-btn")

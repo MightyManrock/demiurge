@@ -57,6 +57,72 @@ def existing_domain_picker_items(lum: Luminary) -> list[tuple[str, str]]:
     return rows
 
 
+def pantheon_sum_for_domain(
+    state, tag: str, exclude_luminary_id=None,
+) -> float:
+    """Sum of `domain[tag]` across every Luminary in the pantheon.
+    Optionally exclude one Luminary so the caller can compute "the rest
+    of the pantheon's total" without their own contribution."""
+    total = 0.0
+    for lum in state.luminaries.values():
+        if exclude_luminary_id is not None and lum.id == exclude_luminary_id:
+            continue
+        total += lum.domains.get(tag, 0.0)
+    return total
+
+
+def luminary_total_affinity(lum: Luminary) -> float:
+    return sum(lum.domains.values())
+
+
+def domain_picker_items_with_sums(state, lum: Luminary) -> list[tuple[str, str]]:
+    """Like `domain_tag_picker_items` (excludes tags already on `lum`) but
+    annotates each row with the pantheon sum so far for that domain — useful
+    when adding to spot how much room is left under MAX_PANTHEON_AFFINITY."""
+    exclude = set(lum.domains.keys())
+    rows = []
+    for tag in DOMAIN_TAGS:
+        if tag in exclude:
+            continue
+        pantheon_sum = pantheon_sum_for_domain(state, tag, exclude_luminary_id=lum.id)
+        head = MAX_PANTHEON_AFFINITY - pantheon_sum
+        cap_note = ""
+        if head < 0.05:
+            cap_note = "  ⚠ no headroom"
+        elif head < 0.2:
+            cap_note = f"  (only {head:.2f} headroom)"
+        rows.append((
+            tag,
+            f"{tag.removeprefix('domain:').title()}"
+            f"  [pantheon: {pantheon_sum:.2f}/{MAX_PANTHEON_AFFINITY:.1f}]"
+            f"{cap_note}",
+        ))
+    return rows
+
+
+def affinity_form_description(
+    state, lum: Luminary, tag: str, exclude_self: bool = True,
+) -> str:
+    """Render a multi-line description for the affinity weight form so the
+    user sees the per-Luminary and per-domain headroom before committing."""
+    cur_self = lum.domains.get(tag, 0.0) if exclude_self else 0.0
+    lum_sum_other = luminary_total_affinity(lum) - cur_self
+    lum_head = MAX_LUMINARY_AFFINITY - lum_sum_other
+    pantheon_other = pantheon_sum_for_domain(
+        state, tag, exclude_luminary_id=lum.id,
+    )
+    pantheon_head = MAX_PANTHEON_AFFINITY - pantheon_other
+    return (
+        f"Per-(Luminary, Domain) cap: ≤ {MAX_INDIVIDUAL_AFFINITY:.2f}.  "
+        f"You can spend up to {min(lum_head, MAX_INDIVIDUAL_AFFINITY):.2f} "
+        f"on this domain without exceeding caps:\n"
+        f"  • {lum.name}'s remaining per-Luminary budget: "
+        f"{lum_head:.2f} (of {MAX_LUMINARY_AFFINITY:.1f})\n"
+        f"  • Pantheon headroom on {tag}: "
+        f"{pantheon_head:.2f} (others have {pantheon_other:.2f})"
+    )
+
+
 def constraint_picker_items(constraints: list[Constraint]) -> list[tuple[str, str]]:
     return [
         (str(c.id), f"{c.name}  [enforcement {c.enforcement_weight:.2f}]")

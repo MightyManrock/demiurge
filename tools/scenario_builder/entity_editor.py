@@ -105,6 +105,7 @@ def poploc_picker_items(state) -> list[tuple[str, str]]:
 def species_text_fields(sp: Optional[Species] = None) -> list[tuple[str, str, str]]:
     return [
         ("Name",         "name",         sp.name if sp else "New Species"),
+        ("Description",  "description",  sp.description if sp else ""),
         ("Lifespan min", "lifespan_min", f"{sp.lifespan_min}" if sp else "40"),
         ("Lifespan max", "lifespan_max", f"{sp.lifespan_max}" if sp else "80"),
     ]
@@ -113,11 +114,14 @@ def species_text_fields(sp: Optional[Species] = None) -> list[tuple[str, str, st
 def civ_text_fields(civ: Optional[Civilization] = None) -> list[tuple[str, str, str]]:
     h = civ.health if civ else CivilizationHealth()
     return [
-        ("Name",       "name",       civ.name if civ else "New Civilization"),
-        ("Age",        "age",        f"{civ.age}" if civ else "0"),
-        ("Stability",  "stability",  f"{h.stability}"),
-        ("Prosperity", "prosperity", f"{h.prosperity}"),
-        ("Cohesion",   "cohesion",   f"{h.cohesion}"),
+        ("Name",             "name",             civ.name if civ else "New Civilization"),
+        ("Description",      "description",      civ.description if civ else ""),
+        ("Age",              "age",              f"{civ.age}" if civ else "0"),
+        ("Divine awareness (0.0–1.0)", "divine_awareness",
+         f"{civ.divine_awareness}" if civ else "0.3"),
+        ("Stability",        "stability",        f"{h.stability}"),
+        ("Prosperity",       "prosperity",       f"{h.prosperity}"),
+        ("Cohesion",         "cohesion",         f"{h.cohesion}"),
     ]
 
 
@@ -153,11 +157,15 @@ def validate_civ_fields(result: dict[str, str]) -> Optional[str]:
         s = float(result["stability"])
         p = float(result["prosperity"])
         c = float(result["cohesion"])
+        da = float(result["divine_awareness"])
     except (KeyError, TypeError, ValueError):
-        return "Age and health values must be numbers."
+        return "Age, health, and divine awareness must be numbers."
     if age < 0:
         return "Age cannot be negative."
-    for label, val in (("Stability", s), ("Prosperity", p), ("Cohesion", c)):
+    for label, val in (
+        ("Stability", s), ("Prosperity", p), ("Cohesion", c),
+        ("Divine awareness", da),
+    ):
         if not (0.0 <= val <= 1.0):
             return f"{label} must be between 0.0 and 1.0."
     return None
@@ -241,13 +249,16 @@ def construct_pop(
 
 def apply_species_fields(sp: Species, fields: dict[str, str]) -> None:
     sp.name = fields["name"].strip()
+    sp.description = fields["description"]
     sp.lifespan_min = float(fields["lifespan_min"])
     sp.lifespan_max = float(fields["lifespan_max"])
 
 
 def apply_civ_fields(civ: Civilization, fields: dict[str, str]) -> None:
     civ.name = fields["name"].strip()
+    civ.description = fields["description"]
     civ.age = float(fields["age"])
+    civ.divine_awareness = float(fields["divine_awareness"])
     civ.health.stability  = float(fields["stability"])
     civ.health.prosperity = float(fields["prosperity"])
     civ.health.cohesion   = float(fields["cohesion"])

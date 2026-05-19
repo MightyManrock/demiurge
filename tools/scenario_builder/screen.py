@@ -23,6 +23,7 @@ from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, TabbedContent, TabPane
 
+from core.universe_core import SignificantLocation
 from logic.tick_logic import SimulationState
 from ui.constants import _SCENARIOS_DIR
 from ui.detail_tabs import DetailTabManager
@@ -42,6 +43,7 @@ from . import location_editor as locedit
 from . import entity_editor as entedit
 from . import mortal_editor as medit
 from . import luminary_editor as ledit
+from . import field_editors as fedit
 from .flag_check import find_broken_refs, render_flag_report
 
 
@@ -49,10 +51,11 @@ class BuilderScreen(Screen):
     """Builder-mode workspace. Read-only browsing + save/save-as in Phase 1."""
 
     BINDINGS = [
-        ("ctrl+s",       "save",         "Save"),
-        ("ctrl+shift+s", "save_as",      "Save As"),
-        ("q",            "quit_confirm", "Quit"),
-        ("ctrl+q",       "quit_force",   "Force quit"),
+        ("ctrl+s",       "save",            "Save"),
+        ("ctrl+shift+s", "save_as",         "Save As"),
+        ("ctrl+o",       "switch_scenario", "Open"),
+        ("q",            "quit_confirm",    "Quit"),
+        ("ctrl+q",       "quit_force",      "Force quit"),
         # Left-panel tab switching.
         ("1", "left_tab('scenario')",       "Scenario"),
         ("2", "left_tab('locations')",      "Locations"),
@@ -279,6 +282,27 @@ class BuilderScreen(Screen):
     @work
     async def _edit_universe_flow(self) -> None:
         u = self._state.universe
+        while True:
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit Universe: {u.name}",
+                items=[
+                    ("basics",     "Basics (name, initialism, current age)"),
+                    ("expression", f"Universe-wide domain expression ({len(u.universe_domain_expression)})"),
+                    ("done",       "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                await self._edit_universe_basics(u)
+            elif choice == "expression":
+                await fedit.edit_tag_weight_dict(
+                    self, u.universe_domain_expression,
+                    title_prefix="Universe — Domain expression baseline",
+                    tag_namespace="domain",
+                )
+
+    async def _edit_universe_basics(self, u) -> None:
         result = await self.app.push_screen_wait(TextFormModal(
             title="Edit Universe",
             description=(
@@ -292,8 +316,9 @@ class BuilderScreen(Screen):
                 ("Initialism",    "save_name",   u.save_name),
                 ("Current age",   "current_age", f"{u.current_age}"),
             ],
+            show_back=True,
         ))
-        if not result:
+        if result in (None, BACK):
             return
         name, err = validate_scenario_name(result["name"])
         if err:
@@ -322,28 +347,116 @@ class BuilderScreen(Screen):
     @work
     async def _edit_demiurge_flow(self) -> None:
         d = self._state.demiurge
+        while True:
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit Demiurge: {d.name}",
+                items=[
+                    ("basics",     "Basics (name)"),
+                    ("affiliated", f"Affiliated domains ({len(d.affiliated_domains)}/4)"),
+                    ("imagines",   f"Unlocked Imagines ({len(d.unlocked_imagines)})"),
+                    ("done",       "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                await self._edit_demiurge_basics(d)
+            elif choice == "affiliated":
+                await fedit.edit_string_list(
+                    self, d.affiliated_domains,
+                    title_prefix=f"{d.name} — Affiliated domains",
+                    tag_namespace="domain",
+                    max_items=4,
+                )
+            elif choice == "imagines":
+                await self._edit_demiurge_imagines(d)
+
+    async def _edit_demiurge_basics(self, d) -> None:
         result = await self.app.push_screen_wait(TextFormModal(
-            title="Edit Demiurge",
-            description=(
-                "Domain affiliations and unlocked Imagines are not yet "
-                "editable here — that's coming in a follow-up. For now this "
-                "form edits the Demiurge's name only."
-            ),
-            fields=[
-                ("Name", "name", d.name),
-            ],
+            title=f"Edit Demiurge: {d.name}",
+            fields=[("Name", "name", d.name)],
+            show_back=True,
         ))
-        if not result:
+        if result in (None, BACK):
             return
         new_name = result["name"].strip()
         if not new_name:
-            await self.app.push_screen_wait(ErrorModal(
-                "Demiurge name cannot be empty."
-            ))
+            await self.app.push_screen_wait(ErrorModal("Demiurge name cannot be empty."))
             return
         d.name = new_name
-        self.mark_dirty()
-        self._refresh_all()
+        self.mark_dirty(); self._refresh_all()
+
+    async def _edit_demiurge_imagines(self, d) -> None:
+        """Add/remove loop over `d.unlocked_imagines: list[str]` (Imago
+        node_ids). Add path is a two-step picker: tree → node within tree."""
+        from utilities.imago_registry import get_registry as get_imago_registry
+        reg = get_imago_registry()
+        # Group all node_ids by tree for display.
+        nodes_by_tree: dict[str, list[str]] = {}
+        for node_id in reg.all_node_ids:
+            tree = node_id.split(":", 1)[0]
+            nodes_by_tree.setdefault(tree, []).append(node_id)
+
+        while True:
+            n = len(d.unlocked_imagines)
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"{d.name} — Unlocked Imagines ({n})",
+                items=[
+                    ("add",    "+ Add an Imago"),
+                    ("remove", "Remove an Imago"),
+                    ("done",   "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "add":
+                # Step 1: pick a tree (16 canonical domains).
+                tree_items = [
+                    (t, t.title()) for t in sorted(nodes_by_tree.keys())
+                ]
+                tree = await self.app.push_screen_wait(PickerModal(
+                    title="Pick a tree (domain)", items=tree_items, show_back=True,
+                ))
+                if tree in (None, BACK):
+                    continue
+                # Step 2: pick a node within that tree, hiding ones already unlocked.
+                existing = set(d.unlocked_imagines)
+                node_items = []
+                for node_id in nodes_by_tree[tree]:
+                    if node_id in existing:
+                        continue
+                    node = reg.get_node(node_id)
+                    label = f"T{node.tier}  {node.name}  ({node_id})" if node else node_id
+                    node_items.append((node_id, label))
+                if not node_items:
+                    await self.app.push_screen_wait(ErrorModal(
+                        f"Every Imago in the {tree} tree is already unlocked."
+                    ))
+                    continue
+                picked = await self.app.push_screen_wait(PickerModal(
+                    title=f"Pick an Imago from {tree.title()}",
+                    items=node_items, show_back=True,
+                ))
+                if picked in (None, BACK):
+                    continue
+                d.unlocked_imagines.append(picked)
+                self.mark_dirty(); self._refresh_all()
+            elif choice == "remove":
+                if not d.unlocked_imagines:
+                    await self.app.push_screen_wait(ErrorModal("Nothing to remove."))
+                    continue
+                items = []
+                for node_id in d.unlocked_imagines:
+                    node = reg.get_node(node_id)
+                    label = f"T{node.tier}  {node.name}  ({node_id})" if node else node_id
+                    items.append((node_id, label))
+                picked = await self.app.push_screen_wait(PickerModal(
+                    title="Remove which?", items=items, show_back=True,
+                ))
+                if picked in (None, BACK):
+                    continue
+                d.unlocked_imagines = [x for x in d.unlocked_imagines if x != picked]
+                self.mark_dirty(); self._refresh_all()
 
     @work
     async def _edit_pantheon_flow(self) -> None:
@@ -447,6 +560,52 @@ class BuilderScreen(Screen):
     def action_quit_force(self) -> None:
         """Ctrl+Q — skip the modal and exit immediately."""
         self.app.exit()
+
+    def action_switch_scenario(self) -> None:
+        """Ctrl+O — return to the chooser, optionally saving first."""
+        self._switch_scenario_flow()
+
+    @on(Button.Pressed, "#switch-scenario-btn")
+    def _switch_scenario_pressed(self, _: Button.Pressed) -> None:
+        self._switch_scenario_flow()
+
+    @work
+    async def _switch_scenario_flow(self) -> None:
+        """If dirty, ask the user how to handle unsaved edits before switching
+        back to the scenario chooser. Flagged entities still block save."""
+        if self._dirty:
+            choice = await self.app.push_screen_wait(PickerModal(
+                title="Unsaved edits",
+                description=(
+                    "You have unsaved edits in this scenario. Saving and "
+                    "switching writes them to disk first; discarding drops "
+                    "them entirely."
+                ),
+                items=[
+                    ("save",    "Save and switch"),
+                    ("discard", "Discard and switch"),
+                    ("cancel",  "Cancel — keep editing"),
+                ],
+            ))
+            if choice in (None, "cancel"):
+                return
+            if choice == "save":
+                # Flagged entities still block save; refuse the switch too.
+                self._recompute_flags()
+                if self._flagged_ids:
+                    report = render_flag_report(self._state, self._flag_reasons)
+                    await self.app.push_screen_wait(ErrorModal(
+                        f"Cannot save — {len(self._flagged_ids)} entity/entities "
+                        "have broken references. Fix or discard them first.\n\n"
+                        + report
+                    ))
+                    return
+                self._save_to(self._db_path)
+        from .chooser import ScenarioChooserScreen
+        # set_flag_predicate left a closure pointing at this screen's _flagged_ids;
+        # reset to no-op so the chooser doesn't inherit stale state.
+        set_flag_predicate(lambda _eid: False)
+        self.app.switch_screen(ScenarioChooserScreen())
 
     # ── Cascade helpers (delete dependents along with the target) ──────────
 
@@ -705,9 +864,58 @@ class BuilderScreen(Screen):
             await self.app.push_screen_wait(ErrorModal("Location not found."))
             return
         kind = locedit.location_kind(loc)
+        kind_label = {"galaxy": "galaxy", "system": "system",
+                      "world": "world", "poploc": "settlement"}.get(kind, kind)
+        # All location kinds share Basics + Coordinates; Worlds add the
+        # belief/footprint sub-editors on top.
+        while True:
+            menu = [
+                ("basics", "Basics (name, type, kind-specific fields)"),
+                ("coords", f"Coordinates (x={loc.coordinates.x:.1f}, y={loc.coordinates.y:.1f}, z={loc.coordinates.z:.1f})"),
+            ]
+            if kind == "world":
+                from core.universe_core import SignificantLocation
+                assert isinstance(loc, SignificantLocation)
+                menu.extend([
+                    ("expression", f"Domain expression ({len(loc.domain_expression)})"),
+                    ("geo_tags",   f"Geo tags ({len(loc.geo_tags)})"),
+                    ("atmo_tags",  f"Atmo tags ({len(loc.atmo_tags)})"),
+                    ("footprint",  "Local footprint (4 floats)"),
+                ])
+            menu.append(("done", "Done"))
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit {kind_label}: {loc.name}",
+                items=menu,
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                await self._edit_location_basics(loc, kind)
+            elif choice == "coords":
+                await fedit.edit_coordinates(self, loc.coordinates)
+            elif choice == "expression":
+                await fedit.edit_tag_weight_dict(
+                    self, loc.domain_expression,
+                    title_prefix=f"{loc.name} — Domain expression",
+                    tag_namespace="domain",
+                )
+            elif choice == "geo_tags":
+                await fedit.edit_string_list(
+                    self, loc.geo_tags,
+                    title_prefix=f"{loc.name} — Geo tags",
+                    tag_namespace="free",
+                )
+            elif choice == "atmo_tags":
+                await fedit.edit_string_list(
+                    self, loc.atmo_tags,
+                    title_prefix=f"{loc.name} — Atmo tags",
+                    tag_namespace="free",
+                )
+            elif choice == "footprint":
+                await fedit.edit_loc_footprint(self, loc.local_footprint)
 
-        # System star_type / world condition pickers go first when present,
-        # so users can hit Cancel without committing other edits.
+    async def _edit_location_basics(self, loc, kind: str) -> None:
+        """Edit a location's text-form fields + its kind-specific enum."""
         new_star_type = None
         new_condition = None
         if kind == "system":
@@ -726,7 +934,6 @@ class BuilderScreen(Screen):
             ))
             if new_condition in (None, BACK):
                 return
-
         fields = await self.app.push_screen_wait(TextFormModal(
             title=f"Edit {kind}: {loc.name}",
             fields=locedit.text_fields_for(kind, loc),
@@ -738,7 +945,6 @@ class BuilderScreen(Screen):
         if err:
             await self.app.push_screen_wait(ErrorModal(err))
             return
-
         locedit.apply_text_fields(loc, kind, fields)
         if new_star_type is not None:
             from core.universe_core import StarType
@@ -748,7 +954,6 @@ class BuilderScreen(Screen):
             loc.condition = LocCondition(new_condition)
         self.mark_dirty()
         self._refresh_all()
-        self.notify(f"Updated {kind}: {loc.name}", timeout=3)
 
     @work
     async def _delete_location_flow(self) -> None:
@@ -905,13 +1110,47 @@ class BuilderScreen(Screen):
         sp = self._state.species.get(sid)
         if sp is None:
             await self.app.push_screen_wait(ErrorModal("Species not found.")); return
-        # Re-prompt for condition (sapience stays — toggling it would invalidate
-        # any Pops using social_class vs wild_stratum).
+        while True:
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit species: {sp.name}",
+                items=[
+                    ("basics",      "Basics (name, lifespans, condition)"),
+                    ("domain_tags", f"Domain affinity tags ({len(sp.domain_tags)})"),
+                    ("bio_tags",    f"Bio tags ({len(sp.bio_tags)})"),
+                    ("done",        "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                await self._edit_species_basics(sp)
+            elif choice == "domain_tags":
+                await fedit.edit_string_list(
+                    self, sp.domain_tags,
+                    title_prefix=f"{sp.name} — Domain tags",
+                    tag_namespace="domain",
+                )
+            elif choice == "bio_tags":
+                await fedit.edit_string_list(
+                    self, sp.bio_tags,
+                    title_prefix=f"{sp.name} — Bio tags",
+                    tag_namespace="free",
+                )
+
+    async def _edit_species_basics(self, sp) -> None:
+        # Sapience stays — toggling it would invalidate any Pops using
+        # social_class vs wild_stratum without a reconciling pass.
         cond = await self.app.push_screen_wait(PickerModal(
             title=f"Condition (current: {sp.condition.value})",
             items=entedit.SPECIES_CONDITION_ITEMS, show_back=True,
         ))
         if cond in (None, BACK):
+            return
+        transplanted = await self.app.push_screen_wait(PickerModal(
+            title=f"Transplanted? (current: {'yes' if sp.transplanted else 'no'})",
+            items=entedit.YESNO_ITEMS, show_back=True,
+        ))
+        if transplanted in (None, BACK):
             return
         fields = await self.app.push_screen_wait(TextFormModal(
             title=f"Edit species: {sp.name}",
@@ -925,8 +1164,8 @@ class BuilderScreen(Screen):
         from core.universe_core import SpeciesCondition
         entedit.apply_species_fields(sp, fields)
         sp.condition = SpeciesCondition(cond)
+        sp.transplanted = (transplanted == "yes")
         self.mark_dirty(); self._refresh_all()
-        self.notify(f"Updated species: {sp.name}", timeout=3)
 
     @work
     async def _delete_species_flow(self) -> None:
@@ -1044,12 +1283,112 @@ class BuilderScreen(Screen):
         civ = self._state.civilizations.get(cid)
         if civ is None:
             await self.app.push_screen_wait(ErrorModal("Civilization not found.")); return
-        # Re-prompt for scale.
+        while True:
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit civilization: {civ.name}",
+                items=[
+                    ("basics",         "Basics (name, scale, age, health, theistic, divine awareness)"),
+                    ("beliefs",        f"Dominant beliefs ({len(civ.dominant_beliefs)})"),
+                    ("est_beliefs",    f"Established beliefs ({len(civ.established_beliefs)})"),
+                    ("culture",        f"Culture tags ({len(civ.culture_tags)})"),
+                    ("est_culture",    f"Established culture tags ({len(civ.established_culture_tags)})"),
+                    ("core_locs",      f"Core locations ({len(civ.core_locs)})"),
+                    ("done",           "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                await self._edit_civ_basics(civ)
+            elif choice == "beliefs":
+                await fedit.edit_tag_weight_dict(
+                    self, civ.dominant_beliefs,
+                    title_prefix=f"{civ.name} — Dominant beliefs",
+                    tag_namespace="domain",
+                )
+            elif choice == "est_beliefs":
+                await fedit.edit_tag_weight_dict(
+                    self, civ.established_beliefs,
+                    title_prefix=f"{civ.name} — Established beliefs",
+                    tag_namespace="domain",
+                )
+            elif choice == "culture":
+                await fedit.edit_tag_weight_dict(
+                    self, civ.culture_tags,
+                    title_prefix=f"{civ.name} — Culture tags",
+                    tag_namespace="culture",
+                )
+            elif choice == "est_culture":
+                await fedit.edit_tag_weight_dict(
+                    self, civ.established_culture_tags,
+                    title_prefix=f"{civ.name} — Established culture tags",
+                    tag_namespace="culture",
+                )
+            elif choice == "core_locs":
+                await self._edit_civ_core_locs(civ)
+
+    async def _edit_civ_core_locs(self, civ) -> None:
+        """Loop add/remove over `civ.core_locs` (list of SignificantLocation
+        UUIDs). The civ's home worlds; pops at locations not in this list
+        are weighted down when civ-aggregate beliefs/culture roll up."""
+        while True:
+            n = len(civ.core_locs)
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"{civ.name} — Core locations ({n})",
+                items=[
+                    ("add",    "+ Add core location"),
+                    ("remove", "Remove a core location"),
+                    ("done",   "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "add":
+                existing = {str(x) for x in civ.core_locs}
+                candidates = [
+                    (eid, name) for (eid, name) in entedit.world_picker_items(self._state)
+                    if eid not in existing
+                ]
+                if not candidates:
+                    await self.app.push_screen_wait(ErrorModal(
+                        "Every existing world is already a core location."
+                    )); continue
+                picked = await self.app.push_screen_wait(PickerModal(
+                    title="Pick a world to add", items=candidates, show_back=True,
+                ))
+                if picked in (None, BACK):
+                    continue
+                civ.core_locs.append(UUID(picked))
+                self.mark_dirty(); self._refresh_all()
+            elif choice == "remove":
+                if not civ.core_locs:
+                    await self.app.push_screen_wait(ErrorModal(
+                        "No core locations to remove."
+                    )); continue
+                items = []
+                for cid in civ.core_locs:
+                    loc = self._state.locations.get(str(cid))
+                    items.append((str(cid), loc.name if loc else str(cid)[:8]))
+                picked = await self.app.push_screen_wait(PickerModal(
+                    title="Remove which?", items=items, show_back=True,
+                ))
+                if picked in (None, BACK):
+                    continue
+                civ.core_locs = [c for c in civ.core_locs if str(c) != picked]
+                self.mark_dirty(); self._refresh_all()
+
+    async def _edit_civ_basics(self, civ) -> None:
         scale = await self.app.push_screen_wait(PickerModal(
             title=f"Scale (current: {civ.scale.value})",
             items=entedit.CIV_SCALE_ITEMS, show_back=True,
         ))
         if scale in (None, BACK):
+            return
+        theistic = await self.app.push_screen_wait(PickerModal(
+            title=f"Theistic? (current: {'yes' if civ.theistic else 'no'})",
+            items=entedit.YESNO_ITEMS, show_back=True,
+        ))
+        if theistic in (None, BACK):
             return
         fields = await self.app.push_screen_wait(TextFormModal(
             title=f"Edit civilization: {civ.name}",
@@ -1063,8 +1402,8 @@ class BuilderScreen(Screen):
         from core.universe_core import CivilizationScale
         entedit.apply_civ_fields(civ, fields)
         civ.scale = CivilizationScale(scale)
+        civ.theistic = (theistic == "yes")
         self.mark_dirty(); self._refresh_all()
-        self.notify(f"Updated civilization: {civ.name}", timeout=3)
 
     @work
     async def _delete_civ_flow(self) -> None:
@@ -1217,21 +1556,198 @@ class BuilderScreen(Screen):
         pop = self._state.pops.get(pid)
         if pop is None:
             await self.app.push_screen_wait(ErrorModal("Pop not found.")); return
-        # Phase 4 keeps pop edits narrow: just size_fractional. Reassigning
-        # species / civ / location is more invasive (back-ref bookkeeping)
-        # and is deferred. Stratum reassignment is similarly deferred.
-        fields = await self.app.push_screen_wait(TextFormModal(
-            title="Edit pop size",
-            fields=entedit.pop_text_fields(pop), show_back=True,
-        ))
-        if fields in (None, BACK):
+        # Reassigning species/civ/location/stratum is deferred (back-ref
+        # bookkeeping); the basics form just edits size_fractional.
+        while True:
+            sp = self._state.species.get(str(pop.species_id)) if pop.species_id else None
+            sp_label = sp.name if sp else "?"
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit pop ({sp_label})",
+                items=[
+                    ("basics",     "Basics (size)"),
+                    ("beliefs",    f"Dominant beliefs ({len(pop.dominant_beliefs)})"),
+                    ("culture",    f"Culture tags ({len(pop.culture_tags)})"),
+                    ("reassign",   "Reassign species / civ / location / stratum"),
+                    ("done",       "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                fields = await self.app.push_screen_wait(TextFormModal(
+                    title="Edit pop size",
+                    fields=entedit.pop_text_fields(pop), show_back=True,
+                ))
+                if fields in (None, BACK):
+                    continue
+                err = entedit.validate_pop_fields(fields)
+                if err:
+                    await self.app.push_screen_wait(ErrorModal(err)); continue
+                entedit.apply_pop_fields(pop, fields)
+                self.mark_dirty(); self._refresh_all()
+            elif choice == "beliefs":
+                await fedit.edit_tag_weight_dict(
+                    self, pop.dominant_beliefs,
+                    title_prefix=f"{sp_label} pop — Dominant beliefs",
+                    tag_namespace="domain",
+                )
+            elif choice == "culture":
+                await fedit.edit_tag_weight_dict(
+                    self, pop.culture_tags,
+                    title_prefix=f"{sp_label} pop — Culture tags",
+                    tag_namespace="culture",
+                )
+            elif choice == "reassign":
+                await self._pop_reassign_submenu(pop)
+
+    async def _pop_reassign_submenu(self, pop) -> None:
+        """Nested picker over the four reassignable fields."""
+        while True:
+            sp = self._state.species.get(str(pop.species_id)) if pop.species_id else None
+            civ = self._state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+            loc = self._state.locations.get(str(pop.current_location)) if pop.current_location else None
+            stratum = (
+                pop.social_class.value if pop.social_class
+                else (pop.wild_stratum.value if pop.wild_stratum else "(none)")
+            )
+            choice = await self.app.push_screen_wait(PickerModal(
+                title="Reassign which field?",
+                items=[
+                    ("species",  f"Species  (current: {sp.name if sp else '?'})"),
+                    ("civ",      f"Civilization  (current: {civ.name if civ else '(none — wild)'})"),
+                    ("location", f"Location  (current: {loc.name if loc else '?'})"),
+                    ("stratum",  f"Stratum  (current: {stratum})"),
+                    ("back",     "← Back"),
+                ],
+            ))
+            if choice in (None, "back"):
+                return
+            if choice == "species":
+                await self._reassign_pop_species(pop)
+            elif choice == "civ":
+                await self._reassign_pop_civ(pop)
+            elif choice == "location":
+                await self._reassign_pop_location(pop)
+            elif choice == "stratum":
+                await self._reassign_pop_stratum(pop)
+
+    async def _reassign_pop_species(self, pop) -> None:
+        items = entedit.species_picker_items(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal("No species exist."))
             return
-        err = entedit.validate_pop_fields(fields)
-        if err:
-            await self.app.push_screen_wait(ErrorModal(err)); return
-        entedit.apply_pop_fields(pop, fields)
+        sp_id = await self.app.push_screen_wait(PickerModal(
+            title="New species", items=items, show_back=True,
+        ))
+        if sp_id in (None, BACK):
+            return
+        new_sp = self._state.species[sp_id]
+        old_sp = self._state.species.get(str(pop.species_id)) if pop.species_id else None
+        # If sapience flips, the stratum kind has to change too.
+        if old_sp is None or old_sp.sapient != new_sp.sapient:
+            if new_sp.sapient:
+                chosen = await self.app.push_screen_wait(PickerModal(
+                    title="Pick a social class for the new species",
+                    items=entedit.SOCIAL_CLASS_ITEMS, show_back=True,
+                ))
+                if chosen in (None, BACK):
+                    return
+                from core.universe_core import SocialClass
+                pop.social_class = SocialClass(chosen)
+                pop.wild_stratum = None
+            else:
+                chosen = await self.app.push_screen_wait(PickerModal(
+                    title="Pick a wild stratum for the new species",
+                    items=entedit.WILD_STRATUM_ITEMS, show_back=True,
+                ))
+                if chosen in (None, BACK):
+                    return
+                from core.universe_core import WildStratum
+                pop.wild_stratum = WildStratum(chosen)
+                pop.social_class = None
+        pop.species_id = UUID(sp_id)
         self.mark_dirty(); self._refresh_all()
-        self.notify("Updated pop.", timeout=3)
+        self.notify(f"Pop species → {new_sp.name}", timeout=3)
+
+    async def _reassign_pop_civ(self, pop) -> None:
+        items = entedit.civ_picker_items(self._state)
+        items.insert(0, ("__none__", "(no civilization — wild pop)"))
+        civ_id = await self.app.push_screen_wait(PickerModal(
+            title="New civilization", items=items, show_back=True,
+        ))
+        if civ_id in (None, BACK):
+            return
+        # Unlink from old civ's pop_ids.
+        if pop.civilization_id:
+            old_civ = self._state.civilizations.get(str(pop.civilization_id))
+            if old_civ is not None:
+                old_civ.pop_ids = [p for p in old_civ.pop_ids if p != pop.id]
+        if civ_id == "__none__":
+            pop.civilization_id = None
+            self.mark_dirty(); self._refresh_all()
+            self.notify("Pop civilization cleared (wild).", timeout=3)
+            return
+        new_civ = self._state.civilizations[civ_id]
+        pop.civilization_id = UUID(civ_id)
+        if pop.id not in new_civ.pop_ids:
+            new_civ.pop_ids.append(pop.id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"Pop civilization → {new_civ.name}", timeout=3)
+
+    async def _reassign_pop_location(self, pop) -> None:
+        items = entedit.poploc_picker_items(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal(
+                "No PopLocations exist — create a Settlement first."
+            ))
+            return
+        loc_id = await self.app.push_screen_wait(PickerModal(
+            title="New location (PopLocation)", items=items, show_back=True,
+        ))
+        if loc_id in (None, BACK):
+            return
+        # Unlink from old location's pop_ids.
+        from core.universe_core import PopLocation
+        if pop.current_location:
+            old_loc = self._state.locations.get(str(pop.current_location))
+            if isinstance(old_loc, PopLocation):
+                old_loc.pop_ids = [p for p in old_loc.pop_ids if p != pop.id]
+        pop.current_location = UUID(loc_id)
+        new_loc = self._state.locations[loc_id]
+        if pop.id not in new_loc.pop_ids:
+            new_loc.pop_ids.append(pop.id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"Pop location → {new_loc.name}", timeout=3)
+
+    async def _reassign_pop_stratum(self, pop) -> None:
+        sp = self._state.species.get(str(pop.species_id)) if pop.species_id else None
+        if sp is None:
+            await self.app.push_screen_wait(ErrorModal(
+                "Pop has no species — assign a species first."
+            ))
+            return
+        if sp.sapient:
+            chosen = await self.app.push_screen_wait(PickerModal(
+                title=f"Social class (current: {pop.social_class.value if pop.social_class else '(none)'})",
+                items=entedit.SOCIAL_CLASS_ITEMS, show_back=True,
+            ))
+            if chosen in (None, BACK):
+                return
+            from core.universe_core import SocialClass
+            pop.social_class = SocialClass(chosen)
+            pop.wild_stratum = None
+        else:
+            chosen = await self.app.push_screen_wait(PickerModal(
+                title=f"Wild stratum (current: {pop.wild_stratum.value if pop.wild_stratum else '(none)'})",
+                items=entedit.WILD_STRATUM_ITEMS, show_back=True,
+            ))
+            if chosen in (None, BACK):
+                return
+            from core.universe_core import WildStratum
+            pop.wild_stratum = WildStratum(chosen)
+            pop.social_class = None
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"Pop stratum → {chosen}", timeout=3)
 
     @work
     async def _delete_pop_flow(self) -> None:
@@ -1421,8 +1937,63 @@ class BuilderScreen(Screen):
         m = self._state.mortals.get(mid)
         if m is None:
             await self.app.push_screen_wait(ErrorModal("Mortal not found.")); return
-        # Re-prompt status (role changes are too tangled for Phase 5 — they
-        # need to clean up appointed_by_* refs and the proxius/herald lists).
+        while True:
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Edit mortal: {m.name}",
+                items=[
+                    ("basics",        "Basics (name, status, prominence, alignment, ages)"),
+                    ("beliefs",       f"Belief tags ({len(m.belief_tags)})"),
+                    ("culture",       f"Culture tags ({len(m.culture_tags)})"),
+                    ("personal",      f"Personal tags ({len(m.personal_tags)})"),
+                    ("status_tags",   f"Status tags ({len(m.status_tags)})"),
+                    ("prom_roles",    f"Prominence roles ({len(m.prominence_roles)})"),
+                    ("reassign",      "Reassign role / species / civ / pop / location"),
+                    ("done",          "Done"),
+                ],
+            ))
+            if choice in (None, "done"):
+                return
+            if choice == "basics":
+                await self._edit_mortal_basics(m)
+            elif choice == "beliefs":
+                await fedit.edit_tag_weight_dict(
+                    self, m.belief_tags,
+                    title_prefix=f"{m.name} — Belief tags",
+                    tag_namespace="domain",
+                )
+            elif choice == "culture":
+                await fedit.edit_tag_weight_dict(
+                    self, m.culture_tags,
+                    title_prefix=f"{m.name} — Culture tags",
+                    tag_namespace="culture",
+                )
+            elif choice == "personal":
+                await fedit.edit_string_list(
+                    self, m.personal_tags,
+                    title_prefix=f"{m.name} — Personal tags",
+                    tag_namespace="free",
+                )
+            elif choice == "status_tags":
+                await fedit.edit_string_list(
+                    self, m.status_tags,
+                    title_prefix=f"{m.name} — Status tags",
+                    tag_namespace="free",
+                )
+            elif choice == "prom_roles":
+                from core.universe_core import MortalProminence
+                await fedit.edit_enum_list(
+                    self, m.prominence_roles,
+                    enum_items=medit.PROMINENCE_ROLE_ITEMS,
+                    enum_class=MortalProminence,
+                    title_prefix=f"{m.name} — Prominence roles",
+                )
+            elif choice == "reassign":
+                await self._mortal_reassign_submenu(m)
+
+    async def _edit_mortal_basics(self, m) -> None:
+        # Role reassignment is deferred (it rebalances appointed_by_* and
+        # proxius/herald lists in non-trivial ways); the basics form re-prompts
+        # status only.
         status = await self.app.push_screen_wait(PickerModal(
             title=f"Status (current: {m.status.value})",
             items=medit.STATUS_ITEMS, show_back=True,
@@ -1442,7 +2013,6 @@ class BuilderScreen(Screen):
         medit.apply_fields(m, fields)
         m.status = MortalStatus(status)
         self.mark_dirty(); self._refresh_all()
-        self.notify(f"Updated mortal: {m.name}", timeout=3)
 
     @work
     async def _delete_mortal_flow(self) -> None:
@@ -1536,6 +2106,7 @@ class BuilderScreen(Screen):
                     ("basics",      "Name + disposition + attention"),
                     ("domains",     "Domain affinities"),
                     ("constraints", "Constraints imposed on the Demiurge"),
+                    ("status_tags", f"Status tags ({len(lum.status_tags)})"),
                     ("done",        "Done"),
                 ],
             ))
@@ -1548,6 +2119,12 @@ class BuilderScreen(Screen):
             elif choice == "constraints":
                 await self._edit_constraint_list(lum.constraints,
                     title_prefix=f"{lum.name} — Constraints")
+            elif choice == "status_tags":
+                await fedit.edit_string_list(
+                    self, lum.status_tags,
+                    title_prefix=f"{lum.name} — Status tags",
+                    tag_namespace="free",
+                )
 
     async def _edit_luminary_basics(self, lum) -> None:
         attention = self._state.luminary_attention.get(str(lum.id), 0.0)
@@ -1569,8 +2146,13 @@ class BuilderScreen(Screen):
     async def _edit_luminary_domains(self, lum) -> None:
         while True:
             existing_count = len(lum.domains)
+            lum_sum = ledit.luminary_total_affinity(lum)
             choice = await self.app.push_screen_wait(PickerModal(
-                title=f"{lum.name} — Domains ({existing_count} assigned)",
+                title=(
+                    f"{lum.name} — Domains "
+                    f"({existing_count} assigned, sum {lum_sum:.2f}/"
+                    f"{ledit.MAX_LUMINARY_AFFINITY:.1f})"
+                ),
                 items=[
                     ("add",    "+ Add domain"),
                     ("edit",   "Edit an existing affinity"),
@@ -1583,13 +2165,20 @@ class BuilderScreen(Screen):
             if choice == "add":
                 tag = await self.app.push_screen_wait(PickerModal(
                     title="Pick a domain to add",
-                    items=ledit.domain_tag_picker_items(exclude=set(lum.domains.keys())),
+                    description=(
+                        "Pantheon totals show the sum across every other "
+                        "Luminary on that domain — your add stacks on top."
+                    ),
+                    items=ledit.domain_picker_items_with_sums(self._state, lum),
                     show_back=True,
                 ))
                 if tag in (None, BACK):
                     continue
                 fields = await self.app.push_screen_wait(TextFormModal(
                     title=f"Affinity for {tag}",
+                    description=ledit.affinity_form_description(
+                        self._state, lum, tag, exclude_self=True,
+                    ),
                     fields=ledit.affinity_field(tag, None),
                     show_back=True,
                 ))
@@ -1621,6 +2210,9 @@ class BuilderScreen(Screen):
                 current = lum.domains[tag]
                 fields = await self.app.push_screen_wait(TextFormModal(
                     title=f"Affinity for {tag} (current: {current:.2f})",
+                    description=ledit.affinity_form_description(
+                        self._state, lum, tag, exclude_self=True,
+                    ),
                     fields=ledit.affinity_field(tag, current),
                     show_back=True,
                 ))
@@ -1793,3 +2385,261 @@ class BuilderScreen(Screen):
             self._state.pantheon.collective_constraints,
             title_prefix=f"{self._state.pantheon.name} — Collective Constraints",
         )
+
+    # ── Mortal reassignment helpers ────────────────────────────────────────
+
+    async def _mortal_reassign_submenu(self, m) -> None:
+        """Nested picker over the reassignable fields on a NotableMortal.
+        Role gets the appointed_by_* rebalance; the others swap UUIDs with
+        the appropriate back-ref scrub. When the mortal is currently a
+        Herald, an extra "Reappoint to a different Luminary" option appears."""
+        from core.universe_core import MortalRole
+        while True:
+            sp = self._state.species.get(str(m.species_id)) if m.species_id else None
+            civ = self._state.civilizations.get(str(m.civilization_id)) if m.civilization_id else None
+            pop = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
+            home = self._state.locations.get(str(m.home_location)) if m.home_location else None
+            cur = self._state.locations.get(str(m.current_location)) if m.current_location else None
+            items = [
+                ("role",     f"Role  (current: {m.role.value})"),
+            ]
+            if m.role == MortalRole.HERALD:
+                appointing = (
+                    self._state.luminaries.get(str(m.appointed_by_luminary))
+                    if m.appointed_by_luminary else None
+                )
+                items.append(("reappoint", f"Reappoint Herald  (current Luminary: {appointing.name if appointing else '?'})"))
+            items.extend([
+                ("species",  f"Species  (current: {sp.name if sp else '?'})"),
+                ("civ",      f"Civilization  (current: {civ.name if civ else '(none)'})"),
+                ("pop",      f"Pop affiliation  (current: {'set' if pop else '(none)'})"),
+                ("home",     f"Home location  (current: {home.name if home else '?'})"),
+                ("current",  f"Current location  (current: {cur.name if cur else '?'})"),
+                ("back",     "← Back"),
+            ])
+            choice = await self.app.push_screen_wait(PickerModal(
+                title=f"Reassign which? — {m.name}",
+                items=items,
+            ))
+            if choice in (None, "back"):
+                return
+            if choice == "role":
+                await self._reassign_mortal_role(m)
+            elif choice == "reappoint":
+                await self._reappoint_herald_luminary(m)
+            elif choice == "species":
+                await self._reassign_mortal_species(m)
+            elif choice == "civ":
+                await self._reassign_mortal_civ(m)
+            elif choice == "pop":
+                await self._reassign_mortal_pop(m)
+            elif choice == "home":
+                await self._reassign_mortal_home_location(m)
+            elif choice == "current":
+                await self._reassign_mortal_current_location(m)
+
+    async def _reappoint_herald_luminary(self, m) -> None:
+        """Move a Herald's appointment from one Luminary to another without
+        flipping the role. No-op for non-Heralds."""
+        from core.universe_core import MortalRole
+        if m.role != MortalRole.HERALD:
+            return
+        items = ledit.luminary_picker_items(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal("No Luminaries exist."))
+            return
+        cur_lum = (
+            self._state.luminaries.get(str(m.appointed_by_luminary))
+            if m.appointed_by_luminary else None
+        )
+        picked = await self.app.push_screen_wait(PickerModal(
+            title=f"Reappoint to which Luminary? (current: {cur_lum.name if cur_lum else '?'})",
+            items=items, show_back=True,
+        ))
+        if picked in (None, BACK):
+            return
+        new_lum_id = UUID(picked)
+        if m.appointed_by_luminary == new_lum_id:
+            return  # no change
+        # Scrub old appointing Luminary's herald_ids.
+        if m.appointed_by_luminary:
+            old_lum = self._state.luminaries.get(str(m.appointed_by_luminary))
+            if old_lum is not None:
+                old_lum.herald_ids = [x for x in old_lum.herald_ids if x != m.id]
+        new_lum = self._state.luminaries[picked]
+        if m.id not in new_lum.herald_ids:
+            new_lum.herald_ids.append(m.id)
+        m.appointed_by_luminary = new_lum_id
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} reappointed → {new_lum.name}", timeout=3)
+
+    async def _reassign_mortal_role(self, m) -> None:
+        """Flip a mortal's role with full back-ref rebalance.
+
+        Leaving PROXIUS  → clear appointed_by_demiurge + scrub demiurge.proxius_ids + world.proxius_ids.
+        Leaving HERALD   → clear appointed_by_luminary + scrub that luminary's herald_ids + world.herald_ids.
+        Entering PROXIUS → set appointed_by_demiurge, register in demiurge.proxius_ids + world.proxius_ids.
+        Entering HERALD  → pick Luminary, set appointed_by_luminary, register in luminary.herald_ids + world.herald_ids.
+        """
+        from core.universe_core import MortalRole
+        new_role_str = await self.app.push_screen_wait(PickerModal(
+            title=f"New role (current: {m.role.value})",
+            items=medit.ROLE_ITEMS, show_back=True,
+        ))
+        if new_role_str in (None, BACK):
+            return
+        new_role = MortalRole(new_role_str)
+        if new_role == m.role:
+            return
+        # If becoming a Herald, pick which Luminary appoints them.
+        new_luminary_id = None
+        if new_role == MortalRole.HERALD:
+            lum_items = ledit.luminary_picker_items(self._state)
+            if not lum_items:
+                await self.app.push_screen_wait(ErrorModal(
+                    "No Luminaries exist — cannot appoint a Herald."
+                ))
+                return
+            picked = await self.app.push_screen_wait(PickerModal(
+                title="Which Luminary appoints them?", items=lum_items, show_back=True,
+            ))
+            if picked in (None, BACK):
+                return
+            new_luminary_id = UUID(picked)
+        # Scrub old role's back-refs.
+        cur_loc = self._state.locations.get(str(m.current_location)) if m.current_location else None
+        if m.role == MortalRole.PROXIUS:
+            self._state.demiurge.proxius_ids = [
+                x for x in self._state.demiurge.proxius_ids if x != m.id
+            ]
+            if isinstance(cur_loc, SignificantLocation):
+                cur_loc.proxius_ids = [x for x in cur_loc.proxius_ids if x != m.id]
+            m.appointed_by_demiurge = None
+        elif m.role == MortalRole.HERALD:
+            if m.appointed_by_luminary:
+                old_lum = self._state.luminaries.get(str(m.appointed_by_luminary))
+                if old_lum is not None:
+                    old_lum.herald_ids = [x for x in old_lum.herald_ids if x != m.id]
+            if isinstance(cur_loc, SignificantLocation):
+                cur_loc.herald_ids = [x for x in cur_loc.herald_ids if x != m.id]
+            m.appointed_by_luminary = None
+        # Install new role's back-refs.
+        m.role = new_role
+        if new_role == MortalRole.PROXIUS:
+            m.appointed_by_demiurge = self._state.demiurge.id
+            if m.id not in self._state.demiurge.proxius_ids:
+                self._state.demiurge.proxius_ids.append(m.id)
+            if isinstance(cur_loc, SignificantLocation) and m.id not in cur_loc.proxius_ids:
+                cur_loc.proxius_ids.append(m.id)
+        elif new_role == MortalRole.HERALD:
+            m.appointed_by_luminary = new_luminary_id
+            new_lum = self._state.luminaries[str(new_luminary_id)]
+            if m.id not in new_lum.herald_ids:
+                new_lum.herald_ids.append(m.id)
+            if isinstance(cur_loc, SignificantLocation) and m.id not in cur_loc.herald_ids:
+                cur_loc.herald_ids.append(m.id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} → {new_role.value}", timeout=4)
+
+    async def _reassign_mortal_species(self, m) -> None:
+        items = entedit.species_picker_items(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal("No species exist.")); return
+        sp_id = await self.app.push_screen_wait(PickerModal(
+            title="New species", items=items, show_back=True,
+        ))
+        if sp_id in (None, BACK):
+            return
+        m.species_id = UUID(sp_id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} species → {self._state.species[sp_id].name}", timeout=3)
+
+    async def _reassign_mortal_civ(self, m) -> None:
+        items = entedit.civ_picker_items(self._state)
+        items.insert(0, ("__none__", "(no civilization)"))
+        civ_id = await self.app.push_screen_wait(PickerModal(
+            title="New civilization", items=items, show_back=True,
+        ))
+        if civ_id in (None, BACK):
+            return
+        if m.civilization_id:
+            old_civ = self._state.civilizations.get(str(m.civilization_id))
+            if old_civ is not None:
+                old_civ.notable_mortal_ids = [x for x in old_civ.notable_mortal_ids if x != m.id]
+        if civ_id == "__none__":
+            m.civilization_id = None
+            self.mark_dirty(); self._refresh_all()
+            self.notify(f"{m.name} civilization cleared.", timeout=3)
+            return
+        new_civ = self._state.civilizations[civ_id]
+        m.civilization_id = UUID(civ_id)
+        if m.id not in new_civ.notable_mortal_ids:
+            new_civ.notable_mortal_ids.append(m.id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} civilization → {new_civ.name}", timeout=3)
+
+    async def _reassign_mortal_pop(self, m) -> None:
+        items = entedit.pop_picker_items(self._state)
+        items.insert(0, ("__none__", "(no pop affiliation)"))
+        pop_id = await self.app.push_screen_wait(PickerModal(
+            title="New pop affiliation", items=items, show_back=True,
+        ))
+        if pop_id in (None, BACK):
+            return
+        if m.pop_id:
+            old_pop = self._state.pops.get(str(m.pop_id))
+            if old_pop is not None:
+                old_pop.notable_mortal_ids = [x for x in old_pop.notable_mortal_ids if x != m.id]
+        if pop_id == "__none__":
+            m.pop_id = None
+            self.mark_dirty(); self._refresh_all()
+            self.notify(f"{m.name} pop cleared.", timeout=3)
+            return
+        new_pop = self._state.pops[pop_id]
+        m.pop_id = UUID(pop_id)
+        if m.id not in new_pop.notable_mortal_ids:
+            new_pop.notable_mortal_ids.append(m.id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} pop affiliation updated.", timeout=3)
+
+    async def _reassign_mortal_home_location(self, m) -> None:
+        items = entedit.world_picker_items(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal("No worlds exist."))
+            return
+        loc_id = await self.app.push_screen_wait(PickerModal(
+            title="New home location (world)", items=items, show_back=True,
+        ))
+        if loc_id in (None, BACK):
+            return
+        m.home_location = UUID(loc_id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} home → {self._state.locations[loc_id].name}", timeout=3)
+
+    async def _reassign_mortal_current_location(self, m) -> None:
+        """Swap current_location and migrate proxius/herald world back-refs."""
+        from core.universe_core import MortalRole
+        items = entedit.world_picker_items(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal("No worlds exist.")); return
+        loc_id = await self.app.push_screen_wait(PickerModal(
+            title="New current location (world)", items=items, show_back=True,
+        ))
+        if loc_id in (None, BACK):
+            return
+        old_loc = self._state.locations.get(str(m.current_location)) if m.current_location else None
+        new_loc = self._state.locations[loc_id]
+        # Migrate proxius/herald presence between worlds.
+        if m.role == MortalRole.PROXIUS:
+            if isinstance(old_loc, SignificantLocation):
+                old_loc.proxius_ids = [x for x in old_loc.proxius_ids if x != m.id]
+            if isinstance(new_loc, SignificantLocation) and m.id not in new_loc.proxius_ids:
+                new_loc.proxius_ids.append(m.id)
+        elif m.role == MortalRole.HERALD:
+            if isinstance(old_loc, SignificantLocation):
+                old_loc.herald_ids = [x for x in old_loc.herald_ids if x != m.id]
+            if isinstance(new_loc, SignificantLocation) and m.id not in new_loc.herald_ids:
+                new_loc.herald_ids.append(m.id)
+        m.current_location = UUID(loc_id)
+        self.mark_dirty(); self._refresh_all()
+        self.notify(f"{m.name} current location → {new_loc.name}", timeout=3)

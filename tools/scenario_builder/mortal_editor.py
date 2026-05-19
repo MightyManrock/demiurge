@@ -15,7 +15,8 @@ from typing import Optional
 from uuid import UUID
 
 from core.universe_core import (
-    MortalRole, MortalStatus, NotableMortal, SignificantLocation,
+    MortalProminence, MortalRole, MortalStatus, NotableMortal,
+    SignificantLocation,
 )
 
 
@@ -31,6 +32,10 @@ ROLE_ITEMS: list[tuple[str, str]] = [
 STATUS_ITEMS: list[tuple[str, str]] = [
     (MortalStatus.ACTIVE.value,  "Active"),
     (MortalStatus.DORMANT.value, "Dormant"),
+]
+
+PROMINENCE_ROLE_ITEMS: list[tuple[str, str]] = [
+    (p.value, p.value.title()) for p in MortalProminence
 ]
 
 
