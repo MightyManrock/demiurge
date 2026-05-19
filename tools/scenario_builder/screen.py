@@ -15,7 +15,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.screen import Screen
@@ -25,6 +25,7 @@ from logic.tick_logic import SimulationState
 from ui.constants import _SCENARIOS_DIR
 from ui.detail_tabs import DetailTabManager
 from ui.display import _pop_stratum_label
+from ui.modals import QuitConfirmModal
 from ui.widgets import (
     DivineWisdomTab, LocationsTab, LuminariesTab, UniverseTab,
     set_unseen_predicate,
@@ -236,13 +237,18 @@ class BuilderScreen(Screen):
     # ── Quit handling ──────────────────────────────────────────────────────
 
     def action_quit_confirm(self) -> None:
-        if self._dirty:
-            self.notify(
-                "Unsaved changes. Press Ctrl+S to save, or Ctrl+Q to quit anyway.",
-                severity="warning", timeout=5,
-            )
-            return
-        self.app.exit()
+        """Q — open the same confirmation modal the core game uses."""
+        self._quit_confirm_flow()
 
     def action_quit_force(self) -> None:
+        """Ctrl+Q — skip the modal and exit immediately."""
+        self.app.exit()
+
+    @work
+    async def _quit_confirm_flow(self) -> None:
+        choice = await self.app.push_screen_wait(QuitConfirmModal())
+        if choice is None:
+            return  # Keep editing
+        if choice == "save":
+            self._save_to(self._db_path)
         self.app.exit()
