@@ -124,12 +124,20 @@ class DetailTabManager:
     CAP = 6
     """Maximum simultaneous detail tabs (independent of Briefing state)."""
 
-    def __init__(self, screen: "Screen", tabs_widget: "TabbedContent") -> None:
+    def __init__(
+        self,
+        screen: "Screen",
+        tabs_widget: "TabbedContent",
+        anchor_before_id: str = "log",
+    ) -> None:
         self._screen = screen
         self._tabs = tabs_widget
         self._panes: dict[str, DetailTab] = {}    # pane_id → DetailTab
         self._mru: list[str] = []                 # pane_ids, oldest first
         self._counter = 0
+        # New detail panes are mounted before this pane id. The scenario
+        # builder lacks a Log tab and anchors before nothing (append).
+        self._anchor_before_id: str | None = anchor_before_id
 
     # ── Public API ────────────────────────────
 
@@ -155,7 +163,10 @@ class DetailTabManager:
         pane_id = self._next_pane_id()
         body = DetailTab(kind, entity_id, name)
         pane = TabPane(name, body, id=pane_id)
-        self._tabs.add_pane(pane, before="log")
+        if self._anchor_before_id is not None:
+            self._tabs.add_pane(pane, before=self._anchor_before_id)
+        else:
+            self._tabs.add_pane(pane)
         self._panes[pane_id] = body
         self._mru.append(pane_id)
         # The new pane mounts asynchronously; defer the initial render.

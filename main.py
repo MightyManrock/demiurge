@@ -104,6 +104,15 @@ def main() -> None:
         from tools.imago_editor import main as imago_main
         imago_main()
         sys.exit(0)
+    if "--edit-scenario" in argv or "--build-scenario" in argv:
+        rest = [a for a in argv if a not in ("--edit-scenario", "--build-scenario")]
+        if rest:
+            print(f"--edit-scenario/--build-scenario take no extra arguments; got: {' '.join(rest)}",
+                  file=sys.stderr)
+            sys.exit(2)
+        from tools.scenario_builder import main as builder_main
+        builder_main()
+        sys.exit(0)
 
     parser = argparse.ArgumentParser(
         prog="main.py",
@@ -118,6 +127,8 @@ def main() -> None:
             "  python main.py --autoplay            # headless; choose a strategy interactively\n"
             "  python main.py --autoplay passive    # headless run of a named strategy\n"
             "  python main.py --edit-imago          # open the Imago registry editor\n"
+            "  python main.py --edit-scenario       # open the scenario builder/editor\n"
+            "  python main.py --build-scenario      # alias for --edit-scenario\n"
             "  python main.py --rebuild             # database rebuilder TUI\n"
             "  python main.py --rebuild --all       # rebuild everything non-interactively\n"
             "  python main.py --rebuild --help      # show all rebuilder flags"
@@ -142,6 +153,14 @@ def main() -> None:
     parser.add_argument(
         "--edit-imago", action="store_true", dest="edit_imago",
         help="Launch the Imago registry editor TUI.",
+    )
+    parser.add_argument(
+        "--edit-scenario", action="store_true", dest="edit_scenario",
+        help="Launch the scenario builder/editor (chooser → builder).",
+    )
+    parser.add_argument(
+        "--build-scenario", action="store_true", dest="build_scenario",
+        help="Alias for --edit-scenario; enters the same chooser flow.",
     )
     args = parser.parse_args()
 
