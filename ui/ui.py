@@ -47,7 +47,7 @@ from ui.display import (
     display_state, display_briefing, display_tick_result,
     display_tick_result_categorized,
     _strip_oow, _name_for_id, _personality_label, _wrap_desc, _short_tag,
-    _pop_stratum_label,
+    _pop_stratum_label, _pop_identity_label,
 )
 
 from ui.constants import BACK, _SAVES_DIR, _SCENARIOS_DIR, _LOGS_DIR
@@ -423,10 +423,7 @@ class GameScreen(Screen):
         if kind == "luminary" and eid in s.luminaries:    return s.luminaries[eid].name
         if kind == "species"  and eid in s.species:       return s.species[eid].name
         if kind == "pop"      and eid in s.pops:
-            pop = s.pops[eid]
-            stratum = _pop_stratum_label(pop)
-            sp = s.species.get(str(pop.species_id)) if pop.species_id else None
-            return f"{stratum} ({sp.name})" if sp else f"{stratum} Pop"
+            return _pop_identity_label(s, s.pops[eid])
         return eid[:8]
 
     def action_close_detail(self) -> None:
@@ -845,7 +842,7 @@ class GameScreen(Screen):
 
                     def _pop_label(p) -> str:
                         civ = state.civilizations.get(str(p.civilization_id)) if p.civilization_id else None
-                        civ_name = civ.name if civ else "Unknown"
+                        civ_name = civ.name if civ else None
                         cross = " [foreign]" if proxius_civ_id and str(p.civilization_id) != proxius_civ_id else ""
                         origin_marker = " *" if str(p.id) == origin_pop_id else ""
                         top_beliefs = sorted(
@@ -854,9 +851,11 @@ class GameScreen(Screen):
                         belief_str = "  ".join(
                             f"{_short_tag(tag)}:{val:.2f}" for tag, val in top_beliefs
                         ) if top_beliefs else "no beliefs"
+                        identity = _pop_identity_label(state, p)
+                        civ_tag = f"  · {civ_name}" if civ_name else ""
                         return (
-                            f"{civ_name} [{p.stratum.upper()}]{cross}{origin_marker}"
-                            f"  size {p.size_magnitude}  {belief_str}"
+                            f"{identity}{cross}{origin_marker}"
+                            f"  size {p.size_magnitude}  {belief_str}{civ_tag}"
                         )
 
                     pop_items = [(str(p.id), _pop_label(p)) for p in eligible_pops]

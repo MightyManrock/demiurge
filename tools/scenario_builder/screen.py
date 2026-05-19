@@ -27,7 +27,7 @@ from core.universe_core import SignificantLocation
 from logic.tick_logic import SimulationState
 from ui.constants import _SCENARIOS_DIR
 from ui.detail_tabs import DetailTabManager
-from ui.display import _pop_stratum_label
+from ui.display import _pop_identity_label, _pop_stratum_label  # _pop_stratum_label kept for future inline use
 from ui.constants import BACK
 from ui.modals import QuitConfirmModal, ErrorModal, PickerModal, TextFormModal
 from ui.widgets import (
@@ -496,10 +496,7 @@ class BuilderScreen(Screen):
         if kind == "luminary" and eid in s.luminaries:    return s.luminaries[eid].name
         if kind == "species"  and eid in s.species:       return s.species[eid].name
         if kind == "pop"      and eid in s.pops:
-            pop = s.pops[eid]
-            stratum = _pop_stratum_label(pop)
-            sp = s.species.get(str(pop.species_id)) if pop.species_id else None
-            return f"{stratum} ({sp.name})" if sp else f"{stratum} Pop"
+            return _pop_identity_label(s, s.pops[eid])
         return eid[:8]
 
     # ── Save / Save-As ─────────────────────────────────────────────────────

@@ -372,15 +372,16 @@ def _write_pops(conn, state: SimulationState):
     for p in state.pops.values():
         conn.execute(
             """INSERT INTO pops
-               (id, civilization_id, species_id, social_class, wild_stratum,
+               (id, name, civilization_id, species_id, social_class, wild_stratum,
                 current_location, size_fractional,
                 dominant_beliefs, culture_tags, rider_traits,
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
                 visibility, pinned,
                 preaching_imago_id, preaching_goal_cooldown_until)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
+                p.name,
                 str(p.civilization_id) if p.civilization_id else None,
                 str(p.species_id) if p.species_id else None,
                 p.social_class.value if p.social_class else None,
@@ -1741,7 +1742,7 @@ def build_scenario_default() -> SimulationState:
     # bookkeeping (so Pops have a real civ_id and cross-civ math works
     # cleanly) but are hidden from the UI and not scry-able.
     ultir_pod_civ = Civilization(
-        name="Ultir Pod",
+        name="Pod",
         scale=CivilizationScale.PRE_SAPIENT,
         primary_species_id=ultir_species.id,
         origin_location_id=neran.id,

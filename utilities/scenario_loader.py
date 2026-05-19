@@ -505,6 +505,7 @@ def _load_pops(conn) -> dict[str, Pop]:
         ws_raw = row.get("wild_stratum")
         p = Pop(
             id=UUID(row["id"]),
+            name=row.get("name") or None,
             civilization_id=_uuid(row.get("civilization_id")),
             species_id=_uuid(row.get("species_id")),
             social_class=SocialClass(sc_raw) if sc_raw else None,

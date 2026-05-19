@@ -66,16 +66,14 @@ def species_picker_items(state, allow_none: bool = False) -> list[tuple[str, str
 
 
 def pop_picker_items(state) -> list[tuple[str, str]]:
+    from ui.display import _pop_identity_label
     rows = []
     for pid, pop in state.pops.items():
-        sp = state.species.get(str(pop.species_id)) if pop.species_id else None
-        sp_name = sp.name if sp else "?"
-        stratum = pop.social_class.value if pop.social_class else (
-            pop.wild_stratum.value if pop.wild_stratum else "?"
-        )
         loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
         loc_name = loc.name if loc else "?"
-        rows.append((pid, f"{sp_name}:{stratum} @ {loc_name}"))
+        civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+        civ_tag = f"  · {civ.name}" if civ else ""
+        rows.append((pid, f"{_pop_identity_label(state, pop)} @ {loc_name}{civ_tag}"))
     rows.sort(key=lambda kv: kv[1].lower())
     return rows
 
@@ -127,6 +125,8 @@ def civ_text_fields(civ: Optional[Civilization] = None) -> list[tuple[str, str, 
 
 def pop_text_fields(pop: Optional[Pop] = None) -> list[tuple[str, str, str]]:
     return [
+        ("Name (optional — overrides the stratum label when set)",
+         "name", pop.name or "" if pop else ""),
         ("Size (log-magnitude, e.g. 6 ≈ 1M)", "size_fractional",
          f"{pop.size_fractional}" if pop else "6.0"),
     ]
@@ -232,7 +232,9 @@ def construct_pop(
     seed_beliefs: Optional[dict[str, float]] = None,
     seed_culture: Optional[dict[str, float]] = None,
 ) -> Pop:
+    raw_name = fields.get("name", "").strip()
     return Pop(
+        name=raw_name or None,
         civilization_id=civilization_id,
         species_id=species_id,
         current_location=current_location,
@@ -265,6 +267,8 @@ def apply_civ_fields(civ: Civilization, fields: dict[str, str]) -> None:
 
 
 def apply_pop_fields(pop: Pop, fields: dict[str, str]) -> None:
+    raw_name = fields.get("name", "").strip()
+    pop.name = raw_name or None
     pop.size_fractional = float(fields["size_fractional"])
 
 

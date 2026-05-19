@@ -250,6 +250,10 @@ class WildStratum(str, Enum):
 
 class Pop(BaseModel):
     id: UUID = Field(default_factory=uuid4)
+    name: Optional[str] = None
+    # Optional authored identity. When set, the UI prefers it over the
+    # computed stratum label everywhere ("The Bathy Cult" rather than
+    # "Common"). When unset, displays fall back to the stratum.
     civilization_id: Optional[UUID] = None
     species_id: Optional[UUID] = None
 
@@ -259,11 +263,25 @@ class Pop(BaseModel):
 
     @property
     def stratum(self) -> str:
-        if self.social_class is not None:
+        # SocialClass.WILD is a sapience designation, not a meaningful
+        # stratum; fall through to wild_stratum (APEX/HERD/etc.) when set.
+        if self.social_class is not None and self.social_class != SocialClass.WILD:
             return self.social_class.value
         if self.wild_stratum is not None:
             return self.wild_stratum.value
+        if self.social_class == SocialClass.WILD:
+            return "wild"
         return "unknown"
+
+    @property
+    def is_wild(self) -> bool:
+        """True if this Pop represents wild (non-sapient) creatures.
+        Use this instead of `stratum == 'wild'` — the property's value
+        depends on whether `wild_stratum` is also populated."""
+        return (
+            self.social_class == SocialClass.WILD
+            or self.wild_stratum is not None
+        )
 
     current_location: UUID       # PopLocation UUID; sub-world location
 

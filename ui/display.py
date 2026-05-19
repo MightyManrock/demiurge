@@ -231,13 +231,28 @@ def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: 
 
 
 def _pop_stratum_label(pop) -> str:
-    """Player-facing label for a Pop's stratum. Wild pops always render as
-    the single word 'wild' (lowercase); everything else is Title Case."""
+    """Player-facing single-segment label for a Pop. When `pop.name` is set,
+    that authored name takes priority. Otherwise we render the computed
+    stratum — Title Case for civilized strata, the literal 'wild' (lowercase)
+    only when no wild_stratum is available either."""
+    if getattr(pop, "name", None):
+        return pop.name
     if not pop.stratum:
         return "Pop"
     if pop.stratum == "wild":
         return "wild"
     return pop.stratum.title()
+
+
+def _pop_identity_label(state, pop) -> str:
+    """Full Pop identity for top-level contexts (detail-tab names, pickers,
+    isolated rows): `(name or stratum) (Species)`. Falls back gracefully
+    when species or stratum are missing."""
+    primary = _pop_stratum_label(pop)
+    sp = state.species.get(str(pop.species_id)) if pop.species_id else None
+    if sp:
+        return f"{primary} ({sp.name})"
+    return primary
 
 
 def _prominence_label(mortal) -> str:
@@ -369,7 +384,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 if p_oow and not dev_mode:
                     continue
                 pm = _OOW if (w_oow or c_oow or p_oow) else ""
-                class_label = pop.stratum.title() if pop.stratum else "Pop"
+                class_label = _pop_stratum_label(pop)
                 sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                 sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                 top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
@@ -646,7 +661,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         if p_oow and not dev_mode:
                             continue
                         pm = _OOW if (cm or p_oow) else ""
-                        class_label = pop.stratum.title() if pop.stratum else "Pop"
+                        class_label = _pop_stratum_label(pop)
                         top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                         belief_str = "  ".join(
                             f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs

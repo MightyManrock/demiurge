@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
 
 CREATE TABLE IF NOT EXISTS pops (
     id               TEXT PRIMARY KEY,
+    name             TEXT,                           -- optional authored identity; UI falls back to stratum when NULL
     civilization_id  TEXT,                           -- UUID of owning Civilization (nullable)
     species_id       TEXT,                           -- UUID of Species (nullable)
     social_class     TEXT,                           -- SocialClass value; NULL for non-sapient Pops

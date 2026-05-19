@@ -328,7 +328,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
             for pop, p_oow in pop_buckets[ploc_id]:
                 pm = "[dim]" if p_oow else ""
                 pe = "[/]" if p_oow else ""
-                is_wild = pop.stratum == "wild"
+                is_wild = pop.is_wild
                 class_label = _pop_stratum_label(pop)
                 sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                 pop_stratum_md = _click_link("pop", str(pop.id), class_label)
@@ -901,8 +901,11 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
 
     stratum = _pop_stratum_label(pop)
     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
-    # Header uses Title Case even for wild pops (single special-case site).
-    header = "Wild Pop" if stratum == "wild" else f"{stratum} Pop"
+    # Header uses Title Case even for the "wild" no-stratum fallback.
+    if pop.is_wild and stratum == "wild":
+        header = "Wild Pop"
+    else:
+        header = f"{stratum} Pop"
     if sp_obj:
         header += f" ({_e(sp_obj.name)})"
     a(f"[bold #4a80b0]POP: {header}[/]")
