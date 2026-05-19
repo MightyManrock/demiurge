@@ -498,6 +498,7 @@ class ActionDefinition(BaseModel):
     """
     id: UUID = Field(default_factory=uuid4)
     name: str
+    short_name: str = ""  # Compact label for cramped UI surfaces; falls back to `name` when empty.
     category: ActionCategory
     description: str
 

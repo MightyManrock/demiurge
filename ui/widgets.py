@@ -45,6 +45,17 @@ if TYPE_CHECKING:
 # concrete callable each refresh; default returns False.
 _is_unseen: "callable[[str, str], bool]" = lambda kind, eid: False
 
+# When True, `_click_link` emits a navigate-in-place action instead of
+# opening a new detail tab. Toggled on by DetailTab._render_body while a
+# detail renderer is running; cleared on the way out.
+_in_detail_render: bool = False
+
+
+def set_detail_render(active: bool) -> None:
+    """Set whether `_click_link` should emit nav-in-place click actions."""
+    global _in_detail_render
+    _in_detail_render = bool(active)
+
 
 def set_unseen_predicate(fn) -> None:
     """Install the predicate used by `_click_link` to gold-highlight new IDs."""
@@ -92,7 +103,15 @@ def _click_link(kind: str, eid: str, label_markup: str) -> str:
     else:
         color = _LINK_COLORS.get(kind)
         inner = f"[{color}]{label_markup}[/]" if color else label_markup
-    return f"[@click=screen.open_detail_by_id('{kind}','{eid}')]{inner}[/]"
+    # Luminaries always route to the Luminaries tab in detail mode.
+    # Otherwise: nav-in-place if rendered inside a detail tab; else open new.
+    if kind == "luminary":
+        action = f"screen.open_luminary('{eid}')"
+    elif _in_detail_render:
+        action = f"screen.navigate_detail_by_id('{kind}','{eid}')"
+    else:
+        action = f"screen.open_detail_by_id('{kind}','{eid}')"
+    return f"[@click={action}]{inner}[/]"
 
 
 # ─────────────────────────────────────────
@@ -570,9 +589,10 @@ class ActionsTab(ContentTab):
                     tgt = f"  → [#3a6a8a]{_e(_name_for_id(ai.target_id, state))}[/]"
                 key = key_by_id.get(str(ai.action_definition_id))
                 defn = library.get(key) if key else None
-                label = defn.name if defn else (
-                    key.replace("_", " ").title() if key else "Action"
-                )
+                if defn:
+                    label = defn.short_name or defn.name
+                else:
+                    label = key.replace("_", " ").title() if key else "Action"
                 a(f"  • [#a0d080]{_e(label)}[/]{tgt}")
         else:
             a("[#5a7090]  (none queued)[/]")
@@ -582,12 +602,16 @@ class ActionsTab(ContentTab):
         if state.ongoing_actions:
             for cat_val, oa in state.ongoing_actions.items():
                 cat = cat_val.replace("_", " ").title()
-                key = oa.action_key.replace("_", " ").title()
+                defn = library.get(oa.action_key)
+                if defn:
+                    label = defn.short_name or defn.name
+                else:
+                    label = oa.action_key.replace("_", " ").title()
                 tgt = ""
                 if oa.target_id:
                     tgt = f"  → [#3a6a8a]{_e(_name_for_id(oa.target_id, state))}[/]"
                 a(f"  [#5a7090]({_e(cat)})[/]")
-                a(f"    [#60a070]{_e(key)}[/]{tgt}  "
+                a(f"    [#60a070]{_e(label)}[/]{tgt}  "
                   f"[#2a4060]{oa.executed_ticks}/{oa.ticks_active} ticks[/]")
         else:
             a("[#5a7090]  (none)[/]")
@@ -599,6 +623,82 @@ class BriefingTab(ContentTab):
 
     def _render_body(self, state: "SimulationState") -> Text:
         return _lines_to_text(display_briefing(state, dev_mode=display.DEV_MODE))
+
+
+def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -> list[str]:
+    """Universe-tab-style multi-line block for one notable mortal.
+
+    Returns a list of Rich-markup lines (no surrounding blank lines). When
+    `oow` is True, every line is wrapped in `[dim]…[/dim]`. Shared between
+    UniverseTab and per-Pop detail renderers so the two stay in lockstep.
+    """
+    mm = "[dim]" if oow else ""
+    me = "[/]" if oow else ""
+    lines: list[str] = []
+    a = lines.append
+
+    role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
+    age_str = f"age:{mortal.chrono_age:.0f}"
+    if mortal.bio_age != mortal.chrono_age:
+        age_str += f"(bio:{mortal.bio_age:.0f})"
+    sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
+    if sp_obj:
+        sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
+        sp_str = f"  \\[{sp_md}]"
+    else:
+        sp_str = ""
+    vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+    mortal_link = _click_link("mortal", str(mortal.id), f"[bold]{_e(mortal.name)}[/]")
+    a(f"{mm}● {mortal_link} \\[{role_str}]  "
+      f"align:{mortal.alignment:.2f}  {age_str}{vis_note}{sp_str}{me}")
+    a(f"{mm}    {_e(_prominence_label(mortal))}{me}")
+
+    loc_obj = state.locations.get(str(mortal.current_location)) if mortal.current_location else None
+    civ_obj = state.civilizations.get(str(mortal.civilization_id)) if mortal.civilization_id else None
+    loc_str = ""
+    if loc_obj:
+        loc_kind = ("world" if str(mortal.current_location) in state.worlds
+                    else ("system" if str(mortal.current_location) in state.systems else None))
+        if loc_kind:
+            loc_link = _click_link(loc_kind, str(mortal.current_location),
+                                   _e(loc_obj.name))
+        else:
+            loc_link = _e(loc_obj.name)
+        loc_str = f"location: {loc_link}"
+    civ_str = ""
+    if civ_obj:
+        civ_link = _click_link("civ", str(civ_obj.id), _e(civ_obj.name))
+        civ_str = f"  civ: {civ_link}"
+    if loc_str or civ_str:
+        a(f"{mm}    {loc_str}{civ_str}{me}")
+
+    if mortal.status_tags:
+        stags = sorted(mortal.status_tags)
+        shown = stags[:4]
+        extra = len(stags) - len(shown)
+        suffix = f"  [#5a7090](+{extra} more)[/]" if extra > 0 else ""
+        a(f"{mm}    status: {_e(', '.join(_short_tag(t) for t in shown))}{suffix}{me}")
+    if mortal.personal_tags:
+        ptags = sorted(mortal.personal_tags)
+        shown = ptags[:4]
+        extra = len(ptags) - len(shown)
+        suffix = f"  [#5a7090](+{extra} more)[/]" if extra > 0 else ""
+        a(f"{mm}    tags:   {_e(', '.join(_short_tag(t) for t in shown))}{suffix}{me}")
+    if mortal.belief_tags:
+        a(f"{mm}    beliefs: {_format_beliefs_markup(mortal.belief_tags, top_n=4)}{me}")
+
+    if mortal.role == MortalRole.PROXIUS and mortal.active_goal:
+        g = mortal.active_goal
+        if g.label:
+            dlabel = g.label
+        elif g.imago_node_id:
+            dlabel = f"preaching [{g.imago_node_id.split(':')[-1]}]"
+        elif g.research_domain:
+            dlabel = f"researching {_short_tag(g.research_domain)}"
+        else:
+            dlabel = "on assignment"
+        a(f"{mm}    [#c09030]directive:[/] {_e(dlabel)}{me}")
+    return lines
 
 
 class UniverseTab(ContentTab):
@@ -683,82 +783,76 @@ class UniverseTab(ContentTab):
             if m_oow and not dev:
                 continue
             any_m = True
-            mm = "[dim]" if m_oow else ""
-            me = "[/]" if m_oow else ""
-            role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-            age_str = f"age:{mortal.chrono_age:.0f}"
-            if mortal.bio_age != mortal.chrono_age:
-                age_str += f"(bio:{mortal.bio_age:.0f})"
-            sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
-            if sp_obj:
-                sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
-                sp_str = f"  \\[{sp_md}]"
-            else:
-                sp_str = ""
-            vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
-            mortal_link = _click_link("mortal", str(mid), f"[bold]{_e(mortal.name)}[/]")
-            a(f"{mm}● {mortal_link} \\[{role_str}]  "
-              f"align:{mortal.alignment:.2f}  {age_str}{vis_note}{sp_str}{me}")
-            a(f"{mm}    {_e(_prominence_label(mortal))}{me}")
-
-            # Location + civilization (linked)
-            loc_obj = state.locations.get(str(mortal.current_location)) if mortal.current_location else None
-            civ_obj = state.civilizations.get(str(mortal.civilization_id)) if mortal.civilization_id else None
-            loc_str = ""
-            if loc_obj:
-                loc_kind = ("world" if str(mortal.current_location) in state.worlds
-                            else ("system" if str(mortal.current_location) in state.systems else None))
-                if loc_kind:
-                    loc_link = _click_link(loc_kind, str(mortal.current_location),
-                                           _e(loc_obj.name))
-                else:
-                    loc_link = _e(loc_obj.name)
-                loc_str = f"location: {loc_link}"
-            civ_str = ""
-            if civ_obj:
-                civ_link = _click_link("civ", str(civ_obj.id), _e(civ_obj.name))
-                civ_str = f"  civ: {civ_link}"
-            if loc_str or civ_str:
-                a(f"{mm}    {loc_str}{civ_str}{me}")
-
-            # Rule-of-four: status / personal tags (alphabetical, unranked)
-            if mortal.status_tags:
-                stags = sorted(mortal.status_tags)
-                shown = stags[:4]
-                extra = len(stags) - len(shown)
-                suffix = f"  [#5a7090](+{extra} more)[/]" if extra > 0 else ""
-                a(f"{mm}    status: {_e(', '.join(_short_tag(t) for t in shown))}{suffix}{me}")
-            if mortal.personal_tags:
-                ptags = sorted(mortal.personal_tags)
-                shown = ptags[:4]
-                extra = len(ptags) - len(shown)
-                suffix = f"  [#5a7090](+{extra} more)[/]" if extra > 0 else ""
-                a(f"{mm}    tags:   {_e(', '.join(_short_tag(t) for t in shown))}{suffix}{me}")
-            # Rule-of-four: top-4 beliefs (by weight)
-            if mortal.belief_tags:
-                a(f"{mm}    beliefs: {_format_beliefs_markup(mortal.belief_tags, top_n=4)}{me}")
-
-            # Fog-of-warred directive label for Proxii on assignment
-            if mortal.role == MortalRole.PROXIUS and mortal.active_goal:
-                g = mortal.active_goal
-                if g.label:
-                    dlabel = g.label
-                elif g.imago_node_id:
-                    dlabel = f"preaching [{g.imago_node_id.split(':')[-1]}]"
-                elif g.research_domain:
-                    dlabel = f"researching {_short_tag(g.research_domain)}"
-                else:
-                    dlabel = "on assignment"
-                a(f"{mm}    [#c09030]directive:[/] {_e(dlabel)}{me}")
+            lines.extend(_render_mortal_universe_block(state, mortal, m_oow))
         if not any_m:
             a("[#5a7090](no notable mortals in Window)[/]")
         return Text.from_markup("\n".join(lines))
 
 
 class LuminariesTab(ContentTab):
-    """Right-panel tab: full Luminary detail (domains, constraints, disposition)."""
+    """Right-panel tab: list of Luminaries + per-Luminary detail view.
+
+    Click a Luminary name (anywhere in the UI) to switch to detail mode in
+    this tab; click the breadcrumb "Luminaries" to return to the list.
+    Reverts to the list when the simulation tick advances.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._state: "SimulationState | None" = None
+        self._mode: str = "list"
+        self._lum_id: str | None = None
+        self._last_tick: int = -1
+
+    # Public navigation methods invoked from GameScreen click handlers.
+
+    def show_list(self) -> None:
+        self._mode = "list"
+        self._lum_id = None
+        self._refresh_self()
+
+    def show_luminary(self, lum_id: str) -> None:
+        self._mode = "detail"
+        self._lum_id = str(lum_id)
+        self._refresh_self()
+
+    def _refresh_self(self) -> None:
+        if self._state is not None:
+            self.query_one(Static).update(self._render_body(self._state))
+
+    def refresh_state(self, state: "SimulationState") -> None:
+        self._state = state
+        super().refresh_state(state)
 
     def _render_body(self, state: "SimulationState") -> Text:
+        # Tick advance → revert to list view.
+        if state.tick_number != self._last_tick:
+            self._last_tick = state.tick_number
+            self._mode = "list"
+            self._lum_id = None
+        if self._mode == "detail" and self._lum_id:
+            return self._render_detail(state, self._lum_id)
+        return self._render_list(state)
+
+    def _render_detail(self, state: "SimulationState", lum_id: str) -> Text:
+        from ui.detail_renderers import render_luminary_detail
+        lum = state.luminaries.get(lum_id)
+        name = lum.name if lum else "?"
+        crumb_home = "[@click=screen.open_luminaries_list][#5a7090]Luminaries[/][/]"
+        header = (
+            f"{crumb_home}  [#3a4a60]›[/]  [bold #c0ccdc]{_e(name)}[/]\n\n"
+        )
+        # Navigate-in-place semantics inside the Luminaries detail view too:
+        # luminary→luminary clicks switch this tab; other-kind clicks fall
+        # through to opening new detail tabs (no detail pane is active).
+        set_detail_render(True)
+        try:
+            body = render_luminary_detail(state, lum_id)
+        finally:
+            set_detail_render(False)
+        return Text.from_markup(header) + body
+
+    def _render_list(self, state: "SimulationState") -> Text:
         lines: list[str] = []
         a = lines.append
         a("[bold #4a80b0]━━ LUMINARIES ━━[/]")

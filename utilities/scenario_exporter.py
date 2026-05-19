@@ -1930,6 +1930,26 @@ def build_scenario_default() -> SimulationState:
     ]
     starting_pinned_ids = [str(e.id) for e in _all_scenario_entities if e.pinned]
 
+    # Back-fill each Pop's notable_mortal_ids from the mortals' pop_id refs.
+    # Avoids having to maintain the back-reference at every NotableMortal site.
+    _all_pops = [
+        pop_neran_elite, pop_neran_common, pop_neran_artisan,
+        pop_neran_elite_col, pop_neran_common_col, pop_neran_artisan_col,
+        pop_keth_warrior, pop_keth_common,
+        pop_damtal_elite, pop_damtal_common,
+        pop_surathi_priest, pop_surathi_common, pop_surathi_confederate,
+        pop_veldan_council, pop_veldan_common,
+        pop_vehn_council, pop_vehn_common,
+    ]
+    _pops_by_id = {p.id: p for p in _all_pops}
+    for _m in _all_scenario_entities:
+        if not isinstance(_m, NotableMortal):
+            continue
+        if _m.pop_id and _m.pop_id in _pops_by_id:
+            _pop = _pops_by_id[_m.pop_id]
+            if _m.id not in _pop.notable_mortal_ids:
+                _pop.notable_mortal_ids.append(_m.id)
+
     universe = Universe(
         name="Warden's Compact",
         save_name="WC",

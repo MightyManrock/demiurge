@@ -32,6 +32,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "seed_world",
+        "short_name": "Seed Life",
         "name": "Seed World with Life",
         "category": "direct_creation",
         "description": (
@@ -49,6 +50,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "uplift_species",
+        "short_name": "Uplift",
         "name": "Uplift Species to Sapience",
         "category": "direct_creation",
         "description": (
@@ -65,6 +67,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "reshape_world",
+        "short_name": "Reshape",
         "name": "Reshape World Geography",
         "category": "direct_creation",
         "description": (
@@ -81,6 +84,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "extinguish_civilization",
+        "short_name": "Extinguish",
         "name": "Extinguish Civilization",
         "category": "direct_creation",
         "description": "Directly destroy a civilization. Maximum footprint.",
@@ -97,6 +101,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "manifest_omen",
+        "short_name": "Show Omen",
         "name": "Manifest Omen",
         "category": "overt_miracle",
         "description": (
@@ -113,6 +118,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "direct_miracle",
+        "short_name": "Perform Miracle",
         "name": "Perform Direct Miracle",
         "category": "overt_miracle",
         "description": "A visibly supernatural act for a specific mortal.",
@@ -126,6 +132,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "divine_manifestation",
+        "short_name": "Manifest",
         "name": "Manifest in Divine Form",
         "category": "overt_miracle",
         "description": (
@@ -145,6 +152,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "whisper",
+        "short_name": "Whisper",
         "name": "Whisper to Mortal",
         "category": "subtle_influence",
         "description": (
@@ -161,6 +169,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "shape_dream",
+        "short_name": "Shape Dream",
         "name": "Shape Dream",
         "category": "subtle_influence",
         "description": (
@@ -177,6 +186,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "nudge_probability",
+        "short_name": "Nudge",
         "name": "Nudge Probability",
         "category": "subtle_influence",
         "description": (
@@ -193,6 +203,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "accelerate_development",
+        "short_name": "Accelerate",
         "name": "Accelerate Civilizational Development",
         "category": "subtle_influence",
         "description": (
@@ -212,6 +223,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "appoint_proxius",
+        "short_name": "Appoint Proxius",
         "name": "Appoint Proxius",
         "category": "proxius_direction",
         "description": (
@@ -228,6 +240,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "preach_imago",
+        "short_name": "Preach Imāgō",
         "name": "Preach Imāgō",
         "category": "proxius_direction",
         "description": (
@@ -245,6 +258,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "empower_proxius",
+        "short_name": "Empower",
         "name": "Empower Proxius",
         "category": "proxius_direction",
         "description": "Grant a Proxius a temporary boost of divine capability.",
@@ -258,6 +272,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "dismiss_proxius",
+        "short_name": "Dismiss",
         "name": "Dismiss Proxius",
         "category": "proxius_direction",
         "description": "Revoke a mortal's Proxius status.",
@@ -271,6 +286,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "go_quiet_proxius",
+        "short_name": "Go Quiet",
         "name": "Go Quiet",
         "category": "proxius_direction",
         "description": (
@@ -292,6 +308,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "scry",
+        "short_name": "Scry",
         "name": "Scry",
         "category": "observation",
         "description": (
@@ -311,7 +328,8 @@ _ACTION_SEED: list[dict] = [
     # entity class lands and divine-trace detection is specified, restore this
     # entry. Until then, omitting it keeps it out of the action browser.
     # {
-    #     "action_key": "read_divine_traces",
+#         "action_key": "read_divine_traces",
+#         "short_name": "Read Traces",
     #     "name": "Read Divine Traces",
     #     "category": "observation",
     #     "description": (
@@ -328,6 +346,7 @@ _ACTION_SEED: list[dict] = [
     # },
     {
         "action_key": "audit_proxius",
+        "short_name": "Audit",
         "name": "Audit Proxius",
         "category": "observation",
         "description": (
@@ -347,6 +366,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "negotiate_herald",
+        "short_name": "Negotiate",
         "name": "Negotiate with Herald",
         "category": "herald_interaction",
         "description": (
@@ -364,6 +384,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "obstruct_herald",
+        "short_name": "Obstruct",
         "name": "Obstruct Herald",
         "category": "herald_interaction",
         "description": (
@@ -380,6 +401,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "petition_luminary_herald",
+        "short_name": "Petition re: Herald",
         "name": "Petition Luminary re: Herald",
         "category": "herald_interaction",
         "description": (
@@ -399,6 +421,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "report_to_luminary",
+        "short_name": "Report",
         "name": "Report to Luminary",
         "category": "luminary_relations",
         "description": (
@@ -415,6 +438,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "petition_constraint_relaxation",
+        "short_name": "Petition Relief",
         "name": "Petition for Constraint Relaxation",
         "category": "luminary_relations",
         "description": (
@@ -431,6 +455,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "dispute_demand",
+        "short_name": "Dispute Demand",
         "name": "Dispute Demand",
         "category": "luminary_relations",
         "description": (
@@ -448,6 +473,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "ask_for_orders",
+        "short_name": "Ask for Orders",
         "name": "Ask for Orders",
         "category": "luminary_relations",
         "description": (
@@ -468,6 +494,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "harvest_essence",
+        "short_name": "Harvest Essence",
         "name": "Harvest Essence from Underreal",
         "category": "underreal",
         "description": (
@@ -485,6 +512,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "salvage_concept",
+        "short_name": "Salvage Concept",
         "name": "Salvage Concept from Underreal",
         "category": "underreal",
         "description": (
@@ -502,6 +530,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "exile_to_underreal",
+        "short_name": "Exile",
         "name": "Exile to Underreal",
         "category": "underreal",
         "description": (
@@ -519,6 +548,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "investigate_underreal",
+        "short_name": "Investigate Underreal",
         "name": "Investigate Underreal",
         "category": "underreal",
         "description": (
@@ -535,6 +565,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "maintain_concealment",
+        "short_name": "Conceal Harvest",
         "name": "Maintain Concealment",
         "category": "underreal",
         "description": (
@@ -553,6 +584,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "overthrow_luminary",
+        "short_name": "Move Against",
         "name": "Move Against Luminary",
         "category": "underreal",
         "description": (
@@ -575,6 +607,7 @@ _ACTION_SEED: list[dict] = [
 
     {
         "action_key": "explore_beliefs",
+        "short_name": "Explore Beliefs",
         "name": "Explore Beliefs",
         "category": "self_refinement",
         "description": (
@@ -593,6 +626,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "reveal_imago",
+        "short_name": "Reveal Imāgō",
         "name": "Reveal Imāgō",
         "category": "self_refinement",
         "description": (
@@ -610,6 +644,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "commission_inquiry",
+        "short_name": "Commission Inquiry",
         "name": "Commission Inquiry",
         "category": "proxius_direction",
         "description": (
@@ -627,6 +662,7 @@ _ACTION_SEED: list[dict] = [
     },
     {
         "action_key": "change_affiliated_domains",
+        "short_name": "Change Affiliation",
         "name": "Change Affiliated Domain",
         "category": "self_refinement",
         "description": (
@@ -652,6 +688,7 @@ _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS actions (
     action_key          TEXT PRIMARY KEY,
     name                TEXT NOT NULL,
+    short_name          TEXT NOT NULL DEFAULT '',
     category            TEXT NOT NULL,
     description         TEXT NOT NULL DEFAULT '',
     valid_targets       TEXT NOT NULL DEFAULT '[]',
@@ -683,10 +720,11 @@ class ActionRegistry:
             for row in _ACTION_SEED:
                 if row["action_key"] not in existing:
                     conn.execute(
-                        "INSERT INTO actions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO actions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (
                             row["action_key"],
                             row["name"],
+                            row.get("short_name", ""),
                             row["category"],
                             row["description"],
                             json.dumps(row["valid_targets"]),
@@ -718,6 +756,7 @@ class ActionRegistry:
         for key, row in self._data.items():
             result[key] = ActionDefinition(
                 name=row["name"],
+                short_name=row["short_name"] if "short_name" in row.keys() else "",
                 category=ActionCategory(row["category"]),
                 description=row["description"],
                 valid_targets=[TargetType(t) for t in json.loads(row["valid_targets"])],

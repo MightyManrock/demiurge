@@ -231,6 +231,130 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
 ]
 
 
+# ── Culture × Domain affinity data ────────────────────────────────────
+# How much a culture tag (religion, value, etc.) amplifies or dampens domain
+# influence on beliefs, alignment, and Pop receptivity. Per-unit additive
+# bonus to the multiplier per unit of culture-tag strength. Unlisted pairs
+# default to 0.0.
+_DOMAIN_AFFINITY_DATA: dict[str, dict[str, float]] = {
+    # ── Religion ────────────────────────────────
+    "religion:luminary_worship": {
+        "domain:order": 0.30, "domain:light": 0.30, "domain:truth": 0.20,
+        "domain:mastery": 0.20, "domain:community": 0.15,
+        "domain:void": -0.20, "domain:conflict": -0.15, "domain:decay": -0.20,
+        "domain:sacrifice": -0.15,
+    },
+    "religion:demiurge_worship": {
+        "domain:mastery": 0.30, "domain:truth": 0.25, "domain:order": 0.20,
+        "domain:light": 0.20, "domain:change": 0.10,
+        "domain:void": -0.20, "domain:decay": -0.15,
+    },
+    "religion:animism": {
+        "domain:growth": 0.30, "domain:water": 0.25, "domain:change": 0.25,
+        "domain:fire": 0.20, "domain:sacrifice": 0.20, "domain:memory": 0.20,
+        "domain:community": 0.15,
+        "domain:mastery": -0.15, "domain:truth": -0.10,
+    },
+    "religion:ancestor_worship": {
+        "domain:memory": 0.40, "domain:community": 0.20, "domain:order": 0.10,
+        "domain:growth": 0.15,
+        "domain:change": -0.20, "domain:conflict": -0.10, "domain:void": -0.15,
+    },
+    "religion:maltheism": {
+        "domain:conflict": 0.30, "domain:void": 0.25, "domain:decay": 0.30,
+        "domain:sacrifice": 0.25, "domain:change": 0.20,
+        "domain:order": -0.25, "domain:light": -0.30, "domain:community": -0.20,
+        "domain:truth": -0.15,
+    },
+    "religion:nontheism": {
+        "domain:truth": 0.30, "domain:silence": 0.20, "domain:order": 0.15,
+        "domain:void": 0.15,
+        "domain:sacrifice": -0.20, "domain:mastery": -0.15, "domain:light": -0.10,
+        "domain:decay": -0.10,
+    },
+    "religion:void_worship": {
+        "domain:void": 0.40, "domain:secrecy": 0.25, "domain:silence": 0.25,
+        "domain:decay": 0.25, "domain:conflict": 0.15,
+        "domain:light": -0.35, "domain:community": -0.25, "domain:growth": -0.20,
+        "domain:truth": -0.15,
+    },
+    # ── Values & Virtues ────────────────────────
+    "values:honesty": {
+        "domain:truth": 0.30, "domain:light": 0.20, "domain:order": 0.15,
+        "domain:secrecy": -0.30, "domain:void": -0.15,
+    },
+    "values:adaptability": {
+        "domain:change": 0.30, "domain:water": 0.15, "domain:fire": 0.10,
+        "domain:order": -0.20, "domain:memory": -0.10,
+    },
+    "values:moderation": {
+        "domain:order": 0.20, "domain:silence": 0.20, "domain:sacrifice": 0.10,
+        "domain:community": 0.10,
+        "domain:fire": -0.20, "domain:conflict": -0.15,
+    },
+    "values:indulgence": {
+        "domain:fire": 0.25, "domain:growth": 0.15, "domain:water": 0.10,
+        "domain:order": -0.40, "domain:sacrifice": -0.35, "domain:silence": -0.30,
+    },
+    "values:charity": {
+        "domain:community": 0.30, "domain:light": 0.20, "domain:growth": 0.15,
+        "domain:sacrifice": 0.10,
+        "domain:mastery": -0.20, "domain:conflict": -0.10,
+    },
+    "values:prosperity": {
+        "domain:growth": 0.25, "domain:mastery": 0.20, "domain:community": 0.10,
+        "domain:sacrifice": -0.25, "domain:decay": -0.20,
+    },
+    "values:ambition": {
+        "domain:mastery": 0.30, "domain:conflict": 0.20, "domain:fire": 0.15,
+        "domain:silence": -0.30, "domain:community": -0.20, "domain:sacrifice": -0.15,
+    },
+    "values:humility": {
+        "domain:silence": 0.25, "domain:community": 0.20, "domain:order": 0.15,
+        "domain:sacrifice": 0.10,
+        "domain:mastery": -0.30, "domain:conflict": -0.15,
+    },
+    "values:wit": {
+        "domain:change": 0.20, "domain:truth": 0.15, "domain:secrecy": 0.10,
+        "domain:silence": -0.15, "domain:order": -0.10,
+    },
+    "values:sincerity": {
+        "domain:truth": 0.30, "domain:community": 0.20, "domain:light": 0.15,
+        "domain:order": 0.10,
+        "domain:secrecy": -0.30,
+    },
+    "values:patience": {
+        "domain:silence": 0.25, "domain:order": 0.20, "domain:memory": 0.15,
+        "domain:growth": 0.10,
+        "domain:conflict": -0.20, "domain:fire": -0.15,
+    },
+    "values:tenacity": {
+        "domain:conflict": 0.20, "domain:mastery": 0.20, "domain:fire": 0.15,
+        "domain:memory": 0.15,
+        "domain:change": -0.15,
+    },
+    "values:idealism": {
+        "domain:light": 0.30, "domain:truth": 0.20, "domain:sacrifice": 0.15,
+        "domain:change": 0.10,
+        "domain:secrecy": -0.20, "domain:void": -0.20,
+    },
+    "values:pragmatism": {
+        "domain:mastery": 0.25, "domain:order": 0.15, "domain:change": 0.15,
+        "domain:sacrifice": -0.20, "domain:light": -0.10,
+    },
+    "values:erudition": {
+        "domain:truth": 0.30, "domain:memory": 0.25, "domain:silence": 0.10,
+        "domain:mastery": 0.10,
+        "domain:conflict": -0.15,
+    },
+    "values:folk_wisdom": {
+        "domain:memory": 0.30, "domain:community": 0.20, "domain:growth": 0.15,
+        "domain:water": 0.10,
+        "domain:mastery": -0.20,
+    },
+}
+
+
 class CultureRegistry:
     """
     Canonical, scenario-agnostic source of truth for culture trait tags
@@ -242,6 +366,7 @@ class CultureRegistry:
     def __init__(self, db_path: Path = DEFAULT_CORE_DB) -> None:
         self._db_path = db_path
         self._synergy: dict[tuple[str, str], float] = {}
+        self._domain_affinity: dict[str, dict[str, float]] = {}
         self._all_tags: list[str] = []
         self._tag_set: set[str] = set()
         self._ensure_db()
@@ -267,6 +392,13 @@ class CultureRegistry:
         key = (min(tag_a, tag_b), max(tag_a, tag_b))
         return self._synergy.get(key, 0.0)
 
+    def domain_affinity(self, culture_tag: str) -> dict[str, float]:
+        """
+        Per-domain affinity modifiers for a culture tag. Unlisted tags → {}.
+        Callers should treat the result as read-only.
+        """
+        return self._domain_affinity.get(culture_tag, {})
+
     # ── Internal ───────────────────────────────────────────────────────
 
     def _ensure_db(self) -> None:
@@ -285,6 +417,12 @@ class CultureRegistry:
                     synergy REAL NOT NULL,
                     PRIMARY KEY (tag_a, tag_b)
                 );
+                CREATE TABLE IF NOT EXISTS culture_domain_affinity (
+                    culture_tag TEXT NOT NULL,
+                    domain_tag  TEXT NOT NULL,
+                    modifier    REAL NOT NULL,
+                    PRIMARY KEY (culture_tag, domain_tag)
+                );
             """)
 
             for i, tag in enumerate(ALL_CULTURE_TAGS):
@@ -300,6 +438,14 @@ class CultureRegistry:
                     "INSERT OR IGNORE INTO culture_synergy (tag_a, tag_b, synergy) VALUES (?,?,?)",
                     (a, b, syn),
                 )
+
+            for culture_tag, affinities in _DOMAIN_AFFINITY_DATA.items():
+                for domain_tag, mod in affinities.items():
+                    conn.execute(
+                        "INSERT OR IGNORE INTO culture_domain_affinity "
+                        "(culture_tag, domain_tag, modifier) VALUES (?,?,?)",
+                        (culture_tag, domain_tag, mod),
+                    )
 
             conn.commit()
         finally:
@@ -320,6 +466,13 @@ class CultureRegistry:
             for row in conn.execute("SELECT tag_a, tag_b, synergy FROM culture_synergy"):
                 a, b = min(row["tag_a"], row["tag_b"]), max(row["tag_a"], row["tag_b"])
                 self._synergy[(a, b)] = row["synergy"]
+
+            for row in conn.execute(
+                "SELECT culture_tag, domain_tag, modifier FROM culture_domain_affinity"
+            ):
+                self._domain_affinity.setdefault(row["culture_tag"], {})[
+                    row["domain_tag"]
+                ] = row["modifier"]
         finally:
             conn.close()
 
@@ -343,6 +496,7 @@ def reinstate(db_path: Path = DEFAULT_CORE_DB) -> CultureRegistry:
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript("""
+            DROP TABLE IF EXISTS culture_domain_affinity;
             DROP TABLE IF EXISTS culture_synergy;
             DROP TABLE IF EXISTS culture_registry;
         """)

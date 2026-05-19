@@ -10,8 +10,8 @@ stack: clicking a related entity inside a detail body pushes onto the tab's
 history; `back()` pops back to the previous view. (Wiring of in-body clicks
 happens in Phase 3; the data structures are ready now.)
 
-Pin state is shown in the tab body header, not the tab title, since
-Textual's TabPane title is fixed at construction.
+Pin state is shown in the tab body header (the strip above the breadcrumb),
+while the tab strip label tracks the current entity as the user navigates.
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -20,7 +20,7 @@ from rich.markup import escape as _e
 from rich.text import Text
 from textual.widgets import TabPane
 
-from ui.widgets import ContentTab
+from ui.widgets import ContentTab, set_detail_render
 from ui.detail_renderers import RENDERERS
 
 if TYPE_CHECKING:
@@ -71,21 +71,47 @@ class DetailTab(ContentTab):
             return True
         return False
 
+    def jump_to_index(self, idx: int) -> bool:
+        """Truncate history so that the entry at `idx` becomes current. Returns
+        True if the stack actually moved."""
+        if idx < 0 or idx >= len(self._history) - 1:
+            return False
+        del self._history[idx + 1:]
+        return True
+
     def _render_body(self, state: "SimulationState") -> Text:
         kind, eid, _name = self.current
         renderer = RENDERERS.get(kind)
         if renderer is None:
             body = Text.from_markup(f"[#b04050]Unknown entity kind: {_e(kind)}[/]")
         else:
-            body = renderer(state, eid)
+            # While rendering inside a detail tab, entity links navigate the
+            # tab's history in place instead of opening new tabs.
+            set_detail_render(True)
+            try:
+                body = renderer(state, eid)
+            finally:
+                set_detail_render(False)
 
         # Header strip: pin indicator + breadcrumb (when there's more than one entry).
         header_parts: list[str] = []
         if self._pinned:
             header_parts.append("[#c09030]★ pinned[/]")
         if len(self._history) > 1:
-            crumbs = " → ".join(_e(n) for _, _, n in self._history)
-            header_parts.append(f"[#5a7090]{crumbs}[/]")
+            crumb_pieces: list[str] = []
+            last_idx = len(self._history) - 1
+            for i, (_k, _eid, n) in enumerate(self._history):
+                escaped = _e(n)
+                if i == last_idx:
+                    # Current view — bold, not a link.
+                    crumb_pieces.append(f"[bold #c0ccdc]{escaped}[/]")
+                else:
+                    crumb_pieces.append(
+                        f"[@click=screen.detail_back_to_index({i})]"
+                        f"[#5a7090]{escaped}[/][/]"
+                    )
+            crumbs = "  [#3a4a60]›[/]  ".join(crumb_pieces)
+            header_parts.append(crumbs)
         if not header_parts:
             return body
         header_markup = "    ".join(header_parts) + "\n\n"
@@ -168,6 +194,49 @@ class DetailTabManager:
         dt.refresh_state(state)
         return True, ("pinned" if dt.pinned else "unpinned")
 
+    def navigate_active(
+        self,
+        kind: str,
+        entity_id: str,
+        name: str,
+        state: "SimulationState",
+    ) -> bool:
+        """Push (kind, id) onto the active detail tab's history. False if
+        no detail tab is active or kind has no renderer."""
+        pid = self._active_detail_pane_id()
+        if pid is None:
+            return False
+        if kind not in RENDERERS:
+            return False
+        dt = self._panes[pid]
+        if dt.kind != kind or dt.entity_id != str(entity_id):
+            dt.navigate_to(kind, str(entity_id), name)
+            self._update_tab_label(pid)
+        dt.refresh_state(state)
+        return True
+
+    def jump_active_to_index(self, idx: int, state: "SimulationState") -> bool:
+        """Pop the active tab's history back to `idx` (a breadcrumb click)."""
+        pid = self._active_detail_pane_id()
+        if pid is None:
+            return False
+        dt = self._panes[pid]
+        if dt.jump_to_index(idx):
+            self._update_tab_label(pid)
+            dt.refresh_state(state)
+            return True
+        return False
+
+    def _update_tab_label(self, pane_id: str) -> None:
+        """Sync the tab strip label with the active DetailTab's current entity."""
+        dt = self._panes.get(pane_id)
+        if dt is None:
+            return
+        try:
+            self._tabs.get_tab(pane_id).label = dt.name
+        except Exception:
+            pass
+
     def back_focused(self, state: "SimulationState") -> bool:
         """Pop the focused detail tab's history. Returns True if moved."""
         pid = self._active_detail_pane_id()
@@ -175,6 +244,7 @@ class DetailTabManager:
             return False
         dt = self._panes[pid]
         if dt.back():
+            self._update_tab_label(pid)
             dt.refresh_state(state)
             return True
         return False

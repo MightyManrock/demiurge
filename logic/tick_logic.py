@@ -114,131 +114,6 @@ RIDER_ATTRITION_BASE = 0.003
 # Base decay rate per tick applied to culture_tags that conflict with a Pop's active rider_traits.
 # Multiplied by (1.0 - synergy): syn=-1 → 2x, syn=0 → 1x, syn=+1 → 0x.
 
-# How much a Pop's culture tags (religion and values) amplify or dampen domain
-# influence on its dominant_beliefs. Values are additive bonuses to the multiplier
-# per unit of culture_tag strength. Applied in omen, whisper, Proxius PROMOTE_DOMAIN,
-# and mortal alignment computation.
-_CULTURE_DOMAIN_AFFINITY: dict[str, dict[str, float]] = {
-    # ── Religion ────────────────────────────────
-    "religion:luminary_worship": {
-        "domain:order": 0.30, "domain:light": 0.30, "domain:truth": 0.20,
-        "domain:mastery": 0.20, "domain:community": 0.15,
-        "domain:void": -0.20, "domain:conflict": -0.15, "domain:decay": -0.20,
-        "domain:sacrifice": -0.15,
-    },
-    "religion:demiurge_worship": {
-        "domain:mastery": 0.30, "domain:truth": 0.25, "domain:order": 0.20,
-        "domain:light": 0.20, "domain:change": 0.10,
-        "domain:void": -0.20, "domain:decay": -0.15,
-    },
-    "religion:animism": {
-        "domain:growth": 0.30, "domain:water": 0.25, "domain:change": 0.25,
-        "domain:fire": 0.20, "domain:sacrifice": 0.20, "domain:memory": 0.20,
-        "domain:community": 0.15,
-        "domain:mastery": -0.15, "domain:truth": -0.10,
-    },
-    "religion:ancestor_worship": {
-        "domain:memory": 0.40, "domain:community": 0.20, "domain:order": 0.10,
-        "domain:growth": 0.15,
-        "domain:change": -0.20, "domain:conflict": -0.10, "domain:void": -0.15,
-    },
-    "religion:maltheism": {
-        "domain:conflict": 0.30, "domain:void": 0.25, "domain:decay": 0.30,
-        "domain:sacrifice": 0.25, "domain:change": 0.20,
-        "domain:order": -0.25, "domain:light": -0.30, "domain:community": -0.20,
-        "domain:truth": -0.15,
-    },
-    "religion:nontheism": {
-        "domain:truth": 0.30, "domain:silence": 0.20, "domain:order": 0.15,
-        "domain:void": 0.15,
-        "domain:sacrifice": -0.20, "domain:mastery": -0.15, "domain:light": -0.10,
-        "domain:decay": -0.10,
-    },
-    "religion:void_worship": {
-        "domain:void": 0.40, "domain:secrecy": 0.25, "domain:silence": 0.25,
-        "domain:decay": 0.25, "domain:conflict": 0.15,
-        "domain:light": -0.35, "domain:community": -0.25, "domain:growth": -0.20,
-        "domain:truth": -0.15,
-    },
-    # ── Values & Virtues ────────────────────────
-    "values:honesty": {
-        "domain:truth": 0.30, "domain:light": 0.20, "domain:order": 0.15,
-        "domain:secrecy": -0.30, "domain:void": -0.15,
-    },
-    "values:adaptability": {
-        "domain:change": 0.30, "domain:water": 0.15, "domain:fire": 0.10,
-        "domain:order": -0.20, "domain:memory": -0.10,
-    },
-    "values:moderation": {
-        "domain:order": 0.20, "domain:silence": 0.20, "domain:sacrifice": 0.10,
-        "domain:community": 0.10,
-        "domain:fire": -0.20, "domain:conflict": -0.15,
-    },
-    "values:indulgence": {
-        "domain:fire": 0.25, "domain:growth": 0.15, "domain:water": 0.10,
-        "domain:order": -0.40, "domain:sacrifice": -0.35, "domain:silence": -0.30,
-    },
-    "values:charity": {
-        "domain:community": 0.30, "domain:light": 0.20, "domain:growth": 0.15,
-        "domain:sacrifice": 0.10,
-        "domain:mastery": -0.20, "domain:conflict": -0.10,
-    },
-    "values:prosperity": {
-        "domain:growth": 0.25, "domain:mastery": 0.20, "domain:community": 0.10,
-        "domain:sacrifice": -0.25, "domain:decay": -0.20,
-    },
-    "values:ambition": {
-        "domain:mastery": 0.30, "domain:conflict": 0.20, "domain:fire": 0.15,
-        "domain:silence": -0.30, "domain:community": -0.20, "domain:sacrifice": -0.15,
-    },
-    "values:humility": {
-        "domain:silence": 0.25, "domain:community": 0.20, "domain:order": 0.15,
-        "domain:sacrifice": 0.10,
-        "domain:mastery": -0.30, "domain:conflict": -0.15,
-    },
-    "values:wit": {
-        "domain:change": 0.20, "domain:truth": 0.15, "domain:secrecy": 0.10,
-        "domain:silence": -0.15, "domain:order": -0.10,
-    },
-    "values:sincerity": {
-        "domain:truth": 0.30, "domain:community": 0.20, "domain:light": 0.15,
-        "domain:order": 0.10,
-        "domain:secrecy": -0.30,
-    },
-    "values:patience": {
-        "domain:silence": 0.25, "domain:order": 0.20, "domain:memory": 0.15,
-        "domain:growth": 0.10,
-        "domain:conflict": -0.20, "domain:fire": -0.15,
-    },
-    "values:tenacity": {
-        "domain:conflict": 0.20, "domain:mastery": 0.20, "domain:fire": 0.15,
-        "domain:memory": 0.15,
-        "domain:change": -0.15,
-    },
-    "values:idealism": {
-        "domain:light": 0.30, "domain:truth": 0.20, "domain:sacrifice": 0.15,
-        "domain:change": 0.10,
-        "domain:secrecy": -0.20, "domain:void": -0.20,
-    },
-    "values:pragmatism": {
-        "domain:mastery": 0.25, "domain:order": 0.15, "domain:change": 0.15,
-        "domain:sacrifice": -0.20, "domain:light": -0.10,
-    },
-    "values:erudition": {
-        "domain:truth": 0.30, "domain:memory": 0.25, "domain:silence": 0.10,
-        "domain:mastery": 0.10,
-        "domain:conflict": -0.15,
-    },
-    "values:folk_wisdom": {
-        "domain:memory": 0.30, "domain:community": 0.20, "domain:growth": 0.15,
-        "domain:water": 0.10,
-        "domain:mastery": -0.20,
-    },
-}
-
-# Backward-compat alias (older code paths may still reference the religion-only name).
-_RELIGION_DOMAIN_AFFINITY = _CULTURE_DOMAIN_AFFINITY
-
 
 def compute_mortal_alignment_base(
     mortal,
@@ -248,7 +123,7 @@ def compute_mortal_alignment_base(
     """
     Computes a mortal's natural alignment drift target from two sources:
       domain belief similarity  — weight 0.70
-      culture tag affinity      — weight 0.30  (religion + values, via _CULTURE_DOMAIN_AFFINITY)
+      culture tag affinity      — weight 0.30  (religion + values, via CultureRegistry.domain_affinity)
     Returns a value in [0.05, 0.95].
     Falls back to 0.5 if affiliated_domains is empty or mortal has no relevant data.
 
@@ -282,12 +157,13 @@ def compute_mortal_alignment_base(
         b_wt    += strength
     belief_sim = (b_score / b_wt / norm) if b_wt else 0.0
 
-    # Culture tags (religion + values) via _CULTURE_DOMAIN_AFFINITY.
+    # Culture tags (religion + values) via CultureRegistry.domain_affinity.
     # No damping on negatives — opposing values/religions pull alignment down
     # at full weight, mirroring how synergistic ones lift it.
+    creg = get_culture_registry()
     c_score = c_wt = 0.0
     for c_tag, c_strength in mortal.culture_tags.items():
-        domain_affinities = _CULTURE_DOMAIN_AFFINITY.get(c_tag, {})
+        domain_affinities = creg.domain_affinity(c_tag)
         for d_tag, d_affinity in domain_affinities.items():
             c_score += mean_sim_to_affiliated(d_tag) * d_affinity * c_strength
             c_wt    += abs(d_affinity) * c_strength
@@ -4929,11 +4805,12 @@ class TickLoop:
         """
         Returns a multiplier (≥ 0.2) for how receptive a Pop is to domain influence.
         Derived from all culture_tags (religion + values) crossing against
-        _CULTURE_DOMAIN_AFFINITY.
+        CultureRegistry.domain_affinity.
         """
+        creg = self._culture_registry or get_culture_registry()
         bonus = 0.0
         for tag, strength in pop.culture_tags.items():
-            affinities = _CULTURE_DOMAIN_AFFINITY.get(tag, {})
+            affinities = creg.domain_affinity(tag)
             bonus += affinities.get(domain_tag, 0.0) * strength
         return max(0.2, 1.0 + bonus)
 

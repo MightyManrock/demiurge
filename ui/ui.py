@@ -362,6 +362,38 @@ class GameScreen(Screen):
         """Click-action target — fires from `[@click=...]` markup in tab bodies."""
         self.open_detail_by_id(kind, entity_id)
 
+    def action_navigate_detail_by_id(self, kind: str, entity_id: str) -> None:
+        """Click target emitted by links rendered inside a detail tab — push
+        onto the active tab's history. Falls back to opening a new tab when
+        no detail pane is active (e.g. clicked via keyboard during focus change)."""
+        if self._detail_mgr is None or not self._detail_mgr.is_detail_pane_active():
+            self.open_detail_by_id(kind, entity_id)
+            return
+        name = self._lookup_entity_name(kind, str(entity_id))
+        self._detail_mgr.navigate_active(kind, str(entity_id), name, self._state)
+
+    def action_detail_back_to_index(self, idx: str) -> None:
+        """Breadcrumb-click target: jump active detail tab's history to index `idx`."""
+        if self._detail_mgr is None:
+            return
+        try:
+            i = int(idx)
+        except (TypeError, ValueError):
+            return
+        self._detail_mgr.jump_active_to_index(i, self._state)
+
+    def action_open_luminary(self, lum_id: str) -> None:
+        """Switch to the Luminaries tab and show the detail view for one Luminary."""
+        right = self.query_one("#right-tabs", TabbedContent)
+        right.active = "luminaries"
+        self.query_one(LuminariesTab).show_luminary(str(lum_id))
+
+    def action_open_luminaries_list(self) -> None:
+        """Breadcrumb target — return the Luminaries tab to list view."""
+        right = self.query_one("#right-tabs", TabbedContent)
+        right.active = "luminaries"
+        self.query_one(LuminariesTab).show_list()
+
     def action_open_divine_wisdom(self, domain_tag: str = "") -> None:
         """Switch to the Divine Wisdom tab and (optionally) jump to a Domain tree."""
         right = self.query_one("#right-tabs", TabbedContent)

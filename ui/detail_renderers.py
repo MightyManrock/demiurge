@@ -145,6 +145,36 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         a("  [#5a7090](none in Window)[/]")
 
     a("")
+    a("[bold #4a80b0]POPS HERE[/]")
+    any_p = False
+    for pid, pop in state.pops.items():
+        pop_loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+        if not pop_loc or str(pop_loc.parent_id) != str(world_id):
+            continue
+        p_oow = not is_in_window(pop)
+        if p_oow and not dev:
+            continue
+        any_p = True
+        pm = "[dim]" if p_oow else ""
+        pe = "[/]" if p_oow else ""
+        class_label = pop.stratum.title() if pop.stratum else "Pop"
+        sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+        pop_stratum_md = _click_link("pop", str(pid), class_label)
+        if sp_obj:
+            sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
+            pop_label = f"{pop_stratum_md}  ({sp_md})"
+        else:
+            pop_label = pop_stratum_md
+        civ_obj = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+        civ_suffix = ""
+        if civ_obj:
+            civ_link = _click_link("civ", str(civ_obj.id), _e(civ_obj.name))
+            civ_suffix = f"  in {civ_link}"
+        a(f"  {pm}↳ {pop_label}  sz:{pop.size_magnitude}{civ_suffix}{pe}")
+    if not any_p:
+        a("  [#5a7090](none in Window)[/]")
+
+    a("")
     a("[bold #4a80b0]NOTABLE MORTALS HERE[/]")
     any_m = False
     for mid, m in state.mortals.items():
@@ -416,35 +446,79 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         a("[bold #4a80b0]PROXIUS GOAL[/]")
         if m.active_goal:
             g = m.active_goal
-            # Directive label — derived from the imago the player chose.
-            if g.label:
-                a(f"  directive: {_e(g.label)}")
-            elif g.imago_node_id:
-                from utilities.imago_registry import get_registry as get_imago_registry
-                ireg = get_imago_registry()
-                node = ireg.get_node(g.imago_node_id)
-                imago_label = node.name if node else g.imago_node_id
-                a(f"  directive: preaching [#a0b8d0]{_e(imago_label)}[/]")
-            elif g.research_domain:
-                a(f"  directive: researching {_e(_short_tag(g.research_domain))}")
-            # Targets — only what the player explicitly set.
-            if g.target_civilization_id:
-                civ = state.civilizations.get(str(g.target_civilization_id))
-                if civ:
-                    civ_link = _click_link(
-                        "civ", str(g.target_civilization_id),
-                        f"{_e(civ.name)}",
-                    )
-                    a(f"  target: {civ_link}")
-            if g.target_location_id:
-                loc = state.locations.get(str(g.target_location_id))
-                if loc:
-                    loc_link = _location_link(state, g.target_location_id, f"{_e(loc.name)}")
-                    a(f"  location: {loc_link}")
-            ticks_active = state.tick_number - g.started_at_tick
-            a(f"  ticks at task: {ticks_active}")
-            if g.petition_pending:
-                a(f"  [#c09030]petition pending — awaiting new orders[/]")
+            if dev:
+                # ── Verbose dev view: full ProxiusGoal state. ──
+                if g.label:
+                    a(f"  directive: {_e(g.label)}")
+                if g.last_action is not None:
+                    a(f"  last action: [#a0d080]{_e(g.last_action.value.replace('_', ' '))}[/]")
+                else:
+                    a(f"  last action: [#5a7090](not yet acted)[/]")
+                if g.imago_node_id:
+                    from utilities.imago_registry import get_registry as get_imago_registry
+                    ireg = get_imago_registry()
+                    node = ireg.get_node(g.imago_node_id)
+                    imago_label = node.name if node else g.imago_node_id
+                    a(f"  imago: [#a0b8d0]{_e(imago_label)}[/]")
+                if g.target_civilization_id:
+                    civ = state.civilizations.get(str(g.target_civilization_id))
+                    if civ:
+                        civ_link = _click_link(
+                            "civ", str(g.target_civilization_id), f"{_e(civ.name)}",
+                        )
+                        a(f"  target civilization: {civ_link}")
+                if g.target_location_id:
+                    loc = state.locations.get(str(g.target_location_id))
+                    if loc:
+                        loc_link = _location_link(state, g.target_location_id, f"{_e(loc.name)}")
+                        a(f"  target location: {loc_link}")
+                if g.source_pop_id:
+                    src = state.pops.get(str(g.source_pop_id))
+                    if src:
+                        slabel = src.stratum.title() if src.stratum else "Pop"
+                        src_link = _click_link("pop", str(g.source_pop_id), f"{_e(slabel)}")
+                        a(f"  source pop: {src_link}  sz:{src.size_magnitude}")
+                if g.goal_pop_id:
+                    gp = state.pops.get(str(g.goal_pop_id))
+                    if gp:
+                        glabel = gp.stratum.title() if gp.stratum else "Pop"
+                        gp_link = _click_link("pop", str(g.goal_pop_id), f"{_e(glabel)}")
+                        a(f"  goal pop:   {gp_link}  sz:{gp.size_magnitude}")
+                if g.research_domain:
+                    a(f"  researching: {_e(_short_tag(g.research_domain))}")
+                ticks_active = state.tick_number - g.started_at_tick
+                a(f"  ticks at task: {ticks_active}")
+                if g.petition_pending:
+                    a(f"  [#c09030]petition pending ({g.petition_pending_ticks}/5 ticks)[/]")
+            else:
+                # ── Compact player view. ──
+                if g.label:
+                    a(f"  directive: {_e(g.label)}")
+                elif g.imago_node_id:
+                    from utilities.imago_registry import get_registry as get_imago_registry
+                    ireg = get_imago_registry()
+                    node = ireg.get_node(g.imago_node_id)
+                    imago_label = node.name if node else g.imago_node_id
+                    a(f"  directive: preaching [#a0b8d0]{_e(imago_label)}[/]")
+                elif g.research_domain:
+                    a(f"  directive: researching {_e(_short_tag(g.research_domain))}")
+                if g.target_civilization_id:
+                    civ = state.civilizations.get(str(g.target_civilization_id))
+                    if civ:
+                        civ_link = _click_link(
+                            "civ", str(g.target_civilization_id),
+                            f"{_e(civ.name)}",
+                        )
+                        a(f"  target: {civ_link}")
+                if g.target_location_id:
+                    loc = state.locations.get(str(g.target_location_id))
+                    if loc:
+                        loc_link = _location_link(state, g.target_location_id, f"{_e(loc.name)}")
+                        a(f"  location: {loc_link}")
+                ticks_active = state.tick_number - g.started_at_tick
+                a(f"  ticks at task: {ticks_active}")
+                if g.petition_pending:
+                    a(f"  [#c09030]petition pending — awaiting new orders[/]")
         else:
             a("  [#5a7090](idle — no active directive)[/]")
 
@@ -642,16 +716,25 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
         a("")
         a(f"  [#c09030]goal target of Preach Imāgō: {_e(imago_label)}[/]")
 
-    if pop.notable_mortal_ids:
-        a("")
-        a("[bold #4a80b0]NOTABLE MORTALS[/]")
-        for mid in pop.notable_mortal_ids:
-            m = state.mortals.get(str(mid))
-            if not m:
-                continue
-            m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
-            role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
-            a(f"  ● {m_link} \\[{role_str}]  align:{m.alignment:+.2f}")
+    dev = display.DEV_MODE
+    a("")
+    a("[bold #4a80b0]NOTABLE MORTALS[/]")
+    any_m = False
+    for mid in pop.notable_mortal_ids:
+        m = state.mortals.get(str(mid))
+        if not m or m.status == MortalStatus.DECEASED:
+            continue
+        m_oow = not is_mortal_visible(m)
+        if m_oow and not dev:
+            continue
+        any_m = True
+        mm = "[dim]" if m_oow else ""
+        me = "[/]" if m_oow else ""
+        role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
+        m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
+        a(f"  {mm}● {m_link} \\[{role_str}]  align:{m.alignment:.2f}{me}")
+    if not any_m:
+        a("  [#5a7090](none in Window)[/]")
 
     return Text.from_markup("\n".join(lines))
 
