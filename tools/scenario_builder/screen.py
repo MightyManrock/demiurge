@@ -14,6 +14,7 @@ from __future__ import annotations
 import shutil
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 from textual import on, work
 from textual.app import ComposeResult
@@ -25,7 +26,8 @@ from logic.tick_logic import SimulationState
 from ui.constants import _SCENARIOS_DIR
 from ui.detail_tabs import DetailTabManager
 from ui.display import _pop_stratum_label
-from ui.modals import QuitConfirmModal, ErrorModal, TextFormModal
+from ui.constants import BACK
+from ui.modals import QuitConfirmModal, ErrorModal, PickerModal, TextFormModal
 from ui.widgets import (
     DivineWisdomTab, LocationsTab, LuminariesTab, UniverseTab,
     set_unseen_predicate,
@@ -34,18 +36,21 @@ from utilities.scenario_exporter import export_scenario
 
 from .briefing_editor import BriefingEditorTab
 from .naming import validate_initialism, validate_scenario_name
+from . import location_editor as locedit
 
 
 class BuilderScreen(Screen):
     """Builder-mode workspace. Read-only browsing + save/save-as in Phase 1."""
 
     DEFAULT_CSS = """
-    BuilderScreen #builder-toolbar {
+    BuilderScreen #builder-toolbar,
+    BuilderScreen #builder-toolbar-2 {
         height: 3;
         padding: 0 1;
         background: #0a0a1e;
     }
-    BuilderScreen #builder-toolbar Button {
+    BuilderScreen #builder-toolbar Button,
+    BuilderScreen #builder-toolbar-2 Button {
         margin: 0 1 0 0;
         min-width: 18;
     }
@@ -90,6 +95,10 @@ class BuilderScreen(Screen):
             yield Button("Edit Universe",  id="edit-universe-btn")
             yield Button("Edit Demiurge",  id="edit-demiurge-btn")
             yield Button("Edit Pantheon",  id="edit-pantheon-btn")
+        with Horizontal(id="builder-toolbar-2"):
+            yield Button("+ Add Location", id="add-location-btn")
+            yield Button("Edit Location",  id="edit-location-btn")
+            yield Button("Delete Location", id="delete-location-btn")
         with Horizontal():
             with TabbedContent(id="left-tabs", initial="locations"):
                 with TabPane("Locations", id="locations"):
@@ -427,3 +436,207 @@ class BuilderScreen(Screen):
         if choice == "save":
             self._save_to(self._db_path)
         self.app.exit()
+
+    # ── Location editing toolbar buttons ───────────────────────────────────
+
+    @on(Button.Pressed, "#add-location-btn")
+    def _add_location_pressed(self, _: Button.Pressed) -> None:
+        self._add_location_flow()
+
+    @on(Button.Pressed, "#edit-location-btn")
+    def _edit_location_pressed(self, _: Button.Pressed) -> None:
+        self._edit_location_flow()
+
+    @on(Button.Pressed, "#delete-location-btn")
+    def _delete_location_pressed(self, _: Button.Pressed) -> None:
+        self._delete_location_flow()
+
+    @work
+    async def _add_location_flow(self) -> None:
+        # Step 1: pick the kind of location to create.
+        kind = await self.app.push_screen_wait(PickerModal(
+            title="What kind of location?",
+            items=locedit.KIND_ITEMS,
+            description=(
+                "Galaxies live at the top of the spatial tree; Systems sit "
+                "inside Galaxies; Worlds (SignificantLocations) sit inside "
+                "Systems; Settlements (PopLocations) sit inside Worlds."
+            ),
+        ))
+        if not kind or kind == BACK:
+            return
+
+        # Step 2: pick parent (Galaxy is parentless and skips this step).
+        parent_uuid = None
+        parent_kind = locedit.PARENT_KIND.get(kind)
+        if parent_kind is not None:
+            cands = locedit.candidates_for_kind(self._state, parent_kind)
+            if not cands:
+                await self.app.push_screen_wait(ErrorModal(
+                    f"Cannot create a {kind}: no {parent_kind} exists to "
+                    "contain it. Create the parent first."
+                ))
+                return
+            parent_id_str = await self.app.push_screen_wait(PickerModal(
+                title=f"Pick parent {parent_kind}",
+                items=cands,
+                show_back=True,
+            ))
+            if parent_id_str in (None, BACK):
+                return
+            parent_uuid = UUID(parent_id_str)
+
+        # Step 3: enum picker for star_type (system) or condition (world).
+        star_type = condition = None
+        if kind == "system":
+            star_type = await self.app.push_screen_wait(PickerModal(
+                title="Star type",
+                items=locedit.STAR_TYPE_ITEMS,
+                show_back=True,
+            ))
+            if star_type in (None, BACK):
+                return
+        elif kind == "world":
+            condition = await self.app.push_screen_wait(PickerModal(
+                title="World condition",
+                items=locedit.CONDITION_ITEMS,
+                show_back=True,
+            ))
+            if condition in (None, BACK):
+                return
+
+        # Step 4: text-field form.
+        fields = await self.app.push_screen_wait(TextFormModal(
+            title=f"New {kind}",
+            fields=locedit.text_fields_for(kind, None),
+            show_back=True,
+        ))
+        if fields in (None, BACK):
+            return
+        err = locedit.validate_text_fields(kind, fields)
+        if err:
+            await self.app.push_screen_wait(ErrorModal(err))
+            return
+
+        # Construct and insert.
+        new_loc = locedit.construct_location(
+            kind, fields, parent_uuid,
+            star_type=star_type, condition=condition,
+        )
+        self._state.locations[str(new_loc.id)] = new_loc
+        if parent_uuid is None:
+            self._state.universe.child_ids.append(new_loc.id)
+        else:
+            parent = self._state.locations.get(str(parent_uuid))
+            if parent is not None:
+                parent.child_ids.append(new_loc.id)
+        self.mark_dirty()
+        self._refresh_all()
+        self.notify(f"Created {kind}: {new_loc.name}", timeout=3)
+
+    @work
+    async def _edit_location_flow(self) -> None:
+        items = locedit.all_locations_grouped(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal(
+                "No locations exist yet. Use + Add Location to create one."
+            ))
+            return
+        target_id = await self.app.push_screen_wait(PickerModal(
+            title="Edit which location?",
+            items=items,
+        ))
+        if not target_id:
+            return
+        loc = self._state.locations.get(target_id)
+        if loc is None:
+            await self.app.push_screen_wait(ErrorModal("Location not found."))
+            return
+        kind = locedit.location_kind(loc)
+
+        # System star_type / world condition pickers go first when present,
+        # so users can hit Cancel without committing other edits.
+        new_star_type = None
+        new_condition = None
+        if kind == "system":
+            new_star_type = await self.app.push_screen_wait(PickerModal(
+                title=f"Star type (current: {loc.star_type.value})",
+                items=locedit.STAR_TYPE_ITEMS,
+                show_back=True,
+            ))
+            if new_star_type in (None, BACK):
+                return
+        elif kind == "world":
+            new_condition = await self.app.push_screen_wait(PickerModal(
+                title=f"Condition (current: {loc.condition.value})",
+                items=locedit.CONDITION_ITEMS,
+                show_back=True,
+            ))
+            if new_condition in (None, BACK):
+                return
+
+        fields = await self.app.push_screen_wait(TextFormModal(
+            title=f"Edit {kind}: {loc.name}",
+            fields=locedit.text_fields_for(kind, loc),
+            show_back=True,
+        ))
+        if fields in (None, BACK):
+            return
+        err = locedit.validate_text_fields(kind, fields)
+        if err:
+            await self.app.push_screen_wait(ErrorModal(err))
+            return
+
+        locedit.apply_text_fields(loc, kind, fields)
+        if new_star_type is not None:
+            from core.universe_core import StarType
+            loc.star_type = StarType(new_star_type)
+        if new_condition is not None:
+            from core.universe_core import LocCondition
+            loc.condition = LocCondition(new_condition)
+        self.mark_dirty()
+        self._refresh_all()
+        self.notify(f"Updated {kind}: {loc.name}", timeout=3)
+
+    @work
+    async def _delete_location_flow(self) -> None:
+        items = locedit.all_locations_grouped(self._state)
+        if not items:
+            await self.app.push_screen_wait(ErrorModal("No locations to delete."))
+            return
+        target_id = await self.app.push_screen_wait(PickerModal(
+            title="Delete which location?",
+            items=items,
+        ))
+        if not target_id:
+            return
+        loc = self._state.locations.get(target_id)
+        if loc is None:
+            await self.app.push_screen_wait(ErrorModal("Location not found."))
+            return
+
+        # Reference check — refuse if anything points at this location.
+        blocks = locedit.find_blocking_references(self._state, target_id)
+        if blocks:
+            preview = "\n  • ".join(blocks[:8])
+            extra = f"\n  …and {len(blocks) - 8} more" if len(blocks) > 8 else ""
+            await self.app.push_screen_wait(ErrorModal(
+                f"Cannot delete {loc.name}: {len(blocks)} reference(s) "
+                f"point at it. Clear them first.\n\n  • {preview}{extra}"
+            ))
+            return
+
+        # Confirm deletion.
+        choice = await self.app.push_screen_wait(PickerModal(
+            title=f"Delete {loc.name}?",
+            items=[("yes", "Yes, delete it."), ("no", "No, cancel.")],
+            description="This cannot be undone within the current session.",
+        ))
+        if choice != "yes":
+            return
+
+        locedit.remove_from_parent(self._state, loc)
+        self._state.locations.pop(target_id, None)
+        self.mark_dirty()
+        self._refresh_all()
+        self.notify(f"Deleted: {loc.name}", timeout=3)
