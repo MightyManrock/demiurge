@@ -50,6 +50,15 @@ _is_unseen: "callable[[str, str], bool]" = lambda kind, eid: False
 # Builder swaps in a concrete callable on each refresh; default returns False.
 _is_flagged: "callable[[str], bool]" = lambda eid: False
 
+# Per-entity action controls injected into the detail-tab header strip.
+# Builder mode swaps in a provider that emits e.g. [("Edit", "edit_entity_by_id"),
+# ("Delete", "delete_entity_by_id")] for editable kinds. Default returns [].
+# Each tuple is (display_label, screen_action_name) — the action receives
+# (kind, eid) as its two arguments via the click-action markup.
+_detail_action_provider: "callable[[str, str], list[tuple[str, str]]]" = (
+    lambda kind, eid: []
+)
+
 # When True, `_click_link` emits a navigate-in-place action instead of
 # opening a new detail tab. Toggled on by DetailTab._render_body while a
 # detail renderer is running; cleared on the way out.
@@ -74,6 +83,18 @@ def set_flag_predicate(fn) -> None:
     and overrides the per-kind link color."""
     global _is_flagged
     _is_flagged = fn
+
+
+def set_detail_action_provider(fn) -> None:
+    """Install a provider that returns per-entity action buttons for the
+    detail-tab header strip. Signature: fn(kind, eid) -> list[(label, action)]."""
+    global _detail_action_provider
+    _detail_action_provider = fn
+
+
+def detail_actions_for(kind: str, eid: str) -> list[tuple[str, str]]:
+    """Used by DetailTab._render_body to fetch the current action set."""
+    return _detail_action_provider(kind, eid)
 
 
 def _maybe_gold(kind: str, eid: str, label_markup: str) -> str:

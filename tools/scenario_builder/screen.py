@@ -32,7 +32,7 @@ from ui.constants import BACK
 from ui.modals import QuitConfirmModal, ErrorModal, PickerModal, TextFormModal
 from ui.widgets import (
     DivineWisdomTab, LocationsTab, LuminariesTab, UniverseTab,
-    set_flag_predicate, set_unseen_predicate,
+    set_detail_action_provider, set_flag_predicate, set_unseen_predicate,
 )
 from utilities.scenario_exporter import export_scenario
 
@@ -163,6 +163,91 @@ class BuilderScreen(Screen):
         self._flag_reasons = find_broken_refs(self._state)
         self._flagged_ids = set(self._flag_reasons.keys())
 
+    # ── Detail-tab inline action provider ─────────────────────────────────
+
+    # Mapping of renderer kind → (in-state attribute name, ordered).
+    _EDITABLE_KIND_TABLES = {
+        "world":    "locations",
+        "system":   "locations",
+        "galaxy":   "locations",
+        "poploc":   "locations",
+        "civ":      "civilizations",
+        "species":  "species",
+        "pop":      "pops",
+        "mortal":   "mortals",
+        "luminary": "luminaries",
+    }
+
+    def _detail_actions_for(self, kind: str, eid: str) -> list[tuple[str, str]]:
+        """Return the inline button set for a given detail-tab entity.
+        Empty list means no buttons render (e.g., for unknown kinds)."""
+        if kind not in self._EDITABLE_KIND_TABLES:
+            return []
+        table = getattr(self._state, self._EDITABLE_KIND_TABLES[kind], None)
+        if table is None or eid not in table:
+            return []
+        return [
+            ("Edit",   "edit_entity_by_id"),
+            ("Delete", "delete_entity_by_id"),
+        ]
+
+    def action_edit_entity_by_id(self, kind: str, eid: str) -> None:
+        """Click target from the detail-tab [ Edit ] button. Dispatches to
+        the per-kind edit-loop helper, bypassing the picker step."""
+        self._edit_entity_by_id_worker(kind, eid)
+
+    def action_delete_entity_by_id(self, kind: str, eid: str) -> None:
+        """Click target from the detail-tab [ Delete ] button."""
+        self._delete_entity_by_id_worker(kind, eid)
+
+    @work
+    async def _edit_entity_by_id_worker(self, kind: str, eid: str) -> None:
+        if kind in ("world", "system", "galaxy", "poploc"):
+            loc = self._state.locations.get(eid)
+            if loc is None:
+                await self.app.push_screen_wait(ErrorModal("Location not found.")); return
+            await self._location_edit_loop(loc)
+        elif kind == "civ":
+            civ = self._state.civilizations.get(eid)
+            if civ is None:
+                await self.app.push_screen_wait(ErrorModal("Civilization not found.")); return
+            await self._civ_edit_loop(civ)
+        elif kind == "species":
+            sp = self._state.species.get(eid)
+            if sp is None:
+                await self.app.push_screen_wait(ErrorModal("Species not found.")); return
+            await self._species_edit_loop(sp)
+        elif kind == "pop":
+            pop = self._state.pops.get(eid)
+            if pop is None:
+                await self.app.push_screen_wait(ErrorModal("Pop not found.")); return
+            await self._pop_edit_loop(pop)
+        elif kind == "mortal":
+            m = self._state.mortals.get(eid)
+            if m is None:
+                await self.app.push_screen_wait(ErrorModal("Mortal not found.")); return
+            await self._mortal_edit_loop(m)
+        elif kind == "luminary":
+            lum = self._state.luminaries.get(eid)
+            if lum is None:
+                await self.app.push_screen_wait(ErrorModal("Luminary not found.")); return
+            await self._luminary_edit_loop(lum)
+
+    @work
+    async def _delete_entity_by_id_worker(self, kind: str, eid: str) -> None:
+        if kind in ("world", "system", "galaxy", "poploc"):
+            await self._location_delete_by_id(eid)
+        elif kind == "civ":
+            await self._civ_delete_by_id(eid)
+        elif kind == "species":
+            await self._species_delete_by_id(eid)
+        elif kind == "pop":
+            await self._pop_delete_by_id(eid)
+        elif kind == "mortal":
+            await self._mortal_delete_by_id(eid)
+        elif kind == "luminary":
+            await self._luminary_delete_by_id(eid)
+
     def _refresh_all(self) -> None:
         # Widgets consult this predicate for "unseen" gold highlighting.
         # The builder has no discovery system, so always return False.
@@ -170,6 +255,9 @@ class BuilderScreen(Screen):
         # Recompute broken-ref flags and install the red-link predicate.
         self._recompute_flags()
         set_flag_predicate(lambda eid: eid in self._flagged_ids)
+        # Install the per-entity action provider used by DetailTab's header
+        # to render inline [ Edit ] / [ Delete ] buttons.
+        set_detail_action_provider(self._detail_actions_for)
         state = self._state
         self._update_subtitle()
         self.query_one(LocationsTab).refresh_state(state)
@@ -602,6 +690,8 @@ class BuilderScreen(Screen):
         # set_flag_predicate left a closure pointing at this screen's _flagged_ids;
         # reset to no-op so the chooser doesn't inherit stale state.
         set_flag_predicate(lambda _eid: False)
+        # Same for the detail-tab action provider.
+        set_detail_action_provider(lambda _k, _e: [])
         self.app.switch_screen(ScenarioChooserScreen())
 
     # ── Cascade helpers (delete dependents along with the target) ──────────
@@ -860,6 +950,9 @@ class BuilderScreen(Screen):
         if loc is None:
             await self.app.push_screen_wait(ErrorModal("Location not found."))
             return
+        await self._location_edit_loop(loc)
+
+    async def _location_edit_loop(self, loc) -> None:
         kind = locedit.location_kind(loc)
         kind_label = {"galaxy": "galaxy", "system": "system",
                       "world": "world", "poploc": "settlement"}.get(kind, kind)
@@ -964,6 +1057,9 @@ class BuilderScreen(Screen):
         ))
         if not target_id:
             return
+        await self._location_delete_by_id(target_id)
+
+    async def _location_delete_by_id(self, target_id: str) -> None:
         loc = self._state.locations.get(target_id)
         if loc is None:
             await self.app.push_screen_wait(ErrorModal("Location not found."))
@@ -1107,6 +1203,9 @@ class BuilderScreen(Screen):
         sp = self._state.species.get(sid)
         if sp is None:
             await self.app.push_screen_wait(ErrorModal("Species not found.")); return
+        await self._species_edit_loop(sp)
+
+    async def _species_edit_loop(self, sp) -> None:
         while True:
             choice = await self.app.push_screen_wait(PickerModal(
                 title=f"Edit species: {sp.name}",
@@ -1174,6 +1273,9 @@ class BuilderScreen(Screen):
         ))
         if not sid:
             return
+        await self._species_delete_by_id(sid)
+
+    async def _species_delete_by_id(self, sid: str) -> None:
         sp = self._state.species.get(sid)
         if sp is None:
             await self.app.push_screen_wait(ErrorModal("Species not found.")); return
@@ -1280,6 +1382,11 @@ class BuilderScreen(Screen):
         civ = self._state.civilizations.get(cid)
         if civ is None:
             await self.app.push_screen_wait(ErrorModal("Civilization not found.")); return
+        await self._civ_edit_loop(civ)
+
+    async def _civ_edit_loop(self, civ) -> None:
+        """Sub-menu loop on a resolved Civilization. Called both by the
+        picker-driven flow and by the inline detail-tab Edit button."""
         while True:
             choice = await self.app.push_screen_wait(PickerModal(
                 title=f"Edit civilization: {civ.name}",
@@ -1412,6 +1519,9 @@ class BuilderScreen(Screen):
         ))
         if not cid:
             return
+        await self._civ_delete_by_id(cid)
+
+    async def _civ_delete_by_id(self, cid: str) -> None:
         civ = self._state.civilizations.get(cid)
         if civ is None:
             await self.app.push_screen_wait(ErrorModal("Civilization not found.")); return
@@ -1553,6 +1663,9 @@ class BuilderScreen(Screen):
         pop = self._state.pops.get(pid)
         if pop is None:
             await self.app.push_screen_wait(ErrorModal("Pop not found.")); return
+        await self._pop_edit_loop(pop)
+
+    async def _pop_edit_loop(self, pop) -> None:
         # Reassigning species/civ/location/stratum is deferred (back-ref
         # bookkeeping); the basics form just edits size_fractional.
         while True:
@@ -1756,6 +1869,9 @@ class BuilderScreen(Screen):
         ))
         if not pid:
             return
+        await self._pop_delete_by_id(pid)
+
+    async def _pop_delete_by_id(self, pid: str) -> None:
         pop = self._state.pops.get(pid)
         if pop is None:
             await self.app.push_screen_wait(ErrorModal("Pop not found.")); return
@@ -1934,6 +2050,9 @@ class BuilderScreen(Screen):
         m = self._state.mortals.get(mid)
         if m is None:
             await self.app.push_screen_wait(ErrorModal("Mortal not found.")); return
+        await self._mortal_edit_loop(m)
+
+    async def _mortal_edit_loop(self, m) -> None:
         while True:
             choice = await self.app.push_screen_wait(PickerModal(
                 title=f"Edit mortal: {m.name}",
@@ -2021,6 +2140,9 @@ class BuilderScreen(Screen):
         ))
         if not mid:
             return
+        await self._mortal_delete_by_id(mid)
+
+    async def _mortal_delete_by_id(self, mid: str) -> None:
         m = self._state.mortals.get(mid)
         if m is None:
             await self.app.push_screen_wait(ErrorModal("Mortal not found.")); return
@@ -2095,6 +2217,9 @@ class BuilderScreen(Screen):
         lum = self._state.luminaries.get(lid)
         if lum is None:
             await self.app.push_screen_wait(ErrorModal("Luminary not found.")); return
+        await self._luminary_edit_loop(lum)
+
+    async def _luminary_edit_loop(self, lum) -> None:
         # Loop sub-menu until the user picks Done.
         while True:
             choice = await self.app.push_screen_wait(PickerModal(
@@ -2349,6 +2474,9 @@ class BuilderScreen(Screen):
         ))
         if not lid:
             return
+        await self._luminary_delete_by_id(lid)
+
+    async def _luminary_delete_by_id(self, lid: str) -> None:
         lum = self._state.luminaries.get(lid)
         if lum is None:
             await self.app.push_screen_wait(ErrorModal("Luminary not found.")); return

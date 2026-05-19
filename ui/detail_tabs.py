@@ -20,7 +20,7 @@ from rich.markup import escape as _e
 from rich.text import Text
 from textual.widgets import TabPane
 
-from ui.widgets import ContentTab, set_detail_render
+from ui.widgets import ContentTab, set_detail_render, detail_actions_for
 from ui.detail_renderers import RENDERERS
 
 if TYPE_CHECKING:
@@ -93,10 +93,30 @@ class DetailTab(ContentTab):
             finally:
                 set_detail_render(False)
 
-        # Header strip: pin indicator + breadcrumb (when there's more than one entry).
+        # Header strip: pin indicator + breadcrumb + per-entity action buttons.
         header_parts: list[str] = []
         if self._pinned:
             header_parts.append("[#c09030]★ pinned[/]")
+        # Action buttons (Edit / Delete in builder mode; empty in core game).
+        actions = detail_actions_for(kind, eid)
+        if actions:
+            btn_pieces: list[str] = []
+            for label, action in actions:
+                escaped = _e(label)
+                # Color the button label based on intent: green-ish for Edit,
+                # red-ish for Delete; anything else gets the neutral muted tone.
+                low = label.lower()
+                if "delete" in low or "remove" in low:
+                    color = "#d04050"
+                elif "edit" in low:
+                    color = "#80c0a0"
+                else:
+                    color = "#9ab0c8"
+                btn_pieces.append(
+                    f"[@click=screen.{action}('{kind}','{eid}')]"
+                    f"[bold {color}]\\[ {escaped} ][/][/]"
+                )
+            header_parts.append("  ".join(btn_pieces))
         if len(self._history) > 1:
             crumb_pieces: list[str] = []
             last_idx = len(self._history) - 1
