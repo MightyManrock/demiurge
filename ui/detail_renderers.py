@@ -911,6 +911,11 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     a(f"[bold #4a80b0]POP: {header}[/]")
     a("")
 
+    if pop.is_wild and not pop.wild_stratum:
+        stratum_text = "wild"
+    else:
+        stratum_text = pop.stratum.title() if pop.stratum else "—"
+    a(f"  stratum: {stratum_text}")
     a(f"  size: {pop.size_magnitude} ({_size_magnitude_word(pop.size_magnitude)})")
     if pop.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
