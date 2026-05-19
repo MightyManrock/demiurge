@@ -11,6 +11,7 @@ from ui.constants import _SCENARIOS_DIR
 from utilities.scenario_loader import load_scenario, validate_luminary_affinities
 
 from .chooser import ScenarioChooserScreen
+from .meta_io import peek_meta
 from .screen import BuilderScreen
 from .skeleton import build_skeleton_state
 from .wizard import NewScenarioWizardScreen
@@ -48,7 +49,12 @@ class BuilderApp(App):
                 + "\n  • ".join(violations),
                 severity="warning", timeout=8,
             )
-        self.push_screen(BuilderScreen(state, path))
+        # scenario_loader drops scenario_meta.description; re-peek it so the
+        # Briefing tab loads with the author's blurb intact.
+        meta = peek_meta(path)
+        self.push_screen(BuilderScreen(
+            state, path, scenario_description=meta.get("description", "")
+        ))
 
     # ── Wizard dispatch ────────────────────────────────────────────────────
 

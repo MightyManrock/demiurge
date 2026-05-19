@@ -19,22 +19,37 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.screen import Screen
-from textual.widgets import Footer, Header, TabbedContent, TabPane
+from textual.widgets import Button, Footer, Header, TabbedContent, TabPane
 
 from logic.tick_logic import SimulationState
 from ui.constants import _SCENARIOS_DIR
 from ui.detail_tabs import DetailTabManager
 from ui.display import _pop_stratum_label
-from ui.modals import QuitConfirmModal
+from ui.modals import QuitConfirmModal, ErrorModal, TextFormModal
 from ui.widgets import (
     DivineWisdomTab, LocationsTab, LuminariesTab, UniverseTab,
     set_unseen_predicate,
 )
 from utilities.scenario_exporter import export_scenario
 
+from .briefing_editor import BriefingEditorTab
+from .naming import validate_initialism, validate_scenario_name
+
 
 class BuilderScreen(Screen):
     """Builder-mode workspace. Read-only browsing + save/save-as in Phase 1."""
+
+    DEFAULT_CSS = """
+    BuilderScreen #builder-toolbar {
+        height: 3;
+        padding: 0 1;
+        background: #0a0a1e;
+    }
+    BuilderScreen #builder-toolbar Button {
+        margin: 0 1 0 0;
+        min-width: 18;
+    }
+    """
 
     BINDINGS = [
         ("ctrl+s",       "save",         "Save"),
@@ -42,29 +57,51 @@ class BuilderScreen(Screen):
         ("q",            "quit_confirm", "Quit"),
         ("ctrl+q",       "quit_force",   "Force quit"),
         # Tab switching: digit jumps to right-panel tab.
-        ("1", "right_tab('universe')",      "Universe"),
-        ("2", "right_tab('luminaries')",    "Luminaries"),
-        ("3", "right_tab('divine_wisdom')", "Wisdom"),
+        ("1", "right_tab('briefing')",      "Briefing"),
+        ("2", "right_tab('universe')",      "Universe"),
+        ("3", "right_tab('luminaries')",    "Luminaries"),
+        ("4", "right_tab('divine_wisdom')", "Wisdom"),
         # Detail-tab controls.
         ("escape",   "close_detail", "Close"),
         ("ctrl+p",   "pin_detail",   "Pin"),
         ("alt+left", "back_detail",  "Back"),
     ]
 
-    def __init__(self, state: SimulationState, db_path: Path):
+    def __init__(
+        self,
+        state: SimulationState,
+        db_path: Path,
+        scenario_description: str = "",
+    ):
         super().__init__()
         self._state: SimulationState = state
         self._db_path: Path = db_path
         self._dirty: bool = False
         self._detail_mgr: DetailTabManager | None = None
+        # Authored prose: scenario_meta.description is not stored on
+        # SimulationState by the loader; we track it here and persist it via
+        # export_scenario(..., description=...). Universe.description is read
+        # from state.universe.description.
+        self._scenario_description: str = scenario_description
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
+        with Horizontal(id="builder-toolbar"):
+            yield Button("Edit Universe",  id="edit-universe-btn")
+            yield Button("Edit Demiurge",  id="edit-demiurge-btn")
+            yield Button("Edit Pantheon",  id="edit-pantheon-btn")
         with Horizontal():
             with TabbedContent(id="left-tabs", initial="locations"):
                 with TabPane("Locations", id="locations"):
                     yield LocationsTab()
-            with TabbedContent(id="right-tabs", initial="universe"):
+            with TabbedContent(id="right-tabs", initial="briefing"):
+                with TabPane("Briefing", id="briefing"):
+                    yield BriefingEditorTab(
+                        scenario_description=self._scenario_description,
+                        universe_description=self._state.universe.description,
+                        on_scenario_description_changed=self._on_scenario_desc_edited,
+                        on_universe_description_changed=self._on_universe_desc_edited,
+                    )
                 with TabPane("Universe", id="universe"):
                     yield UniverseTab()
                 with TabPane("Luminaries", id="luminaries"):
@@ -86,6 +123,20 @@ class BuilderScreen(Screen):
         self._dirty = True
         self._update_subtitle()
 
+    # ── Briefing-editor callbacks ──────────────────────────────────────────
+
+    def _on_scenario_desc_edited(self, new_text: str) -> None:
+        if new_text == self._scenario_description:
+            return
+        self._scenario_description = new_text
+        self.mark_dirty()
+
+    def _on_universe_desc_edited(self, new_text: str) -> None:
+        if new_text == self._state.universe.description:
+            return
+        self._state.universe.description = new_text
+        self.mark_dirty()
+
     def _update_subtitle(self) -> None:
         s = self._state
         dirty = " · [modified]" if self._dirty else ""
@@ -105,6 +156,18 @@ class BuilderScreen(Screen):
         self.query_one(UniverseTab).refresh_state(state)
         self.query_one(LuminariesTab).refresh_state(state)
         self.query_one(DivineWisdomTab).refresh_state(state)
+        # Briefing editor needs state for preview rendering and may need its
+        # textareas resynced if a meta-edit modal changed universe.description.
+        try:
+            briefing = self.query_one(BriefingEditorTab)
+        except Exception:
+            briefing = None
+        if briefing is not None:
+            briefing.sync_descriptions(
+                self._scenario_description,
+                self._state.universe.description,
+            )
+            briefing.refresh_state(state)
         if self._detail_mgr is not None:
             self._detail_mgr.refresh_all(state)
 
@@ -179,6 +242,114 @@ class BuilderScreen(Screen):
     def action_right_tab(self, pane_id: str) -> None:
         self.query_one("#right-tabs", TabbedContent).active = pane_id
 
+    # ── Meta-edit toolbar buttons ──────────────────────────────────────────
+
+    @on(Button.Pressed, "#edit-universe-btn")
+    def _edit_universe_pressed(self, _: Button.Pressed) -> None:
+        self._edit_universe_flow()
+
+    @on(Button.Pressed, "#edit-demiurge-btn")
+    def _edit_demiurge_pressed(self, _: Button.Pressed) -> None:
+        self._edit_demiurge_flow()
+
+    @on(Button.Pressed, "#edit-pantheon-btn")
+    def _edit_pantheon_pressed(self, _: Button.Pressed) -> None:
+        self._edit_pantheon_flow()
+
+    @work
+    async def _edit_universe_flow(self) -> None:
+        u = self._state.universe
+        result = await self.app.push_screen_wait(TextFormModal(
+            title="Edit Universe",
+            description=(
+                "Scenario name appears in the chooser and at the top of the "
+                "briefing. Initialism is the save-file prefix (1–6 uppercase "
+                "letters/digits). Current age is the in-universe clock at "
+                "scenario start."
+            ),
+            fields=[
+                ("Scenario name", "name",        u.name),
+                ("Initialism",    "save_name",   u.save_name),
+                ("Current age",   "current_age", f"{u.current_age}"),
+            ],
+        ))
+        if not result:
+            return
+        name, err = validate_scenario_name(result["name"])
+        if err:
+            await self.app.push_screen_wait(ErrorModal(err)); return
+        initialism, err = validate_initialism(result["save_name"])
+        if err:
+            await self.app.push_screen_wait(ErrorModal(err)); return
+        try:
+            age = float(result["current_age"])
+        except (TypeError, ValueError):
+            await self.app.push_screen_wait(ErrorModal(
+                "Current age must be a number (e.g. 0, 600, 1500.5)."
+            ))
+            return
+        if age < 0:
+            await self.app.push_screen_wait(ErrorModal(
+                "Current age cannot be negative."
+            ))
+            return
+        u.name        = name
+        u.save_name   = initialism
+        u.current_age = age
+        self.mark_dirty()
+        self._refresh_all()
+
+    @work
+    async def _edit_demiurge_flow(self) -> None:
+        d = self._state.demiurge
+        result = await self.app.push_screen_wait(TextFormModal(
+            title="Edit Demiurge",
+            description=(
+                "Domain affiliations and unlocked Imagines are not yet "
+                "editable here — that's coming in a follow-up. For now this "
+                "form edits the Demiurge's name only."
+            ),
+            fields=[
+                ("Name", "name", d.name),
+            ],
+        ))
+        if not result:
+            return
+        new_name = result["name"].strip()
+        if not new_name:
+            await self.app.push_screen_wait(ErrorModal(
+                "Demiurge name cannot be empty."
+            ))
+            return
+        d.name = new_name
+        self.mark_dirty()
+        self._refresh_all()
+
+    @work
+    async def _edit_pantheon_flow(self) -> None:
+        p = self._state.pantheon
+        result = await self.app.push_screen_wait(TextFormModal(
+            title="Edit Pantheon",
+            description=(
+                "Pantheon-level constraints will be editable in Phase 6. "
+                "For now this form edits the Pantheon's name only."
+            ),
+            fields=[
+                ("Name", "name", p.name),
+            ],
+        ))
+        if not result:
+            return
+        new_name = result["name"].strip()
+        if not new_name:
+            await self.app.push_screen_wait(ErrorModal(
+                "Pantheon name cannot be empty."
+            ))
+            return
+        p.name = new_name
+        self.mark_dirty()
+        self._refresh_all()
+
     def _lookup_entity_name(self, kind: str, entity_id: str) -> str:
         """Mirror of GameScreen._lookup_entity_name."""
         s = self._state
@@ -211,7 +382,11 @@ class BuilderScreen(Screen):
     def _save_to(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         bak = self._backup(path)
-        export_scenario(self._state, path, scenario_name=self._state.universe.name)
+        export_scenario(
+            self._state, path,
+            scenario_name=self._state.universe.name,
+            description=self._scenario_description,
+        )
         self._db_path = path
         self._dirty = False
         self._update_subtitle()

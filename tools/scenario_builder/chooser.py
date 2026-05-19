@@ -6,7 +6,6 @@ existing scenario loads it into a BuilderScreen; selecting "+ New" pushes
 the NewScenarioWizardScreen.
 """
 from __future__ import annotations
-import sqlite3
 from pathlib import Path
 
 from textual import on
@@ -19,20 +18,9 @@ from ui.constants import _SCENARIOS_DIR
 from ui.display import _wrap_desc
 from ui.widgets import LoopingListView
 
+from .meta_io import peek_meta as _peek_meta
+
 _NEW_ID = "file-__new__"
-
-
-def _peek_meta(path: Path) -> dict:
-    try:
-        with sqlite3.connect(path) as c:
-            row = c.execute(
-                "SELECT name, description FROM scenario_meta LIMIT 1"
-            ).fetchone()
-        if row:
-            return {"name": row[0] or path.stem, "description": row[1] or ""}
-    except Exception:
-        pass
-    return {"name": path.stem, "description": ""}
 
 
 class ScenarioChooserScreen(Screen):
