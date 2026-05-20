@@ -262,6 +262,11 @@ class OmenIntent(BaseModel):
     # depending on reliability roll and civilization's existing beliefs
 
     domain_vectors: list[DomainVector] = Field(default_factory=list)
+
+    culture_vectors: list[CultureVector] = Field(default_factory=list)
+    # Culture-tag "riders" carried by the framing Imago. The omen's shotgun
+    # interpretation scrambles these alongside domain_vectors on failed checks.
+
     framing: Framing = Framing.PROPHETIC
 
     civilization_scope: Optional[UUID] = None

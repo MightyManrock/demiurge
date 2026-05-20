@@ -76,9 +76,31 @@ CULTURE_CATEGORIES: dict[str, list[str]] = {
 
 _ALL_TAG_SET: set[str] = set(ALL_CULTURE_TAGS)
 
+# Prefix → category tag list, for fast same-category lookup.
+_PREFIX_TO_CATEGORY: dict[str, list[str]] = {
+    "religion":  RELIGION_TAGS,
+    "techno":    TECHNO_TAGS,
+    "structure": STRUCTURE_TAGS,
+    "practice":  PRACTICE_TAGS,
+    "relations": RELATIONS_TAGS,
+    "values":    VALUES_TAGS,
+}
+
 
 def is_culture_tag(tag: str) -> bool:
     return tag in _ALL_TAG_SET
+
+
+def peer_culture_tags(tag: str) -> list[str]:
+    """All other canonical culture tags sharing `tag`'s category (its
+    `prefix:` namespace), excluding `tag` itself. Empty list if `tag` is not
+    a recognized culture tag. Used to substitute a tag for a random sibling
+    of the same kind (e.g. one religion for another)."""
+    prefix = tag.split(":", 1)[0] if ":" in tag else ""
+    category = _PREFIX_TO_CATEGORY.get(prefix)
+    if category is None:
+        return []
+    return [t for t in category if t != tag]
 
 
 # ── Pairwise synergy data ─────────────────────────────────────────────

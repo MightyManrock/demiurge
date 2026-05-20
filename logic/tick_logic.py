@@ -17,7 +17,7 @@ from core.action_core import (
     ActionDefinition,
     ActionReliability,
     WhisperIntent, ShapeDreamIntent, OmenIntent, ProbabilityNudgeIntent,
-    CultureVector,
+    CultureVector, Framing,
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
@@ -49,7 +49,9 @@ from core.universe_core import (
     Pop, SocialClass, is_wild_civ,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
-from utilities.culture_registry import CultureRegistry, get_registry as get_culture_registry
+from utilities.culture_registry import (
+    CultureRegistry, get_registry as get_culture_registry, peer_culture_tags,
+)
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice
@@ -125,8 +127,60 @@ WHISPER_CROSS_POP_PROMINENCE_GAIN = 1.5
 # others know about (high prominence) carry reputational reach. Range [0, 1.5].
 
 OMEN_POP_SPLASH = 0.20
-# Fraction of an omen/development nudge's domain delta distributed across all
+# Fraction of a development nudge's domain delta distributed across all
 # Pops on the target world, weighted inversely by size (smaller = more impact).
+# (No longer used by Manifest Omen — see the shotgun resolver below.)
+
+# ── Manifest Omen "shotgun" interpretation ───────────────────────────
+OMEN_BASE = 0.35
+# Scales a raw omen vector `direction` into the effect magnitude E that gets
+# subdivided across a Pop's interpretation checks. A fully-passed primary
+# domain (raw 0.35) lands ~0.12.
+
+OMEN_PASS_BASE_SUCCESS = 0.55   # base interpretation-check pass probability, SUCCESS outcome
+OMEN_PASS_BASE_PARTIAL = 0.35   # base for PARTIAL / CHAOTIC outcomes
+OMEN_FRAMING_WEIGHT     = 0.25  # how much framing resonance [-1,1] swings pass_prob
+OMEN_RECEPTIVITY_WEIGHT = 0.20  # how much (domain receptivity - 1.0) swings pass_prob
+OMEN_COHESION_WEIGHT    = 0.20  # how much (civ cohesion - 0.5) swings pass_prob
+OMEN_AMBIGUOUS_PENALTY  = 0.15  # flat pass_prob reduction for AMBIGUOUS framing
+
+# Per-framing culture-tag resonance. _framing_resonance() sums weight × the
+# target's culture-tag strength, clamped to [-1, 1]. Drives how reliably a
+# population reads an omen the way the Demiurge intended.
+_OMEN_FRAMING_AFFINITY: dict[str, dict[str, float]] = {
+    "prophetic": {
+        "religion:luminary_worship": 0.8, "religion:demiurge_worship": 0.8,
+        "religion:ancestor_worship": 0.6, "religion:animism": 0.5,
+        "religion:maltheism": 0.4, "religion:void_worship": 0.4,
+        "techno:superstition": 0.6, "techno:magic": 0.4,
+        "religion:nontheism": -0.7, "techno:science": -0.5,
+    },
+    "natural": {
+        "techno:science": 0.7, "religion:nontheism": 0.6,
+        "values:pragmatism": 0.5, "values:erudition": 0.4,
+        "techno:industrialism": 0.3,
+        "religion:luminary_worship": -0.5, "religion:demiurge_worship": -0.5,
+        "techno:superstition": -0.5,
+    },
+    "inspirational": {
+        "values:ambition": 0.7, "values:idealism": 0.7,
+        "values:tenacity": 0.4, "values:wit": 0.3, "values:prosperity": 0.3,
+        "values:humility": -0.4, "values:moderation": -0.3,
+    },
+    "threatening": {
+        "relations:xenophobia": 0.6, "relations:isolationism": 0.5,
+        "relations:protectionism": 0.5, "values:tenacity": 0.5,
+        "religion:maltheism": 0.5, "structure:hierarchy": 0.3,
+        "relations:xenophilia": -0.5, "values:idealism": -0.4,
+        "values:charity": -0.3,
+    },
+    "ambiguous": {
+        "values:wit": 0.5, "values:erudition": 0.4, "values:folk_wisdom": 0.4,
+        "religion:animism": 0.3,
+        "values:pragmatism": -0.4, "values:sincerity": -0.3,
+        "structure:hierarchy": -0.3,
+    },
+}
 
 LINEAGE_BLEED_FRACTION = 0.20
 # Fraction of a splash delta that bleeds further to a Pop's parent and children.
@@ -333,6 +387,22 @@ def _pop_distance_factor(state: "SimulationState", src_loc_id, tgt_loc_id) -> fl
         - _location_distance_from_core(state, tgt_loc_id)
     )
     return 0.7 ** delta
+
+
+def _framing_resonance(culture_tags: dict, framing) -> float:
+    """How strongly a population's (or mortal's) culture predisposes it to
+    read an omen of the given Framing the way it was intended. Sum of the
+    framing's per-tag affinity weights × the target's culture-tag strengths,
+    clamped to [-1.0, +1.0]. 0.0 when the framing or culture is unknown."""
+    fr_key = framing.value if hasattr(framing, "value") else str(framing)
+    affinity = _OMEN_FRAMING_AFFINITY.get(fr_key, {})
+    if not affinity or not culture_tags:
+        return 0.0
+    total = sum(
+        affinity.get(tag, 0.0) * strength
+        for tag, strength in culture_tags.items()
+    )
+    return max(-1.0, min(1.0, total))
 
 
 def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id: "UUID") -> float:
@@ -3265,12 +3335,24 @@ class TickLoop:
             if outcome == ActionOutcome.FAILURE:
                 return mutations, "The omen dissipated — mortals found no meaning in it."
 
-            effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
+            base_pass = (
+                OMEN_PASS_BASE_SUCCESS if outcome == ActionOutcome.SUCCESS
+                else OMEN_PASS_BASE_PARTIAL
+            )
+            aware_eff = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
 
             omen_world_id = self._resolve_world_id(instance, state)
             scope_civ_id = str(intent.civilization_scope) if intent.civilization_scope else None
 
-            # Primary effect: POP_BELIEF_SHIFT on all Pops at this world (or civ scope)
+            # The omen's intended effect E — raw vector directions scaled by OMEN_BASE.
+            domain_components = [
+                (dv.domain_tag, dv.direction * OMEN_BASE) for dv in intent.domain_vectors
+            ]
+            culture_components = [
+                (cv.culture_tag, cv.direction * OMEN_BASE) for cv in intent.culture_vectors
+            ]
+
+            # Targets: every Pop on the world (optionally civ-scoped) ...
             target_pops: list = []
             if omen_world_id:
                 world_pops = self._pops_on_world(str(omen_world_id), state)
@@ -3278,27 +3360,30 @@ class TickLoop:
                     p for p in world_pops
                     if scope_civ_id is None or str(p.civilization_id) == scope_civ_id
                 ]
-
             for pop in target_pops:
-                # Sub-location shielding: Pops deeper from the omen's
-                # manifestation point feel it less (0.7 per distance step).
-                dist_factor = _pop_distance_factor(
-                    state, intent.target_loc_id, pop.current_location,
+                self._resolve_omen_target(
+                    mutations, state, pop, False,
+                    domain_components, culture_components,
+                    intent.framing, base_pass, intent.target_loc_id, rng,
                 )
-                for dv in intent.domain_vectors:
-                    receptivity = self._pop_domain_receptivity(pop, dv.domain_tag)
-                    pop_delta = dv.direction * effectiveness * 0.15 * receptivity * dist_factor
-                    if abs(pop_delta) > 1e-5:
-                        mutations.append(StateMutation(
-                            mutation_type=MutationType.POP_BELIEF_SHIFT,
-                            target_id=pop.id,
-                            field=dv.domain_tag,
-                            delta=pop_delta,
-                            note=f"Omen: '{intent.sign_description[:40]}'",
-                        ))
-                        self._emit_lineage_bleed(
-                            mutations, state, pop, dv.domain_tag, pop_delta, "omen",
-                        )
+
+            # ... and every active mortal on the world (each a size-1 Pop).
+            target_mortals: list = []
+            if omen_world_id:
+                for mortal in state.mortals.values():
+                    if mortal.status != MortalStatus.ACTIVE:
+                        continue
+                    if _resolve_world_id_for(state, mortal.current_location) != str(omen_world_id):
+                        continue
+                    if scope_civ_id is not None and str(mortal.civilization_id) != scope_civ_id:
+                        continue
+                    target_mortals.append(mortal)
+            for mortal in target_mortals:
+                self._resolve_omen_target(
+                    mutations, state, mortal, True,
+                    domain_components, culture_components,
+                    intent.framing, base_pass, intent.target_loc_id, rng,
+                )
 
             # Divine awareness: raise for all civs represented in target Pops
             for cid in {str(p.civilization_id) for p in target_pops if p.civilization_id}:
@@ -3308,7 +3393,7 @@ class TickLoop:
                         mutation_type=MutationType.CIVILIZATION_STAT,
                         target_id=civ_obj.id,
                         field="divine_awareness",
-                        delta=0.1 * effectiveness,
+                        delta=0.1 * aware_eff,
                         note=f"Omen raises divine awareness in {civ_obj.name}",
                     ))
 
@@ -3320,10 +3405,13 @@ class TickLoop:
             narrative = (
                 f"The omen '{intent.sign_description}' manifested for {scope_desc}. "
                 f"Intended: '{intent.intended_interpretation}'. "
-                f"Effectiveness: {effectiveness:.0%}."
+                f"{len(target_pops)} population(s) and {len(target_mortals)} notable "
+                f"mortal(s) each read it through their own lens."
             )
 
-            # Emit a SPIKE_FADE event so the omen echoes for 4 more ticks
+            # Social ripple: a SPIKE_FADE event carrying only the divine-awareness
+            # and Luminary-attention echo. The belief/culture shotgun resolved
+            # once, above — the event holds no domain/culture vectors.
             mutations.append(StateMutation(
                 mutation_type=MutationType.EVENT_EMITTED,
                 target_id=None,
@@ -3334,13 +3422,14 @@ class TickLoop:
                     source_action_id=instance.action_definition_id,
                     created_at_tick=state.tick_number,
                     duration=5,
-                    base_strength=effectiveness,
+                    base_strength=aware_eff,
                     decay_rate=0.6,
-                    target_civilization_id=None,  # echo targets Pops via world branch
+                    target_civilization_id=None,
                     target_world_id=omen_world_id,
                     target_loc_id=intent.target_loc_id,
-                    domain_vectors=intent.domain_vectors,
-                    domain_shift_rate=0.08,
+                    domain_vectors=[],
+                    culture_vectors=[],
+                    domain_shift_rate=0.0,
                     divine_awareness_rate=0.03,
                     attention_per_tick=0.04,
                     imago_node_id=getattr(intent, "imago_node_id", None),
@@ -4376,23 +4465,11 @@ class TickLoop:
 
             # Omen events target Pops directly (Pop beliefs are the canonical store)
             if event.event_type == EventType.OMEN:
+                # The belief/culture shotgun resolved once at cast time. The
+                # omen echo carries only the social ripple — divine awareness
+                # here, Luminary attention via the generic attention_per_tick
+                # handler further below.
                 wid = str(event.target_world_id) if event.target_world_id else None
-                echo_pops = self._pops_on_world(wid, state) if wid else list(state.pops.values())
-                for pop in echo_pops:
-                    # Same sub-location shielding as the immediate omen.
-                    dist_factor = _pop_distance_factor(
-                        state, event.target_loc_id, pop.current_location,
-                    )
-                    for dv in event.domain_vectors:
-                        delta = dv.direction * strength * event.domain_shift_rate * dist_factor
-                        if abs(delta) > 1e-5:
-                            mutations.append(StateMutation(
-                                mutation_type=MutationType.POP_BELIEF_SHIFT,
-                                target_id=pop.id,
-                                field=dv.domain_tag,
-                                delta=delta,
-                                note=f"Omen echo (offset {offset})",
-                            ))
                 if event.divine_awareness_rate > 0.0 and wid:
                     for cid, civ in state.civilizations.items():
                         if str(civ.origin_location_id) == wid:
@@ -5203,6 +5280,117 @@ class TickLoop:
             else:
                 result.append(va if va is not None else vb)
         return result
+
+    def _resolve_omen_target(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        target,
+        is_mortal: bool,
+        domain_components: list,
+        culture_components: list,
+        framing,
+        base_pass: float,
+        omen_loc_id,
+        rng: random.Random,
+    ) -> None:
+        """
+        Resolve a Manifest Omen's "shotgun" interpretation for a single Pop
+        (or a mortal treated as a size-1 Pop) and emit the composite
+        belief/culture mutations.
+
+        `domain_components` / `culture_components` are lists of
+        (tag, signed_magnitude) — the omen's effect E, already scaled by
+        OMEN_BASE. The target runs one check per unit of its size; a passed
+        check delivers E/n to the true tags, a failed check delivers E/n to
+        random same-category substitute tags. The composite is distance-
+        shielded and emitted as POP_/MORTAL_ belief and culture shifts.
+        """
+        if not domain_components and not culture_components:
+            return
+
+        n_checks = 1 if is_mortal else max(1, int(getattr(target, "size_magnitude", 1) or 1))
+
+        # ── interpretation-check pass probability ─────
+        culture_tags = getattr(target, "culture_tags", {}) or {}
+        fr = _framing_resonance(culture_tags, framing)
+        if domain_components:
+            rec = sum(
+                self._pop_domain_receptivity(target, tag)
+                for tag, _ in domain_components
+            ) / len(domain_components)
+        else:
+            rec = 1.0
+        civ = (
+            state.civilizations.get(str(target.civilization_id))
+            if getattr(target, "civilization_id", None) else None
+        )
+        coh = civ.health.cohesion if civ else 0.5
+
+        pass_prob = (
+            base_pass
+            + fr * OMEN_FRAMING_WEIGHT
+            + (rec - 1.0) * OMEN_RECEPTIVITY_WEIGHT
+            + (coh - 0.5) * OMEN_COHESION_WEIGHT
+        )
+        if framing == Framing.AMBIGUOUS:
+            pass_prob -= OMEN_AMBIGUOUS_PENALTY
+        pass_prob = max(0.05, min(0.95, pass_prob))
+
+        # ── run n checks; accumulate the composite ────
+        belief_composite: dict[str, float] = {}
+        culture_composite: dict[str, float] = {}
+        domain_pool = get_domain_registry().all_tags
+
+        for _ in range(n_checks):
+            passed = rng.random() < pass_prob
+            for tag, mag in domain_components:
+                e = mag / n_checks
+                if passed:
+                    dest = tag
+                else:
+                    pool = [d for d in domain_pool if d != tag]
+                    dest = rng.choice(pool) if pool else tag
+                belief_composite[dest] = belief_composite.get(dest, 0.0) + e
+            for tag, mag in culture_components:
+                e = mag / n_checks
+                if passed:
+                    dest = tag
+                else:
+                    peers = peer_culture_tags(tag)
+                    dest = rng.choice(peers) if peers else tag
+                culture_composite[dest] = culture_composite.get(dest, 0.0) + e
+
+        # ── distance shielding, then emit ────────────
+        dist_factor = _pop_distance_factor(state, omen_loc_id, target.current_location)
+        belief_mut = (MutationType.MORTAL_BELIEF_SHIFT if is_mortal
+                      else MutationType.POP_BELIEF_SHIFT)
+        culture_mut = (MutationType.MORTAL_CULTURE_SHIFT if is_mortal
+                       else MutationType.POP_CULTURE_SHIFT)
+        kind = "mortal" if is_mortal else "Pop"
+
+        for tag, total in belief_composite.items():
+            delta = total * dist_factor
+            if abs(delta) > 1e-5:
+                mutations.append(StateMutation(
+                    mutation_type=belief_mut,
+                    target_id=target.id,
+                    field=tag,
+                    new_value=tag,
+                    delta=delta,
+                    note=f"Omen interpretation ({kind})",
+                ))
+        for tag, total in culture_composite.items():
+            delta = total * dist_factor
+            if abs(delta) > 1e-5:
+                mutations.append(StateMutation(
+                    mutation_type=culture_mut,
+                    target_id=target.id,
+                    field=tag,
+                    new_value=tag,
+                    delta=delta,
+                    note=f"Omen interpretation ({kind})",
+                ))
 
     def _emit_whisper_splash(
         self,

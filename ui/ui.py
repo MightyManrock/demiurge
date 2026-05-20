@@ -1472,7 +1472,8 @@ class GameScreen(Screen):
                 return OmenIntent(
                     sign_description=form_data["sign"].strip() or "A celestial anomaly appears",
                     intended_interpretation=form_data["interp"].strip() or "The gods demand action",
-                    domain_vectors=dvs, framing=framing, civilization_scope=civ_scope,
+                    domain_vectors=dvs, culture_vectors=cvs,
+                    framing=framing, civilization_scope=civ_scope,
                     imago_node_id=imago_id,
                 )
 
