@@ -112,8 +112,7 @@ class LoadScreen(Screen):
                         yield ListItem(Label("── SAVES ──", classes="load-section"), disabled=True)
                         for path in saves:
                             meta = _peek_db_meta(path)
-                            desc_wrapped = _wrap_desc(meta["description"])
-                            label_text   = f"{meta['name']}\n{desc_wrapped}" if desc_wrapped else meta["name"]
+                            label_text = meta["name"]
                             yield ListItem(
                                 Label(label_text),
                                 id=f"file-{path.stem}",
@@ -123,8 +122,7 @@ class LoadScreen(Screen):
                         yield ListItem(Label("── SCENARIOS ──", classes="load-section"), disabled=True)
                         for path in scenarios:
                             meta = _peek_db_meta(path)
-                            desc_wrapped = _wrap_desc(meta["description"])
-                            label_text   = f"{meta['name']}\n{desc_wrapped}" if desc_wrapped else meta["name"]
+                            label_text = meta["name"]
                             yield ListItem(
                                 Label(label_text),
                                 id=f"file-{path.stem}",
