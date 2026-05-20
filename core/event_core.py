@@ -4,7 +4,7 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
-from core.action_core import DomainVector
+from core.action_core import DomainVector, CultureVector
 
 
 class EventType(str, Enum):
@@ -38,7 +38,11 @@ class Event(BaseModel):
     target_mortal_id: Optional[UUID] = None
 
     domain_vectors: list[DomainVector] = Field(default_factory=list)
-    domain_shift_rate: float = 0.10      # per dv: delta = dv.direction * strength * rate
+    culture_vectors: list[CultureVector] = Field(default_factory=list)
+    # Culture-tag riders, applied with the same per-tick `domain_shift_rate`
+    # scaling as domain_vectors (interpreted as the generic "shift rate" for
+    # any vector type carried by the event).
+    domain_shift_rate: float = 0.10      # per dv/cv: delta = vec.direction * strength * rate
     divine_awareness_rate: float = 0.0   # added to civ divine_awareness each tick
     attention_per_tick: float = 0.0      # AttentionTrigger delta for all Luminaries
 

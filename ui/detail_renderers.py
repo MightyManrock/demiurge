@@ -903,9 +903,9 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
     # Header uses Title Case even for the "wild" no-stratum fallback.
     if pop.is_wild and stratum == "wild":
-        header = "Wild Pop"
+        header = "Wild"
     else:
-        header = f"{stratum} Pop"
+        header = stratum
     if sp_obj:
         header += f" ({_e(sp_obj.name)})"
     a(f"[bold #4a80b0]POP: {header}[/]")

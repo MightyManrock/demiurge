@@ -655,7 +655,7 @@ def _load_tick_config(conn) -> TickConfig:
         cross_civ_scale_penalty=float(row.get("cross_civ_scale_penalty", 0.08)),
         cross_species_contact_factor=float(row.get("cross_species_contact_factor", 0.50)),
         cross_stratum_contact_factor=float(row.get("cross_stratum_contact_factor", 0.70)),
-        values_stubbornness_factor=float(row.get("values_stubbornness_factor", 0.35)),
+        values_stubbornness_factor=float(row.get("values_stubbornness_factor", 0.1)),
         peripheral_pop_belief_weight=float(row.get("peripheral_pop_belief_weight", 0.25)),
         peripheral_pop_culture_weight=float(row.get("peripheral_pop_culture_weight", 0.25)),
     )

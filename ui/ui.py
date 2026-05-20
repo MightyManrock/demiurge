@@ -24,11 +24,11 @@ from textual.containers import Horizontal, Vertical, ScrollableContainer
 
 from core.action_core import (
     ActionCategory, ActionDefinition, ActionInstance, OngoingAction, TargetType,
-    WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
+    WhisperIntent, ShapeDreamIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent, ChangeAffiliatedDomainsIntent,
-    ScryIntent, ScryScope, DomainVector, Framing,
+    ScryIntent, ScryScope, DomainVector, CultureVector, Framing,
 )
 from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, PopLocation,
@@ -849,7 +849,7 @@ class GameScreen(Screen):
                     domain_result = await self._pick_domain_and_imago(state)
                     if domain_result is None: return None
                     if domain_result == BACK: step = 0; continue
-                    dvs, imago_id = domain_result; step = 2
+                    dvs, cvs, imago_id = domain_result; step = 2
                 if step == 2:
                     target_civ_id = None
                     target_pop_id = None
@@ -958,6 +958,7 @@ class GameScreen(Screen):
                     break
             intent = ProxiusDirectiveIntent(
                 domain_vectors=dvs,
+                culture_vectors=cvs,
                 latitude=chosen_latitude,
                 target_civilization_id=target_civ_id,
                 target_pop_id=target_pop_id,
@@ -1262,12 +1263,12 @@ class GameScreen(Screen):
                 domain_result = await self._pick_domain_and_imago(state)
                 if domain_result is None: return None
                 if domain_result == BACK: return BACK
-                dvs, imago_id = domain_result
+                dvs, cvs, imago_id = domain_result
                 return UpliftSpeciesIntent(species_id=target_id, domain_vectors=dvs, imago_node_id=imago_id)
 
         # ── SUBTLE INFLUENCE ─────────────────────────────
         elif cat == ActionCategory.SUBTLE_INFLUENCE:
-            if action_key in ("whisper", "shape_dream"):
+            if action_key == "whisper":
                 ireg = get_imago_registry()
                 step = 0
                 dvs: list = []; imago_id = None; concept = None
@@ -1276,7 +1277,7 @@ class GameScreen(Screen):
                         domain_result = await self._pick_domain_and_imago(state)
                         if domain_result is None: return None
                         if domain_result == BACK: return BACK
-                        dvs, imago_id = domain_result
+                        dvs, cvs, imago_id = domain_result
                         concept = ireg.get_node(imago_id).name if imago_id else None
                         step = 1
                     if step == 1:
@@ -1300,7 +1301,80 @@ class GameScreen(Screen):
                             continue
                         break
                 return WhisperIntent(
-                    concept=concept, domain_vectors=dvs, framing=framing, imago_node_id=imago_id,
+                    concept=concept, domain_vectors=dvs, culture_vectors=cvs,
+                    framing=framing, imago_node_id=imago_id,
+                )
+
+            if action_key == "shape_dream":
+                # Two Imāginēs from different Domain trees. The system randomly
+                # picks one as dominant at resolution time; the player only
+                # learns which dominated from the action's narrative line.
+                ireg = get_imago_registry()
+                step = 0
+                imago_a = imago_b = None
+                dvs_a = cvs_a = dvs_b = cvs_b = []
+                concept = None
+                while True:
+                    if step == 0:
+                        domain_result = await self._pick_domain_and_imago(state)
+                        if domain_result is None: return None
+                        if domain_result == BACK: return BACK
+                        dvs_a, cvs_a, imago_a = domain_result
+                        if not imago_a:
+                            # Shape Dream requires an Imago — re-prompt.
+                            self._feed_markup(
+                                "[#b09040]Shape Dream requires choosing an Imāgō. "
+                                "Pick again or cancel.[/]",
+                                "actions",
+                            )
+                            continue
+                        step = 1
+                    if step == 1:
+                        # Exclude the first Imago's Domain so the second comes
+                        # from a different tree.
+                        excl = "domain:" + imago_a.split(":", 1)[0]
+                        domain_result = await self._pick_domain_and_imago(
+                            state, exclude_domain_tag=excl,
+                        )
+                        if domain_result is None: return None
+                        if domain_result == BACK: step = 0; continue
+                        dvs_b, cvs_b, imago_b = domain_result
+                        if not imago_b:
+                            self._feed_markup(
+                                "[#b09040]Shape Dream needs a second Imāgō.[/]",
+                                "actions",
+                            )
+                            continue
+                        step = 2
+                    if step == 2:
+                        name_a = ireg.get_node(imago_a).name
+                        name_b = ireg.get_node(imago_b).name
+                        default_concept = f"{name_a} ⊗ {name_b}"
+                        form = await app.push_screen_wait(
+                            TextFormModal(
+                                "Shape Dream",
+                                [("Dream concept", "concept", default_concept)],
+                                show_back=True,
+                            )
+                        )
+                        if form is None: return None
+                        if form == BACK: step = 1; continue
+                        concept = form["concept"].strip() or default_concept
+                        step = 3
+                    if step == 3:
+                        framing = await self._pick_framing()
+                        if framing is None: return None
+                        if framing == BACK: step = 2; continue
+                        break
+                return ShapeDreamIntent(
+                    concept=concept,
+                    imago_node_id_a=imago_a,
+                    imago_node_id_b=imago_b,
+                    domain_vectors_a=dvs_a,
+                    culture_vectors_a=cvs_a,
+                    domain_vectors_b=dvs_b,
+                    culture_vectors_b=cvs_b,
+                    framing=framing,
                 )
 
             if action_key == "nudge_probability":
@@ -1325,7 +1399,7 @@ class GameScreen(Screen):
                         domain_result = await self._pick_domain_and_imago(state)
                         if domain_result is None: return None
                         if domain_result == BACK: step = 0; continue
-                        dvs, imago_id = domain_result; break
+                        dvs, cvs, imago_id = domain_result; break
                 return ProbabilityNudgeIntent(
                     event_description=form_data["event"].strip() or "Upcoming succession conflict",
                     desired_outcome=form_data["outcome"].strip() or "The reformist faction prevails",
@@ -1351,7 +1425,7 @@ class GameScreen(Screen):
                         domain_result = await self._pick_domain_and_imago(state)
                         if domain_result is None: return None
                         if domain_result == BACK: step = 0; continue
-                        dvs, imago_id = domain_result; break
+                        dvs, cvs, imago_id = domain_result; break
                 return DevelopmentIntent(
                     domain_vectors=dvs,
                     target_aspect=form_data["aspect"].strip() or "military doctrine",
@@ -1382,7 +1456,7 @@ class GameScreen(Screen):
                         domain_result = await self._pick_domain_and_imago(state)
                         if domain_result is None: return None
                         if domain_result == BACK: step = 0; continue
-                        dvs, imago_id = domain_result; step = 2
+                        dvs, cvs, imago_id = domain_result; step = 2
                     if step == 2:
                         framing = await self._pick_framing()
                         if framing is None: return None
@@ -1449,7 +1523,7 @@ class GameScreen(Screen):
                         domain_result = await self._pick_domain_and_imago(state)
                         if domain_result is None: return None
                         if domain_result == BACK: step = 1; continue
-                        dvs, imago_id = domain_result; break
+                        dvs, cvs, imago_id = domain_result; break
                 return SalvageIntent(
                     desired_concept=form_data["desired"].strip(),
                     target_world_id=world_id,
@@ -1534,20 +1608,29 @@ class GameScreen(Screen):
         self,
         state: SimulationState,
         explore_mode: bool = False,
-    ) -> "tuple[list[DomainVector], str | None] | str | None":
+        exclude_domain_tag: "str | None" = None,
+    ) -> "tuple[list[DomainVector], list[CultureVector], str | None] | str | None":
         """
         Show the domain grid picker, then (if applicable) the Imago tree picker.
-        Returns (dvs, imago_id), ([], None) for skip, BACK to go one level back, or None to cancel.
+        Returns (dvs, cvs, imago_id), ([], [], None) for skip, BACK to go one
+        level back, or None to cancel.
+
+        `exclude_domain_tag` (a single `domain:...` string) grays out that
+        Domain in the picker — used by Shape Dream to enforce that the second
+        Imago comes from a different Domain tree than the first.
         """
+        exclude_set = {exclude_domain_tag} if exclude_domain_tag else None
         while True:
-            tag = await self.app.push_screen_wait(DomainPickerModal(state, explore_mode=explore_mode))
+            tag = await self.app.push_screen_wait(
+                DomainPickerModal(state, explore_mode=explore_mode, exclude_tags=exclude_set)
+            )
 
             if tag is None: return None
             if tag == BACK: return BACK
-            if tag == "":   return ([], None)
+            if tag == "":   return ([], [], None)
 
             if explore_mode:
-                return ([DomainVector(domain_tag=tag, direction=1.0)], None)
+                return ([DomainVector(domain_tag=tag, direction=1.0)], [], None)
 
             tree = tag.split(":", 1)[1]
             ireg = get_imago_registry()
@@ -1568,7 +1651,12 @@ class GameScreen(Screen):
                             for t, v in node.mechanics.items()
                             if t.startswith("domain:")
                         ]
-                        return (dvs, chosen_id)
+                        cvs = [
+                            CultureVector(culture_tag=t, direction=v)
+                            for t, v in node.mechanics.items()
+                            if not t.startswith("domain:")
+                        ]
+                        return (dvs, cvs, chosen_id)
                 continue
 
     async def _build_reveal_imago_intent(

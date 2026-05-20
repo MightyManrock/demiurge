@@ -16,7 +16,8 @@ from core.action_core import (
     build_action_library,
     ActionDefinition,
     ActionReliability,
-    WhisperIntent, OmenIntent, ProbabilityNudgeIntent,
+    WhisperIntent, ShapeDreamIntent, OmenIntent, ProbabilityNudgeIntent,
+    CultureVector,
     DevelopmentIntent, ProxiusDirectiveIntent,
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
@@ -74,6 +75,14 @@ PROXIUS_COMPLIANCE_FACTOR = 0.3
 # ─────────────────────────────────────────
 
 BELIEF_FLOOR = 0.02
+
+CULTURE_FLOOR = 0.01
+# Minimum durable strength for culture_tags. Lower than BELIEF_FLOOR (0.02)
+# because culture-tag riders propagate at smaller per-tick magnitudes than
+# Domain-belief shifts (Imago `culture:*` mechanics top out at ~0.20 even at
+# T1, vs. ~0.35 for `domain:*`). The lower floor lets repeated whispers'
+# fingerprints accumulate visibly on a Pop's culture even when a single
+# whisper's per-tick contribution would have been pruned at BELIEF_FLOOR.
 # Belief/domain-expression entries below this strength are
 # silently pruned each passive phase. Keeps dicts clean of
 
@@ -98,9 +107,22 @@ SPLINTER_MIN_SIZE = 4.0
 SPLINTER_FRACTION = 0.35
 # Fraction of the parent Pop's size that breaks away into the splinter.
 
-WHISPER_POP_SPLASH = 0.15
+WHISPER_POP_SPLASH = 0.20
 # Fraction of a whisper's belief delta that ripples to the target mortal's
 # Pop(s) on the same world.
+
+WHISPER_OWN_POP_BASE_INFLUENCE = 0.5
+WHISPER_OWN_POP_PROMINENCE_GAIN = 2.0
+# Splash multiplier when the splash Pop is the mortal's own Pop:
+#     base + prominence * gain
+# Even an obscure mortal carries some weight in their immediate social context
+# (the base), and prominence multiplies that further. Range [0.5, 2.5].
+
+WHISPER_CROSS_POP_PROMINENCE_GAIN = 1.5
+# Splash multiplier when the splash Pop is NOT the mortal's own Pop:
+#     prominence * gain
+# A nobody can't really push ideas onto other Pops on the world; only mortals
+# others know about (high prominence) carry reputational reach. Range [0, 1.5].
 
 OMEN_POP_SPLASH = 0.20
 # Fraction of an omen/development nudge's domain delta distributed across all
@@ -481,7 +503,16 @@ class TickConfig(BaseModel):
     cross_civ_scale_penalty: float = 0.08
     cross_species_contact_factor: float = 0.50
     cross_stratum_contact_factor: float = 0.70
-    values_stubbornness_factor: float = 0.35
+
+    # `values:*` culture tags are stubborn — they resist being changed (in either
+    # direction). Applied as an extra dampening multiplier on the delta of any
+    # POP_CULTURE_SHIFT, MORTAL_CULTURE_SHIFT, or CIV_ESTABLISHED_CULTURE_SHIFT
+    # whose field is a `values:*` tag, on top of normal belief_inertia.
+    # 0.1 → values shifts happen at 0.9 of the rate of other culture-tag shifts
+    # (~1.11× as "stubborn" at mid-zone). Just enough resistance for values to
+    # be a touch slower than other culture tags, but not so much that single
+    # whispers struggle to accumulate any visible effect.
+    values_stubbornness_factor: float = 0.1
     # Core-loc weighting for civ aggregate belief/culture recomputation
     peripheral_pop_belief_weight: float = 0.25
     peripheral_pop_culture_weight: float = 0.25
@@ -1422,8 +1453,8 @@ class TickLoop:
 
         # ── Cross-Pop contact (passive cross-civ belief drift) ─────
         # Co-located Pops of different civs slowly drift toward each other's beliefs.
-        # Resistance is applied for cross-civ scale gap, cross-species, cross-stratum,
-        # and values: tag stubbornness. Omens are unaffected.
+        # Resistance is applied for cross-civ scale gap, cross-species, and
+        # cross-stratum. Omens are unaffected.
         for m in self._process_pop_contact(state, cfg):
             result.civilization_mutations.append(m)
 
@@ -2921,19 +2952,29 @@ class TickLoop:
             # A drifting Proxius is also harder to reach with whispers
 
             for dv in intent.domain_vectors:
-                civ_id = str(mortal.civilization_id) if mortal.civilization_id else None
-                if civ_id and civ_id in state.civilizations:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.BELIEF_SHIFT,
-                        target_id=mortal.civilization_id,
-                        field="dominant_beliefs",
-                        delta=dv.direction * effectiveness * 0.1,
-                        new_value=dv.domain_tag,
-                        note=(
-                            f"Whisper to {mortal.name}: "
-                            f"'{intent.concept[:40]}...'"
-                        ),
-                    ))
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_BELIEF_SHIFT,
+                    target_id=mortal.id,
+                    field=dv.domain_tag,
+                    delta=dv.direction * effectiveness * 0.1,
+                    new_value=dv.domain_tag,
+                    note=(
+                        f"Whisper to {mortal.name}: "
+                        f"'{intent.concept[:40]}...'"
+                    ),
+                ))
+            for cv in intent.culture_vectors:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_CULTURE_SHIFT,
+                    target_id=mortal.id,
+                    field=cv.culture_tag,
+                    delta=cv.direction * effectiveness * 0.1,
+                    new_value=cv.culture_tag,
+                    note=(
+                        f"Whisper culture rider to {mortal.name}: "
+                        f"'{intent.concept[:40]}...'"
+                    ),
+                ))
 
             narrative = (
                 f"You whispered to {mortal.name}: '{intent.concept}'. "
@@ -2956,6 +2997,7 @@ class TickLoop:
                     target_mortal_id=instance.target_id,
                     target_civilization_id=mortal.civilization_id,
                     domain_vectors=intent.domain_vectors,
+                    culture_vectors=intent.culture_vectors,
                     domain_shift_rate=0.06,
                     attention_per_tick=0.01,
                     imago_node_id=getattr(intent, "imago_node_id", None),
@@ -2963,43 +3005,104 @@ class TickLoop:
                 ),
             ))
 
-            # Splash: ripple fraction of the whisper's effect to all Pops on the same world.
-            # Cross-civ/cross-species/cross-stratum Pops receive reduced splash via resistance;
-            # PopLocation distance-from-core delta further dampens cross-PopLocation splash.
-            mortal_world_id = _resolve_world_id_for(state, mortal.current_location)
-            splash_pops = self._pops_on_world(mortal_world_id, state) if mortal_world_id else []
-            if splash_pops:
-                _splash_cfg = state.config
-                # Derive source attributes from the mortal for resistance calculations
-                _src_civ_id = str(mortal.civilization_id) if mortal.civilization_id else None
-                _src_species_id = str(mortal.species_id) if mortal.species_id else None
-                _src_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
-                _src_class = ((_src_pop.social_class.value if hasattr(_src_pop.social_class, "value") else str(_src_pop.social_class or "")) if _src_pop else None) or None
-                _src_size = _src_pop.size_fractional if _src_pop else 1.0
-                _src_loc_id = mortal.current_location
-                total_sz = sum(p.size_fractional for p in splash_pops)
-                for sp in splash_pops:
-                    sz_weight = sp.size_fractional / total_sz if total_sz > 0 else 1.0
-                    resistance = self._pop_contact_resistance(
-                        sp, _src_civ_id, _src_species_id, _src_class, state, _splash_cfg,
-                        src_size=_src_size,
-                    )
-                    dist_factor = _pop_distance_factor(state, _src_loc_id, sp.current_location)
-                    for dv in intent.domain_vectors:
-                        receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
-                        splash_delta = dv.direction * effectiveness * 0.1 * WHISPER_POP_SPLASH * sz_weight * receptivity * resistance * dist_factor
-                        if abs(splash_delta) > 1e-5:
-                            mutations.append(StateMutation(
-                                mutation_type=MutationType.POP_BELIEF_SHIFT,
-                                target_id=sp.id,
-                                field=dv.domain_tag,
-                                delta=splash_delta,
-                                note=f"Whisper splash to {sp.stratum} Pop",
-                            ))
-                            self._emit_lineage_bleed(
-                                mutations, state, sp, dv.domain_tag,
-                                splash_delta, "whisper",
-                            )
+            # Splash to nearby Pops on the same world — see _emit_whisper_splash.
+            self._emit_whisper_splash(
+                mutations, state, mortal,
+                domain_vectors=intent.domain_vectors,
+                culture_vectors=intent.culture_vectors,
+                per_unit_delta=effectiveness * 0.1,
+                note_prefix="Whisper",
+            )
+
+        # ── Shape Dream ───────────────────────────────
+        elif isinstance(intent, ShapeDreamIntent):
+            if outcome == ActionOutcome.FAILURE:
+                return mutations, f"{defn.name} dissipated before either Imāgō could root."
+
+            mortal = state.mortals.get(str(instance.target_id))
+            if not mortal:
+                return mutations, narrative
+
+            effectiveness = 1.0 if outcome == ActionOutcome.SUCCESS else 0.4
+            effectiveness *= mortal.alignment
+
+            # Random dominance: one Imago boosted ×1.15, the other suppressed ×0.60.
+            dominant_a = self._rng.random() < 0.5
+            mult_a = 1.15 if dominant_a else 0.60
+            mult_b = 0.60 if dominant_a else 1.15
+
+            combined_dvs = self._combine_shape_dream_vectors(
+                intent.domain_vectors_a, intent.domain_vectors_b,
+                mult_a, mult_b, "domain_tag",
+            )
+            combined_cvs = self._combine_shape_dream_vectors(
+                intent.culture_vectors_a, intent.culture_vectors_b,
+                mult_a, mult_b, "culture_tag",
+            )
+
+            for dv in combined_dvs:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_BELIEF_SHIFT,
+                    target_id=mortal.id,
+                    field=dv.domain_tag,
+                    delta=dv.direction * effectiveness * 0.1,
+                    new_value=dv.domain_tag,
+                    note=f"Shape Dream → {mortal.name}",
+                ))
+            for cv in combined_cvs:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_CULTURE_SHIFT,
+                    target_id=mortal.id,
+                    field=cv.culture_tag,
+                    delta=cv.direction * effectiveness * 0.1,
+                    new_value=cv.culture_tag,
+                    note=f"Shape Dream culture → {mortal.name}",
+                ))
+
+            dominant_id = intent.imago_node_id_a if dominant_a else intent.imago_node_id_b
+            suppressed_id = intent.imago_node_id_b if dominant_a else intent.imago_node_id_a
+
+            mutations.append(StateMutation(
+                mutation_type=MutationType.EVENT_EMITTED,
+                target_id=None,
+                field="active_events",
+                new_value=Event(
+                    event_type=EventType.WHISPER,  # echo machinery is shared with Whisper
+                    curve=StrengthCurve.RAMP_FADE,
+                    source_action_id=instance.action_definition_id,
+                    created_at_tick=state.tick_number,
+                    duration=4,
+                    base_strength=effectiveness,
+                    peak_offset=1,
+                    target_mortal_id=instance.target_id,
+                    target_civilization_id=mortal.civilization_id,
+                    domain_vectors=combined_dvs,
+                    culture_vectors=combined_cvs,
+                    domain_shift_rate=0.06,
+                    attention_per_tick=0.01,
+                    imago_node_id=dominant_id,  # dominant carries forward into echo
+                    concept=intent.concept,
+                ),
+            ))
+
+            self._emit_whisper_splash(
+                mutations, state, mortal,
+                domain_vectors=combined_dvs,
+                culture_vectors=combined_cvs,
+                per_unit_delta=effectiveness * 0.1,
+                note_prefix="Shape Dream",
+            )
+
+            ireg = get_imago_registry()
+            dom_node = ireg.get_node(dominant_id)
+            sup_node = ireg.get_node(suppressed_id)
+            dom_name = dom_node.name if dom_node else dominant_id
+            sup_name = sup_node.name if sup_node else suppressed_id
+            narrative = (
+                f"You shaped {mortal.name}'s dreams around {dom_name} and {sup_name}. "
+                f"In sleep, {dom_name} took stronger root than {sup_name}. "
+                f"Effectiveness: {effectiveness:.0%}."
+            )
 
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
@@ -3084,6 +3187,7 @@ class TickLoop:
                     target_location_id=proxius.current_location,
                     target_civilization_id=intent.target_civilization_id,
                     domain_vectors=list(intent.domain_vectors),
+                    culture_vectors=list(intent.culture_vectors),
                     latitude=intent.latitude,
                     constraints=list(intent.constraints),
                     started_at_tick=state.tick_number,
@@ -3800,7 +3904,7 @@ class TickLoop:
             civ.culture_tags = {
                 tag: min(1.0, val / total_weight)
                 for tag, val in weighted.items()
-                if val / total_weight > BELIEF_FLOOR
+                if val / total_weight > CULTURE_FLOOR
             }
 
     def _build_domain_profile(
@@ -4208,6 +4312,13 @@ class TickLoop:
         Remove belief and domain-expression entries whose strength has fallen
         below BELIEF_FLOOR. Runs every passive phase to prevent ghost residue
         from accumulating via many small-delta mutations.
+
+        Pop.dominant_beliefs and NotableMortal.belief_tags / culture_tags are
+        pruned here too: their apply handlers permit sub-floor entries to
+        persist within a single tick so multi-source contributions (e.g. a
+        4-tick whisper echo's per-tick shifts when each is below floor) can
+        compound across floor. Entries that fail to accumulate across floor
+        by the next passive phase get cleared here.
         """
         for civ in state.civilizations.values():
             civ.dominant_beliefs = {
@@ -4216,6 +4327,20 @@ class TickLoop:
         for world in state.worlds.values():
             world.domain_expression = {
                 tag: s for tag, s in world.domain_expression.items() if s > BELIEF_FLOOR
+            }
+        for pop in state.pops.values():
+            pop.dominant_beliefs = {
+                tag: s for tag, s in pop.dominant_beliefs.items() if s > BELIEF_FLOOR
+            }
+            pop.culture_tags = {
+                tag: s for tag, s in pop.culture_tags.items() if s > CULTURE_FLOOR
+            }
+        for mortal in state.mortals.values():
+            mortal.belief_tags = {
+                tag: s for tag, s in mortal.belief_tags.items() if s > BELIEF_FLOOR
+            }
+            mortal.culture_tags = {
+                tag: s for tag, s in mortal.culture_tags.items() if s > CULTURE_FLOOR
             }
         return state
 
@@ -4268,6 +4393,46 @@ class TickLoop:
                                 delta=event.divine_awareness_rate * strength,
                                 note=f"Omen echo awareness",
                             ))
+            elif event.event_type == EventType.WHISPER:
+                # Whisper echo: continues to shift the target mortal's beliefs,
+                # with the same Pop-splash pattern as the immediate action.
+                # Civ.dominant_beliefs is recomputed from Pops each tick (line
+                # 881), so civ-level writes would be clobbered — we go through
+                # the canonical stores (mortal.belief_tags and Pop.dominant_beliefs)
+                # instead.
+                if event.target_mortal_id is None:
+                    pass  # no mortal target; nothing to echo
+                else:
+                    mortal = state.mortals.get(str(event.target_mortal_id))
+                    if mortal is None or mortal.status == MortalStatus.DECEASED:
+                        expired_ids.append(eid)
+                        continue
+                    for dv in event.domain_vectors:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.MORTAL_BELIEF_SHIFT,
+                            target_id=mortal.id,
+                            field=dv.domain_tag,
+                            delta=dv.direction * strength * event.domain_shift_rate,
+                            new_value=dv.domain_tag,
+                            note=f"Whisper echo ({mortal.name}, offset {offset})",
+                        ))
+                    for cv in event.culture_vectors:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.MORTAL_CULTURE_SHIFT,
+                            target_id=mortal.id,
+                            field=cv.culture_tag,
+                            delta=cv.direction * strength * event.domain_shift_rate,
+                            new_value=cv.culture_tag,
+                            note=f"Whisper culture echo ({mortal.name}, offset {offset})",
+                        ))
+                    # Pop splash echo — same shape as the immediate splash.
+                    self._emit_whisper_splash(
+                        mutations, state, mortal,
+                        domain_vectors=event.domain_vectors,
+                        culture_vectors=event.culture_vectors,
+                        per_unit_delta=strength * event.domain_shift_rate,
+                        note_prefix=f"Whisper echo (offset {offset})",
+                    )
             else:
                 # Resolve target civilization IDs for all other event types
                 target_civ_ids: list[str] = []
@@ -4611,6 +4776,27 @@ class TickLoop:
                             k: v for k, v in new_beliefs.items() if v > BELIEF_FLOOR
                         }
 
+                        # Apply the Imago's culture-tag riders to the splinter's
+                        # starting culture_tags — same 2-step escalating pre-shift
+                        # pattern as the belief pre-shift above, respecting inertia
+                        # and the values:* stubbornness multiplier.
+                        new_culture = dict(pop_a.culture_tags)
+                        _stub_mult = max(0.05, 1.0 - state.config.values_stubbornness_factor)
+                        for cv in goal.culture_vectors:
+                            current = new_culture.get(cv.culture_tag, 0.0)
+                            for i in range(1, 3):
+                                tick_rate = base_rate * (1.0 + i * 0.05)
+                                raw_delta = tick_rate * cv.direction
+                                if cv.culture_tag.startswith("values:"):
+                                    raw_delta *= _stub_mult
+                                raw_delta *= self._belief_inertia(current, raw_delta)
+                                cap = BELIEF_CAP if raw_delta > 0 else 1.0
+                                current = max(0.0, min(cap, current + raw_delta))
+                            new_culture[cv.culture_tag] = current
+                        new_culture = {
+                            k: v for k, v in new_culture.items() if v > CULTURE_FLOOR
+                        }
+
                         pop_b = Pop(
                             id=uuid4(),
                             name=goal.goal_pop_name,
@@ -4625,7 +4811,7 @@ class TickLoop:
                             current_location=pop_a.current_location,
                             size_fractional=1.0,
                             dominant_beliefs=new_beliefs,
-                            culture_tags=dict(pop_a.culture_tags),
+                            culture_tags=new_culture,
                             rider_traits={
                                 dv.domain_tag: 0.30
                                 for dv in goal.domain_vectors
@@ -4775,6 +4961,15 @@ class TickLoop:
                             delta=dv.direction * rate * 0.5,
                             note=f"Rider trait from {goal.imago_node_id or 'directive'}",
                         ))
+                    for cv in goal.culture_vectors:
+                        rate = base_rate * (1.0 + goal.effectiveness_bonus)
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_CULTURE_SHIFT,
+                            target_id=pop_b.id,
+                            field=cv.culture_tag,
+                            delta=cv.direction * rate,
+                            note=f"Proxius {mortal.name} preaching culture rider",
+                        ))
                     # Splash: Proxius actively bridges Pop B's new beliefs back to Pop A.
                     # No size dampening here — this is directed preaching, not passive contact.
                     if pop_a is not None:
@@ -4788,6 +4983,16 @@ class TickLoop:
                                     field=dv.domain_tag,
                                     delta=splash_delta,
                                     note=f"Belief splash to Pop A from {mortal.name} bolstering goal Pop",
+                                ))
+                        for cv in goal.culture_vectors:
+                            if cv.direction > 0:
+                                splash_delta = cv.direction * base_rate * 0.6
+                                mutations.append(StateMutation(
+                                    mutation_type=MutationType.POP_CULTURE_SHIFT,
+                                    target_id=pop_a.id,
+                                    field=cv.culture_tag,
+                                    delta=splash_delta,
+                                    note=f"Culture splash to Pop A from {mortal.name} preaching",
                                 ))
                     mutations.append(StateMutation(
                         mutation_type=MutationType.FOOTPRINT_CHANGE,
@@ -4931,6 +5136,170 @@ class TickLoop:
                 return 0.75 + (current / 0.1) * 0.25
         return 1.0
 
+    def _combine_shape_dream_vectors(
+        self,
+        vectors_a: list,
+        vectors_b: list,
+        mult_a: float,
+        mult_b: float,
+        tag_attr: str,
+    ) -> list:
+        """
+        Combine two lists of DomainVector or CultureVector per the Shape Dream
+        resolution rules:
+
+          1. Apply the per-Imago multiplier (boost or suppress) to each
+             vector — but ONLY for entries whose direction is positive.
+             Negative-direction riders pass through at full strength
+             regardless of which side they came from (you can't dream away
+             an Imago's downside).
+          2. For tags appearing in BOTH lists (after multipliers):
+               * both positive → mean of the two directions
+               * both negative → sum
+               * mixed sign    → sum (they offset naturally)
+          3. Tags present in only one list contribute as-is (post-multiplier).
+
+        `tag_attr` is the field name to key by — "domain_tag" or "culture_tag".
+        Returns a new list of vectors of the same type as the inputs.
+        """
+        def apply_mult(vec, mult):
+            if vec.direction < 0:
+                return vec
+            cls = type(vec)
+            data = vec.model_dump()
+            data["direction"] = max(-1.0, min(1.0, vec.direction * mult))
+            return cls(**data)
+
+        multiplied_a = [apply_mult(v, mult_a) for v in vectors_a]
+        multiplied_b = [apply_mult(v, mult_b) for v in vectors_b]
+
+        by_tag_a = {getattr(v, tag_attr): v for v in multiplied_a}
+        by_tag_b = {getattr(v, tag_attr): v for v in multiplied_b}
+
+        result = []
+        for tag in set(by_tag_a) | set(by_tag_b):
+            va = by_tag_a.get(tag)
+            vb = by_tag_b.get(tag)
+            if va is not None and vb is not None:
+                if va.direction > 0 and vb.direction > 0:
+                    combined = (va.direction + vb.direction) / 2.0
+                else:
+                    combined = va.direction + vb.direction
+                combined = max(-1.0, min(1.0, combined))
+                cls = type(va)
+                data = va.model_dump()
+                data["direction"] = combined
+                result.append(cls(**data))
+            else:
+                result.append(va if va is not None else vb)
+        return result
+
+    def _emit_whisper_splash(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        mortal,
+        domain_vectors,
+        culture_vectors,
+        per_unit_delta: float,
+        note_prefix: str,
+    ) -> None:
+        """
+        Emit POP_BELIEF_SHIFT (one per domain_vector) and POP_CULTURE_SHIFT
+        (one per culture_vector) splash mutations rippling a whisper from a
+        single mortal out to nearby Pops on the same world.
+
+        `per_unit_delta` is the per-`direction=1` belief delta the whisper
+        applies to the mortal — splash to each Pop is a fraction of that
+        (WHISPER_POP_SPLASH), scaled by:
+          - contact resistance (cross-civ/cross-species/cross-stratum dampening)
+          - PopLocation distance from the mortal's current location
+          - the Pop's domain receptivity (for domain vectors only — culture
+            shifts don't pass through the culture×domain affinity machinery)
+          - a prominence-derived influence multiplier (own-Pop uses a base
+            plus prominence; cross-Pop scales linearly with prominence)
+
+        Recipient Pop `size_fractional` is intentionally NOT a factor here:
+        size-weighting is a Pop→Pop influence concept (a big Pop pushes
+        harder on its neighbors), not relevant when the source is a single
+        mortal.
+        """
+        if not mortal or (not domain_vectors and not culture_vectors):
+            return
+        world_id = _resolve_world_id_for(state, mortal.current_location)
+        if not world_id:
+            return
+        splash_pops = self._pops_on_world(world_id, state)
+        if not splash_pops:
+            return
+
+        cfg = state.config
+        src_civ_id = str(mortal.civilization_id) if mortal.civilization_id else None
+        src_species_id = str(mortal.species_id) if mortal.species_id else None
+        src_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+        src_class = (
+            (src_pop.social_class.value if hasattr(src_pop.social_class, "value")
+             else str(src_pop.social_class or "")) if src_pop else None
+        ) or None
+        src_size = src_pop.size_fractional if src_pop else 1.0
+        src_loc_id = mortal.current_location
+        own_pop_id = str(mortal.pop_id) if mortal.pop_id else None
+        prominence = float(mortal.prominence)
+
+        own_influence = (
+            WHISPER_OWN_POP_BASE_INFLUENCE
+            + prominence * WHISPER_OWN_POP_PROMINENCE_GAIN
+        )
+        cross_influence = prominence * WHISPER_CROSS_POP_PROMINENCE_GAIN
+
+        for sp in splash_pops:
+            is_own = own_pop_id is not None and str(sp.id) == own_pop_id
+            influence = own_influence if is_own else cross_influence
+            if influence <= 0.0:
+                continue
+            resistance = self._pop_contact_resistance(
+                sp, src_civ_id, src_species_id, src_class, state, cfg,
+                src_size=src_size,
+            )
+            dist_factor = _pop_distance_factor(state, src_loc_id, sp.current_location)
+            for dv in domain_vectors:
+                receptivity = self._pop_domain_receptivity(sp, dv.domain_tag)
+                splash_delta = (
+                    dv.direction * per_unit_delta * WHISPER_POP_SPLASH
+                    * receptivity * resistance * dist_factor * influence
+                )
+                if abs(splash_delta) > 1e-5:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.POP_BELIEF_SHIFT,
+                        target_id=sp.id,
+                        field=dv.domain_tag,
+                        delta=splash_delta,
+                        note=(
+                            f"{note_prefix} splash to {sp.stratum} Pop"
+                            + (" (own pop)" if is_own else "")
+                        ),
+                    ))
+                    self._emit_lineage_bleed(
+                        mutations, state, sp, dv.domain_tag,
+                        splash_delta, "whisper",
+                    )
+            for cv in culture_vectors:
+                splash_delta = (
+                    cv.direction * per_unit_delta * WHISPER_POP_SPLASH
+                    * resistance * dist_factor * influence
+                )
+                if abs(splash_delta) > 1e-5:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.POP_CULTURE_SHIFT,
+                        target_id=sp.id,
+                        field=cv.culture_tag,
+                        delta=splash_delta,
+                        note=(
+                            f"{note_prefix} culture splash to {sp.stratum} Pop"
+                            + (" (own pop)" if is_own else "")
+                        ),
+                    ))
+
     def _pops_on_world(self, world_id: str, state: "SimulationState") -> list["Pop"]:
         """Return all Pops whose current_location is a PopLocation whose parent
         is `world_id`. Authoritative source is `pop.current_location` (not
@@ -5000,12 +5369,11 @@ class TickLoop:
         if stratum_distance > 0:
             r *= cfg.cross_stratum_contact_factor ** stratum_distance
 
-        # Values-tag stubbornness
-        values_strength = sum(
-            v for tag, v in target_pop.culture_tags.items() if tag.startswith("values:")
-        )
-        if values_strength > 0.0:
-            r *= max(0.05, 1.0 - values_strength * cfg.values_stubbornness_factor)
+        # NOTE: `values:*` stubbornness used to be applied here, but it's
+        # really about how hard values:* tags themselves are to change — not
+        # about a Pop's general resistance to ideas. It now lives in the
+        # POP_CULTURE_SHIFT / CIV_ESTABLISHED_CULTURE_SHIFT apply handlers
+        # (which is where culture-tag values actually mutate).
 
         # Size ratio: a smaller source Pop has proportionally less sway over a larger target
         tgt_size = max(0.001, target_pop.size_fractional)
@@ -5387,10 +5755,51 @@ class TickLoop:
                     delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
                     cap = BELIEF_CAP if delta > 0 else 1.0
                     new_strength = max(0.0, min(cap, current + delta))
-                    if new_strength > BELIEF_FLOOR:
+                    # Sub-floor entries are permitted to persist within a tick so
+                    # that small multi-source contributions (e.g. a 4-tick whisper
+                    # echo's per-tick splashes) can accumulate and cross BELIEF_FLOOR
+                    # together. `_prune_weak_beliefs` clears any entry that still
+                    # sits below floor at the end of the next passive phase, so
+                    # one-off below-floor shifts do not leave ghost residue.
+                    if new_strength > 1e-5:
                         beliefs[tag] = new_strength
                     elif tag in beliefs:
                         del beliefs[tag]
+
+            elif m.mutation_type == MutationType.MORTAL_BELIEF_SHIFT:
+                tag = str(m.new_value) if m.new_value else m.field
+                if tid and tid in state.mortals and tag:
+                    beliefs = state.mortals[tid].belief_tags
+                    current = beliefs.get(tag, 0.0)
+                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_strength = max(0.0, min(cap, current + delta))
+                    # Sub-floor entries persist within a tick so multi-source
+                    # contributions (e.g. a 4-tick whisper echo's per-tick shifts
+                    # when each is below floor) can accumulate across floor.
+                    # `_prune_weak_beliefs` clears entries still sub-floor at the
+                    # end of the next passive phase.
+                    if new_strength > 1e-5:
+                        beliefs[tag] = new_strength
+                    elif tag in beliefs:
+                        del beliefs[tag]
+
+            elif m.mutation_type == MutationType.MORTAL_CULTURE_SHIFT:
+                tag = str(m.new_value) if m.new_value else m.field
+                if tid and tid in state.mortals and tag:
+                    culture = state.mortals[tid].culture_tags
+                    current = culture.get(tag, 0.0)
+                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    # values:* tags are stubborn — extra dampening on either direction.
+                    if tag.startswith("values:"):
+                        delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
+                    cap = BELIEF_CAP if delta > 0 else 1.0
+                    new_strength = max(0.0, min(cap, current + delta))
+                    # Sub-floor accumulation — see MORTAL_BELIEF_SHIFT above.
+                    if new_strength > 1e-5:
+                        culture[tag] = new_strength
+                    elif tag in culture:
+                        del culture[tag]
 
             elif m.mutation_type == MutationType.POP_VISIBILITY:
                 if tid and tid in state.pops:
@@ -5419,9 +5828,12 @@ class TickLoop:
                     est_cult = state.civilizations[tid].established_culture_tags
                     current = est_cult.get(tag, 0.0)
                     delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    # values:* tags are stubborn — extra dampening on either direction.
+                    if tag.startswith("values:"):
+                        delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
                     cap = BELIEF_CAP if delta > 0 else 1.0
                     new_strength = max(0.0, min(cap, current + delta))
-                    if new_strength > BELIEF_FLOOR:
+                    if new_strength > CULTURE_FLOOR:
                         est_cult[tag] = new_strength
                     elif tag in est_cult:
                         del est_cult[tag]
@@ -5471,12 +5883,19 @@ class TickLoop:
                     pop = state.pops[tid]
                     current = pop.culture_tags.get(tag, 0.0)
                     delta = m.delta * self._belief_inertia(current, m.delta)
+                    # values:* tags are stubborn — extra dampening on either direction.
+                    if tag.startswith("values:"):
+                        delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
                     cap = BELIEF_CAP if delta > 0 else 1.0
                     new_val = max(0.0, min(cap, current + delta))
-                    if new_val < BELIEF_FLOOR:
-                        pop.culture_tags.pop(tag, None)
-                    else:
+                    # Sub-floor accumulation (lever C, culture variant): allow
+                    # entries to persist below CULTURE_FLOOR within a tick so
+                    # repeated splashes can compound. `_prune_weak_beliefs`
+                    # clears entries still under floor at the next passive phase.
+                    if new_val > 1e-5:
                         pop.culture_tags[tag] = new_val
+                    elif tag in pop.culture_tags:
+                        del pop.culture_tags[tag]
 
             elif m.mutation_type == MutationType.POP_ABSORBED:
                 # target_id = Pop A UUID, new_value = Pop B UUID string

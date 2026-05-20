@@ -138,6 +138,23 @@ class DomainVector(BaseModel):
     # Human-readable rationale — also seeds narrative generation
 
 
+class CultureVector(BaseModel):
+    """
+    A directional push toward or away from a culture tag (religion:*, values:*,
+    techno:*, structure:*, practice:*, relations:*). The culture-side counterpart
+    to DomainVector — together they carry the full "rider" mechanics of an
+    Imago framing an action.
+    """
+    culture_tag: str
+    # e.g. "religion:ancestor_worship", "values:ambition", "structure:hierarchy"
+
+    direction: float = Field(ge=-1.0, le=1.0)
+    # +1.0 = strongly toward this culture trait
+    # -1.0 = strongly away from it
+
+    notes: str = ""
+
+
 class Framing(str, Enum):
     """
     How the intent is meant to appear to mortals.
@@ -170,11 +187,12 @@ class WhisperIntent(BaseModel):
     # What Domain shifts this is meant to eventually produce
     # in the wider civilization, through this mortal
 
-    framing: Framing = Framing.INSPIRATIONAL
+    culture_vectors: list[CultureVector] = Field(default_factory=list)
+    # Culture-tag "riders" carried by the framing Imago. Whisper applies them
+    # to the target mortal and (via splash) to nearby Pops, just like
+    # domain_vectors. Empty when no Imago framed the action.
 
-    urgency: float = Field(ge=0.0, le=1.0, default=0.3)
-    # How pressing the message feels to the recipient.
-    # High urgency is more memorable but more obviously supernatural.
+    framing: Framing = Framing.INSPIRATIONAL
 
     target_audience: Optional[str] = None
     # Who the mortal is meant to carry this to, if anyone.
@@ -182,6 +200,50 @@ class WhisperIntent(BaseModel):
 
     imago_node_id: Optional[str] = None
     # The Imago node (e.g. "change:t1:wheel") that framed this action, if any.
+
+
+class ShapeDreamIntent(BaseModel):
+    """
+    For: shape_dream
+    A complex dream: two Imāginēs from DIFFERENT Domain trees seeded into one
+    mortal's sleep. At resolution the system randomly picks one Imago as the
+    "dominant" interpretation (its effect × 1.15) and the other as the
+    "suppressed" one (× 0.60); only the player learns which dominated after
+    the fact, from the action's narrative line.
+
+    Resolution rules (applied to both domain_vectors and culture_vectors):
+      * The boost/suppress multiplier applies only to entries with positive
+        `direction`. Negative-direction "rider" mechanics apply at full
+        strength regardless of which Imago they came from — you can't dream
+        your way out of an Imago's downsides.
+      * For tags appearing in BOTH Imagines (after multipliers):
+          - Both positive  → take the MEAN  (two ideas in the same direction
+                                             dilute each other rather than
+                                             stack — a "complex mix.")
+          - Both negative  → SUM  (compounded downside).
+          - Mixed sign     → SUM  (they offset naturally).
+      * Tags appearing in only one Imago contribute as-is (post-multiplier).
+    """
+    concept: str
+    # Plain statement of the dream the player is shaping. The narrative line
+    # generated at resolution time will report which Imago turned out to be
+    # the dominant interpretation.
+
+    imago_node_id_a: str
+    imago_node_id_b: str
+    # The two Imago node IDs (must be from different Domain trees).
+
+    domain_vectors_a: list[DomainVector] = Field(default_factory=list)
+    culture_vectors_a: list[CultureVector] = Field(default_factory=list)
+    domain_vectors_b: list[DomainVector] = Field(default_factory=list)
+    culture_vectors_b: list[CultureVector] = Field(default_factory=list)
+    # Vectors derived from each Imago's mechanics at intent-construction time.
+    # The handler combines them per the rules above.
+
+    framing: Framing = Framing.AMBIGUOUS
+    # Dreams are inherently ambiguous — the mortal supplies the meaning.
+
+    target_audience: Optional[str] = None
 
 
 class OmenIntent(BaseModel):
@@ -272,6 +334,10 @@ class ProxiusDirectiveIntent(BaseModel):
 
     domain_vectors: list[DomainVector] = Field(default_factory=list)
     # The underlying Domain agenda this serves
+
+    culture_vectors: list[CultureVector] = Field(default_factory=list)
+    # Culture-tag "riders" the directive carries from its framing Imago.
+    # Proxius preaching applies these alongside domain_vectors.
 
     latitude: float = Field(ge=0.0, le=1.0, default=0.5)
     # How much interpretive freedom you're granting.
@@ -473,6 +539,7 @@ class ScryIntent(BaseModel):
 
 ActionIntent = Union[
     WhisperIntent,
+    ShapeDreamIntent,
     OmenIntent,
     ProbabilityNudgeIntent,
     DevelopmentIntent,
@@ -624,6 +691,8 @@ class MutationType(str, Enum):
     REVELATION_GAINED      = "revelation_gained"   # field=domain_tag, delta=amount (negative to spend)
     IMAGO_REVEALED         = "imago_revealed"      # new_value=node_id; appends to unlocked_imagines, increments revealed_imagines
     POP_BELIEF_SHIFT       = "pop_belief_shift"    # field=domain_tag, delta on Pop.dominant_beliefs
+    MORTAL_BELIEF_SHIFT    = "mortal_belief_shift" # field=domain_tag, delta on NotableMortal.belief_tags
+    MORTAL_CULTURE_SHIFT   = "mortal_culture_shift" # field=culture_tag, delta on NotableMortal.culture_tags
     POP_VISIBILITY         = "pop_visibility"      # delta/new_value on Pop.visibility; clamp 0–1
     CIV_ESTABLISHED_SHIFT         = "civ_established_shift"          # field=domain_tag, delta on Civilization.established_beliefs
     CIV_ESTABLISHED_CULTURE_SHIFT = "civ_established_culture_shift"  # field=culture_tag, delta on Civilization.established_culture_tags

@@ -4,7 +4,7 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID
 
-from core.action_core import DomainVector
+from core.action_core import DomainVector, CultureVector
 
 
 class AgentActionChoice(str, Enum):
@@ -28,6 +28,9 @@ class ProxiusGoal(BaseModel):
     target_location_id: UUID
     target_civilization_id: Optional[UUID] = None  # None = all civs at location (legacy path)
     domain_vectors: list[DomainVector] = Field(default_factory=list)
+    culture_vectors: list[CultureVector] = Field(default_factory=list)
+    # Culture-tag riders inherited from the framing Imago. Applied by Proxius
+    # preaching alongside domain_vectors.
     latitude: float = 0.5                           # 0.0 strict → 1.0 open
     constraints: list[str] = Field(default_factory=list)
     started_at_tick: int = 0
