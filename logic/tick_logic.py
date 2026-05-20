@@ -3280,9 +3280,14 @@ class TickLoop:
                 ]
 
             for pop in target_pops:
+                # Sub-location shielding: Pops deeper from the omen's
+                # manifestation point feel it less (0.7 per distance step).
+                dist_factor = _pop_distance_factor(
+                    state, intent.target_loc_id, pop.current_location,
+                )
                 for dv in intent.domain_vectors:
                     receptivity = self._pop_domain_receptivity(pop, dv.domain_tag)
-                    pop_delta = dv.direction * effectiveness * 0.15 * receptivity
+                    pop_delta = dv.direction * effectiveness * 0.15 * receptivity * dist_factor
                     if abs(pop_delta) > 1e-5:
                         mutations.append(StateMutation(
                             mutation_type=MutationType.POP_BELIEF_SHIFT,
@@ -3333,6 +3338,7 @@ class TickLoop:
                     decay_rate=0.6,
                     target_civilization_id=None,  # echo targets Pops via world branch
                     target_world_id=omen_world_id,
+                    target_loc_id=intent.target_loc_id,
                     domain_vectors=intent.domain_vectors,
                     domain_shift_rate=0.08,
                     divine_awareness_rate=0.03,
@@ -4373,8 +4379,12 @@ class TickLoop:
                 wid = str(event.target_world_id) if event.target_world_id else None
                 echo_pops = self._pops_on_world(wid, state) if wid else list(state.pops.values())
                 for pop in echo_pops:
+                    # Same sub-location shielding as the immediate omen.
+                    dist_factor = _pop_distance_factor(
+                        state, event.target_loc_id, pop.current_location,
+                    )
                     for dv in event.domain_vectors:
-                        delta = dv.direction * strength * event.domain_shift_rate
+                        delta = dv.direction * strength * event.domain_shift_rate * dist_factor
                         if abs(delta) > 1e-5:
                             mutations.append(StateMutation(
                                 mutation_type=MutationType.POP_BELIEF_SHIFT,

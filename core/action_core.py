@@ -269,6 +269,12 @@ class OmenIntent(BaseModel):
     # None = world-wide, multiple civilizations see it
     # and may interpret it very differently
 
+    target_loc_id: Optional[UUID] = None
+    # The sub-location (PopLocation) the omen visibly manifests at. Pops in
+    # other sub-locations of the same world get distance-from-core shielding
+    # (0.7 per step of remove). None = manifests at the world surface
+    # (distance 0) — deep/orbital Pops are still shielded relative to it.
+
     imago_node_id: Optional[str] = None
 
 

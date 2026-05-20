@@ -592,15 +592,20 @@ def _write_active_events(conn, state: SimulationState):
             {"domain_tag": dv.domain_tag, "direction": dv.direction, "notes": dv.notes}
             for dv in ev.domain_vectors
         ])
+        cv_json = json.dumps([
+            {"culture_tag": cv.culture_tag, "direction": cv.direction, "notes": cv.notes}
+            for cv in ev.culture_vectors
+        ])
         conn.execute(
             """INSERT INTO active_events
                (id, event_type, curve, source_action_id, created_at_tick,
                 duration, base_strength, peak_offset, decay_rate,
                 target_world_id, target_civilization_id, target_mortal_id,
-                domain_vectors, domain_shift_rate, divine_awareness_rate,
+                target_loc_id, domain_vectors, culture_vectors,
+                domain_shift_rate, divine_awareness_rate,
                 attention_per_tick, imago_node_id, framing,
                 sign_description, concept)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(ev.id),
                 ev.event_type.value,
@@ -614,7 +619,9 @@ def _write_active_events(conn, state: SimulationState):
                 str(ev.target_world_id) if ev.target_world_id else None,
                 str(ev.target_civilization_id) if ev.target_civilization_id else None,
                 str(ev.target_mortal_id) if ev.target_mortal_id else None,
+                str(ev.target_loc_id) if ev.target_loc_id else None,
                 dv_json,
+                cv_json,
                 ev.domain_shift_rate,
                 ev.divine_awareness_rate,
                 ev.attention_per_tick,

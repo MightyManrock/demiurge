@@ -37,6 +37,11 @@ class Event(BaseModel):
     target_civilization_id: Optional[UUID] = None
     target_mortal_id: Optional[UUID] = None
 
+    target_loc_id: Optional[UUID] = None
+    # Sub-location (PopLocation) the event manifests at — used by Omen echoes
+    # for distance-from-core shielding of Pops in other sub-locations. None =
+    # world surface (distance 0).
+
     domain_vectors: list[DomainVector] = Field(default_factory=list)
     culture_vectors: list[CultureVector] = Field(default_factory=list)
     # Culture-tag riders, applied with the same per-tick `domain_shift_rate`

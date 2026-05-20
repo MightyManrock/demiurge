@@ -38,7 +38,7 @@ from core.action_core import (
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent,
-    DomainVector,
+    DomainVector, CultureVector,
 )
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice
@@ -729,6 +729,14 @@ def _load_active_events(conn) -> dict[str, Event]:
                 direction=dv_dict["direction"],
                 notes=dv_dict.get("notes", ""),
             ))
+        culture_vectors: list[CultureVector] = []
+        cv_data = row.get("culture_vectors", "[]")
+        for cv_dict in json.loads(cv_data) if cv_data else []:
+            culture_vectors.append(CultureVector(
+                culture_tag=cv_dict["culture_tag"],
+                direction=cv_dict["direction"],
+                notes=cv_dict.get("notes", ""),
+            ))
         event = Event(
             id=UUID(row["id"]),
             event_type=EventType(row["event_type"]),
@@ -742,7 +750,9 @@ def _load_active_events(conn) -> dict[str, Event]:
             target_world_id=_uuid(row.get("target_world_id")),
             target_civilization_id=_uuid(row.get("target_civilization_id")),
             target_mortal_id=_uuid(row.get("target_mortal_id")),
+            target_loc_id=_uuid(row.get("target_loc_id")),
             domain_vectors=domain_vectors,
+            culture_vectors=culture_vectors,
             domain_shift_rate=row.get("domain_shift_rate", 0.10),
             divine_awareness_rate=row.get("divine_awareness_rate", 0.0),
             attention_per_tick=row.get("attention_per_tick", 0.0),
