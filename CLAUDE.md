@@ -151,6 +151,7 @@ Deep-dive docs live in `docs/Mechanics/`. Reach for these when working on a spec
 
 - **Herald actions are unimplemented stubs.** `negotiate_herald`, `obstruct_herald`, `petition_luminary_herald` require a Herald entity class that does not yet exist. `investigate_underreal` and `overthrow_luminary` are end-game content not yet implemented.
 - **`read_divine_traces` is parked.** Commented out in `utilities/action_registry.py`; depends on Herald mechanics. Intent class and tick-logic branch remain in place.
+- **AttentionLevel dampening allows proxius_activity violations to go undetected at low attention.** If the player keeps `overt_miracles = 0`, attention decays to NEGLIGENT (0.2 perception multiplier) and even heavy Proxii spam stays in EXEMPLARY territory for `proxius_activity` constraints. This is intentional — Heralds (when implemented) will close this loophole by actively investigating rather than relying on passive footprint perception.
 
 ## Fixed issues
 
