@@ -1,4 +1,4 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** CLAUDE.md Simplification
 > **Last updated:** 2026-05-21
 

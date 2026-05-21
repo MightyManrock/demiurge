@@ -3,8 +3,8 @@
 
 ---
 
-### CLAUDE.md Simplification
-> → plan: [claude-md-simplification.md](plans/claude-md-simplification.md)
+### ~~CLAUDE.md Simplification~~ ✓
+> → plan: [claude-md-simplification.md](plans/claude-md-simplification.md) — **complete**
 
 CLAUDE.md is currently way too bloated—it is well past time to trim it.
 
