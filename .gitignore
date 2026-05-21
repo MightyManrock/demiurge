@@ -14,7 +14,7 @@ docs/.stignore
 docs/.stversions/
 docs/**/*.syncthing.*.tmp
 saves/*.db
-scenarios/*.bak
+scenarios/*.db.bak.*
 core/*.bak
 resources/*
 
