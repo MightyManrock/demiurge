@@ -148,19 +148,19 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     just_revealed_edge = False
     just_revealed_dawn = False
 
-    if "domain:conflict" not in affiliated and "domain:order" in affiliated and essence >= 1.5:
+    if "domain:conflict" not in affiliated and "domain:order" in affiliated and essence >= 15.0:
         q("change_affiliated_domains", TargetType.UNDERREAL, None,
           ChangeAffiliatedDomainsIntent(old_domain="domain:order",
                                         new_domain="domain:conflict"))
         actions.append("swap order → conflict affiliation")
 
-    elif "domain:conflict" in affiliated and "domain:mastery" not in affiliated and essence >= 1.5:
+    elif "domain:conflict" in affiliated and "domain:mastery" not in affiliated and essence >= 15.0:
         q("change_affiliated_domains", TargetType.UNDERREAL, None,
           ChangeAffiliatedDomainsIntent(old_domain="domain:conflict",
                                         new_domain="domain:mastery"))
         actions.append("swap conflict → mastery affiliation")
 
-    elif "domain:change" in affiliated and "domain:growth" not in affiliated and essence >= 1.5:
+    elif "domain:change" in affiliated and "domain:growth" not in affiliated and essence >= 15.0:
         q("change_affiliated_domains", TargetType.UNDERREAL, None,
           ChangeAffiliatedDomainsIntent(old_domain="domain:change",
                                         new_domain="domain:growth"))

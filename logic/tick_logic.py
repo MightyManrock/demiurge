@@ -250,8 +250,8 @@ def compute_mortal_alignment_base(
     return max(0.05, min(0.95, 0.5 + combined * 0.45))
 
 
-# Essence generation: per-CivilizationScale multipliers applied to dominant_beliefs.
-# Ordered so that inherent location weight (3.0) always exceeds even max-scale civ (1.60).
+# Essence generation: per-CivilizationScale scope multipliers applied to sapient Pop
+# dominant_beliefs (combined with essence_pop_weight; pre-sapient Pops bypass this table).
 _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
     "nascent":        0.05,
     "tribal":         0.10,
@@ -556,10 +556,18 @@ class TickConfig(BaseModel):
     # Essence generation weights (tuning targets; adjust after playtesting)
     essence_location_weight: float = 3.0
     # Multiplier for SignificantLocation.domain_expression contributions.
-    # Intentionally higher than the max civ scale multiplier so a world's
-    # inherent character outweighs any single civilization.
+    # Sapient Pops (via essence_pop_weight) collectively outweigh any single
+    # location; locations outweigh pre-sapient Pops; mortals are the floor.
 
-    essence_mortal_weight: float = 0.05
+    essence_pop_weight: float = 10.0
+    # Baseline multiplier applied to sapient Pop dominant_beliefs contributions
+    # (before scale_mult and belief-match bonuses are applied).
+
+    essence_presapient_weight: float = 2.0
+    # Flat multiplier for pre-sapient / wild Pop contributions.
+    # Below location weight (3.0) but clearly above mortal weight (0.5).
+
+    essence_mortal_weight: float = 0.5
     # Multiplier for NotableMortal.belief_tags contributions.
 
     essence_claiming_exponent: float = 0.40
@@ -568,7 +576,7 @@ class TickConfig(BaseModel):
     # At 0.40: aff=0.2→52.5%, aff=0.5→75.8%, aff=0.8→91.5%, aff=0.9→95.9%.
     # Demiurge gets 1 − lum_fraction of any affiliated domain pool.
 
-    luminary_essence_baseline_rate: float = 1.0
+    luminary_essence_baseline_rate: float = 10.0
     # Expected weighted domain production per effective-affinity-point per tick.
     # Threshold = effective_affinity × baseline_rate × ticks_since_last_eval,
     # where effective_affinity uses diminishing returns (see luminary_essence_decay).
@@ -586,7 +594,7 @@ class TickConfig(BaseModel):
     # of 6 (excess=8) adds 8×0.20=1.6 to their expectation floor next period.
     # Raised expectations decay by 0.10 per two consecutive shortfall periods.
 
-    luminary_essence_passive_rise: float = 0.50
+    luminary_essence_passive_rise: float = 5.0
     # Per-tick expectation creep added each evaluation period, diminishing with age.
     # Actual increment = passive_rise × ticks_since / max(tick_number, 1).
     # At tick 1 with ticks_since=6: full 0.50×6=3.0 added. At tick 50: 0.50×6/50=0.06.
@@ -1699,31 +1707,40 @@ class TickLoop:
                 cid = str(pop.civilization_id)
                 civ_total_size[cid] = civ_total_size.get(cid, 0.0) + pop.size_fractional
 
-        # Pop contributions: belief strength * size_weight * scope bonus
+        # Pop contributions: sapient Pops are the primary Essence source.
+        # Pre-sapient/wild Pops contribute a smaller flat amount (above mortals but
+        # below even a low-scale sapient civ) and bypass the scale/match formula.
         for pop in state.pops.values():
             if not pop.dominant_beliefs:
                 continue
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
             cid = str(pop.civilization_id) if pop.civilization_id else None
+            presapient = pop.is_wild or (civ is not None and is_wild_civ(civ))
 
-            if civ is not None:
-                scale_mult = _CIV_SCALE_ESSENCE_MULT.get(
-                    civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1
-                )
-                match = self._belief_match(pop.dominant_beliefs, civ.established_beliefs)
-                total_sz = civ_total_size.get(cid, pop.size_fractional)
-                size_weight = pop.size_fractional / total_sz if total_sz > 0.0 else 1.0
+            if presapient:
+                for tag, strength in pop.dominant_beliefs.items():
+                    amount = strength * pop.size_fractional * cfg.essence_presapient_weight
+                    if amount > 0.0:
+                        universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
             else:
-                scale_mult = 0.05
-                match = 0.0
-                size_weight = 1.0
+                if civ is not None:
+                    scale_mult = _CIV_SCALE_ESSENCE_MULT.get(
+                        civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1
+                    )
+                    match = self._belief_match(pop.dominant_beliefs, civ.established_beliefs)
+                    total_sz = civ_total_size.get(cid, pop.size_fractional)
+                    size_weight = pop.size_fractional / total_sz if total_sz > 0.0 else 1.0
+                else:
+                    scale_mult = 0.05
+                    match = 0.0
+                    size_weight = 1.0
 
-            for tag, strength in pop.dominant_beliefs.items():
-                # Contribution weighted by Pop's share of civ total size so that
-                # splitting one Pop into many doesn't multiply total essence output.
-                amount = strength * size_weight * (1.0 + (scale_mult - 1.0) * match)
-                if amount > 0.0:
-                    universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
+                for tag, strength in pop.dominant_beliefs.items():
+                    # Contribution weighted by Pop's share of civ total size so that
+                    # splitting one Pop into many doesn't multiply total essence output.
+                    amount = strength * size_weight * cfg.essence_pop_weight * (1.0 + (scale_mult - 1.0) * match)
+                    if amount > 0.0:
+                        universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
         # Mortal contributions (unchanged)
         for mortal in state.mortals.values():
@@ -2566,8 +2583,8 @@ class TickLoop:
             scope_essence: dict[ScryScope, float] = {
                 ScryScope.WORLD:    0.0,
                 ScryScope.SYSTEM:   0.0,
-                ScryScope.GALAXY:   0.3,
-                ScryScope.UNIVERSE: 0.5,
+                ScryScope.GALAXY:   3.0,
+                ScryScope.UNIVERSE: 5.0,
             }
             scry_essence_cost = scope_essence[scope]
             if scry_essence_cost > 0.0:
@@ -3390,7 +3407,7 @@ class TickLoop:
 
             # Yield modulated by concealment priority
             # High concealment = slower, but less apparent leak
-            base_yield = 0.3
+            base_yield = 3.0
             if outcome == ActionOutcome.PARTIAL:
                 base_yield *= 0.5
             concealment_factor = intent.concealment_priority
