@@ -1613,6 +1613,7 @@ class TickLoop:
             result.entity_mutations.append(StateMutation(
                 mutation_type=MutationType.POP_SPLINTER,
                 target_id=pop.id,
+                field="pops",
                 new_value=splinter,
                 note=note,
             ))

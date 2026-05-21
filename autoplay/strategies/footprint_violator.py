@@ -86,7 +86,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
           culture_vectors=cvs,
           framing=Framing.PROPHETIC,
           target_loc_id=None,
-          imago_node_id=node.id,
+          imago_node_id=node.node_id,
       ))
     return (
         f"Tick {tick}: Manifest Omen on {world_name} — "
