@@ -4,6 +4,7 @@
 ---
 
 ### ⭐ TOP PRIORITY — Deprecate `core/core.db` auto-bootstrapping on launch
+> → plan: [deprecate-core-db-bootstrap.md](plans/deprecate-core-db-bootstrap.md)
 
 Every `main.py` launch re-bootstraps `core/core.db` from the hardcoded Python registry data. This re-write produces a git diff on the DB file on *every* game launch, which plays havoc with the repo.
 
