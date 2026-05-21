@@ -53,20 +53,22 @@ success_chance = clamp(
     + puissance          * PUISSANCE_WEIGHT
     + target.visibility  * VISIBILITY_WEIGHT
     + framing_resonance  * FRAMING_WEIGHT
-, 0.75, 0.92)
+, 0.75, 0.99)
 ```
 
 | Constant | Suggested value | Rationale |
 |---|---|---|
 | `BASE_INFLUENCE` | `0.75` | Floor at all-zero inputs |
-| `PUISSANCE_WEIGHT` | `0.08` | Max +8% from a fully mature Demiurge |
+| `PUISSANCE_WEIGHT` | `0.15` | Max +15% from a fully mature Demiurge; primary progression driver |
 | `VISIBILITY_WEIGHT` | `0.05` | Max +5% at visibility 1.0 |
 | `FRAMING_WEIGHT` | `0.04` | Max +4% at full resonance |
 
 `framing_resonance` reuses the existing `_framing_resonance()` helper already in `tick_logic.py` (built for Manifest Omen interpretation). Note: AMBIGUOUS Framing has **no explicit penalty** here (unlike Manifest Omen), it simply contributes 0 resonance.
 
 At floor inputs (puissance=0, visibility=0, resonance=0): `success_chance = 0.75` ✓  
-At ceiling inputs (puissance=1, visibility=1, resonance=1): `success_chance = 0.75 + 0.08 + 0.05 + 0.04 = 0.92` ✓
+At ceiling inputs (puissance=1, visibility=1, resonance=1): `success_chance = 0.75 + 0.15 + 0.05 + 0.04 = 0.99` ✓
+
+The theoretical maximum of 0.99 is essentially unreachable in normal play (requires maxed revelation, most Imagines unlocked, and full visibility) — so the cap rewards edge-case dedication without affecting typical games. The wider range also gives more meaningful mid-game progression.
 
 Outcome mapping: roll a `float` in `[0, 1)`.
 - `< success_chance` → `SUCCESS`
