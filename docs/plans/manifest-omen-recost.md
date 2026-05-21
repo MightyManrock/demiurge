@@ -1,7 +1,6 @@
-> **Status:** blocked
+> **Status:** active
 > **TO-DO ref:** Re-cost Manifest Omen
 > **Last updated:** 2026-05-21
-> **Blocked by:** [action-success-rework.md](action-success-rework.md)
 
 ## Goal
 
@@ -9,10 +8,9 @@ Decide whether Manifest Omen's Essence cost needs to increase to account for its
 
 ## Approach
 
-1. Wait for the action success/failure rework to land first.
-2. After the rework, playtest Manifest Omen with well-matched and mismatched Framing to assess whether mismatched omens already self-penalize sufficiently.
-3. If the self-penalty is enough: close this item as resolved by the rework.
-4. If Manifest Omen is still overcost-effective: increase its base Essence cost in `utilities/action_registry.py` (or wherever costs are defined) and adjust the action definition.
+1. Playtest Manifest Omen with well-matched and mismatched Framing to assess current power level.
+2. Manifest Omen always fires — it has no miss state. The Framing rework (which may gate success on regular actions) is orthogonal: Framing on Manifest Omen governs interpretation fidelity, not whether it activates. These are independent concerns.
+3. Evaluate cost on its own merits. If it's overcost-effective even accounting for misinterpretation risk: increase its base Essence cost in `utilities/action_registry.py` and adjust the action definition.
 
 ## Files affected
 
@@ -21,5 +19,5 @@ Decide whether Manifest Omen's Essence cost needs to increase to account for its
 
 ## Notes
 
-- Do not act on this until [[action-success-rework]] is complete.
 - Resolution may be "no change needed" — that's a valid outcome.
+- The action success rework is now a separate, independent track.

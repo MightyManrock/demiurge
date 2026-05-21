@@ -11,7 +11,7 @@ The roll that determines whether an action succeeds is due for adjustment. Consi
 ---
 
 ### Re-cost Manifest Omen
-> → plan: [manifest-omen-recost.md](plans/manifest-omen-recost.md) *(blocked on action success rework)*
+> → plan: [manifest-omen-recost.md](plans/manifest-omen-recost.md)
 
 Manifest Omen is very powerful, especially with skilled `Framing` use — its Essence cost may need to go up. Decide *after* the action success/failure rework: if Framing gates success, a mismatched omen already self-penalizes.
 
