@@ -31,6 +31,8 @@ Targets a mortal with **two Imagines from different Domain trees**. At resolutio
 
 ## Manifest Omen (`OmenIntent`) — "shotgun" interpretation
 
+**Essence cost: 2.0** (20× Whisper). Targets an entire world including invisible Pops and mortals — the AoE scope and guaranteed activation justify the premium over single-target influence actions.
+
 Targets a world. Every Pop and every active mortal on it runs the shotgun resolver (`_resolve_omen_target`):
 
 - Effect `E` = the omen's vectors scaled by `OMEN_BASE(0.35)`. A Pop runs `n = max(1, size_magnitude)` interpretation checks; a mortal runs 1. Subdivided component `e = E/n`.

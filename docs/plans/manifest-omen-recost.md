@@ -1,4 +1,4 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** Re-cost Manifest Omen
 > **Last updated:** 2026-05-21
 
