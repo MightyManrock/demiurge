@@ -1335,6 +1335,7 @@ class TickLoop:
                 result.entity_mutations.append(StateMutation(
                     mutation_type=MutationType.MORTAL_POP_AGED_OUT,
                     target_id=UUID(mid),
+                    field="status",
                     note=f"{mortal.name} has aged beyond their origin community",
                 ))
                 result.narrative_events.append(NarrativeEvent(
