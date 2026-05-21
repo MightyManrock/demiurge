@@ -1,0 +1,24 @@
+> [← CLAUDE.md](../../CLAUDE.md)
+
+# Essence Generation
+
+Each tick (tail end of Phase 1), `_process_essence_generation` in `tick_logic.py` builds a per-Domain universe pool of Essence and distributes it between the Luminaries and the Demiurge.
+
+## Pool Inputs
+
+For each `domain:...` tag:
+- **Worlds** — every `SignificantLocation`'s `domain_expression[tag]` contributes `strength * essence_location_weight` (default 3.0).
+- **Pops** — each Pop's `dominant_beliefs[tag]` contributes `strength * size_weight * (1 + (scale_mult − 1) * match)`, where `size_weight` is the Pop's share of its civ's total `size_fractional`, `scale_mult` comes from `_CIV_SCALE_ESSENCE_MULT`, and `match` is the weighted overlap between the Pop's beliefs and its civ's `established_beliefs`. Pops with no civ get a flat `scale_mult = 0.05` and `match = 0`.
+- **Mortals** — every active mortal's `belief_tags[tag]` contributes `strength * essence_mortal_weight` (default 0.05).
+
+## Claim Split
+
+For each Domain pool, let `lum_total_aff = min(0.9, Σ lum.domains[tag])` across all Luminaries. The Luminaries collectively claim `lum_fraction = lum_total_aff ** essence_claiming_exponent` (default exponent 0.40 — a concave curve). The Demiurge claims `pool * (1 − lum_fraction)` **iff** `tag in Demiurge.affiliated_domains` — otherwise the Demiurge's share sinks to the Underreal.
+
+**Edge case.** When `lum_total_aff == 0`: the Demiurge claims 100% if affiliated; otherwise the entire pool sinks to the Underreal.
+
+## Accounting
+
+Luminary satisfaction and Demiurge income are **separate accounts**. Each Luminary accumulates `lum_aff * pool` into `state.luminary_production_this_eval[lid]` regardless of what the Demiurge claims. Reducing the Demiurge's affiliated count does **not** reduce Luminary satisfaction.
+
+Claimed Essence flows to `Demiurge.essence.actual` via an `ESSENCE_CHANGE` mutation (no `apparent` impact). Per-Domain breakdown is exposed on `TickResult.essence_claimed_by_domain` and mirrored on `state.last_tick_essence_by_domain`. Domains in `Demiurge.tracked_essence_domains` accumulate into `state.domain_essence_claimed` for cumulative tracking.
