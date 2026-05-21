@@ -22,7 +22,6 @@ resources/*
 ERROR.txt
 
 # Claude Code
-CLAUDE.md
 .claude/
 
 # Byte-compiled / optimized / DLL files
