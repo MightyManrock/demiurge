@@ -422,6 +422,12 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
                 a(f"  {name}")
         a("")
 
+    # Puissance
+    p = state.demiurge.puissance
+    p_col = "#50b870" if p >= 0.6 else ("#c09030" if p >= 0.3 else "#b04050")
+    a(f"[bold #4a80b0]PUISSANCE[/]  [{p_col}]{p:.2f}[/]")
+    a("")
+
     # Footprint
     a("[bold #4a80b0]FOOTPRINT[/]")
     a(f"  overt  [#b06050]{fp.overt_miracles:.2f}[/]  "
