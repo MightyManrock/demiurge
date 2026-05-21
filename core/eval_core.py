@@ -206,19 +206,17 @@ class EssenceSuspicion(BaseModel):
 class EssenceSatisfaction(BaseModel):
     """
     Evaluated at each Luminary evaluation from the accumulated weighted domain
-    production (sum of affinity × universe_pool per domain) since the previous
+    production (sum of affinity × net_universe_pool per domain) since the previous
     evaluation. Higher affinity Luminaries care more about their domains' output.
     """
     luminary_id: UUID
     domain_production: float = 0.0
-    # Sum of (affinity × universe_pool) across this Luminary's domains for the period.
-    above_threshold: bool = False
-    # Whether domain_production met the luminary_essence_threshold.
-    growing: bool = False
-    # Whether this period's production exceeds the previous period's.
+    threshold: float = 0.0
+    surplus_ratio: float = 0.0
+    # (domain_production - threshold) / threshold; positive = above, negative = below.
+    trajectory_modifier: float = 0.0
+    # Continuous slope signal from production_log, clamped to [-0.02, 0.02].
     disposition_delta: float = 0.0
-    # Contribution to results disposition. Positive when both conditions met;
-    # negative when neither; zero when only one is met.
 
 
 def evaluate_essence_satisfaction(
@@ -231,22 +229,24 @@ def evaluate_essence_satisfaction(
     Compute satisfaction from current-period weighted production and historical log.
     production_log should contain the *previous* periods' totals (before appending this one).
     """
-    above = domain_production >= threshold
-    growing = bool(production_log) and domain_production > production_log[-1]
+    surplus_ratio = (domain_production - threshold) / max(threshold, 0.001)
+    base_delta = max(-0.15, min(0.06, surplus_ratio * 0.12))
 
-    if above and growing:
-        delta = 0.05
-    elif above or growing:
-        delta = 0.0
+    if len(production_log) >= 2:
+        slope = (production_log[-1] - production_log[0]) / len(production_log)
+        normalized_slope = slope / max(threshold, 0.001)
+        trajectory_modifier = max(-0.02, min(0.02, normalized_slope * 0.5))
     else:
-        deficit = max(0.0, threshold - domain_production)
-        delta = -min(0.10, deficit * 0.05)
+        trajectory_modifier = 0.0
+
+    delta = max(-0.15, min(0.07, base_delta + trajectory_modifier))
 
     return EssenceSatisfaction(
         luminary_id=luminary_id,
         domain_production=domain_production,
-        above_threshold=above,
-        growing=growing,
+        threshold=threshold,
+        surplus_ratio=surplus_ratio,
+        trajectory_modifier=trajectory_modifier,
         disposition_delta=delta,
     )
 

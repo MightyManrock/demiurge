@@ -586,6 +586,12 @@ class TickConfig(BaseModel):
     # of 6 (excess=8) adds 8×0.20=1.6 to their expectation floor next period.
     # Raised expectations decay by 0.10 per two consecutive shortfall periods.
 
+    luminary_essence_passive_rise: float = 0.50
+    # Per-tick expectation creep added each evaluation period, diminishing with age.
+    # Actual increment = passive_rise × ticks_since / max(tick_number, 1).
+    # At tick 1 with ticks_since=6: full 0.50×6=3.0 added. At tick 50: 0.50×6/50=0.06.
+    # Ensures idle play eventually falls short even if starting conditions are generous.
+
     # Pop dynamics
     pop_conformity_base: float = 0.005
     # Base rate at which Pops are nudged toward civ.established_beliefs per tick.
@@ -1748,17 +1754,6 @@ class TickLoop:
                 0.9, sum(lum.domains.get(tag, 0.0) for lum in luminaries)
             )
 
-            # Accumulate weighted production for each Luminary that has affinity here.
-            # This is the satisfaction metric: how much of their domain is being expressed.
-            for lum in luminaries:
-                lum_aff = min(0.8, lum.domains.get(tag, 0.0))
-                if lum_aff <= 0.0:
-                    continue
-                lid = str(lum.id)
-                state.luminary_production_this_eval[lid] = (
-                    state.luminary_production_this_eval.get(lid, 0.0) + lum_aff * pool
-                )
-
             if lum_total_aff == 0.0:
                 # No Luminary claims this domain — Demiurge gets 100% if affiliated
                 if tag in demiurge_affiliated:
@@ -1776,6 +1771,19 @@ class TickLoop:
             dem_fraction = 1.0 - lum_fraction
 
             dem_claim = pool * dem_fraction if tag in demiurge_affiliated else 0.0
+
+            # Accumulate weighted production using the net pool (post-Demiurge-claim).
+            # Luminaries only receive what the Demiurge doesn't take; yielding a domain
+            # raises their net_pool and boosts their satisfaction accordingly.
+            net_pool = pool - dem_claim
+            for lum in luminaries:
+                lum_aff = min(0.8, lum.domains.get(tag, 0.0))
+                if lum_aff <= 0.0:
+                    continue
+                lid = str(lum.id)
+                state.luminary_production_this_eval[lid] = (
+                    state.luminary_production_this_eval.get(lid, 0.0) + lum_aff * net_pool
+                )
             demiurge_total_claim += dem_claim
             if dem_claim > 0.0:
                 domain_claim_breakdown[tag] = domain_claim_breakdown.get(tag, 0.0) + dem_claim
@@ -2451,7 +2459,7 @@ class TickLoop:
                 projected_threshold = effective_affinity * cfg.luminary_essence_baseline_rate * eval_interval + raised
 
                 domain_production = state.luminary_production_this_eval.get(lid, 0.0)
-                surplus = domain_production - threshold_so_far
+                surplus_ratio = (domain_production - threshold_so_far) / max(threshold_so_far, 0.001)
 
                 # Per-domain contribution from current universe expression
                 profile = state.previous_domain_profile
@@ -2472,11 +2480,18 @@ class TickLoop:
                 report.append(f"  Projected at eval:  {projected_threshold:.3f}")
                 report.append(
                     f"  Produced this period: {domain_production:.3f}  "
-                    f"({'above' if surplus >= 0 else 'below'} threshold by {abs(surplus):.3f})"
+                    f"(surplus ratio: {surplus_ratio:+.0%})"
                 )
 
                 # Previous period trend
-                if luminary.essence_received_log:
+                if len(luminary.essence_received_log) >= 2:
+                    slope = (luminary.essence_received_log[-1] - luminary.essence_received_log[0]) / len(luminary.essence_received_log)
+                    normalized_slope = slope / max(threshold_so_far, 0.001)
+                    traj = max(-0.02, min(0.02, normalized_slope * 0.5))
+                    report.append(
+                        f"  Trajectory: {slope:+.3f} / period  (modifier: {traj:+.3f})"
+                    )
+                elif luminary.essence_received_log:
                     prev = luminary.essence_received_log[-1]
                     trend = "improving" if domain_production >= prev else "declining"
                     report.append(f"  Last period: {prev:.3f}  (trend: {trend})")
@@ -4271,6 +4286,11 @@ class TickLoop:
             ]
             effective_affinity = sum(aff * (cfg.luminary_essence_decay ** i) for i, aff in enumerate(sorted_affs))
             base_threshold = effective_affinity * cfg.luminary_essence_baseline_rate * ticks_since
+
+            # Passive expectation creep: rises each period, magnitude shrinks with age
+            passive_rise = cfg.luminary_essence_passive_rise * ticks_since / max(state.tick_number, 1)
+            luminary.essence_expectation_raised += passive_rise
+
             lum_threshold = base_threshold + luminary.essence_expectation_raised
             essence_satisfaction = evaluate_essence_satisfaction(
                 luminary_id=luminary.id,
@@ -4284,7 +4304,7 @@ class TickLoop:
             state.luminary_production_this_eval[lid] = 0.0
 
             # Update raised expectations and shortfall counter
-            if essence_satisfaction.above_threshold:
+            if essence_satisfaction.surplus_ratio >= 0.0:
                 excess = max(0.0, domain_production - base_threshold)
                 luminary.essence_expectation_raised = excess * cfg.luminary_essence_recall
                 luminary.consecutive_essence_shortfalls = 0
@@ -4297,30 +4317,9 @@ class TickLoop:
                     luminary.consecutive_essence_shortfalls = 0
 
             # Disposition delta assembly
+            # Results axis is driven exclusively by Essence satisfaction —
+            # Luminaries have no direct view of domain expression, only their income.
             delta = DispositionDelta()
-
-            results_reason = engine.domain_alignment_to_results_delta(
-                overall_alignment, prev_overall, personality
-            )
-            delta.results += results_reason.delta
-            delta.reasons.append(results_reason)
-
-            # Similarity-weighted influence from related/opposing expressed domains
-            sim_modifier = engine.similarity_results_modifier(
-                luminary_domain_tags=luminary_domain_tags,
-                fellow_luminary_tags=fellow_lum_tags,
-                current_profile=profile,
-                personality=personality,
-                registry=self._domain_registry,
-            )
-            if abs(sim_modifier) > 0.001:
-                delta.results += sim_modifier
-                delta.reasons.append(DispositionDeltaReason(
-                    axis="results",
-                    delta=sim_modifier,
-                    source="domain_similarity_influence",
-                    note="Expressed domains adjacent or opposing to Luminary domains",
-                ))
 
             # Capriciousness: mercurial Luminaries add random variance to evaluations
             sigma = max(0.0, personality.capriciousness) * 0.1
@@ -4349,8 +4348,8 @@ class TickLoop:
                     source="essence_satisfaction",
                     note=(
                         f"Domain production {domain_production:.2f} "
-                        f"({'above' if essence_satisfaction.above_threshold else 'below'} threshold, "
-                        f"{'growing' if essence_satisfaction.growing else 'flat/declining'})"
+                        f"(surplus ratio: {essence_satisfaction.surplus_ratio:+.0%}, "
+                        f"trajectory: {essence_satisfaction.trajectory_modifier:+.3f})"
                     ),
                 ))
 
