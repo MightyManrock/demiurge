@@ -1666,26 +1666,31 @@ class ImagoRegistry:
                 );
             """)
 
-            for node in _IMAGO_NODES:
-                conn.execute(
-                    "INSERT OR IGNORE INTO imago_node "
-                    "(node_id, tree, tier, name, tooltip_blurb, description, "
-                    " mechanics_json, min_prereqs, sort_order) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (
-                        node.node_id, node.tree, node.tier, node.name,
-                        node.tooltip_blurb, node.description,
-                        json.dumps(node.mechanics),
-                        node.min_prereqs, node.sort_order,
-                    ),
-                )
+            already_seeded = conn.execute(
+                "SELECT COUNT(*) FROM imago_node"
+            ).fetchone()[0] > 0
 
-            for node_id, required_id in _PREREQ_DATA:
-                conn.execute(
-                    "INSERT OR IGNORE INTO imago_prerequisite "
-                    "(node_id, required_node_id) VALUES (?,?)",
-                    (node_id, required_id),
-                )
+            if not already_seeded:
+                for node in _IMAGO_NODES:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO imago_node "
+                        "(node_id, tree, tier, name, tooltip_blurb, description, "
+                        " mechanics_json, min_prereqs, sort_order) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (
+                            node.node_id, node.tree, node.tier, node.name,
+                            node.tooltip_blurb, node.description,
+                            json.dumps(node.mechanics),
+                            node.min_prereqs, node.sort_order,
+                        ),
+                    )
+
+                for node_id, required_id in _PREREQ_DATA:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO imago_prerequisite "
+                        "(node_id, required_node_id) VALUES (?,?)",
+                        (node_id, required_id),
+                    )
 
             conn.commit()
         finally:

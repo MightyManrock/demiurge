@@ -368,32 +368,36 @@ class DomainRegistry:
                 except sqlite3.OperationalError:
                     pass  # column already present
 
-            # Remove retired domains.
-            conn.execute("DELETE FROM domain_registry WHERE tag IN ('domain:chaos','domain:discovery')")
-            conn.execute(
-                "DELETE FROM domain_similarity "
-                "WHERE tag_a IN ('domain:chaos','domain:discovery') "
-                "   OR tag_b IN ('domain:chaos','domain:discovery')"
-            )
+            already_seeded = conn.execute(
+                "SELECT COUNT(*) FROM domain_registry"
+            ).fetchone()[0] > 0
 
-            # Upsert all canonical domains (adds new, updates existing rows).
-            for i, (tag, dynamic, partner, icon, auth, merc, wrath) in enumerate(_DOMAIN_DATA):
-                display = tag.split(":", 1)[1].replace("_", " ").title()
+            if not already_seeded:
+                # Remove retired domains.
+                conn.execute("DELETE FROM domain_registry WHERE tag IN ('domain:chaos','domain:discovery')")
                 conn.execute(
-                    "INSERT OR REPLACE INTO domain_registry "
-                    "(tag, display_name, sort_order, dynamic_score, partner_tag, icon, "
-                    " authoritative_score, mercurial_score, wrathful_score) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (tag, display, i, dynamic, partner, icon, auth, merc, wrath),
+                    "DELETE FROM domain_similarity "
+                    "WHERE tag_a IN ('domain:chaos','domain:discovery') "
+                    "   OR tag_b IN ('domain:chaos','domain:discovery')"
                 )
 
-            # Upsert similarity pairs so rescaled values always take effect.
-            for tag_a, tag_b, sim in _SIMILARITY_DATA:
-                a, b = min(tag_a, tag_b), max(tag_a, tag_b)
-                conn.execute(
-                    "INSERT OR REPLACE INTO domain_similarity (tag_a, tag_b, similarity) VALUES (?,?,?)",
-                    (a, b, sim),
-                )
+                # Upsert all canonical domains.
+                for i, (tag, dynamic, partner, icon, auth, merc, wrath) in enumerate(_DOMAIN_DATA):
+                    display = tag.split(":", 1)[1].replace("_", " ").title()
+                    conn.execute(
+                        "INSERT OR REPLACE INTO domain_registry "
+                        "(tag, display_name, sort_order, dynamic_score, partner_tag, icon, "
+                        " authoritative_score, mercurial_score, wrathful_score) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (tag, display, i, dynamic, partner, icon, auth, merc, wrath),
+                    )
+
+                for tag_a, tag_b, sim in _SIMILARITY_DATA:
+                    a, b = min(tag_a, tag_b), max(tag_a, tag_b)
+                    conn.execute(
+                        "INSERT OR REPLACE INTO domain_similarity (tag_a, tag_b, similarity) VALUES (?,?,?)",
+                        (a, b, sim),
+                    )
 
             conn.commit()
         finally:
