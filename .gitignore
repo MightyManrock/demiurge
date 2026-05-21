@@ -5,7 +5,6 @@ lib64
 
 pyvenv.cfg
 
-autoplay*.py
 logs/*.log
 # docs/ is an Obsidian/SyncThing vault — ignore sync/app metadata, track everything else
 docs/.obsidian/
