@@ -295,6 +295,37 @@ _REVELATION_BASE_COSTS: dict[int, int] = {1: 60, 2: 100, 3: 200, 4: 400}
 # considered "full expression" at this denominator value for normalization.
 _REVELATION_EXPRESSION_FULL: float = 3.0
 
+# ─────────────────────────────────────────
+# PUISSANCE CONSTANTS
+# ─────────────────────────────────────────
+
+REV_SCALE    = 500.0   # lifetime_revelation saturation point (revelation component)
+IMAGO_SCALE  = 40.0    # tier-weighted imago score saturation point
+TICK_SCALE   = 200.0   # tick number saturation point (minor long-run contribution)
+_IMAGO_TIER_WEIGHTS: dict[int, int] = {1: 1, 2: 2, 3: 4, 4: 8}
+
+BASE_INFLUENCE       = 0.75   # floor success chance for Whisper / Shape Dream
+PUISSANCE_WEIGHT     = 0.15   # max bonus from a fully mature Demiurge
+VISIBILITY_WEIGHT    = 0.05   # max bonus from target visibility at 1.0
+FRAMING_WEIGHT       = 0.04   # max bonus from perfect framing resonance
+PUISSANCE_TIER_BONUS = 0.08   # max success-threshold shift for reliability-tier actions
+
+
+def _compute_puissance(state: "SimulationState") -> float:
+    """Compute Demiurge puissance [0, 1] from lifetime revelation, imago tier score, and tick count."""
+    reg = get_imago_registry()
+    tier_score = sum(
+        _IMAGO_TIER_WEIGHTS.get(node.tier, 0)
+        for nid in state.demiurge.unlocked_imagines
+        if (node := reg.get_node(nid)) is not None
+    )
+    raw = (
+        state.demiurge.lifetime_revelation / REV_SCALE * 0.50
+        + tier_score / IMAGO_SCALE * 0.35
+        + state.tick_number / TICK_SCALE * 0.15
+    )
+    return max(0.0, min(1.0, raw))
+
 
 def _revelation_adjusted_cost(tier: int, revealed_count: int) -> int:
     base = _REVELATION_BASE_COSTS[tier]
@@ -877,6 +908,9 @@ class TickLoop:
             ),
             seed=seed,
         )
+
+        # ── Puissance recomputation ────────────────────
+        state.demiurge.puissance = _compute_puissance(state)
 
         # ── Phase 1: Passive World ─────────────────────
         passive = self._run_passive_phase(state, cfg, phase_rng)
@@ -1868,7 +1902,10 @@ class TickLoop:
         mutations: list[StateMutation] = []
 
         # ── Reliability roll ───────────────────────────
-        outcome = self._roll_reliability(defn.reliability, rng)
+        if isinstance(instance.intent, (WhisperIntent, ShapeDreamIntent)):
+            outcome = self._roll_influence(instance, state, rng)
+        else:
+            outcome = self._roll_reliability(defn.reliability, rng, state.demiurge.puissance)
         if outcome == ActionOutcome.FAILURE:
             return outcome, [], f"{defn.name} failed to produce any effect."
 
@@ -1960,34 +1997,69 @@ class TickLoop:
         self,
         reliability: "ActionReliability",
         rng: random.Random,
+        puissance: float = 0.0,
     ) -> "ActionOutcome":
 
         roll = rng.random()
+        bonus = puissance * PUISSANCE_TIER_BONUS
         if reliability == ActionReliability.CERTAIN:
             return ActionOutcome.SUCCESS
         elif reliability == ActionReliability.PROBABLE:
-            if roll < 0.75:
+            s = 0.75 + bonus
+            if roll < s:
                 return ActionOutcome.SUCCESS
-            elif roll < 0.90:
+            elif roll < s + 0.15:
                 return ActionOutcome.PARTIAL
             else:
                 return ActionOutcome.FAILURE
         elif reliability == ActionReliability.UNCERTAIN:
-            if roll < 0.50:
+            s = 0.50 + bonus
+            if roll < s:
                 return ActionOutcome.SUCCESS
-            elif roll < 0.75:
+            elif roll < s + 0.25:
                 return ActionOutcome.PARTIAL
             else:
                 return ActionOutcome.FAILURE
         else:  # CHAOTIC
-            if roll < 0.30:
+            s = 0.30 + bonus
+            if roll < s:
                 return ActionOutcome.SUCCESS
-            elif roll < 0.60:
+            elif roll < s + 0.30:
                 return ActionOutcome.PARTIAL
-            elif roll < 0.80:
+            elif roll < s + 0.50:
                 return ActionOutcome.FAILURE
             else:
                 return ActionOutcome.CHAOTIC_RESULT
+
+    def _roll_influence(
+        self,
+        instance: "ActionInstance",
+        state: "SimulationState",
+        rng: random.Random,
+    ) -> "ActionOutcome":
+        """Success roll for Whisper / Shape Dream. Uses the 0.75–0.99 formula."""
+        mortal = state.mortals.get(str(instance.target_id)) if instance.target_id else None
+        visibility = mortal.visibility if mortal else 0.0
+        framing = getattr(instance.intent, "framing", None)
+        resonance = _framing_resonance(mortal.culture_tags if mortal else {}, framing) if framing else 0.0
+        # Resonance from _framing_resonance is [-1, 1]; clamp to [0, 1] for influence
+        # (AMBIGUOUS framing → 0; mismatched framing → 0, not a penalty here per spec)
+        resonance = max(0.0, resonance)
+
+        puissance = state.demiurge.puissance
+        success_chance = max(BASE_INFLUENCE, min(0.99,
+            BASE_INFLUENCE
+            + puissance  * PUISSANCE_WEIGHT
+            + visibility * VISIBILITY_WEIGHT
+            + resonance  * FRAMING_WEIGHT
+        ))
+        roll = rng.random()
+        if roll < success_chance:
+            return ActionOutcome.SUCCESS
+        elif roll < success_chance + 0.15:
+            return ActionOutcome.PARTIAL
+        else:
+            return ActionOutcome.FAILURE
 
     def _resolve_intent_mutations(
         self,
@@ -5938,6 +6010,10 @@ class TickLoop:
                 if tag and m.delta is not None:
                     current = state.demiurge.revelation_pools.get(tag, 0.0)
                     state.demiurge.revelation_pools[tag] = round(max(0.0, current + m.delta), 2)
+                    if m.delta > 0:
+                        state.demiurge.lifetime_revelation = round(
+                            state.demiurge.lifetime_revelation + m.delta, 2
+                        )
 
             elif m.mutation_type == MutationType.IMAGO_REVEALED:
                 node_id = str(m.new_value) if m.new_value else None

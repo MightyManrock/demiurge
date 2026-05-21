@@ -153,3 +153,7 @@ class Demiurge(BaseModel):
     # All 16 canonical tags are present (0.0 by default); filled in by the loader.
     revealed_imagines: int = 0
     # Count of Imagines unlocked via Reveal Imago (does not include starting Imagines).
+    lifetime_revelation: float = 0.0
+    # Running total of all Revelation ever gained (never decremented). Used to compute puissance.
+    puissance: float = 0.0
+    # Computed each tick: reflects accumulated power [0, 1]. See _compute_puissance() in tick_logic.

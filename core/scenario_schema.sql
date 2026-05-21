@@ -245,7 +245,8 @@ CREATE TABLE IF NOT EXISTS demiurge (
     max_affiliated_domains    INTEGER NOT NULL DEFAULT 3,  -- cap on len(affiliated_domains); Stronghold-raisable
     tracked_essence_domains   TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain:... strings
     revelation_pools          TEXT NOT NULL DEFAULT '{}',  -- JSON object {domain_tag: float}
-    revealed_imagines         INTEGER NOT NULL DEFAULT 0   -- count of Imagines unlocked via Reveal Imago
+    revealed_imagines         INTEGER NOT NULL DEFAULT 0,  -- count of Imagines unlocked via Reveal Imago
+    lifetime_revelation       REAL NOT NULL DEFAULT 0.0    -- running total of all Revelation ever gained
 );
 
 CREATE TABLE IF NOT EXISTS essence (

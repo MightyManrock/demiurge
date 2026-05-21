@@ -4,6 +4,21 @@
 
 All three carry an Imago's full mechanics — both `domain_vectors` and `culture_vectors`. Domain shifts route through `*_BELIEF_SHIFT`, culture shifts through `*_CULTURE_SHIFT`. Handlers live in `_resolve_intent_mutations`; the 4-tick echo path is `_process_active_events`.
 
+## Success Roll (Whisper and Shape Dream)
+
+Both actions use the influence roll instead of the standard reliability tier:
+
+```
+success_chance = clamp(0.75 + puissance×0.15 + visibility×0.05 + framing_resonance×0.04, 0.75, 0.99)
+```
+
+- **Floor 0.75** — even a weak Demiurge targeting an unknown mortal with mismatched Framing succeeds ~75% of the time.
+- **Ceiling 0.99** — unreachable in normal play; rewards a maxed-out Demiurge.
+- `framing_resonance` is clamped to `[0, 1]` here. AMBIGUOUS Framing contributes 0 (unlike Manifest Omen, there is no explicit penalty).
+- Outcome bands: `< success_chance` → SUCCESS; `< success_chance + 0.15` → PARTIAL; else → FAILURE.
+
+See `_roll_influence()` in `tick_logic.py` and the Puissance section in `action-system.md` for the full formula.
+
 ## Whisper (`WhisperIntent`)
 
 Targets a single mortal. Immediate effect: `effectiveness = (1.0 SUCCESS | 0.4 PARTIAL) × mortal.alignment` scales every downstream shift. Emits `MORTAL_BELIEF_SHIFT` / `MORTAL_CULTURE_SHIFT` on the target, plus a `WHISPER` `RAMP_FADE` event (`duration=4`, `peak_offset=1`) that echoes the same shifts for 3 more ticks.

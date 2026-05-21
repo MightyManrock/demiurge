@@ -613,6 +613,7 @@ def _load_demiurge(conn) -> Demiurge:
         tracked_essence_domains=_j(row.get("tracked_essence_domains", "[]")),
         revelation_pools=_load_revelation_pools(row),
         revealed_imagines=int(row.get("revealed_imagines", 0) or 0),
+        lifetime_revelation=float(row.get("lifetime_revelation", 0.0) or 0.0),
     )
 
 

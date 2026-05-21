@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A god-game prototype. You play a **Demiurge** — a "middle-management deity" with real power over one universe but accountable upward to **Luminary** lieges. The core loop is: queue actions → advance one tick → Luminaries evaluate your universe and update their disposition toward you → repeat. The simulation is Python/Pydantic; the interactive interface is a Textual TUI.
 
+Key Demiurge stats: **Puissance** (`[0, 1]`, recomputed each tick from lifetime Revelation, Imago tier score, and tick count) scales action success across the board. Influence actions (Whisper, Shape Dream) use a dedicated success formula; all other actions use reliability tiers, both boosted by puissance.
+
 ## Running things
 
 ```bash
@@ -72,7 +74,7 @@ The codebase is strictly layered. `logic/tick_logic.py` knows nothing about SQL 
 
 | File | What lives here |
 |---|---|
-| `core/onto_core.py` | `Power`, `Domain`, `Luminary`, `Pantheon`, `Demiurge`, `Disposition`, `Constraint`, `FootprintProfile` |
+| `core/onto_core.py` | `Power`, `Domain`, `Luminary`, `Pantheon`, `Demiurge` (incl. `puissance`, `lifetime_revelation`), `Disposition`, `Constraint`, `FootprintProfile` |
 | `core/universe_core.py` | `Universe`, `Location`, `System`, `SignificantLocation`, `PopLocation`, `Civilization`, `Species`, `NotableMortal`, `Pop`, all enums |
 | `core/action_core.py` | Action taxonomy: `ActionDefinition`, `ActionInstance`, `OngoingAction`, all `*Intent` types, `build_action_library()` |
 | `core/eval_core.py` | Luminary evaluation: `UniverseDomainProfile`, `LuminaryEvaluation`, `DispositionDelta`, `EvaluationEngine` |
@@ -120,13 +122,13 @@ Deep-dive docs live in `docs/Mechanics/`. Reach for these when working on a spec
 | Topic | File |
 |-------|------|
 | Tick loop, mutation pattern, queue, ongoing actions, active events | [tick-loop.md](docs/Mechanics/tick-loop.md) |
-| Action system, adding new actions | [action-system.md](docs/Mechanics/action-system.md) |
+| Action system, adding new actions, success rolls, puissance | [action-system.md](docs/Mechanics/action-system.md) |
 | Domain tags, similarity, affiliated domains | [domain-system.md](docs/Mechanics/domain-system.md) |
 | Luminary personality axes | [luminary-personality.md](docs/Mechanics/luminary-personality.md) |
 | Essence generation and claim split | [essence-generation.md](docs/Mechanics/essence-generation.md) |
 | Imago trees, mechanics dict, influence integration | [imago-system.md](docs/Mechanics/imago-system.md) |
 | Revelation accumulation and reveal actions | [imago-revelation.md](docs/Mechanics/imago-revelation.md) |
-| Whisper, Shape Dream, Manifest Omen | [influence-actions.md](docs/Mechanics/influence-actions.md) |
+| Whisper, Shape Dream, Manifest Omen; influence success roll | [influence-actions.md](docs/Mechanics/influence-actions.md) |
 | Belief/culture floors, caps, inertia; footprint | [belief-footprint.md](docs/Mechanics/belief-footprint.md) |
 | Window visibility, entity decay | [window-visibility.md](docs/Mechanics/window-visibility.md) |
 | Scry scope and discovery | [scry-action.md](docs/Mechanics/scry-action.md) |
