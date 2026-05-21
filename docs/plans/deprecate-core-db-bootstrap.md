@@ -1,4 +1,4 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** Deprecate `core/core.db` auto-bootstrapping on launch
 > **Last updated:** 2026-05-21
 

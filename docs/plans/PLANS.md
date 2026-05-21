@@ -15,4 +15,4 @@ Make sure that the current repo of /root/demiurge/ is up to date; unless there i
 | Plan | Status | Summary |
 |------|--------|---------|
 | [claude-md-simplification.md](claude-md-simplification.md) | `complete` | Trim CLAUDE.md; extract mechanics into `docs/Mechanics/` |
-| [deprecate-core-db-bootstrap.md](deprecate-core-db-bootstrap.md) | `active` | Stop `core/core.db` unconditional rewrite on every launch |
+| [deprecate-core-db-bootstrap.md](deprecate-core-db-bootstrap.md) | `complete` | Stop `core/core.db` unconditional rewrite on every launch |
