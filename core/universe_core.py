@@ -53,6 +53,8 @@ class UniverseRules(BaseModel):
     Derived from Pantheon/Luminary constraints at
     scenario setup; queried directly by the evaluation layer.
     """
+    # DEPRECATED: superseded by FootprintConstraint objects on Luminary/Pantheon.
+    # Retained for backwards compatibility with old saves; will be removed in a future cleanup.
     footprint_tolerances: FootprintTolerances = Field(
         default_factory=FootprintTolerances
     )

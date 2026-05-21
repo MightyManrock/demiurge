@@ -42,7 +42,7 @@ from core.universe_core import (
     Species, SpeciesCondition, StarType, System, Universe, UniverseRules,
     WildStratum,
 )
-from core.onto_core import Constraint, Disposition, FootprintProfile, Luminary, Pantheon, Demiurge
+from core.onto_core import Constraint, NarrativeConstraint, Disposition, FootprintProfile, Luminary, Pantheon, Demiurge
 from core.action_core import EssenceStockpile
 from logic.tick_logic import SimulationState
 from ui.constants import _SCENARIOS_DIR
@@ -824,7 +824,7 @@ def _apply_set_constraint(state, op: dict) -> InjectorResult:
         existing.domain_tag = domain_tag
         return InjectorResult("set_constraint", True,
                               f"updated constraint {constraint_name!r} on {owner_label}")
-    target_list.append(Constraint(
+    target_list.append(NarrativeConstraint(
         name=constraint_name,
         description=description,
         enforcement_weight=weight,

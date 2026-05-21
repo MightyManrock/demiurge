@@ -39,7 +39,7 @@ from core.eval_core import (
     DispositionDeltaReason,
 )
 from core.onto_core import (
-    Demiurge, Pantheon, Luminary,
+    Demiurge, Pantheon, Luminary, FootprintConstraint,
 )
 from core.universe_core import (
     Universe, Location, System, SignificantLocation, PopLocation,
@@ -4212,22 +4212,24 @@ class TickLoop:
                 for t in luminary_domain_tags
             ) / max(1, len(luminary_domain_tags))
 
-            # Constraint evaluations
+            # Constraint evaluations — per-Luminary FootprintConstraints
             constraint_evals = []
-            tolerances = state.universe.rules.footprint_tolerances
-            for category in ["overt_miracles", "subtle_influence",
-                              "proxius_activity", "direct_creation"]:
-                fp_value = getattr(state.demiurge.footprint, category)
-                tolerance = getattr(tolerances, category)
+            for constraint in luminary.constraints:
+                if isinstance(constraint, FootprintConstraint):
+                    constraint_evals.extend(
+                        engine.evaluate_footprint_constraint(
+                            constraint, state.demiurge.footprint, attention_level
+                        )
+                    )
 
-                ce = engine.evaluate_footprint_constraint(
-                    category=category,
-                    actual_value=fp_value,
-                    tolerance=tolerance,
-                    enforcement_weight=0.6,
-                    attention_level=attention_level,
-                )
-                constraint_evals.append(ce)
+            # Pantheon collective FootprintConstraints fan out to every Luminary
+            for constraint in state.pantheon.collective_constraints:
+                if isinstance(constraint, FootprintConstraint):
+                    constraint_evals.extend(
+                        engine.evaluate_footprint_constraint(
+                            constraint, state.demiurge.footprint, attention_level
+                        )
+                    )
 
             # Footprint assessment
             fp_assessment = FootprintAssessment(

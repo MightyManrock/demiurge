@@ -7,7 +7,7 @@ divine hierarchy.
 
 from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Annotated, Literal, Optional, Union
 from uuid import UUID, uuid4
 
 
@@ -36,24 +36,41 @@ class Disposition(BaseModel):
         return (self.results + self.methods) / 2.0
 
 
-class Constraint(BaseModel):
+class NarrativeConstraint(BaseModel):
     """
-    A specific behavioral expectation a Luminary imposes on their Demiurge.
-    Constraints are what the evaluation layer checks against.
-    A Pantheon can also carry collective constraints that
-    supersede or supplement individual ones.
+    A constraint that is stored and displayed but not mechanically evaluated.
+    Used for flavor, future expansion, or constraint types not yet implemented.
     """
+    constraint_type: Literal["narrative"] = "narrative"
     id: UUID = Field(default_factory=uuid4)
     name: str
     description: str
     domain_tag: Optional[str] = None
-    # Canonical `domain:...` tag this constraint flows from, if any.
-    # Replaces the deprecated `domain_source: UUID` field that pointed at a
-    # Domain class which no longer exists. Optional — most constraints
-    # express a Luminary's general expectation rather than a domain-specific
-    # mandate.
     enforcement_weight: float = Field(ge=0.0, le=1.0, default=0.5)
-    # 0.0 = they'll grumble but not act; 1.0 = hard line
+
+
+class FootprintConstraint(BaseModel):
+    """
+    A constraint that enforces per-category footprint tolerances.
+    Evaluated each tick; violations produce disposition deltas scaled by enforcement_weight.
+    Luminary-owned: affects only that Luminary's disposition.
+    Pantheon-owned: fans out to every Luminary in the Pantheon.
+    """
+    constraint_type: Literal["footprint"] = "footprint"
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    description: str
+    domain_tag: Optional[str] = None
+    enforcement_weight: float = Field(ge=0.0, le=1.0, default=0.5)
+    footprint_tolerances: dict[str, float]
+    # Maps footprint category → tolerance ceiling, e.g. {"overt_miracles": 0.2}
+    # Keys must be valid FootprintProfile field names. Values are [0, 1] ceilings.
+
+
+Constraint = Annotated[
+    Union[NarrativeConstraint, FootprintConstraint],
+    Field(discriminator="constraint_type"),
+]
 
 
 class Luminary(BaseModel):

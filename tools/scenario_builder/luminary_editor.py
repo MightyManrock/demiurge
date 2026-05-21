@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Optional
 from uuid import UUID
 
-from core.onto_core import Constraint, Disposition, Luminary
+from core.onto_core import Constraint, NarrativeConstraint, Disposition, Luminary
 from utilities.domain_registry import DOMAIN_TAGS
 
 
@@ -273,7 +273,7 @@ def apply_basics(lum: Luminary, fields: dict[str, str]) -> None:
 def construct_constraint(
     fields: dict[str, str], domain_tag: Optional[str] = None,
 ) -> Constraint:
-    return Constraint(
+    return NarrativeConstraint(
         name=fields["name"].strip(),
         description=fields["description"],
         enforcement_weight=float(fields["enforcement_weight"]),

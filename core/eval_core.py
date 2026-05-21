@@ -7,7 +7,7 @@ the actions of the Demiurge.
 
 from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -15,6 +15,7 @@ from utilities.domain_registry import LuminaryPersonality
 
 if TYPE_CHECKING:
     from utilities.domain_registry import DomainRegistry
+    from core.onto_core import FootprintConstraint, FootprintProfile
 
 
 # ─────────────────────────────────────────
@@ -506,16 +507,15 @@ class EvaluationEngine:
 
     @staticmethod
     def evaluate_footprint_constraint(
-        category: str,
-        actual_value: float,
-        tolerance: float,
-        enforcement_weight: float,
+        constraint: FootprintConstraint,
+        footprint: FootprintProfile,
         attention_level: AttentionLevel,
-    ) -> ConstraintEvaluation:
+    ) -> list[ConstraintEvaluation]:
         """
-        Evaluate a single footprint-based constraint.
-        At low attention levels, perceived value is dampened —
-        the Luminary isn't looking hard enough to see everything.
+        Evaluate all categories in a FootprintConstraint against the current footprint.
+        Returns one ConstraintEvaluation per category in constraint.footprint_tolerances.
+        Perceived value is dampened by attention level — a NEGLIGENT Luminary won't
+        see the full picture.
         """
         attention_perception = {
             AttentionLevel.NEGLIGENT:  0.2,
@@ -524,40 +524,48 @@ class EvaluationEngine:
             AttentionLevel.SCRUTINOUS: 0.95,
             AttentionLevel.INVASIVE:   1.0,
         }
-        perceived = actual_value * attention_perception[attention_level]
-        ratio = perceived / tolerance if tolerance > 0 else float('inf')
+        perception = attention_perception[attention_level]
+        w = constraint.enforcement_weight
+        results = []
 
-        if ratio <= 0.5:
-            compliance = ConstraintComplianceLevel.EXEMPLARY
-            disp_delta = 0.02 * enforcement_weight
-            att_delta  = -0.02
-        elif ratio <= 1.0:
-            compliance = ConstraintComplianceLevel.COMPLIANT
-            disp_delta = 0.0
-            att_delta  = 0.0
-        elif ratio <= 1.3:
-            compliance = ConstraintComplianceLevel.STRAINING
-            disp_delta = -0.05 * enforcement_weight
-            att_delta  =  0.05
-        elif ratio <= 1.6:
-            compliance = ConstraintComplianceLevel.BREACHING
-            disp_delta = -0.15 * enforcement_weight
-            att_delta  =  0.15
-        else:
-            compliance = ConstraintComplianceLevel.FLAGRANT
-            disp_delta = -0.35 * enforcement_weight
-            att_delta  =  0.30
+        for category, tolerance in constraint.footprint_tolerances.items():
+            actual = getattr(footprint, category, 0.0)
+            perceived = actual * perception
+            ratio = perceived / tolerance if tolerance > 0 else float('inf')
 
-        return ConstraintEvaluation(
-            constraint_id=uuid4(),      # Placeholder; real impl passes actual UUID
-            constraint_name=f"footprint:{category}",
-            compliance=compliance,
-            measured_value=perceived,
-            threshold=tolerance,
-            disposition_delta=disp_delta,
-            attention_delta=att_delta,
-            note=f"{category} at {perceived:.2f} vs tolerance {tolerance:.2f}"
-        )
+            if ratio <= 0.5:
+                compliance = ConstraintComplianceLevel.EXEMPLARY
+                disp_delta = 0.02 * w
+                att_delta  = -0.02
+            elif ratio <= 1.0:
+                compliance = ConstraintComplianceLevel.COMPLIANT
+                disp_delta = 0.0
+                att_delta  = 0.0
+            elif ratio <= 1.3:
+                compliance = ConstraintComplianceLevel.STRAINING
+                disp_delta = -0.05 * w
+                att_delta  =  0.05
+            elif ratio <= 1.6:
+                compliance = ConstraintComplianceLevel.BREACHING
+                disp_delta = -0.15 * w
+                att_delta  =  0.15
+            else:
+                compliance = ConstraintComplianceLevel.FLAGRANT
+                disp_delta = -0.35 * w
+                att_delta  =  0.30
+
+            results.append(ConstraintEvaluation(
+                constraint_id=constraint.id,
+                constraint_name=f"{constraint.name} [{category}]",
+                compliance=compliance,
+                measured_value=perceived,
+                threshold=tolerance,
+                disposition_delta=disp_delta,
+                attention_delta=att_delta,
+                note=f"{category} at {perceived:.2f} vs tolerance {tolerance:.2f}",
+            ))
+
+        return results
 
     # ── Essence Suspicion ────────────────────────────
 

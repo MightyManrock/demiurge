@@ -1,6 +1,7 @@
-> **Status:** active
+> **Status:** completed
 > **TO-DO ref:** Investigate canonicity of Luminary/Pantheon constraints; Canonical constraint types and tunables
 > **Last updated:** 2026-05-21
+> **Completed:** 2026-05-21 — FootprintConstraint implemented per `docs/superpowers/specs/2026-05-21-constraint-footprint-design.md`
 
 ## Goal
 
@@ -36,3 +37,15 @@ Ensure every constraint in existing scenarios has real mechanical teeth, and pro
 - Phase 2 depends on Phase 1 findings — the gap report shapes which types get "implementable now" vs. "scaffoldable."
 - Do not implement anything during this audit; the goal is diagnosis and documentation, not fixes.
 - `[[constraint_types]]` (Obsidian link in TO-DO) resolves to `docs/Brainstorming/constraint_types.md`.
+
+## Completion summary (2026-05-21)
+
+Phase 1 finding: all constraints were flavor text — stored but never evaluated. The only footprint evaluation was a hard-coded block in `tick_logic.py` using `UniverseRules.footprint_tolerances` with a fixed 0.6 weight.
+
+Phase 2 deliverables:
+- **`NarrativeConstraint | FootprintConstraint` discriminated union** in `core/onto_core.py`. Narrative is never evaluated; Footprint is evaluated every Luminary evaluation tick.
+- **`FootprintConstraint.footprint_tolerances: dict[str, float]`** — one entry per category, each producing its own `ConstraintEvaluation` with compliance band logic.
+- **Warden's Compact** migrated: Subtlety Mandate and Proxius Restraint (Cassiel) and Collective Subtlety Expectation (Pantheon) are now real `FootprintConstraint` objects. Results Demand (Vrath) stays `NarrativeConstraint`.
+- **Three stress-test autoplay strategies**: `footprint_violator`, `footprint_compliant`, `footprint_mixed`.
+- **Mechanics documented** in `docs/Mechanics/belief-footprint.md`.
+- `UniverseRules.footprint_tolerances` marked deprecated but retained for backwards compatibility.

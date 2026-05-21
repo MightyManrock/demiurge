@@ -19,7 +19,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from core.onto_core import (
-    Luminary, Pantheon, Constraint,
+    Luminary, Pantheon, Constraint, NarrativeConstraint, FootprintConstraint,
     Disposition, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
@@ -251,13 +251,21 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
     constraints_by_owner: dict[str, list[Constraint]] = {}
     for row in conn.execute("SELECT * FROM constraints"):
         d = dict(row)
-        c = Constraint(
+        ctype = d.get("constraint_type", "narrative")
+        base = dict(
             id=UUID(d["id"]),
             name=d["name"],
             description=d["description"],
-            domain_tag=d.get("domain_tag"),  # absent in pre-cleanup DBs
+            domain_tag=d.get("domain_tag"),
             enforcement_weight=d["enforcement_weight"],
         )
+        if ctype == "footprint" and d.get("footprint_tolerances"):
+            c: Constraint = FootprintConstraint(
+                **base,
+                footprint_tolerances=json.loads(d["footprint_tolerances"]),
+            )
+        else:
+            c = NarrativeConstraint(**base)
         constraints_by_owner.setdefault(d["owner_id"], []).append(c)
 
     lums = {}

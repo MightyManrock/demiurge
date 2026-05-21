@@ -19,7 +19,7 @@ from pathlib import Path
 from uuid import UUID
 
 from core.onto_core import (
-    Disposition, Constraint,
+    Disposition, Constraint, FootprintConstraint,
     Luminary, Pantheon, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
@@ -165,8 +165,8 @@ def _write_luminaries(conn, state: SimulationState):
             conn.execute(
                 """INSERT INTO constraints
                    (id, name, description, domain_tag, enforcement_weight,
-                    owner_id, owner_type)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    owner_id, owner_type, constraint_type, footprint_tolerances)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(c.id),
                     c.name,
@@ -175,6 +175,8 @@ def _write_luminaries(conn, state: SimulationState):
                     c.enforcement_weight,
                     str(luminary.id),
                     "luminary",
+                    c.constraint_type,
+                    json.dumps(c.footprint_tolerances) if isinstance(c, FootprintConstraint) else None,
                 ),
             )
 
@@ -189,8 +191,8 @@ def _write_pantheon(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO constraints
                (id, name, description, domain_tag, enforcement_weight,
-                owner_id, owner_type)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                owner_id, owner_type, constraint_type, footprint_tolerances)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -199,6 +201,8 @@ def _write_pantheon(conn, state: SimulationState):
                 c.enforcement_weight,
                 str(p.id),
                 "pantheon",
+                c.constraint_type,
+                json.dumps(c.footprint_tolerances) if isinstance(c, FootprintConstraint) else None,
             ),
         )
 
