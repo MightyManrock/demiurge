@@ -153,6 +153,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     active_events = _load_active_events(conn)
     luminary_production_accum = _jd_str(meta.get("luminary_production_accum", "{}"))
     domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
+    last_tick_essence_by_domain = _jd_str(meta.get("last_tick_essence_by_domain", "{}"))
     starting_pinned_ids = _j(meta.get("starting_pinned_ids", "[]"))
 
     # Universe ID: stored in scenario_meta if present, else generate one.
@@ -197,6 +198,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         active_events=active_events,
         luminary_production_this_eval=luminary_production_accum,
         domain_essence_claimed=domain_essence_claimed,
+        last_tick_essence_by_domain=last_tick_essence_by_domain,
         tick_number=meta.get("tick_number", 0),
         starting_pinned_ids=starting_pinned_ids,
     )
