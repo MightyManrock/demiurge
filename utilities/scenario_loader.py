@@ -41,7 +41,7 @@ from core.action_core import (
     DomainVector, CultureVector,
 )
 from core.event_core import Event, EventType, StrengthCurve
-from core.agent_core import ProxiusGoal, AgentActionChoice
+from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
     compute_mortal_alignment_base,
@@ -570,6 +570,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             current_location=UUID(row["current_location"]),
             pinned=bool(row.get("pinned", 0)),
             active_goal=_load_proxius_goal(row.get("active_goal_json")),
+            travel_intent=_load_travel_intent(row.get("travel_intent_json")),
             pop_id=_uuid(row.get("pop_id")),
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
             herald_appointed_tick=row.get("herald_appointed_tick"),
@@ -589,6 +590,15 @@ def _load_proxius_goal(raw: Optional[str]) -> Optional[ProxiusGoal]:
         if "last_action" in data and data["last_action"] is not None:
             data["last_action"] = AgentActionChoice(data["last_action"])
         return ProxiusGoal.model_validate(data)
+    except Exception:
+        return None
+
+
+def _load_travel_intent(raw: Optional[str]) -> Optional[TravelIntent]:
+    if not raw:
+        return None
+    try:
+        return TravelIntent.model_validate_json(raw)
     except Exception:
         return None
 

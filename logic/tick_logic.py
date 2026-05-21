@@ -54,7 +54,7 @@ from utilities.culture_registry import (
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
-from core.agent_core import ProxiusGoal, AgentActionChoice
+from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 
 
 # ─────────────────────────────────────────
@@ -1022,6 +1022,11 @@ class TickLoop:
         agent_mutations, agent_narratives = self._resolve_proxius_agents(state, phase_rng)
         state = self._apply_mutations(state, agent_mutations)
         result.agent_narratives.extend(agent_narratives)
+
+        # ── Phase 2.6: Mortal Travel ────────────────────
+        travel_decisions = self._resolve_mortal_travel_decisions(state)
+        travel_arrivals  = self._process_mortal_travel(state)
+        result.agent_narratives.extend(travel_decisions + travel_arrivals)
 
         # ── Pop aggregate recomputation ────────────────
         # Recompute Civilization.dominant_beliefs and culture_tags as size-weighted
@@ -4670,6 +4675,66 @@ class TickLoop:
             state.active_events.pop(eid, None)
 
         return mutations
+
+    _KARATH_OMN_NAME      = "Karath Omn"
+    _KARATH_OMN_SHUTTLE_A = "Neran Surface"
+    _KARATH_OMN_SHUTTLE_B = "Neran Orbital Ring"
+
+    def _resolve_mortal_travel_decisions(self, state: SimulationState) -> list[str]:
+        """Phase 2.6 — assign new TravelIntents. Currently only Karath Omn's shuttle."""
+        narratives: list[str] = []
+        shuttle_locs = {
+            loc.name: lid
+            for lid, loc in state.locations.items()
+            if loc.name in (self._KARATH_OMN_SHUTTLE_A, self._KARATH_OMN_SHUTTLE_B)
+        }
+        if len(shuttle_locs) < 2:
+            return narratives
+        for mortal in state.mortals.values():
+            if mortal.name != self._KARATH_OMN_NAME or mortal.travel_intent is not None:
+                continue
+            current_loc = state.locations.get(str(mortal.current_location))
+            if current_loc is None:
+                continue
+            dest_name = (
+                self._KARATH_OMN_SHUTTLE_B
+                if current_loc.name == self._KARATH_OMN_SHUTTLE_A
+                else self._KARATH_OMN_SHUTTLE_A
+            )
+            if dest_name not in shuttle_locs:
+                continue
+            dest_loc = state.locations.get(shuttle_locs[dest_name])
+            if dest_loc is None:
+                continue
+            origin_dist = getattr(current_loc, "distance_from_core", 0)
+            dest_dist   = getattr(dest_loc, "distance_from_core", 0)
+            dist_between = origin_dist + dest_dist
+            travel_ticks = dist_between if (origin_dist > 0 and dest_dist > 0) else dist_between + 1
+            mortal.travel_intent = TravelIntent(
+                destination=UUID(shuttle_locs[dest_name]),
+                ticks_remaining=travel_ticks,
+                in_transit=True,
+            )
+            narratives.append(
+                f"{mortal.name} begins traveling to {dest_name} ({travel_ticks} tick{'s' if travel_ticks != 1 else ''})."
+            )
+        return narratives
+
+    def _process_mortal_travel(self, state: SimulationState) -> list[str]:
+        """Phase 2.6 — decrement countdowns and teleport arrivals."""
+        narratives: list[str] = []
+        for mortal in state.mortals.values():
+            ti = mortal.travel_intent
+            if ti is None or not ti.in_transit:
+                continue
+            ti.ticks_remaining -= 1
+            if ti.ticks_remaining <= 0:
+                dest_loc = state.locations.get(str(ti.destination))
+                dest_name = dest_loc.name if dest_loc else str(ti.destination)
+                mortal.current_location = ti.destination
+                mortal.travel_intent = None
+                narratives.append(f"{mortal.name} arrives at {dest_name}.")
+        return narratives
 
     def _resolve_proxius_agents(
         self,

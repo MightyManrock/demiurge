@@ -776,6 +776,15 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             for raw_line in m.last_audit_text.splitlines():
                 a(f"  [#7090b0]{_e(raw_line)}[/]")
 
+    if m.travel_intent and dev:
+        ti = m.travel_intent
+        dest_loc = state.locations.get(str(ti.destination))
+        dest_name = dest_loc.name if dest_loc else str(ti.destination)
+        a("")
+        a("[bold #4a80b0]TRAVEL[/]")
+        ticks_word = "tick" if ti.ticks_remaining == 1 else "ticks"
+        a(f"  Traveling → {_e(dest_name)} | {ti.ticks_remaining} {ticks_word} remaining")
+
     return Text.from_markup("\n".join(lines))
 
 

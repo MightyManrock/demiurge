@@ -440,8 +440,9 @@ def _write_mortals(conn, state: SimulationState):
                 home_location, current_location, pinned,
                 active_goal_json,
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
-                origin_pop_subsumed, last_audit_text, last_audit_tick)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                origin_pop_subsumed, last_audit_text, last_audit_tick,
+                travel_intent_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -472,6 +473,7 @@ def _write_mortals(conn, state: SimulationState):
                 int(m.origin_pop_subsumed),
                 m.last_audit_text,
                 m.last_audit_tick,
+                m.travel_intent.model_dump_json() if m.travel_intent else None,
             ),
         )
 

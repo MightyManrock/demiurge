@@ -226,7 +226,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     herald_appointed_tick  INTEGER DEFAULT NULL,        -- tick of first Herald elevation (wall-clock)
     origin_pop_subsumed    INTEGER NOT NULL DEFAULT 0,  -- bool; True when mortal's origin Pop was absorbed into the goal Pop
     last_audit_text        TEXT,                         -- narrative from last Audit Proxius
-    last_audit_tick        INTEGER                       -- tick the last audit was recorded
+    last_audit_tick        INTEGER,                      -- tick the last audit was recorded
+    travel_intent_json     TEXT DEFAULT NULL             -- JSON of TravelIntent, or NULL
 );
 
 -- ─────────────────────────────────────────

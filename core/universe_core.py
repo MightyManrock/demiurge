@@ -10,7 +10,7 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
-from core.agent_core import ProxiusGoal
+from core.agent_core import ProxiusGoal, TravelIntent
 
 # ─────────────────────────────────────────
 # UNIVERSE RULES
@@ -539,6 +539,7 @@ class NotableMortal(BaseModel):
     origin_pop_subsumed: bool = False
 
     active_goal: Optional["ProxiusGoal"] = None
+    travel_intent: Optional[TravelIntent] = None
 
     # Captured narrative + tick from the most recent Audit Proxius action.
     # Surfaced in the mortal detail tab as part of the Proxius fog-of-war view.

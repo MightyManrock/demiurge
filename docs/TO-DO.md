@@ -18,3 +18,10 @@ In the future, we will fold a lot of this information into a redesign of the Div
 > → plan: [next-big-feature.md](plans/next-big-feature.md)
 
 Choose the next major system: Agent expansion, Factions, Governments, or resources↔tech-progress. Note that `Faction` is the data-model prerequisite for expanding the agent phase, so Agent-expansion and Factions are largely the same fork.
+
+---
+
+### Baby steps toward an expanded Agent system
+> → plan: [mortal-travel-initial.md](plans/mortal-travel-initial.md)
+
+Please refer to [[travel_system_initial|this]] brainstorming document.
