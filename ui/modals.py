@@ -466,7 +466,7 @@ class DomainPickerModal(ModalScreen):
                     personality=self._dreg.compute_personality(lum.domains),
                 )
                 col = "#50b870" if v > 0.15 else ("#b04050" if v < -0.15 else "#5a7090")
-                parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.2f}[/]")
+                parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.0%}[/]")
         self.query_one("#lum-panel", Static).update("  ".join(parts))
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
@@ -686,7 +686,7 @@ class ImagoDetailModal(ModalScreen):
             for tag, v in sorted(domain_fx, key=lambda x: -abs(x[1])):
                 short = tag.split(":", 1)[1]
                 col   = "#50b870" if v > 0 else "#b04050"
-                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+                lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
             lines.append("")
 
         if culture_fx:
@@ -694,7 +694,7 @@ class ImagoDetailModal(ModalScreen):
             for tag, v in sorted(culture_fx, key=lambda x: -abs(x[1])):
                 short = tag.split(":", 1)[1]
                 col   = "#50b870" if v > 0 else "#b04050"
-                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+                lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
             lines.append("")
 
         lines.append("[bold #5a7090]LUMINARY AFFINITIES[/]")
@@ -712,7 +712,7 @@ class ImagoDetailModal(ModalScreen):
                 if tag.startswith("domain:")
             )
             col = "#50b870" if score > 0.1 else ("#b04050" if score < -0.1 else "#5a7090")
-            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.2f}[/]")
+            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.0%}[/]")
 
         return Text.from_markup("\n".join(lines))
 
@@ -912,7 +912,7 @@ class ImagoRevealDetailModal(ModalScreen):
             for tag, v in sorted(domain_fx, key=lambda x: -abs(x[1])):
                 short = tag.split(":", 1)[1]
                 col   = "#50b870" if v > 0 else "#b04050"
-                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+                lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
             lines.append("")
 
         if culture_fx:
@@ -920,7 +920,7 @@ class ImagoRevealDetailModal(ModalScreen):
             for tag, v in sorted(culture_fx, key=lambda x: -abs(x[1])):
                 short = tag.split(":", 1)[1]
                 col   = "#50b870" if v > 0 else "#b04050"
-                lines.append(f"  [{col}]{short:<16}  {v:+.2f}[/]")
+                lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
             lines.append("")
 
         lines.append("[bold #5a7090]LUMINARY AFFINITIES[/]")
@@ -938,7 +938,7 @@ class ImagoRevealDetailModal(ModalScreen):
                 if tag.startswith("domain:")
             )
             col = "#50b870" if score > 0.1 else ("#b04050" if score < -0.1 else "#5a7090")
-            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.2f}[/]")
+            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.0%}[/]")
 
         return Text.from_markup("\n".join(lines))
 
@@ -1042,7 +1042,7 @@ class MortalDetailModal(ModalScreen):
             lines.append(f"  {civ_name}  [{pop_obj.stratum.upper()}]  ·  {pop_loc_name}  sz:{pop_obj.size_magnitude}")
             if pop_obj.dominant_beliefs:
                 top = sorted(pop_obj.dominant_beliefs.items(), key=lambda x: -x[1])[:4]
-                bstr = "  ".join(f"{_short_tag(t)}:{v:.2f}" for t, v in top)
+                bstr = "  ".join(f"{_short_tag(t)}:{v:.0%}" for t, v in top)
                 lines.append(f"  beliefs: {bstr}")
             lines.append("")
 
@@ -1051,14 +1051,14 @@ class MortalDetailModal(ModalScreen):
             for tag, v in sorted(m.belief_tags.items(), key=lambda x: -x[1]):
                 short = _short_tag(tag)
                 col   = "#50b870" if v >= 0.5 else "#5a7090"
-                lines.append(f"  [{col}]{short:<16}  {v:.2f}[/]")
+                lines.append(f"  [{col}]{short:<16}  {v:.0%}[/]")
             lines.append("")
 
         if m.culture_tags:
             lines.append(f"[bold #5a7090]CULTURAL TRAITS[/]")
             for tag, v in sorted(m.culture_tags.items(), key=lambda x: -x[1]):
                 short = tag.split(":", 1)[-1]
-                lines.append(f"  [#5a7090]{short:<16}  {v:.2f}[/]")
+                lines.append(f"  [#5a7090]{short:<16}  {v:.0%}[/]")
             lines.append("")
 
         if m.personal_tags:

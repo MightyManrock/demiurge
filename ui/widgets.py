@@ -445,9 +445,9 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
         mc  = "#50b870" if d.methods  >= 0 else "#b04050"
         ac  = "#c09030" if att > 0.5       else "#2a4a6a"
         a(f"  [bold #c0ccdc]{_e(lum.name)}[/] [#3a5a7a]({_e(_personality_label(lum))})[/]")
-        a(f"    R[{rc}]{d.results:+.2f}[/] "
-          f"M[{mc}]{d.methods:+.2f}[/] "
-          f"att[{ac}]{att:.2f}[/]")
+        a(f"    R[{rc}]{d.results:+.0%}[/] "
+          f"M[{mc}]{d.methods:+.0%}[/] "
+          f"att[{ac}]{att:.0%}[/]")
     a("")
 
     # At-a-glance reminder; full list lives on the Actions tab.
@@ -583,7 +583,7 @@ class EntitiesTab(ContentTab):
             a(f"{style}● {civ_link} "
               f"[#5a7090]\\[{_e(civ.scale.value)}][/] "
               f"[#3a6a8a]{_e(origin_name)}[/]{end}")
-            a(f"{style}    S{h.stability:.1f} P{h.prosperity:.1f} C{h.cohesion:.1f}{end}")
+            a(f"{style}    S{h.stability:.0%} W{h.prosperity:.0%} C{h.cohesion:.0%}{end}")
         if not any_civ:
             a("[#5a7090](none in Window)[/]")
         a("")
@@ -878,7 +878,7 @@ class UniverseTab(ContentTab):
                         civ_link = _click_link("civ", str(cid_iter), f"[bold]{_e(civ.name)}[/]")
                         a(f"{cm}{IDX}    └─ {civ_link} "
                           f"\\[{_e(civ.scale.value)}]{civ_vis}  "
-                          f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
+                          f"S{h.stability:.0%} W{h.prosperity:.0%} C{h.cohesion:.0%}{ce}")
                         if civ.dominant_beliefs:
                             a(f"{cm}{IDX}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs, top_n=4)}{ce}")
                         if civ.culture_tags:
@@ -1030,9 +1030,9 @@ class LuminariesTab(ContentTab):
             mc = "#50b870" if d.methods >= 0 else "#b04050"
             ac = "#c09030" if att > 0.5 else "#2a4a6a"
             a(f"    disposition: "
-              f"R[{rc}]{d.results:+.2f}[/]  "
-              f"M[{mc}]{d.methods:+.2f}[/]  "
-              f"att[{ac}]{att:.2f}[/]")
+              f"R[{rc}]{d.results:+.0%}[/]  "
+              f"M[{mc}]{d.methods:+.0%}[/]  "
+              f"att[{ac}]{att:.0%}[/]")
             if lum.constraints:
                 a(f"    [#5a7090]constraints imposed:[/]")
                 for c in lum.constraints:

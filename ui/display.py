@@ -153,7 +153,7 @@ def _format_beliefs(beliefs: "dict[str, float]") -> str:
     if not beliefs:
         return ""
     return "  ".join(
-        f"{_short_tag(tag)}({v:.2f})"
+        f"{_short_tag(tag)}({v:.0%})"
         for tag, v in sorted(beliefs.items(), key=lambda kv: -kv[1])
     )
 
@@ -162,7 +162,7 @@ def _format_culture(tags: "dict[str, float]") -> str:
     if not tags:
         return ""
     return ", ".join(
-        f"{_short_tag(t)}({v:.2f})"
+        f"{_short_tag(t)}({v:.0%})"
         for t, v in sorted(tags.items(), key=lambda kv: -kv[1])
     )
 
@@ -192,7 +192,7 @@ def _format_beliefs_markup(
     parts = []
     for tag, v in shown:
         color = _trait_color(v, scale=scale)
-        chip = f"[{color}]{_short_tag(tag)}({v:.2f})[/]"
+        chip = f"[{color}]{_short_tag(tag)}({v:.0%})[/]"
         parts.append(_maybe_domain_link(tag, chip))
     rendered = "  ".join(parts)
     extra = len(sorted_items) - len(shown)
@@ -213,7 +213,7 @@ def _format_culture_markup(
     parts = []
     for tag, v in shown:
         color = _trait_color(v, scale=scale)
-        chip = f"[{color}]{_short_tag(tag)}({v:.2f})[/]"
+        chip = f"[{color}]{_short_tag(tag)}({v:.0%})[/]"
         parts.append(_maybe_domain_link(tag, chip))
     rendered = ", ".join(parts)
     extra = len(sorted_items) - len(shown)
@@ -226,7 +226,7 @@ def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: 
     """Single-tag colored markup. `with_value=True` appends `(0.42)`."""
     color = _trait_color(value, scale=scale)
     label = _short_tag(tag)
-    suffix = f"({value:.2f})" if with_value else ""
+    suffix = f"({value:.0%})" if with_value else ""
     return _maybe_domain_link(tag, f"[{color}]{label}{suffix}[/]")
 
 
@@ -349,8 +349,8 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
         att = state.luminary_attention.get(lid, 0.0)
         d   = lum.disposition
         lines.append(
-            f"  {lum.name:12s}  results:{d.results:+.2f}  methods:{d.methods:+.2f}  "
-            f"attention:{att:.2f}  [{_personality_label(lum)}]"
+            f"  {lum.name:12s}  results:{d.results:+.0%}  methods:{d.methods:+.0%}  "
+            f"attention:{att:.0%}  [{_personality_label(lum)}]"
         )
     lines.append(SEP)
     lines.append("WORLDS")
@@ -374,7 +374,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
             lines.append(
                 f"{cm}    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
-                f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
+                f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
             )
             lines.append(f"{cm}       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}")
             for pid in civ.pop_ids:
@@ -390,7 +390,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                 top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                 belief_str = "  ".join(
-                    f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs
+                    f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs
                 ) or "none"
                 vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                 lines.append(
@@ -560,7 +560,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         lines.append("")
         lines.append(f"  {lum.name.upper()}  [{_personality_label(lum)}]")
         domain_parts = [
-            f"{_short_tag(tag)} ({aff:.2f})"
+            f"{_short_tag(tag)} ({aff:.0%})"
             for tag, aff in sorted(lum.domains.items(), key=lambda x: -x[1])
         ]
         lines.append(f"  Domains: {', '.join(domain_parts)}")
@@ -572,8 +572,8 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         d   = lum.disposition
         att = state.luminary_attention.get(lid, 0.0)
         lines.append(
-            f"  Starting disposition:  results{d.results:+.2f}  "
-            f"methods{d.methods:+.2f}  attention:{att:.2f}"
+            f"  Starting disposition:  results{d.results:+.0%}  "
+            f"methods{d.methods:+.0%}  attention:{att:.0%}"
         )
     lines += ["", SEP]
     rules   = state.universe.rules
@@ -648,7 +648,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                     civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
                     lines.append(
                         f"{cm}        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
-                        f"stab:{h.stability:.2f} pros:{h.prosperity:.2f} coh:{h.cohesion:.2f}"
+                        f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
                     )
                     if civ.dominant_beliefs:
                         lines.append(f"{cm}           beliefs: {_format_beliefs(civ.dominant_beliefs)}")
@@ -665,7 +665,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         class_label = _pop_stratum_label(pop)
                         top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                         belief_str = "  ".join(
-                            f"{_short_tag(t)}({v:.2f})" for t, v in top_beliefs
+                            f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs
                         ) or "none"
                         vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
                         lines.append(

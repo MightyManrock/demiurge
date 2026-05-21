@@ -275,7 +275,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         h = civ.health
         civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
         a(f"  {cm}● {civ_link}  \\[{_e(civ.scale.value)}]  "
-          f"S{h.stability:.2f} P{h.prosperity:.2f} C{h.cohesion:.2f}{ce}")
+          f"S{h.stability:.0%} W{h.prosperity:.0%} C{h.cohesion:.0%}{ce}")
     if not any_civ:
         a("  [#5a7090](none in Window)[/]")
 
@@ -463,9 +463,9 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
 
     a("")
     a("[bold #4a80b0]HEALTH[/]")
-    a(f"  stability:  {h.stability:+.2f}")
-    a(f"  prosperity: {h.prosperity:+.2f}")
-    a(f"  cohesion:   {h.cohesion:+.2f}")
+    a(f"  stability:  {h.stability:+.0%}")
+    a(f"  wealth:     {h.prosperity:+.0%}")
+    a(f"  cohesion:   {h.cohesion:+.0%}")
 
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
@@ -480,7 +480,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         a("")
         a("[bold #4a80b0]DOMINANT BELIEFS[/]")
         for tag, val in sorted(civ.dominant_beliefs.items(), key=lambda kv: -kv[1]):
-            a(f"  {_color_short_tag(tag, val, with_value=False)}: {val:.2f}")
+            a(f"  {_color_short_tag(tag, val, with_value=False)}: {val:.0%}")
 
     if civ.culture_tags:
         a("")
@@ -802,16 +802,16 @@ def render_luminary_detail(state: "SimulationState", lum_id: str) -> Text:
     mc = "#50b870" if d.methods >= 0 else "#b04050"
     ac = "#c09030" if att > 0.5 else "#2a4a6a"
     a(f"  disposition: "
-      f"R[{rc}]{d.results:+.2f}[/]  "
-      f"M[{mc}]{d.methods:+.2f}[/]  "
-      f"att[{ac}]{att:.2f}[/]")
+      f"R[{rc}]{d.results:+.0%}[/]  "
+      f"M[{mc}]{d.methods:+.0%}[/]  "
+      f"att[{ac}]{att:.0%}[/]")
 
     a("")
     a("[bold #4a80b0]DOMAIN AFFINITIES[/]")
     for tag, aff in sorted(lum.domains.items(), key=lambda kv: -kv[1]):
         chip = _color_short_tag(tag, aff, with_value=False)
         # Pad inside the color span so column alignment is preserved.
-        a(f"  {chip}{' ' * max(0, 16 - len(_short_tag(tag)))}  {aff:+.2f}")
+        a(f"  {chip}{' ' * max(0, 16 - len(_short_tag(tag)))}  {aff:+.0%}")
 
     if lum.constraints:
         a("")
@@ -943,21 +943,21 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
         a("[bold #4a80b0]BELIEFS[/]")
         for tag, weight in sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1]):
             chip = _color_short_tag(tag, weight, with_value=False)
-            a(f"  {chip}  {weight:.2f}")
+            a(f"  {chip}  {weight:.0%}")
 
     if pop.culture_tags:
         a("")
         a("[bold #4a80b0]CULTURE[/]")
         for tag, weight in sorted(pop.culture_tags.items(), key=lambda kv: -kv[1]):
             chip = _color_short_tag(tag, weight, with_value=False)
-            a(f"  {chip}  {weight:.2f}")
+            a(f"  {chip}  {weight:.0%}")
 
     if pop.rider_traits:
         a("")
         a("[bold #4a80b0]RIDER TRAITS (from Preaching)[/]")
         for tag, weight in sorted(pop.rider_traits.items(), key=lambda kv: -kv[1]):
             chip = _color_short_tag(tag, weight, with_value=False)
-            a(f"  {chip}  {weight:.2f}")
+            a(f"  {chip}  {weight:.0%}")
 
     if pop.preaching_imago_id:
         from utilities.imago_registry import get_registry as get_imago_registry
