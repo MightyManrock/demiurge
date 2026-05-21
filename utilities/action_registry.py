@@ -112,7 +112,7 @@ _ACTION_SEED: list[dict] = [
         "reliability": "probable",
         "fp_overt_miracles": 0.5, "fp_subtle_influence": 0.0,
         "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
-        "essence_cost": 1.0, "concealment_impact": 0.0,
+        "essence_cost": 2.0, "concealment_impact": 0.0,
         "requires_proxius": 0,
         "tags": ["belief_shift", "divine_awareness", "interpretable"],
     },

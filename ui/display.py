@@ -341,6 +341,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
         f"proxii:{fp.proxius_activity:.2f}  creation:{fp.direct_creation:.2f}",
         f"  Essence   — actual:{es.actual:.2f}  apparent:{es.apparent:.2f}  "
         f"concealment:{es.concealment_integrity:.2f}",
+        f"  Puissance — {state.demiurge.puissance:.2f}",
         SEP,
     ]
     lines.append("LUMINARIES")
