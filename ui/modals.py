@@ -1216,7 +1216,7 @@ class ActionBrowserModal(ModalScreen):
             essence_str = ""
             if defn.essence_cost != 0:
                 verb        = "↑" if defn.essence_cost < 0 else "↓"
-                essence_str = f"  Ess{verb}{abs(defn.essence_cost):.1f}"
+                essence_str = f"  Ess{verb}{abs(defn.essence_cost):g}"
             persist = "  [persist]" if "can_persist" in defn.tags else ""
             stub    = "  [stub]"    if key in _STUB_ACTIONS else ""
             items.append(

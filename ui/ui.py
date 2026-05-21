@@ -720,7 +720,7 @@ class GameScreen(Screen):
                     committed_str = f" − {committed:.2f} committed" if committed > 0 else ""
                     await app.push_screen_wait(ToastModal(
                         f"Insufficient Essence.\n\n"
-                        f"  Cost:      {defn.essence_cost:.1f}\n"
+                        f"  Cost:      {defn.essence_cost:g}\n"
                         f"  Available: {available:.2f}\n"
                         f"  (stockpile {state.essence.actual:.2f}{committed_str})"
                     ))
