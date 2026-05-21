@@ -19,3 +19,4 @@ Read /root/demiurge/docs/TO-DO.md and /root/demiurge/docs/plans/PLANS.md. For ea
 | [action-success-rework.md](action-success-rework.md) | `complete` | Rework action success/failure math; fold Framing into success likelihood |
 | [manifest-omen-recost.md](manifest-omen-recost.md) | `complete` | Re-cost Manifest Omen — independent of action success rework |
 | [next-big-feature.md](next-big-feature.md) | `active` | Decision: choose next major system (Factions/Agents, Governments, or resources) |
+| [human-readable-docs.md](human-readable-docs.md) | `active` | Player-facing guide and system overviews; future Divine Wisdom tab |
