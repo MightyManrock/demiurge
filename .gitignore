@@ -7,7 +7,13 @@ pyvenv.cfg
 
 autoplay*.py
 logs/*.log
-docs
+# docs/ is an Obsidian/SyncThing vault — ignore sync/app metadata, track everything else
+docs/.obsidian/
+docs/.trash/
+docs/.stfolder
+docs/.stignore
+docs/.stversions/
+docs/**/*.syncthing.*.tmp
 saves/*.db
 scenarios/*.bak
 core/*.bak
