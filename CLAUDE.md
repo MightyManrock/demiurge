@@ -74,7 +74,7 @@ The codebase is strictly layered. `logic/tick_logic.py` knows nothing about SQL 
 
 | File | What lives here |
 |---|---|
-| `core/onto_core.py` | `Power`, `Domain`, `Luminary`, `Pantheon`, `Demiurge` (incl. `puissance`, `lifetime_revelation`), `Disposition`, `NarrativeConstraint`, `FootprintConstraint`, `Constraint` (discriminated union), `FootprintProfile` |
+| `core/onto_core.py` | `Power`, `Domain`, `Luminary`, `Pantheon`, `Demiurge` (incl. `puissance`, `lifetime_revelation`), `Disposition`, `NarrativeConstraint`, `FootprintConstraint`, `ResultsConstraint`, `Constraint` (discriminated union), `FootprintProfile` |
 | `core/universe_core.py` | `Universe`, `Location`, `System`, `SignificantLocation`, `PopLocation`, `Civilization`, `Species`, `NotableMortal`, `Pop`, all enums |
 | `core/action_core.py` | Action taxonomy: `ActionDefinition`, `ActionInstance`, `OngoingAction`, all `*Intent` types, `build_action_library()` |
 | `core/eval_core.py` | Luminary evaluation: `UniverseDomainProfile`, `LuminaryEvaluation`, `DispositionDelta`, `EvaluationEngine` |

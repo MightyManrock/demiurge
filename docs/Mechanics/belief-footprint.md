@@ -58,3 +58,33 @@ Each `footprint_tolerances` entry produces one `ConstraintEvaluation`.
 ### DB schema
 
 `constraints` table columns: `constraint_type TEXT NOT NULL DEFAULT 'narrative'` and `footprint_tolerances TEXT` (JSON blob, NULL for narrative). Round-trip via `--rebuild --scenario` migrates existing rows.
+
+## ResultsConstraint
+
+A third constraint subtype: evaluates the owning Luminary's `disposition.results` axis against a minimum floor. Fires when results fall too low.
+
+`ResultsConstraint.min_results: float` — the floor value in `[-1.0, 1.0]`.
+
+**No AttentionLevel dampening.** Luminaries can read universe outcomes regardless of how closely they are watching. Dampening applies to activity perception (footprint), not to reading the state of the universe.
+
+### Compliance bands
+
+Compliance is determined by `delta = disposition.results − min_results`:
+
+| delta | Band | Disposition delta (methods) | Attention delta |
+|---|---|---|---|
+| ≥ 0.30 | EXEMPLARY | +0.02 × weight | −0.02 |
+| ≥ 0.00 | COMPLIANT | 0 | 0 |
+| ≥ −0.10 | STRAINING | −0.05 × weight | +0.05 |
+| ≥ −0.20 | BREACHING | −0.15 × weight | +0.15 |
+| < −0.20 | FLAGRANT | −0.35 × weight | +0.30 |
+
+One `ConstraintEvaluation` is produced per `ResultsConstraint`.
+
+### Per-Luminary vs. Pantheon ownership
+
+Same fan-out rules as `FootprintConstraint`. When Pantheon-owned, evaluated at each Luminary independently using that Luminary's own `disposition.results`.
+
+### DB schema
+
+`constraints` table column: `min_results REAL` (NULL for narrative and footprint constraints). Valid `constraint_type` values: `'narrative'`, `'footprint'`, `'results'`.

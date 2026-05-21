@@ -39,7 +39,7 @@ from core.eval_core import (
     DispositionDeltaReason,
 )
 from core.onto_core import (
-    Demiurge, Pantheon, Luminary, FootprintConstraint,
+    Demiurge, Pantheon, Luminary, FootprintConstraint, ResultsConstraint,
 )
 from core.universe_core import (
     Universe, Location, System, SignificantLocation, PopLocation,
@@ -4214,7 +4214,7 @@ class TickLoop:
                 for t in luminary_domain_tags
             ) / max(1, len(luminary_domain_tags))
 
-            # Constraint evaluations — per-Luminary FootprintConstraints
+            # Constraint evaluations — per-Luminary constraints
             constraint_evals = []
             for constraint in luminary.constraints:
                 if isinstance(constraint, FootprintConstraint):
@@ -4223,14 +4223,22 @@ class TickLoop:
                             constraint, state.demiurge.footprint, attention_level
                         )
                     )
+                elif isinstance(constraint, ResultsConstraint):
+                    constraint_evals.extend(
+                        engine.evaluate_results_constraint(constraint, luminary)
+                    )
 
-            # Pantheon collective FootprintConstraints fan out to every Luminary
+            # Pantheon collective constraints fan out to every Luminary
             for constraint in state.pantheon.collective_constraints:
                 if isinstance(constraint, FootprintConstraint):
                     constraint_evals.extend(
                         engine.evaluate_footprint_constraint(
                             constraint, state.demiurge.footprint, attention_level
                         )
+                    )
+                elif isinstance(constraint, ResultsConstraint):
+                    constraint_evals.extend(
+                        engine.evaluate_results_constraint(constraint, luminary)
                     )
 
             # Footprint assessment

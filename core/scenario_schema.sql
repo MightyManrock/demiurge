@@ -63,8 +63,9 @@ CREATE TABLE IF NOT EXISTS constraints (
     enforcement_weight REAL NOT NULL DEFAULT 0.5,
     owner_id          TEXT NOT NULL,       -- luminary or pantheon UUID
     owner_type        TEXT NOT NULL,       -- 'luminary' | 'pantheon'
-    constraint_type   TEXT NOT NULL DEFAULT 'narrative',  -- 'narrative' | 'footprint'
-    footprint_tolerances TEXT              -- JSON blob e.g. '{"overt_miracles": 0.2}'; NULL for narrative
+    constraint_type   TEXT NOT NULL DEFAULT 'narrative',  -- 'narrative' | 'footprint' | 'results'
+    footprint_tolerances TEXT,             -- JSON blob e.g. '{"overt_miracles": 0.2}'; NULL for non-footprint
+    min_results       REAL               -- floor for disposition.results; NULL for non-results
 );
 
 CREATE TABLE IF NOT EXISTS pantheons (

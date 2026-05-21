@@ -67,8 +67,28 @@ class FootprintConstraint(BaseModel):
     # Keys must be valid FootprintProfile field names. Values are [0, 1] ceilings.
 
 
+class ResultsConstraint(BaseModel):
+    """
+    A constraint that enforces a minimum floor on the owning Luminary's
+    disposition.results axis. Evaluated each tick; fires when results fall
+    below min_results. No AttentionLevel dampening — Luminaries can read
+    universe outcomes regardless of how closely they are watching.
+    Luminary-owned: affects only that Luminary's disposition.
+    Pantheon-owned: fans out to every Luminary.
+    """
+    constraint_type: Literal["results"] = "results"
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    description: str
+    domain_tag: Optional[str] = None
+    enforcement_weight: float = Field(ge=0.0, le=1.0, default=0.5)
+    min_results: float = Field(ge=-1.0, le=1.0)
+    # Floor for the owning Luminary's disposition.results.
+    # delta = current_results - min_results; negative delta = violation.
+
+
 Constraint = Annotated[
-    Union[NarrativeConstraint, FootprintConstraint],
+    Union[NarrativeConstraint, FootprintConstraint, ResultsConstraint],
     Field(discriminator="constraint_type"),
 ]
 

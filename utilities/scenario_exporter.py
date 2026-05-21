@@ -19,7 +19,7 @@ from pathlib import Path
 from uuid import UUID
 
 from core.onto_core import (
-    Disposition, Constraint, FootprintConstraint,
+    Disposition, Constraint, FootprintConstraint, ResultsConstraint,
     Luminary, Pantheon, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
@@ -165,8 +165,8 @@ def _write_luminaries(conn, state: SimulationState):
             conn.execute(
                 """INSERT INTO constraints
                    (id, name, description, domain_tag, enforcement_weight,
-                    owner_id, owner_type, constraint_type, footprint_tolerances)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    owner_id, owner_type, constraint_type, footprint_tolerances, min_results)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(c.id),
                     c.name,
@@ -177,6 +177,7 @@ def _write_luminaries(conn, state: SimulationState):
                     "luminary",
                     c.constraint_type,
                     json.dumps(c.footprint_tolerances) if isinstance(c, FootprintConstraint) else None,
+                    c.min_results if isinstance(c, ResultsConstraint) else None,
                 ),
             )
 
@@ -191,8 +192,8 @@ def _write_pantheon(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO constraints
                (id, name, description, domain_tag, enforcement_weight,
-                owner_id, owner_type, constraint_type, footprint_tolerances)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                owner_id, owner_type, constraint_type, footprint_tolerances, min_results)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -203,6 +204,7 @@ def _write_pantheon(conn, state: SimulationState):
                 "pantheon",
                 c.constraint_type,
                 json.dumps(c.footprint_tolerances) if isinstance(c, FootprintConstraint) else None,
+                c.min_results if isinstance(c, ResultsConstraint) else None,
             ),
         )
 

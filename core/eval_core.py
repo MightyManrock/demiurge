@@ -15,7 +15,7 @@ from utilities.domain_registry import LuminaryPersonality
 
 if TYPE_CHECKING:
     from utilities.domain_registry import DomainRegistry
-    from core.onto_core import FootprintConstraint, FootprintProfile
+    from core.onto_core import FootprintConstraint, FootprintProfile, ResultsConstraint, Luminary
 
 
 # ─────────────────────────────────────────
@@ -566,6 +566,53 @@ class EvaluationEngine:
             ))
 
         return results
+
+    @staticmethod
+    def evaluate_results_constraint(
+        constraint: ResultsConstraint,
+        luminary: Luminary,
+    ) -> list[ConstraintEvaluation]:
+        """
+        Evaluate a ResultsConstraint against the Luminary's current disposition.results.
+        Uses absolute delta bands — no AttentionLevel dampening (results are universe
+        state, visible regardless of how closely the Luminary is watching).
+        Returns one ConstraintEvaluation.
+        """
+        w = constraint.enforcement_weight
+        current = luminary.disposition.results
+        delta = current - constraint.min_results
+
+        if delta >= 0.30:
+            compliance = ConstraintComplianceLevel.EXEMPLARY
+            disp_delta = 0.02 * w
+            att_delta  = -0.02
+        elif delta >= 0.0:
+            compliance = ConstraintComplianceLevel.COMPLIANT
+            disp_delta = 0.0
+            att_delta  = 0.0
+        elif delta >= -0.10:
+            compliance = ConstraintComplianceLevel.STRAINING
+            disp_delta = -0.05 * w
+            att_delta  =  0.05
+        elif delta >= -0.20:
+            compliance = ConstraintComplianceLevel.BREACHING
+            disp_delta = -0.15 * w
+            att_delta  =  0.15
+        else:
+            compliance = ConstraintComplianceLevel.FLAGRANT
+            disp_delta = -0.35 * w
+            att_delta  =  0.30
+
+        return [ConstraintEvaluation(
+            constraint_id=constraint.id,
+            constraint_name=constraint.name,
+            compliance=compliance,
+            measured_value=current,
+            threshold=constraint.min_results,
+            disposition_delta=disp_delta,
+            attention_delta=att_delta,
+            note=f"results {current:.2f} vs floor {constraint.min_results:.2f} (delta {delta:+.2f})",
+        )]
 
     # ── Essence Suspicion ────────────────────────────
 

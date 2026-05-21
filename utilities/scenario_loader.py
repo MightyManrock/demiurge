@@ -20,7 +20,7 @@ from uuid import UUID, uuid4
 
 from core.onto_core import (
     Luminary, Pantheon, Constraint, NarrativeConstraint, FootprintConstraint,
-    Disposition, FootprintProfile, Demiurge,
+    ResultsConstraint, Disposition, FootprintProfile, Demiurge,
 )
 from core.universe_core import (
     FootprintTolerances, ProxiiPolicy, UniverseRules,
@@ -264,6 +264,8 @@ def _load_luminaries(conn) -> tuple[dict[str, Luminary], dict[str, list[Constrai
                 **base,
                 footprint_tolerances=json.loads(d["footprint_tolerances"]),
             )
+        elif ctype == "results" and d.get("min_results") is not None:
+            c = ResultsConstraint(**base, min_results=d["min_results"])
         else:
             c = NarrativeConstraint(**base)
         constraints_by_owner.setdefault(d["owner_id"], []).append(c)
