@@ -250,18 +250,22 @@ def compute_mortal_alignment_base(
     return max(0.05, min(0.95, 0.5 + combined * 0.45))
 
 
-# Essence generation: per-CivilizationScale scope multipliers applied to sapient Pop
-# dominant_beliefs (combined with essence_pop_weight; pre-sapient Pops bypass this table).
+# Essence generation: per-CivilizationScale multipliers applied to Pop dominant_beliefs.
+# Covers all scale tiers including pre-sapient. The multiplier modulates output only when
+# belief-match > 0 (formula: essence_pop_weight * (1 + (scale_mult - 1) * match)).
+# At match=0 all tiers produce the same baseline; at match=1 the range is 0.80–1.45.
 _CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
-    "nascent":        0.05,
-    "tribal":         0.10,
-    "city_state":     0.20,
-    "regional":       0.35,
-    "continental":    0.50,
-    "planetary":      0.70,
-    "interplanetary": 0.90,
-    "interstellar":   1.20,
-    "intergalactic":  1.60,
+    "non_sentient":   0.80,
+    "pre_sapient":    1.00,
+    "nascent":        1.05,
+    "tribal":         1.10,
+    "city_state":     1.15,
+    "regional":       1.20,
+    "continental":    1.25,
+    "planetary":      1.30,
+    "interplanetary": 1.35,
+    "interstellar":   1.40,
+    "intergalactic":  1.45,
 }
 
 def is_in_window(entity: object) -> bool:
@@ -560,12 +564,8 @@ class TickConfig(BaseModel):
     # location; locations outweigh pre-sapient Pops; mortals are the floor.
 
     essence_pop_weight: float = 10.0
-    # Baseline multiplier applied to sapient Pop dominant_beliefs contributions
+    # Baseline multiplier applied to all Pop dominant_beliefs contributions
     # (before scale_mult and belief-match bonuses are applied).
-
-    essence_presapient_weight: float = 2.0
-    # Flat multiplier for pre-sapient / wild Pop contributions.
-    # Below location weight (3.0) but clearly above mortal weight (0.5).
 
     essence_mortal_weight: float = 0.5
     # Multiplier for NotableMortal.belief_tags contributions.
@@ -1707,40 +1707,31 @@ class TickLoop:
                 cid = str(pop.civilization_id)
                 civ_total_size[cid] = civ_total_size.get(cid, 0.0) + pop.size_fractional
 
-        # Pop contributions: sapient Pops are the primary Essence source.
-        # Pre-sapient/wild Pops contribute a smaller flat amount (above mortals but
-        # below even a low-scale sapient civ) and bypass the scale/match formula.
+        # Pop contributions: all Pops use the same formula; scale_mult from
+        # _CIV_SCALE_ESSENCE_MULT covers every tier including non_sentient/pre_sapient.
+        # The multiplier only diverges from 1.0 when belief-match > 0, so at match=0
+        # every Pop produces the same baseline regardless of civ scale.
         for pop in state.pops.values():
             if not pop.dominant_beliefs:
                 continue
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
             cid = str(pop.civilization_id) if pop.civilization_id else None
-            presapient = pop.is_wild or (civ is not None and is_wild_civ(civ))
 
-            if presapient:
-                for tag, strength in pop.dominant_beliefs.items():
-                    amount = strength * pop.size_fractional * cfg.essence_presapient_weight
-                    if amount > 0.0:
-                        universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
+            if civ is not None:
+                scale_key = civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale)
+                scale_mult = _CIV_SCALE_ESSENCE_MULT.get(scale_key, 1.0)
+                match = self._belief_match(pop.dominant_beliefs, civ.established_beliefs)
+                total_sz = civ_total_size.get(cid, pop.size_fractional)
+                size_weight = pop.size_fractional / total_sz if total_sz > 0.0 else 1.0
             else:
-                if civ is not None:
-                    scale_mult = _CIV_SCALE_ESSENCE_MULT.get(
-                        civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale), 0.1
-                    )
-                    match = self._belief_match(pop.dominant_beliefs, civ.established_beliefs)
-                    total_sz = civ_total_size.get(cid, pop.size_fractional)
-                    size_weight = pop.size_fractional / total_sz if total_sz > 0.0 else 1.0
-                else:
-                    scale_mult = 0.05
-                    match = 0.0
-                    size_weight = 1.0
+                scale_mult = _CIV_SCALE_ESSENCE_MULT["pre_sapient"]
+                match = 0.0
+                size_weight = 1.0
 
-                for tag, strength in pop.dominant_beliefs.items():
-                    # Contribution weighted by Pop's share of civ total size so that
-                    # splitting one Pop into many doesn't multiply total essence output.
-                    amount = strength * size_weight * cfg.essence_pop_weight * (1.0 + (scale_mult - 1.0) * match)
-                    if amount > 0.0:
-                        universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
+            for tag, strength in pop.dominant_beliefs.items():
+                amount = strength * size_weight * cfg.essence_pop_weight * (1.0 + (scale_mult - 1.0) * match)
+                if amount > 0.0:
+                    universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
         # Mortal contributions (unchanged)
         for mortal in state.mortals.values():
