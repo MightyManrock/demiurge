@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 10)
+> **Last updated:** 2026-05-22 (rev 11)
 
 ## Goal
 
@@ -52,7 +52,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 **3b — Default-pause triggers** ✓ complete
 - evaluation completes, Revelation threshold crossed, queued action completes, pinned mortal dies
 
-**3c — Default-silent triggers + config persistence**
+**3c — Default-silent triggers + config persistence** ✓ complete
 - pop splint, domain threshold, travel complete, minor agent updates
 - Persist pause config (enabled/disabled per trigger) to save state
 

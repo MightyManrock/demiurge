@@ -34,7 +34,7 @@ from core.universe_core import (
 )
 from core.action_core import EssenceStockpile, CategoryCooldowns
 from core.event_core import Event
-from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig
+from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig, PauseConfig
 
 
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
@@ -111,8 +111,9 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
            (name, description, universe_id, universe_name, universe_save_name,
             universe_description, current_age, tick_number, demiurge_id, pantheon_id,
             luminary_production_accum, domain_essence_claimed, universe_domain_expression,
-            starting_pinned_ids, last_tick_essence_by_domain, category_cooldowns)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            starting_pinned_ids, last_tick_essence_by_domain,
+            category_cooldowns, pause_config)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -130,6 +131,7 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.starting_pinned_ids),
             json.dumps(state.last_tick_essence_by_domain),
             state.category_cooldowns.model_dump_json(),
+            state.pause_config.model_dump_json(),
         ),
     )
 

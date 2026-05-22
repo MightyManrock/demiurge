@@ -44,7 +44,7 @@ from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
-    compute_mortal_alignment_base,
+    PauseConfig, compute_mortal_alignment_base,
 )
 
 _INTENT_CLASSES: dict[str, type] = {
@@ -152,6 +152,9 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     category_cooldowns = CategoryCooldowns.model_validate_json(
         meta.get("category_cooldowns", "{}")
     )
+    pause_config = PauseConfig.model_validate_json(
+        meta.get("pause_config", "{}")
+    )
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
     active_events = _load_active_events(conn)
@@ -197,6 +200,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         species=species,
         civ_momentum=civ_momentum,
         category_cooldowns=category_cooldowns,
+        pause_config=pause_config,
         luminary_attention=lum_attention,
         ticks_since_evaluation=ticks_since,
         config=cfg,

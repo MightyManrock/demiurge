@@ -757,6 +757,11 @@ class PauseEventType(str, Enum):
     REVELATION_THRESHOLD   = "revelation_threshold"    # an Imago node was revealed
     QUEUED_ACTION_COMPLETE = "queued_action_complete"  # a manually-queued action resolved
     PINNED_MORTAL_DIED     = "pinned_mortal_died"      # a pinned mortal died this tick
+    # Default-silent (configurable on — Phase 3c)
+    POP_SPLINT          = "pop_splint"           # a Pop splinted this tick
+    DOMAIN_THRESHOLD    = "domain_threshold"     # a domain expression shifted significantly
+    TRAVEL_COMPLETE     = "travel_complete"      # a mortal arrived at their destination
+    MINOR_AGENT_UPDATE  = "minor_agent_update"   # Proxius report surfaced this tick
 
 # Trigger types that map to LUMINARY_ULTIMATUM (everything else is LUMINARY_CONTACT).
 _ULTIMATUM_DIALOGUE_TYPES: frozenset[DialogueTriggerType] = frozenset({
@@ -770,6 +775,16 @@ class PauseEvent(BaseModel):
     description:      str = ""
     is_hard_pause:    bool = True   # True → always pauses; False → configurable
     pauses_by_default: bool = False  # for soft events: True = default-on, False = default-off
+
+
+class PauseConfig(BaseModel):
+    """Per-trigger pause overrides persisted in save state."""
+    overrides: dict[PauseEventType, bool] = Field(default_factory=dict)
+
+    def should_pause(self, event: "PauseEvent") -> bool:
+        if event.is_hard_pause:
+            return True
+        return self.overrides.get(event.event_type, event.pauses_by_default)
 
 
 # ─────────────────────────────────────────
@@ -859,6 +874,9 @@ class SimulationState(BaseModel):
     category_cooldowns: CategoryCooldowns = Field(
         default_factory=CategoryCooldowns
     )
+
+    # User-configurable pause trigger overrides (RTwP)
+    pause_config: PauseConfig = Field(default_factory=PauseConfig)
 
     # Queued actions waiting to be processed this tick
     action_queue: list["ActionInstance"] = Field(default_factory=list)
@@ -1159,6 +1177,48 @@ class TickLoop:
                     is_hard_pause=False,
                     pauses_by_default=True,
                 ))
+
+        # Default-silent: a Pop splinted this tick.
+        for m in result.passive_result.civilization_mutations:
+            if m.mutation_type == MutationType.POP_SPLINTER:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.POP_SPLINT,
+                    description=m.note or "Pop splinted",
+                    is_hard_pause=False,
+                    pauses_by_default=False,
+                ))
+                break
+
+        # Default-silent: a domain expression shifted significantly.
+        for m in result.passive_result.entity_mutations:
+            if m.mutation_type == MutationType.DOMAIN_EXPRESSION and abs(m.delta or 0.0) >= 0.05:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.DOMAIN_THRESHOLD,
+                    description=m.field or "domain expression",
+                    is_hard_pause=False,
+                    pauses_by_default=False,
+                ))
+                break
+
+        # Default-silent: a mortal arrived at their destination.
+        for ev in result.passive_result.narrative_events:
+            if "arrives at" in ev.text:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.TRAVEL_COMPLETE,
+                    description=ev.text,
+                    is_hard_pause=False,
+                    pauses_by_default=False,
+                ))
+                break
+
+        # Default-silent: a Proxius report surfaced this tick.
+        if result.agent_narratives:
+            result.pause_events.append(PauseEvent(
+                event_type=PauseEventType.MINOR_AGENT_UPDATE,
+                description=f"{len(result.agent_narratives)} agent update(s)",
+                is_hard_pause=False,
+                pauses_by_default=False,
+            ))
 
         # ── Bookkeeping ────────────────────────────────
         state.universe.current_age += cfg.tick_duration
