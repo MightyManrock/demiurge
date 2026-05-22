@@ -1086,6 +1086,13 @@ class TickLoop:
 
         result = PassiveWorldResult()
 
+        # ── Category cooldown decrement ────────────────
+        counters = state.category_cooldowns.counters
+        for cat in list(counters):
+            counters[cat] -= 1
+            if counters[cat] <= 0:
+                del counters[cat]
+
         # ── Civilization momentum ──────────────────────
         # Scale conformity multipliers: larger civs have stronger institutional pressure.
         _SCALE_CONFORMITY: dict[str, float] = {
@@ -1845,11 +1852,14 @@ class TickLoop:
     def _validate_and_filter_queue(
         self,
         queue: list["ActionInstance"],
+        cooldowns: "CategoryCooldowns",
     ) -> tuple[list["ActionInstance"], list[str]]:
         """
         Enforce declarative action queue constraints. Returns (filtered_queue, rejection_messages).
 
-        Rule: at most one action per ActionCategory per tick.
+        Rules:
+        - At most one action per ActionCategory per tick.
+        - Actions in a cooling category are unavailable.
         """
         accepted: list[ActionInstance] = []
         rejected: list[str] = []
@@ -1862,6 +1872,14 @@ class TickLoop:
                 continue
 
             cat = defn.category.value
+            remaining = cooldowns.counters.get(defn.category, 0)
+            if remaining > 0:
+                rejected.append(
+                    f"{defn.name} blocked: {cat.replace('_', ' ')} is on cooldown "
+                    f"({remaining} tick{'s' if remaining != 1 else ''} remaining)."
+                )
+                continue
+
             if cat in seen_categories:
                 rejected.append(
                     f"{defn.name} blocked: a {cat.replace('_', ' ')} action "
@@ -1883,7 +1901,9 @@ class TickLoop:
 
         result = ActionProcessingResult()
 
-        validated_queue, rejections = self._validate_and_filter_queue(state.action_queue)
+        validated_queue, rejections = self._validate_and_filter_queue(
+            state.action_queue, state.category_cooldowns
+        )
         for msg in rejections:
             result.entries.append(ActionProcessingResult.ActionEntry(
                 action_instance_id=uuid4(),

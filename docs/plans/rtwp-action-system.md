@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 6)
+> **Last updated:** 2026-05-22 (rev 7)
 
 ## Goal
 
@@ -32,7 +32,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Add `category_cooldowns: CategoryCooldowns` to `SimulationState`
 - Add column to `core/scenario_schema.sql`; load in `scenario_loader.py`; export in `scenario_exporter.py`
 
-**2b — Cooldown decrement + action gating**
+**2b — Cooldown decrement + action gating** ✓ complete
 - Decrement all non-zero counters each tick in `tick_logic.py`
 - Gate action availability: actions in a cooling category are unavailable
 - Assign placeholder base cooldown values per category (to be tuned in playtesting)

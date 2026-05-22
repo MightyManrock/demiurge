@@ -72,6 +72,21 @@ class CategoryCooldowns(BaseModel):
     counters: dict[ActionCategory, int] = Field(default_factory=dict)
 
 
+# Placeholder base cooldown values (ticks) per category.
+# Tuned in playtesting; direct/overt actions cool longer than subtle/internal.
+CATEGORY_BASE_COOLDOWNS: dict[ActionCategory, int] = {
+    ActionCategory.DIRECT_CREATION:   20,
+    ActionCategory.OVERT_MIRACLE:     25,
+    ActionCategory.SUBTLE_INFLUENCE:  10,
+    ActionCategory.PROXIUS_DIRECTION:  8,
+    ActionCategory.OBSERVATION:        5,
+    ActionCategory.HERALD_INTERACTION: 15,
+    ActionCategory.LUMINARY_RELATIONS: 15,
+    ActionCategory.UNDERREAL:          12,
+    ActionCategory.SELF_REFINEMENT:     6,
+}
+
+
 class TargetType(str, Enum):
     UNIVERSE      = "universe"
     GALAXY        = "galaxy"
