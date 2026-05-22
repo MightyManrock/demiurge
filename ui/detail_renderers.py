@@ -1225,18 +1225,85 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
     return Text.from_markup("\n".join(lines))
 
 
+def render_travel_location_detail(state: "SimulationState", tl_id: str) -> Text:
+    from core.universe_core import TravelLocation
+    tl = state.locations.get(str(tl_id))
+    if not isinstance(tl, TravelLocation):
+        return _not_found(f"TravelLocation {tl_id}")
+
+    lines: list[str] = []
+    a = lines.append
+
+    # Destination is the last key in legs (value == 0).
+    dest_id = next((k for k, v in tl.legs.items() if v == 0), None)
+    dest_loc = state.locations.get(str(dest_id)) if dest_id else None
+    dest_label = _e(dest_loc.name) if dest_loc else (str(dest_id) if dest_id else "?")
+    if dest_loc:
+        dest_str = _location_link(state, dest_loc.id, dest_label)
+    else:
+        dest_str = dest_label
+
+    a(f"[bold #4a80b0]IN TRANSIT → {dest_str}[/]")
+    a("")
+
+    # Current leg
+    wp_loc = state.locations.get(str(tl.current_waypoint)) if tl.current_waypoint else None
+    wp_name = _e(wp_loc.name) if wp_loc else (str(tl.current_waypoint) or "?")
+    if wp_loc:
+        wp_str = _location_link(state, wp_loc.id, wp_name)
+    else:
+        wp_str = wp_name
+    a(f"  current leg: {wp_str}")
+    a(f"  ticks remaining: [#a0c0e0]{tl.ticks_remaining}[/]")
+
+    # Full itinerary
+    a("")
+    a("[bold #4a80b0]ITINERARY[/]")
+    for loc_id_str, cost in tl.legs.items():
+        leg_loc = state.locations.get(loc_id_str)
+        leg_name = _e(leg_loc.name) if leg_loc else loc_id_str
+        if leg_loc:
+            leg_link = _location_link(state, leg_loc.id, leg_name)
+        else:
+            leg_link = leg_name
+        if cost == 0:
+            a(f"  ► {leg_link}  [#5a9060](destination)[/]")
+        elif loc_id_str == str(tl.current_waypoint):
+            a(f"  ◉ {leg_link}  [#a0c0e0]{tl.ticks_remaining}/{cost} tick(s) left[/]")
+        else:
+            a(f"  ○ {leg_link}  [#7090b0]{cost} tick(s)[/]")
+
+    # Occupants
+    a("")
+    a("[bold #4a80b0]TRAVELERS[/]")
+    if not tl.occupants:
+        a("  [#5a7090](none)[/]")
+    else:
+        for occ_id in tl.occupants:
+            m = state.mortals.get(str(occ_id))
+            if m:
+                m_link = _click_link("mortal", str(occ_id), f"[bold]{_e(m.name)}[/]")
+                role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
+                a(f"  ● {m_link} [{role_str}]")
+            else:
+                a(f"  ● [#7090b0]{str(occ_id)}[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
 # ─────────────────────────────────────────
 # Dispatch table
 # ─────────────────────────────────────────
 
 RENDERERS = {
-    "world":     render_world_detail,
-    "system":    render_system_detail,
-    "galaxy":    render_galaxy_detail,
-    "poploc":    render_poploc_detail,
-    "civ":       render_civ_detail,
-    "mortal":    render_mortal_detail,
-    "luminary":  render_luminary_detail,
-    "pop":       render_pop_detail,
-    "species":   render_species_detail,
+    "world":           render_world_detail,
+    "system":          render_system_detail,
+    "galaxy":          render_galaxy_detail,
+    "poploc":          render_poploc_detail,
+    "travel_location": render_travel_location_detail,
+    "civ":             render_civ_detail,
+    "mortal":          render_mortal_detail,
+    "luminary":        render_luminary_detail,
+    "pop":             render_pop_detail,
+    "species":         render_species_detail,
 }
