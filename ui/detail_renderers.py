@@ -778,12 +778,17 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     if m.travel_intent and dev:
         ti = m.travel_intent
-        dest_loc = state.locations.get(str(ti.destination))
-        dest_name = dest_loc.name if dest_loc else str(ti.destination)
-        a("")
-        a("[bold #4a80b0]TRAVEL[/]")
-        ticks_word = "tick" if ti.ticks_remaining == 1 else "ticks"
-        a(f"  Traveling → {_e(dest_name)} | {ti.ticks_remaining} {ticks_word} remaining")
+        tl = state.locations.get(str(ti.travel_location_id))
+        if tl is not None:
+            # Destination is the last key in legs (value == 0)
+            dest_id = list(tl.legs.keys())[-1] if tl.legs else None
+            dest_loc = state.locations.get(dest_id) if dest_id else None
+            dest_name = dest_loc.name if dest_loc else (dest_id or "unknown")
+            ticks_remaining = getattr(tl, "ticks_remaining", 0)
+            a("")
+            a("[bold #4a80b0]TRAVEL[/]")
+            ticks_word = "tick" if ticks_remaining == 1 else "ticks"
+            a(f"  Traveling → {_e(dest_name)} | {ticks_remaining} {ticks_word} remaining")
 
     return Text.from_markup("\n".join(lines))
 

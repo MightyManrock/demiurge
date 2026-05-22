@@ -4679,61 +4679,113 @@ class TickLoop:
     _KARATH_OMN_NAME      = "Karath Omn"
     _KARATH_OMN_SHUTTLE_A = "Neran Surface"
     _KARATH_OMN_SHUTTLE_B = "Neran Orbital Ring"
+    _DURENN_VAIL_NAME = "Durenn Vail"
+    _VAIL_DEST_A      = "Neran Surface"
+    _VAIL_DEST_B      = "Sethis Surface"
 
     def _resolve_mortal_travel_decisions(self, state: SimulationState) -> list[str]:
-        """Phase 2.6 — assign new TravelIntents. Currently only Karath Omn's shuttle."""
+        """Phase 2.6a — assign new TravelIntents via TravelLocation routing."""
+        from core.universe_core import PopLocation, TravelLocation
+        from core.agent_core import TravelIntent
+        from utilities.travel_routing import find_route, build_legs, get_or_create_travel_location
+
         narratives: list[str] = []
-        shuttle_locs = {
+        pop_locs_by_name: dict[str, str] = {
             loc.name: lid
             for lid, loc in state.locations.items()
-            if loc.name in (self._KARATH_OMN_SHUTTLE_A, self._KARATH_OMN_SHUTTLE_B)
+            if isinstance(loc, PopLocation)
         }
-        if len(shuttle_locs) < 2:
-            return narratives
+
         for mortal in state.mortals.values():
-            if mortal.name != self._KARATH_OMN_NAME or mortal.travel_intent is not None:
+            if mortal.travel_intent is not None:
                 continue
+
             current_loc = state.locations.get(str(mortal.current_location))
-            if current_loc is None:
+            current_name = current_loc.name if current_loc else ""
+
+            dest_name: str | None = None
+            if mortal.name == self._KARATH_OMN_NAME:
+                dest_name = (
+                    self._KARATH_OMN_SHUTTLE_B
+                    if current_name == self._KARATH_OMN_SHUTTLE_A
+                    else self._KARATH_OMN_SHUTTLE_A
+                )
+            elif mortal.name == self._DURENN_VAIL_NAME:
+                dest_name = (
+                    self._VAIL_DEST_B
+                    if current_name == self._VAIL_DEST_A
+                    else self._VAIL_DEST_A
+                )
+
+            if dest_name is None or dest_name not in pop_locs_by_name:
                 continue
-            dest_name = (
-                self._KARATH_OMN_SHUTTLE_B
-                if current_loc.name == self._KARATH_OMN_SHUTTLE_A
-                else self._KARATH_OMN_SHUTTLE_A
-            )
-            if dest_name not in shuttle_locs:
+
+            dest_id_str = pop_locs_by_name[dest_name]
+            route = find_route(state, mortal.current_location, UUID(dest_id_str))
+            if route is None or len(route) < 2:
                 continue
-            dest_loc = state.locations.get(shuttle_locs[dest_name])
-            if dest_loc is None:
-                continue
-            origin_dist = getattr(current_loc, "distance_from_core", 0)
-            dest_dist   = getattr(dest_loc, "distance_from_core", 0)
-            dist_between = origin_dist + dest_dist
-            travel_ticks = dist_between if (origin_dist > 0 and dest_dist > 0) else dist_between + 1
-            mortal.travel_intent = TravelIntent(
-                destination=UUID(shuttle_locs[dest_name]),
-                ticks_remaining=travel_ticks,
-                in_transit=True,
-            )
+
+            legs  = build_legs(state, route)
+            tl    = get_or_create_travel_location(state, legs)
+            tl.occupants.append(mortal.id)
+            mortal.travel_intent = TravelIntent(travel_location_id=tl.id)
+
+            total_ticks = sum(v for v in legs.values())
             narratives.append(
-                f"{mortal.name} begins traveling to {dest_name} ({travel_ticks} tick{'s' if travel_ticks != 1 else ''})."
+                f"{mortal.name} begins traveling to {dest_name} "
+                f"({total_ticks} tick{'s' if total_ticks != 1 else ''})."
             )
         return narratives
 
     def _process_mortal_travel(self, state: SimulationState) -> list[str]:
-        """Phase 2.6 — decrement countdowns and teleport arrivals."""
+        """Phase 2.6b — advance TravelLocation countdowns; teleport on arrival."""
+        from core.universe_core import TravelLocation
+        from uuid import UUID
+
         narratives: list[str] = []
-        for mortal in state.mortals.values():
-            ti = mortal.travel_intent
-            if ti is None or not ti.in_transit:
+        to_remove: list[str] = []
+
+        for lid, loc in list(state.locations.items()):
+            if not isinstance(loc, TravelLocation):
                 continue
-            ti.ticks_remaining -= 1
-            if ti.ticks_remaining <= 0:
-                dest_loc = state.locations.get(str(ti.destination))
-                dest_name = dest_loc.name if dest_loc else str(ti.destination)
-                mortal.current_location = ti.destination
-                mortal.travel_intent = None
-                narratives.append(f"{mortal.name} arrives at {dest_name}.")
+
+            loc.ticks_remaining -= 1
+            if loc.ticks_remaining > 0:
+                continue
+
+            leg_keys = list(loc.legs.keys())
+            try:
+                current_idx = leg_keys.index(loc.current_waypoint)
+            except ValueError:
+                to_remove.append(lid)
+                continue
+
+            next_idx = current_idx + 1
+            if next_idx >= len(leg_keys):
+                to_remove.append(lid)
+                continue
+
+            next_wp   = leg_keys[next_idx]
+            next_cost = loc.legs[next_wp]
+
+            if next_cost == 0:
+                # Arrival
+                dest_loc  = state.locations.get(next_wp)
+                dest_name = dest_loc.name if dest_loc else next_wp
+                for occ_id in loc.occupants:
+                    mortal = state.mortals.get(str(occ_id))
+                    if mortal:
+                        mortal.current_location = UUID(next_wp)
+                        mortal.travel_intent    = None
+                        narratives.append(f"{mortal.name} arrives at {dest_name}.")
+                to_remove.append(lid)
+            else:
+                loc.current_waypoint  = next_wp
+                loc.ticks_remaining   = next_cost
+
+        for lid in to_remove:
+            state.locations.pop(lid, None)
+
         return narratives
 
     def _resolve_proxius_agents(
