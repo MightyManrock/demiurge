@@ -1009,23 +1009,41 @@ class TickLoop:
         state.last_tick_essence_by_domain = dict(essence_by_domain)
 
         # ── Inject ongoing actions (appended after manual queue) ──────────
-        # Manually queued actions in the same category take priority;
-        # _validate_and_filter_queue blocks any duplicate-category entry.
-        # Map instance.id -> category so we can credit executed_ticks after.
-        # Also capture manual queue categories so we can assign cooldowns.
+        # Ongoing actions are standing orders: re-inject each tick when the
+        # category is ready and Essence is available. ticks_active always
+        # increments (tracks how long the order has existed); executed_ticks
+        # only increments when the action actually fires.
         manual_queue_count = len(state.action_queue)  # capture before ongoing injection
         manual_instance_cats: dict[str, "ActionCategory"] = {}
         for inst in state.action_queue:
             key = self._action_key_by_id.get(str(inst.action_definition_id))
-            defn = self._action_library.get(key) if key else None
-            if defn:
-                manual_instance_cats[str(inst.id)] = defn.category
+            d = self._action_library.get(key) if key else None
+            if d:
+                manual_instance_cats[str(inst.id)] = d.category
+
+        # Committed Essence from the manual queue (for Essence-gating ongoing injections)
+        committed_essence = 0.0
+        for inst in state.action_queue:
+            key = self._action_key_by_id.get(str(inst.action_definition_id))
+            d = self._action_library.get(key) if key else None
+            if d and d.essence_cost > 0:
+                committed_essence += d.essence_cost
 
         ongoing_instance_ids: dict[str, str] = {}
         for cat_val, ongoing in list(state.ongoing_actions.items()):
             defn = self._action_library.get(ongoing.action_key)
             if defn is None:
                 continue
+            ongoing.ticks_active += 1
+            # Skip if category is cooling — re-inject automatically when cooldown expires
+            if state.category_cooldowns.counters.get(defn.category, 0) > 0:
+                continue
+            # Skip if Essence insufficient — re-inject when Essence recovers
+            if defn.essence_cost > 0:
+                available = state.essence.actual - committed_essence
+                if defn.essence_cost > available:
+                    continue
+                committed_essence += defn.essence_cost
             instance = ActionInstance(
                 action_definition_id=defn.id,
                 target_type=ongoing.target_type,
@@ -1037,7 +1055,6 @@ class TickLoop:
             )
             state.action_queue.append(instance)
             ongoing_instance_ids[str(instance.id)] = cat_val
-            ongoing.ticks_active += 1
 
         # ── Phase 2: Action Processing ─────────────────
         _essence_before = state.essence.actual
@@ -1046,7 +1063,7 @@ class TickLoop:
         state = self._apply_action_mutations(state, action_result)
         state.action_queue = []
 
-        # Credit executed_ticks for ongoing actions that weren't category-blocked.
+        # Credit executed_ticks and assign cooldown for ongoing actions that fired.
         # Accepted entries keep their original instance.id; rejected entries get
         # a fresh uuid4(), so membership in this set is unambiguous.
         executed_ids = {str(e.action_instance_id) for e in action_result.entries}
@@ -1055,6 +1072,9 @@ class TickLoop:
                 oa = state.ongoing_actions.get(cat_val)
                 if oa:
                     oa.executed_ticks += 1
+                    d = self._action_library.get(oa.action_key)
+                    if d:
+                        _assign_category_cooldown(state, d.category)
 
         # Assign cooldown for each manually-queued action that actually fired.
         for iid, cat in manual_instance_cats.items():
