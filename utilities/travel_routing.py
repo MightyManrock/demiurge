@@ -2,7 +2,7 @@
 utilities/travel_routing.py
 
 Routing helpers for the TravelLocation system.
-  find_route     — BFS over PopLocations connected by shared travel_features
+  find_route     — BFS over PopLocations connected by shared TravelNetwork membership
   leg_cost       — tick cost for one hop between two adjacent PopLocations
   build_legs     — convert a route list into the TravelLocation.legs dict
   get_or_create_travel_location — find joinable TravelLocation or create new one
@@ -14,7 +14,7 @@ from uuid import UUID
 
 
 def find_route(state, origin_id: UUID, destination_id: UUID) -> list[UUID] | None:
-    """BFS over PopLocations connected by shared travel_features.
+    """BFS over PopLocations connected by shared TravelNetwork membership.
     Returns ordered list of PopLocation UUIDs from origin to destination,
     or None if no route exists.
     """
@@ -33,14 +33,14 @@ def find_route(state, origin_id: UUID, destination_id: UUID) -> list[UUID] | Non
         path = queue.popleft()
         current_str = path[-1]
         current_loc = state.locations.get(current_str)
-        if not isinstance(current_loc, PopLocation) or not current_loc.travel_features:
+        if not isinstance(current_loc, PopLocation) or not current_loc.travel_network_ids:
             continue
         for cand_str, cand_loc in state.locations.items():
             if not isinstance(cand_loc, PopLocation):
                 continue
             if cand_str in visited:
                 continue
-            if not (current_loc.travel_features & cand_loc.travel_features):
+            if not (set(current_loc.travel_network_ids) & set(cand_loc.travel_network_ids)):
                 continue
             new_path = path + [cand_str]
             if cand_str == dest_str:
@@ -122,7 +122,7 @@ def get_or_create_travel_location(state, legs: dict[str, int]):
     Joinable = same legs dict AND current_waypoint is the first key (traveler starts at origin).
     Returns the TravelLocation instance (already added to state.locations if new).
     """
-    from core.universe_core import TravelLocation
+    from core.universe_core import TravelLocation, PopLocation
 
     first_wp = next(iter(legs))
     for loc in state.locations.values():
@@ -134,13 +134,33 @@ def get_or_create_travel_location(state, legs: dict[str, int]):
             return loc
 
     dest_key = next(k for k, v in legs.items() if v == 0)
-    origin_loc = state.locations.get(first_wp)
-    dest_loc   = state.locations.get(dest_key)
-    origin_name = origin_loc.name if origin_loc else first_wp
-    dest_name   = dest_loc.name   if dest_loc   else dest_key
+
+    route_keys = list(legs.keys())
+    seen_net_ids: set[str] = set()
+    net_names: list[str] = []
+    for i in range(len(route_keys) - 1):
+        a_loc = state.locations.get(route_keys[i])
+        b_loc = state.locations.get(route_keys[i + 1])
+        if isinstance(a_loc, PopLocation) and isinstance(b_loc, PopLocation):
+            shared = set(str(x) for x in a_loc.travel_network_ids) & set(str(x) for x in b_loc.travel_network_ids)
+            for net_id in shared:
+                if net_id not in seen_net_ids:
+                    seen_net_ids.add(net_id)
+                    net = state.travel_networks.get(net_id)
+                    if net:
+                        net_names.append(net.name)
+
+    if net_names:
+        transit_name = f"In transit via {', '.join(net_names)}"
+    else:
+        origin_loc = state.locations.get(first_wp)
+        dest_loc   = state.locations.get(dest_key)
+        origin_name = origin_loc.name if origin_loc else first_wp
+        dest_name   = dest_loc.name   if dest_loc   else dest_key
+        transit_name = f"In transit: {origin_name} → {dest_name}"
 
     tl = TravelLocation(
-        name=f"In transit: {origin_name} → {dest_name}",
+        name=transit_name,
         legs=legs,
         current_waypoint=first_wp,
         ticks_remaining=legs[first_wp],
