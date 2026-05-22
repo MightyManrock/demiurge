@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 8)
+> **Last updated:** 2026-05-22 (rev 9)
 
 ## Goal
 
@@ -45,7 +45,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ### Phase 3: Auto-Pause System
 
-**3a — Pause event framework + hard-pause triggers**
+**3a — Pause event framework + hard-pause triggers** ✓ complete
 - Define pause event types in `tick_logic.py`
 - Implement hard-pause triggers (not configurable): Luminary/Herald/Proxius contact, Luminary ultimatum
 

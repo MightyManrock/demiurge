@@ -28,7 +28,7 @@ from core.action_core import (
 from core.eval_core import (
     UniverseDomainProfile,
     LuminaryEvaluation,
-    DialogueTrigger,
+    DialogueTrigger, DialogueTriggerType,
     EvaluationEngine,
     AttentionTrigger,
     FootprintAssessment,
@@ -742,6 +742,30 @@ class TerminalCheck(BaseModel):
 
 
 # ─────────────────────────────────────────
+# PAUSE EVENTS
+# Signals to the RTwP loop that auto-advance should stop.
+# ─────────────────────────────────────────
+
+class PauseEventType(str, Enum):
+    LUMINARY_CONTACT   = "luminary_contact"    # any Luminary dialogue trigger fires
+    LUMINARY_ULTIMATUM = "luminary_ultimatum"  # CONSTRAINT_ULTIMATUM or THREAT trigger
+    HERALD_CONTACT     = "herald_contact"      # stub — Heralds not yet implemented
+    PROXIUS_CONTACT    = "proxius_contact"     # stub — urgent Proxius signal (TBD)
+
+# Trigger types that map to LUMINARY_ULTIMATUM (everything else is LUMINARY_CONTACT).
+_ULTIMATUM_DIALOGUE_TYPES: frozenset[DialogueTriggerType] = frozenset({
+    DialogueTriggerType.CONSTRAINT_ULTIMATUM,
+    DialogueTriggerType.THREAT,
+})
+
+
+class PauseEvent(BaseModel):
+    event_type:    PauseEventType
+    description:   str = ""
+    is_hard_pause: bool = True  # Phase 3b/3c will add soft-pause events
+
+
+# ─────────────────────────────────────────
 # TICK RESULT
 # The complete output of one tick.
 # ─────────────────────────────────────────
@@ -772,6 +796,9 @@ class TickResult(BaseModel):
     # Unsuppressed triggers only — these go to the player
 
     terminal: TerminalCheck = Field(default_factory=TerminalCheck)
+
+    pause_events: list[PauseEvent] = Field(default_factory=list)
+    # Hard-pause events stop auto-advance; soft-pause events (3b/3c) are configurable.
 
     essence_claimed_by_domain: dict[str, float] = Field(default_factory=dict)
     # domain tag -> Demiurge's claim this tick
@@ -1065,6 +1092,20 @@ class TickLoop:
         # ── Phase 6: Terminal Check ────────────────────
         terminal = self._check_terminal_conditions(state, profile)
         result.terminal = terminal
+
+        # ── Pause event generation ─────────────────────
+        # Hard-pause: any Luminary dialogue trigger (ultimatum gets its own type).
+        for trigger in result.dialogue_triggers:
+            if trigger.trigger_type in _ULTIMATUM_DIALOGUE_TYPES:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.LUMINARY_ULTIMATUM,
+                    description=trigger.subject_ref or trigger.trigger_type.value,
+                ))
+            else:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.LUMINARY_CONTACT,
+                    description=trigger.subject_ref or trigger.trigger_type.value,
+                ))
 
         # ── Bookkeeping ────────────────────────────────
         state.universe.current_age += cfg.tick_duration
