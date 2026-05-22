@@ -80,11 +80,18 @@ ticks = dist_between if (origin.dfc > 0 and dest.dfc > 0) else dist_between + 1
 ```
 Same formula as the existing Karath Omn implementation.
 
-**Interstellar** (PopLocations on different SignificantLocations):
-Walk up the parent chain from each PopLocation: `PopLocation → SignificantLocation → System`. Use the **System-level** `CosmicCoordinates` for distance.
+**Cross-world** (PopLocations on different SignificantLocations):
+Walk up both parent chains until they diverge. Use the coordinates at the level of divergence:
+
+| Parent relationship | Coordinate level used |
+|---|---|
+| Same SignificantLocation | → intra-world (`distance_from_core`) |
+| Different SignificantLocations, same System | → `SignificantLocation.coordinates` (sublight) |
+| Different Systems | → `System.coordinates` (FTL / interstellar) |
+
 ```python
 SPACE_TRAVEL_CONSTANT = 3.0  # tune later; ties in to transport tech
-ticks = max(1, math.ceil(euclidean(system_a.coords, system_b.coords) / SPACE_TRAVEL_CONSTANT))
+ticks = max(1, math.ceil(euclidean(coord_a, coord_b) / SPACE_TRAVEL_CONSTANT))
 ```
 
 For the Vail test: Ardent System (0,0,0) → The Velar Corridor (8,4,-2) = √84 ≈ 9.17 → `ceil(9.17/3.0)` = **4 ticks**.
