@@ -112,6 +112,7 @@ ContentTab {
 #status-panel {
     background: $bg-panel;
     padding: 0 1 1 1;
+    height: 1fr;
 }
 
 #main-feed {
