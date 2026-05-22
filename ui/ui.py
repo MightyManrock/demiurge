@@ -160,27 +160,21 @@ class LoadScreen(Screen):
 class GameScreen(Screen):
     BINDINGS = [
         ("b",      "briefing",        "Briefing"),
-        ("s",      "show_state",      "State"),
         ("a",      "queue_action",    "Queue"),
         ("o",      "manage_ongoing",  "Ongoing"),
         ("t",      "advance_tick",    "Advance"),
         ("ctrl+s", "save_game",       "Save"),
         ("q",      "quit_confirm",    "Quit"),
         ("ctrl+q", "quit_immediate",  "Force quit"),
-        # Tab switching: digits for left, ctrl+digits for right.
-        ("1", "left_tab('status')",      "Status"),
+        # Tab switching: digits for left panel.
         ("2", "left_tab('locations')",   "Locs"),
         ("3", "left_tab('entities')",    "Ents"),
         ("4", "left_tab('actions')",     "Acts"),
-        ("ctrl+1", "right_tab('briefing')",   ""),
-        ("ctrl+2", "right_tab('universe')",   ""),
-        ("ctrl+3", "right_tab('luminaries')", ""),
-        ("ctrl+4", "right_tab('divine_wisdom')", ""),
-        ("ctrl+5", "right_tab('log')",        ""),
-        # Detail-tab controls (Phase 2).
-        ("escape",     "close_detail",   "Close"),
-        ("ctrl+p",     "pin_detail",     "Pin"),
-        ("alt+left",   "back_detail",    "Back"),
+        # Detail-tab controls.
+        ("escape",   "close_detail",   "Close"),
+        ("w",        "close_detail",   "Close"),
+        ("p",        "pin_detail",     "Pin"),
+        ("alt+left", "back_detail",    "Back"),
     ]
 
     # Map from a left/right tab pane id to the entity kinds whose discoveries
@@ -537,9 +531,9 @@ class GameScreen(Screen):
         else:
             self._open_briefing()
 
-    def action_show_state(self) -> None:
-        """Switch focus to the Universe tab (was: dump snapshot to the log)."""
-        self.query_one("#right-tabs", TabbedContent).active = "universe"
+    # def action_show_state(self) -> None:
+    #     """Switch focus to the Universe tab (was: dump snapshot to the log)."""
+    #     self.query_one("#right-tabs", TabbedContent).active = "universe"
 
     def action_queue_action(self) -> None:
         self._queue_action_flow()
