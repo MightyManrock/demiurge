@@ -730,15 +730,25 @@ class GameScreen(Screen):
 
     # ── Action queue flow ─────────────────────
 
+    @on(CategoryPanel.CategoryClicked)
+    def _on_category_clicked(self, event: CategoryPanel.CategoryClicked) -> None:
+        if event.is_cooling:
+            self.app.push_screen(ToastModal("Category on cooldown — not ready yet."))
+        else:
+            self._queue_action_flow(initial_category=event.category)
+
     @work
-    async def _queue_action_flow(self) -> None:
+    async def _queue_action_flow(self, initial_category: "ActionCategory | None" = None) -> None:
         app     = self.app
         state   = self._state
         library = app.loop._action_library  # type: ignore[attr-defined]
 
         while True:
             # Browse and pick action
-            picked = await app.push_screen_wait(ActionBrowserModal(state, library))
+            picked = await app.push_screen_wait(
+                ActionBrowserModal(state, library, initial_category=initial_category)
+            )
+            initial_category = None  # only pre-select on first open
             if picked is None:
                 return
             action_key, defn = picked

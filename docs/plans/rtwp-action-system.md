@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 13)
+> **Last updated:** 2026-05-22 (rev 14)
 
 ## Goal
 
@@ -69,7 +69,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Wire `CategoryCooldowns.counters` to each row's progress bar
 - Ready categories display at full; cooling categories show countdown
 
-**4c — Interaction**
+**4c — Interaction** ✓ complete
 - Click ready category → open action picker at that category's sub-menu; "back" goes to main picker
 - Click cooling category → "not ready" toast
 - Category symbols: `✦ ✺ ≃ ▻ ⊚ ⚜ ↑ ∇ ⟡`

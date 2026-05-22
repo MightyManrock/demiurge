@@ -1113,10 +1113,12 @@ class ActionBrowserModal(ModalScreen):
         ("ctrl+escape", "cancel",       ""),
     ]
 
-    def __init__(self, state: SimulationState, library: dict):
+    def __init__(self, state: SimulationState, library: dict,
+                 initial_category: "ActionCategory | None" = None):
         super().__init__()
-        self._state   = state
-        self._library = library
+        self._state            = state
+        self._library          = library
+        self._initial_category = initial_category
 
         # Group by category
         self._cat_actions: dict[ActionCategory, list[tuple[str, ActionDefinition]]] = {}
@@ -1155,16 +1157,20 @@ class ActionBrowserModal(ModalScreen):
 
     def on_mount(self) -> None:
         self.query_one("#cat-list", ListView).focus()
+        if self._initial_category is not None:
+            cat = self._initial_category
+            actions = self._cat_actions.get(cat, [])
+            if actions:
+                self.call_after_refresh(lambda: self._open_cat(cat, actions))
 
     @on(ListView.Selected, "#cat-list")
     def _on_cat_selected(self, event: ListView.Selected) -> None:
-        self._handle_cat_selected(event)
-
-    @work
-    async def _handle_cat_selected(self, event: ListView.Selected) -> None:
         idx = int(event.item.id.split("-", 1)[1])
         cat, actions = list(self._cat_actions.items())[idx]
+        self._open_cat(cat, actions)
 
+    @work
+    async def _open_cat(self, cat: "ActionCategory", actions: list) -> None:
         # If ongoing action in this category, offer management
         ongoing = self._state.ongoing_actions.get(cat.value)
         if ongoing:
