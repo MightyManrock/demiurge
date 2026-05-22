@@ -23,8 +23,10 @@ from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, ListView, RichLog, Static
+# from textual.widgets import ProgressBar  # re-enable when troubleshooting bar quantization
 
 from core.action_core import ActionCategory
+# from core.action_core import ActionCategory, CATEGORY_BASE_COOLDOWNS  # re-enable with ProgressBar
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 
@@ -1392,10 +1394,20 @@ class CategoryRow(Widget):
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
         yield Static(f"{symbol} {label}", classes="cat-label")
+        # Countdown Static (active). Swap for ProgressBar block below when troubleshooting.
         yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}")
+        # ProgressBar alternative (disabled — see quantization note in commit history):
+        # base = CATEGORY_BASE_COOLDOWNS[self._category]
+        # yield ProgressBar(total=base, show_eta=False, show_percentage=False,
+        #                   classes="cat-bar", id=f"cat-bar-{self._category.value}")
+
+    # def on_mount(self) -> None:
+    #     base = CATEGORY_BASE_COOLDOWNS[self._category]
+    #     self.query_one(ProgressBar).advance(base)
 
     def set_cooldown(self, counter: int) -> None:
         self._counter = counter
+        # Countdown Static version (active):
         bar = self.query_one(f"#cat-bar-{self._category.value}", Static)
         if counter == 0:
             bar.update("")
@@ -1403,6 +1415,14 @@ class CategoryRow(Widget):
         else:
             bar.update(str(counter))
             self.add_class("cooling")
+        # ProgressBar version (disabled):
+        # base = CATEGORY_BASE_COOLDOWNS[self._category]
+        # bar = self.query_one(ProgressBar)
+        # bar.update(total=base, progress=base - counter)
+        # if counter == 0:
+        #     self.remove_class("cooling")
+        # else:
+        #     self.add_class("cooling")
 
     class CategoryClicked(Message):
         def __init__(self, category: ActionCategory, is_cooling: bool) -> None:
