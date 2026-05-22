@@ -2,8 +2,12 @@
 Plain-text session log: a write-only sink that mirrors what the player sees
 in the RichLog feed to a file under `logs/`. Strips Rich markup so the file
 is readable in any text editor.
+
+RichLogBuffer: keeps the last 100 ticks of (tick, category, markup) tuples
+in memory and can persist/restore them as JSONL for save-load continuity.
 """
 from __future__ import annotations
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,6 +18,50 @@ from ui import display
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState, TickResult
+
+_RICH_LOG_MAX_TICKS = 100
+
+
+class RichLogBuffer:
+    """In-memory ring of the last _RICH_LOG_MAX_TICKS ticks' log entries.
+
+    Each entry is (tick_number, category, markup_line). On append, ticks
+    older than (newest - _RICH_LOG_MAX_TICKS) are dropped. The buffer can
+    be saved to / loaded from a JSONL file for save-game continuity.
+    """
+
+    def __init__(self) -> None:
+        self._entries: list[tuple[int, str, str]] = []
+
+    def append_tick(self, tick_number: int, entries: list[tuple[str, str]]) -> None:
+        for cat, markup in entries:
+            self._entries.append((tick_number, cat, markup))
+        cutoff = tick_number - _RICH_LOG_MAX_TICKS
+        if cutoff > 0:
+            self._entries = [e for e in self._entries if e[0] > cutoff]
+
+    def entries(self) -> list[tuple[int, str, str]]:
+        return list(self._entries)
+
+    def save(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            for tick, cat, markup in self._entries:
+                f.write(json.dumps([tick, cat, markup]) + "\n")
+
+    def load(self, path: Path) -> None:
+        self._entries = []
+        if not path.exists():
+            return
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        tick, cat, markup = json.loads(line)
+                        self._entries.append((int(tick), str(cat), str(markup)))
+                    except Exception:
+                        pass
 
 
 class SessionLog:
