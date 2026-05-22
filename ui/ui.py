@@ -61,7 +61,7 @@ from ui.widgets import (
     set_detail_action_provider, set_unseen_predicate,
 )
 from ui.detail_tabs import DetailTabManager
-from ui.session_log import SessionLog
+from ui.session_log import SessionLog, RichLogBuffer
 from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
     QuitConfirmModal,
@@ -237,12 +237,20 @@ class GameScreen(Screen):
         _LOGS_DIR.mkdir(exist_ok=True)
         log_path = _LOGS_DIR / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         self._log = SessionLog(log_path)
+        self._rich_log = RichLogBuffer()
         # Initialise the detail-tab manager once the right TabbedContent exists.
         self._detail_mgr = DetailTabManager(
             self, self.query_one("#right-tabs", TabbedContent),
         )
         # Render all tabs from the initial state.
         self._refresh_all()
+        # Restore rich log from previous session if this is a loaded save.
+        if self._state.rich_log_name:
+            rich_log_path = _LOGS_DIR / f"{self._state.rich_log_name}.jsonl"
+            self._rich_log.load(rich_log_path)
+            for _tick, cat, markup in self._rich_log.entries():
+                self._feed_markup(markup, cat)
+            self._feed_markup(f"[#2a4a6a]— session resumed —[/]")
         # Plain-text session log still receives the full briefing + state snapshot.
         briefing_lines = display_briefing(self._state, dev_mode=display.DEV_MODE)
         self._log.write(_strip_oow(briefing_lines))
@@ -636,6 +644,7 @@ class GameScreen(Screen):
         self.app.call_from_thread(self._record_discoveries, before_ids)
         categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE, state=new_state)
         self._log.write_tick(result)
+        self._rich_log.append_tick(result.tick_number, categorized)
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
         if self._auto_advance and any(
@@ -666,6 +675,13 @@ class GameScreen(Screen):
     def action_save_game(self) -> None:
         self._save_game_flow()
 
+    def _flush_rich_log(self, save_name: str) -> None:
+        """Assign rich_log_name if not yet set, then write the JSONL buffer."""
+        if not self._state.rich_log_name:
+            self._state.rich_log_name = f"{save_name}_rich"
+        _LOGS_DIR.mkdir(exist_ok=True)
+        self._rich_log.save(_LOGS_DIR / f"{self._state.rich_log_name}.jsonl")
+
     @work
     async def _save_game_flow(self) -> None:
         state = self._state
@@ -687,6 +703,7 @@ class GameScreen(Screen):
                 self._feed_markup("[#5a7090]Save cancelled.[/]")
                 return
         description = f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
+        self._flush_rich_log(name)
         export_scenario(state, db_path, scenario_name=name, description=description)
         self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
 
@@ -712,6 +729,7 @@ class GameScreen(Screen):
             description = (
                 f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
             )
+            self._flush_rich_log(name)
             export_scenario(state, db_path, scenario_name=name, description=description)
             self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
         self._log.finalize(self._state, self._last_result)
