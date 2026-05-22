@@ -18,7 +18,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Confirm the game loop is stable under continuous advancement with no player input
 
 ### Phase 2: Per-Category Cooldowns
-- Add `cooldown_counter: int` per category to `SimulationState` (or a new `CategoryCooldowns` model in `core/`)
+- Add a `CategoryCooldowns(BaseModel)` to `core/action_core.py` with a single field `counters: dict[ActionCategory, int]`; add `category_cooldowns: CategoryCooldowns` to `SimulationState` — **not** flat fields on `SimulationState`
 - Define base cooldown values per category (placeholder values, to be tuned)
 - Gate action availability on cooldown state rather than tick boundary
 - Stopping an ongoing action triggers a cooldown on that category
@@ -52,8 +52,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ## Files affected
 
-- `core/onto_core.py` — add `CategoryCooldowns` or equivalent; possibly extend `SimulationState`
-- `core/action_core.py` — cooldown metadata per `ActionDefinition`; per-action cooldown modifier field
+- `core/action_core.py` — add `CategoryCooldowns` model; cooldown metadata per `ActionDefinition`; per-action cooldown modifier field
 - `core/universe_core.py` — age representation changes (Phase 5)
 - `logic/tick_logic.py` — cooldown decrement, auto-advance loop, auto-pause event dispatch
 - `ui/ui.py` — spacebar binding, auto-advance state, pause event handling, category panel wiring
