@@ -18,9 +18,10 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape as _e
 from rich.text import Text
-from textual.widgets import TabPane
+from textual.app import ComposeResult
+from textual.widgets import Button, Static, TabPane
 
-from ui.widgets import ContentTab, set_detail_render, detail_actions_for
+from ui.widgets import ContentTab, TabBodyStatic, set_detail_render, detail_actions_for
 from ui.detail_renderers import RENDERERS
 
 if TYPE_CHECKING:
@@ -60,6 +61,20 @@ class DetailTab(ContentTab):
     def toggle_pin(self) -> None:
         self._pinned = not self._pinned
 
+    def compose(self) -> ComposeResult:
+        yield Button("☆ Pin", classes="detail-pin-btn")
+        yield TabBodyStatic(classes="tab-body", expand=True)
+
+    def refresh_state(self, state: "SimulationState") -> None:
+        self.query_one(Static).update(self._render_body(state))
+        btn = self.query_one(".detail-pin-btn", Button)
+        if self._pinned:
+            btn.label = "★ Pinned"
+            btn.variant = "warning"
+        else:
+            btn.label = "☆ Pin"
+            btn.variant = "default"
+
     def navigate_to(self, kind: str, entity_id: str, name: str) -> None:
         """Push a new entity onto this tab's history."""
         self._history.append((kind, str(entity_id), name))
@@ -93,10 +108,8 @@ class DetailTab(ContentTab):
             finally:
                 set_detail_render(False)
 
-        # Header strip: pin indicator + breadcrumb + per-entity action buttons.
+        # Header strip: breadcrumb + per-entity action buttons (pin is a real Button above).
         header_parts: list[str] = []
-        if self._pinned:
-            header_parts.append("[#c09030]★ pinned[/]")
         # Action buttons (Edit / Delete in builder mode; empty in core game).
         actions = detail_actions_for(kind, eid)
         if actions:

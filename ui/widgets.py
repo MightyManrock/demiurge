@@ -22,7 +22,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import ListView, RichLog, Static
+from textual.widgets import Button, ListView, RichLog, Static
 
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
@@ -623,6 +623,11 @@ class ActionsTab(ContentTab):
     """Left-panel tab: queued (this tick) + ongoing actions."""
 
     _loop = None
+
+    def compose(self) -> ComposeResult:
+        yield TabBodyStatic(classes="tab-body", expand=True)
+        yield Button("Queue Action", id="queue-action-btn", variant="primary")
+        yield Button("Manage Ongoing", id="manage-ongoing-btn")
 
     def refresh_state(self, state: "SimulationState", loop=None) -> None:
         self._loop = loop

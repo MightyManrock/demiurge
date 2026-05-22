@@ -469,6 +469,18 @@ class GameScreen(Screen):
             return _pop_identity_label(s, s.pops[eid])
         return eid[:8]
 
+    @on(Button.Pressed, "#queue-action-btn")
+    def _queue_action_btn(self, _: Button.Pressed) -> None:
+        self.action_queue_action()
+
+    @on(Button.Pressed, "#manage-ongoing-btn")
+    def _manage_ongoing_btn(self, _: Button.Pressed) -> None:
+        self.action_manage_ongoing()
+
+    @on(Button.Pressed, ".detail-pin-btn")
+    def _pin_detail_btn(self, _: Button.Pressed) -> None:
+        self.action_pin_detail()
+
     def action_close_detail(self) -> None:
         # Close a focused detail tab, or the Briefing tab if it's the one active.
         right = self.query_one("#right-tabs", TabbedContent)
