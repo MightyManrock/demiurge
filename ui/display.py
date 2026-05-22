@@ -6,6 +6,7 @@ Imports only from core/, logic/, utilities/, and rich — never from textual
 or ui/. This module is the lower layer; ui/ depends on it, not the reverse.
 """
 from __future__ import annotations
+import re
 from uuid import UUID
 from typing import TYPE_CHECKING
 
@@ -436,8 +437,67 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     return lines
 
 
+_LOG_LINK_COLORS: dict[str, str] = {
+    "galaxy":   "#60a070",
+    "system":   "#9aa870",
+    "world":    "#d4b070",
+    "civ":      "#c89050",
+    "mortal":   "#a080c0",
+    "species":  "#80a0b0",
+    "location": "#80b0a0",
+}
+
+
+def _entity_link(kind: str, eid: str, name: str) -> str:
+    color = _LOG_LINK_COLORS.get(kind, "#c0ccdc")
+    return (
+        f"[@click=screen.open_detail_by_id('{kind}','{eid}')]"
+        f"[{color}]{_e(name)}[/][/]"
+    )
+
+
+def _build_name_index(state: "SimulationState") -> dict[str, tuple[str, str]]:
+    index: dict[str, tuple[str, str]] = {}
+    for eid, e in state.mortals.items():
+        if e.name:
+            index[e.name] = ("mortal", str(eid))
+    for eid, e in state.civilizations.items():
+        if e.name:
+            index[e.name] = ("civ", str(eid))
+    for eid, e in state.species.items():
+        if e.name:
+            index[e.name] = ("species", str(eid))
+    for eid, e in state.worlds.items():
+        if e.name:
+            index[e.name] = ("world", str(eid))
+    for eid, e in state.systems.items():
+        if e.name:
+            index[e.name] = ("system", str(eid))
+    for eid, e in state.galaxies.items():
+        if e.name:
+            index[e.name] = ("galaxy", str(eid))
+    return index
+
+
+def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
+    """Escape plain text for Rich, replacing known entity names with @click links."""
+    if not name_index:
+        return _e(text)
+    pattern = re.compile("|".join(re.escape(n) for n in sorted(name_index, key=len, reverse=True)))
+    parts: list[str] = []
+    last = 0
+    for m in pattern.finditer(text):
+        parts.append(_e(text[last:m.start()]))
+        kind, eid = name_index[m.group()]
+        parts.append(_entity_link(kind, eid, m.group()))
+        last = m.end()
+    parts.append(_e(text[last:]))
+    return "".join(parts)
+
+
 def display_tick_result_categorized(
     result: "TickResult", dev_mode: bool = False,
+    state: "SimulationState | None" = None,
 ) -> list[tuple[str, str]]:
     """
     Same content as `display_tick_result` but emitted as a list of
@@ -451,6 +511,7 @@ def display_tick_result_categorized(
       - 'luminary' — disposition changes and dialogue triggers
     """
     out: list[tuple[str, str]] = []
+    _nl = _build_name_index(state) if state is not None else {}
 
     out.append(("other", ""))
     out.append((
@@ -467,7 +528,7 @@ def display_tick_result_categorized(
     if visible_events:
         out.append(("system", "WORLD EVENTS"))
         for ev in visible_events:
-            text = _e(ev.text)
+            text = _linkify(ev.text, _nl)
             if not ev.in_window:
                 out.append(("system", f"  • [dim]{text}[/dim]"))
             else:
@@ -479,14 +540,14 @@ def display_tick_result_categorized(
         for entry in result.action_result.entries:
             out.append((
                 "actions",
-                f"  \\[{entry.outcome.value.upper()}] {_e(entry.narrative)}",
+                f"  \\[{entry.outcome.value.upper()}] {_linkify(entry.narrative, _nl)}",
             ))
         out.append(("actions", ""))
 
     if result.agent_narratives:
         out.append(("proxius", "PROXIUS REPORTS"))
         for n in result.agent_narratives:
-            out.append(("proxius", f"  • {_e(n)}"))
+            out.append(("proxius", f"  • {_linkify(n, _nl)}"))
         out.append(("proxius", ""))
 
     if result.essence_claimed_by_domain:

@@ -634,7 +634,7 @@ class GameScreen(Screen):
         self._state = new_state
         self._last_result = result
         self.app.call_from_thread(self._record_discoveries, before_ids)
-        categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE)
+        categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE, state=new_state)
         self._log.write_tick(result)
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
