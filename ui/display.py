@@ -428,7 +428,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             target_str = f" → {_name_for_id(oa.target_id, state)}" if oa.target_id else ""
             lines.append(
                 f"  [{cat_label}] {oa.action_key.replace('_', ' ').title()}"
-                f"{target_str}  ({oa.executed_ticks}/{oa.ticks_active} ticks executed)"
+                f"{target_str}  ({oa.successful_ticks}/{oa.executed_ticks} success)"
             )
     else:
         lines.append("  None")

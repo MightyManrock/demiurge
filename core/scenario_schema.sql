@@ -351,6 +351,7 @@ CREATE TABLE IF NOT EXISTS ongoing_actions (
     intent_data            TEXT,    -- JSON of intent fields, or NULL
     ticks_active           INTEGER NOT NULL DEFAULT 0,
     executed_ticks         INTEGER NOT NULL DEFAULT 0,
+    successful_ticks       INTEGER NOT NULL DEFAULT 0,
     started_at_tick        INTEGER NOT NULL DEFAULT 0
 );
 

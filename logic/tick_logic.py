@@ -1063,15 +1063,18 @@ class TickLoop:
         state = self._apply_action_mutations(state, action_result)
         state.action_queue = []
 
-        # Credit executed_ticks and assign cooldown for ongoing actions that fired.
-        # Accepted entries keep their original instance.id; rejected entries get
-        # a fresh uuid4(), so membership in this set is unambiguous.
+        # Credit executed_ticks / successful_ticks and assign cooldown for ongoing
+        # actions that fired. Accepted entries keep their original instance.id;
+        # rejected entries get a fresh uuid4(), so membership is unambiguous.
         executed_ids = {str(e.action_instance_id) for e in action_result.entries}
+        outcome_by_id = {str(e.action_instance_id): e.outcome for e in action_result.entries}
         for iid, cat_val in ongoing_instance_ids.items():
             if iid in executed_ids:
                 oa = state.ongoing_actions.get(cat_val)
                 if oa:
                     oa.executed_ticks += 1
+                    if outcome_by_id.get(iid) != ActionOutcome.FAILURE:
+                        oa.successful_ticks += 1
                     d = self._action_library.get(oa.action_key)
                     if d:
                         _assign_category_cooldown(state, d.category)

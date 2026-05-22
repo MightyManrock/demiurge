@@ -574,7 +574,7 @@ class GameScreen(Screen):
             defn  = library.get(oa.action_key)
             name  = defn.name if defn else oa.action_key
             label = cat_val.replace("_", " ").title()
-            items.append((cat_val, f"[{label}] {name}  ({oa.executed_ticks}/{oa.ticks_active})"))
+            items.append((cat_val, f"[{label}] {name}  ({oa.successful_ticks}/{oa.executed_ticks})"))
         chosen = await self.app.push_screen_wait(PickerModal("Ongoing Actions", items))
         if chosen and chosen in state.ongoing_actions:
             confirmed = await self.app.push_screen_wait(

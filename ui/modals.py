@@ -1191,7 +1191,7 @@ class ActionBrowserModal(ModalScreen):
                         ("override", "Override this tick only"),
                         ("leave",    "Leave it running"),
                     ],
-                    description=f"{ongoing.executed_ticks}x executed, {ongoing.ticks_active} ticks old",
+                    description=f"{ongoing.successful_ticks}/{ongoing.executed_ticks} successes, {ongoing.ticks_active} ticks old",
                 )
             )
             if choice == "leave" or choice is None:

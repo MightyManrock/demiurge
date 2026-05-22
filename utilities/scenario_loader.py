@@ -779,6 +779,7 @@ def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
             intent=intent,
             ticks_active=row["ticks_active"],
             executed_ticks=row["executed_ticks"],
+            successful_ticks=row.get("successful_ticks", 0),
             started_at_tick=row["started_at_tick"],
         )
     return out

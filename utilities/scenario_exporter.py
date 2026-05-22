@@ -682,8 +682,8 @@ def _write_ongoing_actions(conn, state: SimulationState):
             """INSERT INTO ongoing_actions
                (category_key, action_key, action_definition_id, target_type,
                 target_id, proxius_id, intent_type, intent_data,
-                ticks_active, executed_ticks, started_at_tick)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ticks_active, executed_ticks, successful_ticks, started_at_tick)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cat_val,
                 oa.action_key,
@@ -695,6 +695,7 @@ def _write_ongoing_actions(conn, state: SimulationState):
                 intent_data,
                 oa.ticks_active,
                 oa.executed_ticks,
+                oa.successful_ticks,
                 oa.started_at_tick,
             ),
         )

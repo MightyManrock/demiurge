@@ -672,7 +672,7 @@ class ActionsTab(ContentTab):
                     tgt = f"  → [#3a6a8a]{_e(_name_for_id(oa.target_id, state))}[/]"
                 a(f"  [#5a7090]({_e(cat)})[/]")
                 a(f"    [#60a070]{_e(label)}[/]{tgt}  "
-                  f"[#2a4060]{oa.executed_ticks}/{oa.ticks_active} ticks[/]")
+                  f"[#2a4060]{oa.successful_ticks}/{oa.executed_ticks} success[/]")
         else:
             a("[#5a7090]  (none)[/]")
         return Text.from_markup("\n".join(lines))

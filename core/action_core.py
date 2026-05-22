@@ -688,6 +688,7 @@ class OngoingAction(BaseModel):
     intent: Optional[ActionIntent] = None
     ticks_active: int = 0
     executed_ticks: int = 0
+    successful_ticks: int = 0
     started_at_tick: int = 0
 
 
