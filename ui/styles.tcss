@@ -427,6 +427,29 @@ ImagoRevealCell.imago-eligible:focus {
     content-align: left middle;
 }
 
+/* ── Category Panel ──────────────────── */
+
+#category-panel {
+    width: 18;
+    background: $bg-panel;
+    border-left: solid $border;
+    padding: 1 1;
+}
+
+.category-row {
+    height: 3;
+    margin: 0 0 1 0;
+}
+
+.cat-label {
+    color: $muted;
+    height: 1;
+}
+
+.cat-bar {
+    height: 1;
+}
+
 /* ── LoadScreen ───────────────────────── */
 
 LoadScreen {

@@ -22,8 +22,9 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, ListView, RichLog, Static
+from textual.widgets import Button, ListView, ProgressBar, RichLog, Static
 
+from core.action_core import ActionCategory
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 
@@ -1349,3 +1350,57 @@ class LogTab(Vertical):
         else:
             self._active.discard(event.category)
         self._rerender()
+
+
+# Category symbols in ActionCategory enum order.
+_CATEGORY_SYMBOLS: dict[ActionCategory, str] = {
+    ActionCategory.DIRECT_CREATION:    "✦",
+    ActionCategory.OVERT_MIRACLE:      "✺",
+    ActionCategory.SUBTLE_INFLUENCE:   "≃",
+    ActionCategory.PROXIUS_DIRECTION:  "▻",
+    ActionCategory.OBSERVATION:        "⊚",
+    ActionCategory.HERALD_INTERACTION: "⚜",
+    ActionCategory.LUMINARY_RELATIONS: "↑",
+    ActionCategory.UNDERREAL:          "∇",
+    ActionCategory.SELF_REFINEMENT:    "⟡",
+}
+
+_CATEGORY_LABELS: dict[ActionCategory, str] = {
+    ActionCategory.DIRECT_CREATION:    "Create",
+    ActionCategory.OVERT_MIRACLE:      "Miracle",
+    ActionCategory.SUBTLE_INFLUENCE:   "Influence",
+    ActionCategory.PROXIUS_DIRECTION:  "Proxius",
+    ActionCategory.OBSERVATION:        "Observe",
+    ActionCategory.HERALD_INTERACTION: "Herald",
+    ActionCategory.LUMINARY_RELATIONS: "Luminary",
+    ActionCategory.UNDERREAL:          "Underreal",
+    ActionCategory.SELF_REFINEMENT:    "Refine",
+}
+
+
+class CategoryRow(Widget):
+    """One row in the category panel: symbol label + cooldown progress bar."""
+
+    DEFAULT_CSS = ""
+
+    def __init__(self, category: ActionCategory) -> None:
+        super().__init__(id=f"cat-row-{category.value}", classes="category-row")
+        self._category = category
+
+    def compose(self) -> ComposeResult:
+        symbol = _CATEGORY_SYMBOLS[self._category]
+        label  = _CATEGORY_LABELS[self._category]
+        yield Static(f"{symbol} {label}", classes="cat-label")
+        yield ProgressBar(total=1, show_eta=False, show_percentage=False,
+                          classes="cat-bar", id=f"cat-bar-{self._category.value}")
+
+    def on_mount(self) -> None:
+        self.query_one(ProgressBar).advance(1)
+
+
+class CategoryPanel(Vertical):
+    """Narrow vertical panel on the far right showing per-category cooldown bars."""
+
+    def compose(self) -> ComposeResult:
+        for cat in ActionCategory:
+            yield CategoryRow(cat)

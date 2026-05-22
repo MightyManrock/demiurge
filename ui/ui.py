@@ -57,7 +57,7 @@ from ui.widgets import (
     StatusPanel, LoopingListView,
     LocationsTab, EntitiesTab, ActionsTab,
     BriefingTab, UniverseTab, LuminariesTab, LogTab,
-    DivineWisdomTab,
+    DivineWisdomTab, CategoryPanel,
     set_detail_action_provider, set_unseen_predicate,
 )
 from ui.detail_tabs import DetailTabManager
@@ -229,6 +229,7 @@ class GameScreen(Screen):
                     yield DivineWisdomTab()
                 with TabPane("Log", id="log"):
                     yield LogTab()
+            yield CategoryPanel(id="category-panel")
         yield Footer()
 
     def on_mount(self) -> None:

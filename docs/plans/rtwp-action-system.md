@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 11)
+> **Last updated:** 2026-05-22 (rev 12)
 
 ## Goal
 
@@ -60,7 +60,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ### Phase 4: Category Panel UI
 
-**4a — Panel scaffold**
+**4a — Panel scaffold** ✓ complete
 - New vertical panel on the far right of `GameScreen`
 - One row per `ActionCategory`: symbol + placeholder `ProgressBar`
 - Layout and basic styles in `ui/widgets.py` + `ui/styles.tcss`
