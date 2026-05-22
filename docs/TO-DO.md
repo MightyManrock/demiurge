@@ -21,7 +21,6 @@ Choose the next major system: Agent expansion, Factions, Governments, or resourc
 
 ---
 
-### Baby steps toward an expanded Agent system
-> → plan: [mortal-travel-initial.md](plans/mortal-travel-initial.md)
+### TravelLocation and travel routing
 
-Please refer to [[travel_system_initial|this]] brainstorming document.
+Please refer to [[travel_location_system|this]] brainstorming document.
