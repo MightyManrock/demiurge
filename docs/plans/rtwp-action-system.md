@@ -51,6 +51,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - **Time control bar** (bottom, left to right): Exit | Slow | Pause/Play | +1 | Fast
   - `spacebar`: same as Pause/Play
   - `t`: same as +1 (advance one tick)
+  - `numpad +` / `numpad -`: same as Fast / Slow
   - `Esc`: same as Exit; pauses advancement first if ticks are running
   - Exit while advancing: always pauses before closing
 
