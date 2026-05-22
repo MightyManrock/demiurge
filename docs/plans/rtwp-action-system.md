@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22
+> **Last updated:** 2026-05-22 (rev 2)
 
 ## Goal
 
@@ -39,14 +39,29 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Category symbols per brainstorm doc:
   `✦ ✺ ≃ ▻ ⊚ ⚜ ↑ ∇ ⟡`
 
-### Phase 5: Tick Scale Recalibration
+### Phase 5: RTwP Control Modal
+- Triggered by `spacebar` from `GameScreen` (when no other modal is active)
+- Covers the main content panel area only — tab name row, left panel, and category cooldown panel remain visible and fully interactive
+- Background dims to standard modal level; left panel and cooldown panel stay at full brightness
+- **Log section** (top ~2/3): live feed that continues to refresh as ticks advance
+- **Auto-pause options** (middle, two columns):
+  - Spanning header row: `[ ] Begin advancing when this menu opens`
+  - Left column (default-on, can disable): evaluation completes, Revelation threshold, queued action completes, pinned mortal dies
+  - Right column (default-off, can enable): pop splint, domain threshold, travel complete, minor agent updates
+- **Time control bar** (bottom, left to right): Exit | Slow | Pause/Play | +1 | Fast
+  - `spacebar`: same as Pause/Play
+  - `t`: same as +1 (advance one tick)
+  - `Esc`: same as Exit; pauses advancement first if ticks are running
+  - Exit while advancing: always pauses before closing
+
+### Phase 6: Tick Scale Recalibration
 - Tick = 1 day (scenario parameter, stored on `SimulationState`)
 - Universe/civilization ages stored as `(billions, millions, thousands, years, months, days)` — display as `"Day 13 of Month 5, Year 13,675,482,090"` in the top bar
 - Recalibrate all per-tick rates: Essence, Revelation, cultural drift, belief shifts
 - Drop per-tick minimums; rely on fractional accumulation
 - Audit checklist: every system with a per-tick rate must be identified and recalibrated in a single coordinated pass
 
-*Phase 5 should not be started until Phases 1–4 are stable and playtested.*
+*Phase 6 should not be started until Phases 1–5 are stable and playtested.*
 
 ---
 
@@ -58,7 +73,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - `ui/ui.py` — spacebar binding, auto-advance state, pause event handling, category panel wiring
 - `ui/widgets.py` — category panel widget; cooldown progress bars
 - `ui/styles.tcss` — category panel layout
-- `ui/modals.py` — auto-pause config modal (Phase 3)
+- `ui/modals.py` — RTwP control modal: log feed, auto-pause config, time controls (Phase 5)
 - `utilities/scenario_loader.py` / `scenario_exporter.py` — cooldown state persistence (Phase 2)
 - `core/scenario_schema.sql` — new columns for cooldown state (Phase 2)
 - Possibly all of `autoplay/` — auto-advance may require updates to headless playtest strategies
