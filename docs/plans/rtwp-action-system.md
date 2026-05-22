@@ -34,7 +34,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 ### Phase 4: Category Panel UI
 - New vertical panel on the far right of `GameScreen`
 - One row per action category: symbol + short progress bar (Textual `ProgressBar`)
-- Click on a ready category → queue action in that category (same as `a` key)
+- Click on a ready category → open the action picker directly at that category's sub-menu (bypasses top-level picker); pressing "back" from there goes to the main action picker, not close
 - Click on a cooling category → "not ready" toast
 - Category symbols per brainstorm doc:
   `✦ ✺ ≃ ▻ ⊚ ⚜ ↑ ∇ ⟡`
