@@ -17,7 +17,7 @@ from textual.widgets import (
     RadioButton, RadioSet, Static,
 )
 
-from core.action_core import ActionCategory, ActionDefinition
+from core.action_core import ActionCategory, ActionDefinition, compute_cooldown
 from logic.tick_logic import (
     SimulationState, _compute_revelation_cap, _revelation_adjusted_cost,
 )
@@ -1198,6 +1198,9 @@ class ActionBrowserModal(ModalScreen):
                 return
             if choice == "stop":
                 del self._state.ongoing_actions[cat.value]
+                self._state.category_cooldowns.counters[cat] = compute_cooldown(
+                    cat, self._state.demiurge.puissance
+                )
 
         # If a manually queued action already occupies this category, ask to cancel it
         if cat.value in self._queued_cats:

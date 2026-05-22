@@ -23,7 +23,7 @@ from core.action_core import (
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope,
-    TargetType, CategoryCooldowns,
+    TargetType, CategoryCooldowns, CATEGORY_BASE_COOLDOWNS, compute_cooldown,
 )
 from core.eval_core import (
     UniverseDomainProfile,
@@ -935,6 +935,12 @@ class SimulationState(BaseModel):
     starting_pinned_ids: list[str] = Field(default_factory=list)
 
 
+def _assign_category_cooldown(state: SimulationState, category: "ActionCategory") -> None:
+    state.category_cooldowns.counters[category] = compute_cooldown(
+        category, state.demiurge.puissance
+    )
+
+
 # ─────────────────────────────────────────
 # TICK LOOP
 # ─────────────────────────────────────────
@@ -1006,7 +1012,15 @@ class TickLoop:
         # Manually queued actions in the same category take priority;
         # _validate_and_filter_queue blocks any duplicate-category entry.
         # Map instance.id -> category so we can credit executed_ticks after.
+        # Also capture manual queue categories so we can assign cooldowns.
         manual_queue_count = len(state.action_queue)  # capture before ongoing injection
+        manual_instance_cats: dict[str, "ActionCategory"] = {}
+        for inst in state.action_queue:
+            key = self._action_key_by_id.get(str(inst.action_definition_id))
+            defn = self._action_library.get(key) if key else None
+            if defn:
+                manual_instance_cats[str(inst.id)] = defn.category
+
         ongoing_instance_ids: dict[str, str] = {}
         for cat_val, ongoing in list(state.ongoing_actions.items()):
             defn = self._action_library.get(ongoing.action_key)
@@ -1042,6 +1056,11 @@ class TickLoop:
                 if oa:
                     oa.executed_ticks += 1
 
+        # Assign cooldown for each manually-queued action that actually fired.
+        for iid, cat in manual_instance_cats.items():
+            if iid in executed_ids:
+                _assign_category_cooldown(state, cat)
+
         # ── Deferred death check ───────────────────────
         # Applied after Phase 2 so a same-tick appoint_proxius saves the mortal.
         # pending_death_mutations and pending_death_narratives are parallel lists.
@@ -1071,6 +1090,7 @@ class TickLoop:
                 _pool = state.demiurge.revelation_pools.get(_tag, 0.0)
                 if _cap == 0.0 or _pool >= _cap:
                     del state.ongoing_actions[_sr_key]
+                    _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
                     _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
                     result.passive_result.narrative_events.append(
                         f"[Revelation] Explore Beliefs on {_short} stopped: pool full ({_pool:.2f} / {_cap:.2f}). "
