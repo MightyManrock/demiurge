@@ -167,6 +167,7 @@ class GameScreen(Screen):
         ("q",      "quit_confirm",    "Quit"),
         ("ctrl+q", "quit_immediate",  "Force quit"),
         # Tab switching: digits for left panel.
+        ("1", "left_tab('status')",      "Status"),
         ("2", "left_tab('locations')",   "Locs"),
         ("3", "left_tab('entities')",    "Ents"),
         ("4", "left_tab('actions')",     "Acts"),
