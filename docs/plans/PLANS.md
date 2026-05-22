@@ -23,3 +23,4 @@ Read /root/demiurge/docs/TO-DO.md and /root/demiurge/docs/plans/PLANS.md. For ea
 | [constraint-audit.md](constraint-audit.md) | `complete` | Audit constraint implementation in existing scenarios; canonical constraint taxonomy |
 | [evaluation-redesign.md](evaluation-redesign.md) | `complete` | Results = Essence-only; passive expectation creep; Vrath FootprintConstraints; omen-driven autoplay |
 | [mortal-travel-initial.md](mortal-travel-initial.md) | `complete` | TravelIntent agent state; tick-phase travel countdown; Karath Omn shuttle test |
+| [travel-location-system.md](travel-location-system.md) | `active` | TravelLocation as first-class entity; travel_features routing; Durenn Vail test |
