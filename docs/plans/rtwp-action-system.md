@@ -22,7 +22,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Define base cooldown values per category (placeholder values, to be tuned)
 - Gate action availability on cooldown state rather than tick boundary
 - Stopping an ongoing action triggers a cooldown on that category
-- Puissance provides a small reduction to all cooldowns (exact formula TBD)
+- Puissance reduces cooldowns: `max(base - floor(puissance * 3), ceil(base * 0.75))` — max −3 ticks, never below 75% of base; at typical cooldowns of 5–30+ ticks this is intentionally minor
 
 ### Phase 3: Auto-Pause System
 - Implement an event-type pause framework in the tick loop
