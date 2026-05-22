@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     starting_pinned_ids        TEXT NOT NULL DEFAULT '[]',  -- JSON [str(UUID), ...] entities pinned at scenario start; unpinned at tick 10
     last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
     category_cooldowns          TEXT NOT NULL DEFAULT '{}', -- JSON CategoryCooldowns model (counters: dict[ActionCategory, int])
-    pause_config                TEXT NOT NULL DEFAULT '{}'  -- JSON PauseConfig model (overrides: dict[PauseEventType, bool])
+    pause_config                TEXT NOT NULL DEFAULT '{}', -- JSON PauseConfig model (overrides: dict[PauseEventType, bool])
+    rich_log_name               TEXT NOT NULL DEFAULT ''    -- base filename (no path/ext) of the JSONL rich-log; empty = none yet
 );
 
 -- ─────────────────────────────────────────

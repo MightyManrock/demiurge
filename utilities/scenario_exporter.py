@@ -112,8 +112,8 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             universe_description, current_age, tick_number, demiurge_id, pantheon_id,
             luminary_production_accum, domain_essence_claimed, universe_domain_expression,
             starting_pinned_ids, last_tick_essence_by_domain,
-            category_cooldowns, pause_config)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            category_cooldowns, pause_config, rich_log_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -132,6 +132,7 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.last_tick_essence_by_domain),
             state.category_cooldowns.model_dump_json(),
             state.pause_config.model_dump_json(),
+            state.rich_log_name,
         ),
     )
 

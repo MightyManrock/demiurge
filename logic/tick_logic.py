@@ -878,6 +878,9 @@ class SimulationState(BaseModel):
     # User-configurable pause trigger overrides (RTwP)
     pause_config: PauseConfig = Field(default_factory=PauseConfig)
 
+    # Base filename (no path/ext) of the JSONL rich-log file; empty string = none assigned yet
+    rich_log_name: str = ""
+
     # Queued actions waiting to be processed this tick
     action_queue: list["ActionInstance"] = Field(default_factory=list)
 

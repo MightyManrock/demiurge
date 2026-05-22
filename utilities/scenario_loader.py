@@ -162,6 +162,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
     last_tick_essence_by_domain = _jd_str(meta.get("last_tick_essence_by_domain", "{}"))
     starting_pinned_ids = _j(meta.get("starting_pinned_ids", "[]"))
+    rich_log_name = meta.get("rich_log_name", "") or ""
 
     # Universe ID: stored in scenario_meta if present, else generate one.
     universe_id_str = meta.get("universe_id", "")
@@ -211,6 +212,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         last_tick_essence_by_domain=last_tick_essence_by_domain,
         tick_number=meta.get("tick_number", 0),
         starting_pinned_ids=starting_pinned_ids,
+        rich_log_name=rich_log_name,
     )
 
     # If the scenario DB didn't specify starting affiliated domains, derive them:
