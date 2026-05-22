@@ -16,6 +16,9 @@ from logic.tick_logic import TickLoop, SimulationState
 VAIL_NAME = "Durenn Vail"
 MAX_TICKS = 25
 
+_arrived_sethis: bool = False
+_returned_neran: bool = False
+
 
 def _vail(state: SimulationState):
     return next((m for m in state.mortals.values() if m.name == VAIL_NAME), None)
@@ -51,20 +54,27 @@ def _print_status(state: SimulationState, tick: int) -> None:
 
 
 def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
+    global _arrived_sethis, _returned_neran
+
     _print_status(state, tick)
 
+    vail = _vail(state)
+    if vail and vail.travel_intent is None:
+        loc = _loc_name(state, vail.current_location)
+        if loc == "Sethis Surface":
+            _arrived_sethis = True
+        elif loc == "Neran Surface" and _arrived_sethis:
+            _returned_neran = True
+
     if tick >= MAX_TICKS:
-        vail = _vail(state)
-        if vail:
-            loc = _loc_name(state, vail.current_location)
-            ti  = vail.travel_intent
-            print(f"\n=== RESULT at tick {tick} ===")
-            print(f"Vail at: {loc}, in transit: {ti is not None}")
-            # Basic assertions
-            if ti is None and loc in ("Neran Surface", "Sethis Surface"):
-                print("PASS: Vail completed at least one leg.")
-            else:
-                print("FAIL: Vail did not complete a full journey within 25 ticks.")
+        print(f"\n=== RESULT at tick {tick} ===")
+        print(f"  arrived Sethis: {_arrived_sethis}, returned Neran: {_returned_neran}")
+        if _arrived_sethis and _returned_neran:
+            print("PASS: Vail completed full round trip.")
+        elif _arrived_sethis:
+            print("PASS (partial): Vail reached Sethis Surface.")
+        else:
+            print("FAIL: Vail did not reach Sethis Surface within 25 ticks.")
 
     from core.action_core import EssenceHarvestIntent, TargetType
     queue(loop, state, "harvest_essence", TargetType.UNDERREAL, None,
