@@ -4,8 +4,11 @@ autoplay/strategies/vail_travel_test.py
 Validates the Durenn Vail Neran↔Sethis travel route end-to-end.
 Tracks Vail's position each tick and verifies she completes the journey.
 
-Expected: Vail departs tick 1, arrives Sethis Surface on tick 10
-          (2 + 4 + 3 = 9 ticks in transit). Then returns.
+Expected route (5 legs):
+  Neran Surface → Neran Orbital Ring → Ardent Gate Docking Bay
+    → Velar Corridor Gate Docking Bay → Sethis Orbital Station → Sethis Surface
+  Leg costs: 1 + 2 + 4 + 2 + 3 = 12 ticks in transit.
+  Vail departs tick 1, arrives Sethis Surface on tick 13. Then returns.
 """
 from __future__ import annotations
 from core.universe_core import TravelLocation, PopLocation
@@ -14,7 +17,7 @@ from autoplay.strategies._helpers import queue, world_id
 from logic.tick_logic import TickLoop, SimulationState
 
 VAIL_NAME = "Durenn Vail"
-MAX_TICKS = 25
+MAX_TICKS = 35
 
 _arrived_sethis: bool = False
 _returned_neran: bool = False
@@ -74,7 +77,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         elif _arrived_sethis:
             print("PASS (partial): Vail reached Sethis Surface.")
         else:
-            print("FAIL: Vail did not reach Sethis Surface within 25 ticks.")
+            print("FAIL: Vail did not reach Sethis Surface within 35 ticks.")
 
     from core.action_core import EssenceHarvestIntent, TargetType
     queue(loop, state, "harvest_essence", TargetType.UNDERREAL, None,
