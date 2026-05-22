@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 3)
+> **Last updated:** 2026-05-22 (rev 4)
 
 ## Goal
 
@@ -14,7 +14,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ### Phase 1: Core Loop Refactor
 
-**1a — Spacebar auto-advance toggle**
+**1a — Spacebar auto-advance toggle** ✓ complete
 - Add `auto_advance: bool` state to `GameScreen`
 - Bind `spacebar` to toggle it; when active, fire ticks continuously with a short inter-tick delay
 - Preserve `t` for single-tick step regardless of auto-advance state

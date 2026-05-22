@@ -14,6 +14,7 @@ from uuid import UUID
 
 from rich.text import Text
 from textual import on, work
+from textual.worker import Worker, WorkerState
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
@@ -158,14 +159,17 @@ class LoadScreen(Screen):
 # ─────────────────────────────────────────
 
 class GameScreen(Screen):
+    _AUTO_ADVANCE_DELAY_S = 0.2
+
     BINDINGS = [
-        ("b",      "briefing",        "Briefing"),
-        ("a",      "queue_action",    "Queue"),
-        ("o",      "manage_ongoing",  "Ongoing"),
-        ("t",      "advance_tick",    "Advance"),
-        ("ctrl+s", "save_game",       "Save"),
-        ("q",      "quit_confirm",    "Quit"),
-        ("ctrl+q", "quit_immediate",  "Force quit"),
+        ("b",      "briefing",             "Briefing"),
+        ("a",      "queue_action",         "Queue"),
+        ("o",      "manage_ongoing",       "Ongoing"),
+        ("t",      "advance_tick",         "Advance"),
+        ("space",  "toggle_auto_advance",  "Auto"),
+        ("ctrl+s", "save_game",            "Save"),
+        ("q",      "quit_confirm",         "Quit"),
+        ("ctrl+q", "quit_immediate",       "Force quit"),
         # Tab switching: digits for left panel.
         ("1", "left_tab('status')",      "Status"),
         ("2", "left_tab('locations')",   "Locs"),
@@ -199,6 +203,7 @@ class GameScreen(Screen):
         # Tab pane IDs whose unseen sets should be cleared on the next refresh
         # (set when the user activates the tab; the active render still shows gold).
         self._pending_clear: set[str] = set()
+        self._auto_advance: bool = False
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -597,7 +602,23 @@ class GameScreen(Screen):
     def action_advance_tick(self) -> None:
         self._advance_tick_work()
 
-    @work(thread=True)
+    def action_toggle_auto_advance(self) -> None:
+        self._auto_advance = not self._auto_advance
+        label = "ON" if self._auto_advance else "OFF"
+        self._feed_markup(f"[#3a6090]Auto-advance: {label}[/]", "other")
+        if self._auto_advance:
+            self._advance_tick_work()
+
+    def _auto_advance_step(self) -> None:
+        if self._auto_advance:
+            self._advance_tick_work()
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker.name == "tick_worker" and event.state == WorkerState.SUCCESS:
+            if self._auto_advance:
+                self.set_timer(self._AUTO_ADVANCE_DELAY_S, self._auto_advance_step)
+
+    @work(thread=True, name="tick_worker")
     def _advance_tick_work(self) -> None:
         state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
@@ -616,6 +637,7 @@ class GameScreen(Screen):
         # left panel to Status for an at-a-glance numbers check.
         self.app.call_from_thread(self._activate_post_tick_tabs)
         if result.terminal.triggered:
+            self._auto_advance = False
             self._log.finalize(new_state, result)
             self.app.call_from_thread(
                 self._feed_markup,
