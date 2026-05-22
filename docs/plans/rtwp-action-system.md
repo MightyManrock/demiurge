@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 2)
+> **Last updated:** 2026-05-22 (rev 3)
 
 ## Goal
 
@@ -13,54 +13,111 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 ## Phases
 
 ### Phase 1: Core Loop Refactor
-- Add `spacebar` toggle for continuous auto-advance in `GameScreen`
-- Preserve `t` for single-tick step
+
+**1a — Spacebar auto-advance toggle**
+- Add `auto_advance: bool` state to `GameScreen`
+- Bind `spacebar` to toggle it; when active, fire ticks continuously with a short inter-tick delay
+- Preserve `t` for single-tick step regardless of auto-advance state
+
+**1b — Stability check**
 - Confirm the game loop is stable under continuous advancement with no player input
+- Run `--autoplay` regression; no crashes or hangs expected
+
+---
 
 ### Phase 2: Per-Category Cooldowns
-- Add a `CategoryCooldowns(BaseModel)` to `core/action_core.py` with a single field `counters: dict[ActionCategory, int]`; add `category_cooldowns: CategoryCooldowns` to `SimulationState` — **not** flat fields on `SimulationState`
-- Define base cooldown values per category (placeholder values, to be tuned)
-- Gate action availability on cooldown state rather than tick boundary
-- Stopping an ongoing action triggers a cooldown on that category
-- Puissance reduces cooldowns: `max(base - floor(puissance * 3), ceil(base * 0.75))` — max −3 ticks, never below 75% of base; at typical cooldowns of 5–30+ ticks this is intentionally minor
+
+**2a — Data model + persistence**
+- Add `CategoryCooldowns(BaseModel)` to `core/action_core.py` with `counters: dict[ActionCategory, int]`
+- Add `category_cooldowns: CategoryCooldowns` to `SimulationState`
+- Add column to `core/scenario_schema.sql`; load in `scenario_loader.py`; export in `scenario_exporter.py`
+
+**2b — Cooldown decrement + action gating**
+- Decrement all non-zero counters each tick in `tick_logic.py`
+- Gate action availability: actions in a cooling category are unavailable
+- Assign placeholder base cooldown values per category (to be tuned in playtesting)
+
+**2c — Trigger + puissance reduction**
+- Stopping an ongoing action sets that category's cooldown to its base value
+- Apply puissance formula on cooldown assignment: `max(base - floor(puissance * 3), ceil(base * 0.75))`
+
+---
 
 ### Phase 3: Auto-Pause System
-- Implement an event-type pause framework in the tick loop
-- Hard-pause triggers (not configurable): Luminary/Herald/Proxius contact, Luminary ultimatum
-- Default-pause triggers (player can disable): evaluation completes, Revelation threshold, queued action completes, pinned mortal dies
-- Default-silent triggers (player can enable): pop splint, domain threshold, travel complete, minor agent updates
-- Expose pause config in a settings modal or dedicated tab
+
+**3a — Pause event framework + hard-pause triggers**
+- Define pause event types in `tick_logic.py`
+- Implement hard-pause triggers (not configurable): Luminary/Herald/Proxius contact, Luminary ultimatum
+
+**3b — Default-pause triggers**
+- evaluation completes, Revelation threshold crossed, queued action completes, pinned mortal dies
+
+**3c — Default-silent triggers + config persistence**
+- pop splint, domain threshold, travel complete, minor agent updates
+- Persist pause config (enabled/disabled per trigger) to save state
+
+---
 
 ### Phase 4: Category Panel UI
+
+**4a — Panel scaffold**
 - New vertical panel on the far right of `GameScreen`
-- One row per action category: symbol + short progress bar (Textual `ProgressBar`)
-- Click on a ready category → open the action picker directly at that category's sub-menu (bypasses top-level picker); pressing "back" from there goes to the main action picker, not close
-- Click on a cooling category → "not ready" toast
-- Category symbols per brainstorm doc:
-  `✦ ✺ ≃ ▻ ⊚ ⚜ ↑ ∇ ⟡`
+- One row per `ActionCategory`: symbol + placeholder `ProgressBar`
+- Layout and basic styles in `ui/widgets.py` + `ui/styles.tcss`
+
+**4b — Live cooldown state**
+- Wire `CategoryCooldowns.counters` to each row's progress bar
+- Ready categories display at full; cooling categories show countdown
+
+**4c — Interaction**
+- Click ready category → open action picker at that category's sub-menu; "back" goes to main picker
+- Click cooling category → "not ready" toast
+- Category symbols: `✦ ✺ ≃ ▻ ⊚ ⚜ ↑ ∇ ⟡`
+
+---
 
 ### Phase 5: RTwP Control Modal
+
+**5a — Modal scaffold + layout**
 - Triggered by `spacebar` from `GameScreen` (when no other modal is active)
-- Covers the main content panel area only — tab name row, left panel, and category cooldown panel remain visible and fully interactive
-- Background dims to standard modal level; left panel and cooldown panel stay at full brightness
-- **Log section** (top ~2/3): live feed that continues to refresh as ticks advance
-- **Auto-pause options** (middle, two columns):
-  - Spanning header row: `[ ] Begin advancing when this menu opens`
-  - Left column (default-on, can disable): evaluation completes, Revelation threshold, queued action completes, pinned mortal dies
-  - Right column (default-off, can enable): pop splint, domain threshold, travel complete, minor agent updates
-- **Time control bar** (bottom, left to right): Exit | Slow | Pause/Play | +1 | Fast
-  - `spacebar`: same as Pause/Play
-  - `t`: same as +1 (advance one tick)
-  - `numpad +` / `numpad -`: same as Fast / Slow
-  - `Esc`: same as Exit; pauses advancement first if ticks are running
-  - Exit while advancing: always pauses before closing
+- Covers main content panel area only — tab name row, left panel, category panel remain visible
+- Background: standard modal dim; left panel + category panel at full brightness
+- Establish the three-section layout (log / auto-pause options / time control bar) with placeholder content
+
+**5b — Live log feed**
+- Top ~2/3 of modal: log section that continues to refresh as ticks advance
+
+**5c — Auto-pause options panel**
+- Two-column layout with spanning header toggle: `[ ] Begin advancing when this menu opens`
+- Left column (default-on): evaluation completes, Revelation threshold, queued action completes, pinned mortal dies
+- Right column (default-off): pop splint, domain threshold, travel complete, minor agent updates
+- Wire to the pause config state from Phase 3c
+
+**5d — Time control bar + keybindings**
+- Button row (left to right): Exit | Slow | Pause/Play | +1 | Fast
+- `spacebar` → Pause/Play; `t` → +1; `numpad +` / `numpad -` → Fast / Slow
+- `Esc` → Exit (pauses first if advancing); Exit while advancing always pauses before closing
+
+---
 
 ### Phase 6: Tick Scale Recalibration
-- Tick = 1 day (scenario parameter, stored on `SimulationState`)
-- Universe/civilization ages stored as `(billions, millions, thousands, years, months, days)` — display as `"Day 13 of Month 5, Year 13,675,482,090"` in the top bar
-- Recalibrate all per-tick rates: Essence, Revelation, cultural drift, belief shifts
-- Drop per-tick minimums; rely on fractional accumulation
-- Audit checklist: every system with a per-tick rate must be identified and recalibrated in a single coordinated pass
+
+**6a — Audit all per-tick rates**
+- Identify every system with a per-tick rate (Essence, Revelation, cultural drift, belief shifts, travel countdown, etc.)
+- Produce a checklist before touching any values
+
+**6b — Age representation**
+- Change `Universe` age storage to `(billions, millions, thousands, years, months, days)`
+- Update top-bar display: `"Day 13 of Month 5, Year 13,675,482,090"`
+
+**6c — Recalibrate Essence + Revelation**
+- Adjust per-tick rates to suit tick = 1 day; drop per-tick minimums; rely on fractional accumulation
+
+**6d — Recalibrate cultural drift + belief shifts + remaining systems**
+- Work through the audit checklist from 6a
+
+**6e — Full regression**
+- `--autoplay` pass; fix any remaining rate anomalies
 
 *Phase 6 should not be started until Phases 1–5 are stable and playtested.*
 
