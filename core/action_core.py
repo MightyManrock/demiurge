@@ -68,6 +68,10 @@ class ActionCategory(str, Enum):
     SELF_REFINEMENT   = "self_refinement"
 
 
+class CategoryCooldowns(BaseModel):
+    counters: dict[ActionCategory, int] = Field(default_factory=dict)
+
+
 class TargetType(str, Enum):
     UNIVERSE      = "universe"
     GALAXY        = "galaxy"

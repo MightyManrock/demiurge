@@ -23,7 +23,7 @@ from core.action_core import (
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope,
-    TargetType,
+    TargetType, CategoryCooldowns,
 )
 from core.eval_core import (
     UniverseDomainProfile,
@@ -819,6 +819,11 @@ class SimulationState(BaseModel):
     # Updated by actions and passive simulation
     civ_momentum: dict[str, CivilizationMomentum] = Field(
         default_factory=dict
+    )
+
+    # Per-category cooldown counters; decremented each tick in Phase 2b
+    category_cooldowns: CategoryCooldowns = Field(
+        default_factory=CategoryCooldowns
     )
 
     # Queued actions waiting to be processed this tick

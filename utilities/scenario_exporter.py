@@ -32,7 +32,7 @@ from core.universe_core import (
     Pop, SocialClass, WildStratum,
     Universe, TravelNetwork,
 )
-from core.action_core import EssenceStockpile
+from core.action_core import EssenceStockpile, CategoryCooldowns
 from core.event_core import Event
 from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig
 
@@ -111,8 +111,8 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
            (name, description, universe_id, universe_name, universe_save_name,
             universe_description, current_age, tick_number, demiurge_id, pantheon_id,
             luminary_production_accum, domain_essence_claimed, universe_domain_expression,
-            starting_pinned_ids, last_tick_essence_by_domain)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            starting_pinned_ids, last_tick_essence_by_domain, category_cooldowns)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -129,6 +129,7 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.universe.universe_domain_expression),
             json.dumps(state.starting_pinned_ids),
             json.dumps(state.last_tick_essence_by_domain),
+            state.category_cooldowns.model_dump_json(),
         ),
     )
 

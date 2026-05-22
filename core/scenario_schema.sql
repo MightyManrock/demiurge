@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     domain_essence_claimed  TEXT NOT NULL DEFAULT '{}',  -- JSON {domain_tag: float} cumulative Demiurge claim
     universe_domain_expression TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} per-domain baseline (0.1 default if absent)
     starting_pinned_ids        TEXT NOT NULL DEFAULT '[]',  -- JSON [str(UUID), ...] entities pinned at scenario start; unpinned at tick 10
-    last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}'  -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
+    last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
+    category_cooldowns          TEXT NOT NULL DEFAULT '{}'  -- JSON CategoryCooldowns model (counters: dict[ActionCategory, int])
 );
 
 -- ─────────────────────────────────────────

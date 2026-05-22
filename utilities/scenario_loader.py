@@ -38,7 +38,7 @@ from core.action_core import (
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent,
-    DomainVector, CultureVector,
+    DomainVector, CultureVector, CategoryCooldowns,
 )
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
@@ -149,6 +149,9 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     essence  = _load_essence(conn)
     cfg      = _load_tick_config(conn)
     civ_momentum = _load_civ_momentum(conn)
+    category_cooldowns = CategoryCooldowns.model_validate_json(
+        meta.get("category_cooldowns", "{}")
+    )
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
     active_events = _load_active_events(conn)
@@ -193,6 +196,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         mortals=mortals,
         species=species,
         civ_momentum=civ_momentum,
+        category_cooldowns=category_cooldowns,
         luminary_attention=lum_attention,
         ticks_since_evaluation=ticks_since,
         config=cfg,

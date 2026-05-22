@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 5)
+> **Last updated:** 2026-05-22 (rev 6)
 
 ## Goal
 
@@ -27,7 +27,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ### Phase 2: Per-Category Cooldowns
 
-**2a — Data model + persistence**
+**2a — Data model + persistence** ✓ complete
 - Add `CategoryCooldowns(BaseModel)` to `core/action_core.py` with `counters: dict[ActionCategory, int]`
 - Add `category_cooldowns: CategoryCooldowns` to `SimulationState`
 - Add column to `core/scenario_schema.sql`; load in `scenario_loader.py`; export in `scenario_exporter.py`
