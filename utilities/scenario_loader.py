@@ -419,6 +419,26 @@ def _load_locations(conn) -> dict[str, Location]:
                 pinned=pinned,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
                 distance_from_core=int(row.get("distance_from_core", 0) or 0),
+                travel_features=set(_j(row.get("travel_features", "[]"))),
+            )
+        elif subclass == "travel_location":
+            from core.universe_core import TravelLocation
+            loc = TravelLocation(
+                id=loc_id,
+                name=row["name"],
+                description=description,
+                location_type=location_type,
+                parent_id=parent_id,
+                child_ids=child_ids,
+                traits=traits,
+                condition=condition,
+                coordinates=coordinates,
+                visibility=visibility,
+                pinned=pinned,
+                legs=_jd(row.get("legs", "{}")),
+                current_waypoint=row.get("travel_current_wp", ""),
+                ticks_remaining=int(row.get("travel_ticks_rem", 0) or 0),
+                occupants=[UUID(x) for x in _j(row.get("travel_occupants", "[]"))],
             )
         else:
             # Base Location (galaxies and any freeform locations)

@@ -25,7 +25,7 @@ from core.onto_core import (
 from core.universe_core import (
     FootprintTolerances, ProxiiPolicy, UniverseRules,
     Location, System, CosmicCoordinates, StarType,
-    SignificantLocation, PopLocation, LocCondition, LocFootprint,
+    SignificantLocation, PopLocation, TravelLocation, LocCondition, LocFootprint,
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
@@ -242,6 +242,8 @@ def _loc_subclass(loc: Location) -> str:
         return "significant_location"
     if isinstance(loc, System):
         return "system"
+    if isinstance(loc, TravelLocation):
+        return "travel_location"
     if isinstance(loc, PopLocation):
         return "pop_location"
     return "location"
@@ -268,6 +270,11 @@ def _write_locations(conn, state: SimulationState):
         age = 0.0
         pop_ids = "[]"
         distance_from_core = 0
+        travel_features = "[]"
+        legs = "{}"
+        travel_current_wp = ""
+        travel_ticks_rem = 0
+        travel_occupants = "[]"
 
         if isinstance(loc, System):
             star_type = loc.star_type.value
@@ -288,6 +295,12 @@ def _write_locations(conn, state: SimulationState):
         elif isinstance(loc, PopLocation):
             pop_ids = _j(loc.pop_ids)
             distance_from_core = int(loc.distance_from_core)
+            travel_features = _j(sorted(loc.travel_features))
+        elif isinstance(loc, TravelLocation):
+            legs             = _j(loc.legs)
+            travel_current_wp = loc.current_waypoint
+            travel_ticks_rem  = loc.ticks_remaining
+            travel_occupants  = _j([str(oid) for oid in loc.occupants])
 
         conn.execute(
             """INSERT INTO locations
@@ -298,14 +311,18 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt_miracles, lf_subtle_influence, lf_proxius_activity, lf_direct_creation,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids, distance_from_core, visibility, pinned)
+                pop_ids, distance_from_core,
+                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_features,
+                visibility, pinned)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?,
                        ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?, ?, ?,
-                       ?, ?, ?, ?)""",
+                       ?, ?,
+                       ?, ?, ?, ?, ?,
+                       ?, ?)""",
             (
                 str(loc.id),
                 loc.name,
@@ -322,7 +339,9 @@ def _write_locations(conn, state: SimulationState):
                 lf_overt, lf_subtle, lf_proxius, lf_direct,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
-                pop_ids, distance_from_core, loc.visibility, int(loc.pinned),
+                pop_ids, distance_from_core,
+                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_features,
+                loc.visibility, int(loc.pinned),
             ),
         )
 

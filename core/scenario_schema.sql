@@ -130,6 +130,13 @@ CREATE TABLE IF NOT EXISTS locations (
     -- PopLocation-specific (populated for subclass='pop_location')
     pop_ids             TEXT    NOT NULL DEFAULT '[]',  -- JSON array
     distance_from_core  INTEGER NOT NULL DEFAULT 0,     -- 0 = core surface; >0 adds to scry/travel distance
+    -- TravelLocation-specific (subclass='travel_location')
+    legs                  TEXT    NOT NULL DEFAULT '{}',   -- JSON object (ordered dict)
+    travel_current_wp     TEXT    NOT NULL DEFAULT '',     -- UUID str of current waypoint
+    travel_ticks_rem      INTEGER NOT NULL DEFAULT 0,
+    travel_occupants      TEXT    NOT NULL DEFAULT '[]',   -- JSON array of UUID strs
+    -- PopLocation addition
+    travel_features       TEXT    NOT NULL DEFAULT '[]',   -- JSON array (stored as set)
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0       -- bool; 1 = never decays (all starting locations)
