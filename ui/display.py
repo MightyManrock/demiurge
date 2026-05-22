@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from rich.markup import escape as _e
 from rich.text import Text
 
-from core.universe_core import MortalRole, MortalStatus, MortalProminence
+from core.universe_core import MortalRole, MortalStatus, MortalProminence, PopLocation
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from utilities.domain_registry import get_registry as get_domain_registry
 
@@ -445,6 +445,7 @@ _LOG_LINK_COLORS: dict[str, str] = {
     "mortal":   "#a080c0",
     "species":  "#80a0b0",
     "location": "#80b0a0",
+    "poploc":   "#7090a8",
 }
 
 
@@ -476,6 +477,9 @@ def _build_name_index(state: "SimulationState") -> dict[str, tuple[str, str]]:
     for eid, e in state.galaxies.items():
         if e.name:
             index[e.name] = ("galaxy", str(eid))
+    for eid, e in state.locations.items():
+        if isinstance(e, PopLocation) and e.name:
+            index[e.name] = ("poploc", str(eid))
     return index
 
 
