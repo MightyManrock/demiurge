@@ -638,10 +638,6 @@ class GameScreen(Screen):
         self._log.write_tick(result)
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
-        # After each tick, surface the freshly-written log so the player sees
-        # the tick result without having to switch tabs manually, and snap the
-        # left panel to Status for an at-a-glance numbers check.
-        self.app.call_from_thread(self._activate_post_tick_tabs)
         if self._auto_advance and any(
             new_state.pause_config.should_pause(e) for e in result.pause_events
         ):
@@ -665,14 +661,7 @@ class GameScreen(Screen):
             self._feed_markup(line, cat)
 
     def _activate_post_tick_tabs(self) -> None:
-        try:
-            self.query_one("#right-tabs", TabbedContent).active = "log"
-        except Exception:
-            pass
-        try:
-            self.query_one("#left-tabs", TabbedContent).active = "status"
-        except Exception:
-            pass
+        pass
 
     def action_save_game(self) -> None:
         self._save_game_flow()

@@ -1593,8 +1593,10 @@ class TickLoop:
                 ))
 
         # ── Starting-pin expiry ────────────────────────
-        # tick_number is pre-increment here; 9 means "this is the 10th tick processing".
-        if state.tick_number == 9 and state.starting_pinned_ids:
+        # tick_number is pre-increment here; 29 means "this is the 30th tick processing".
+        # When player entity-pinning is implemented, remove an entity from
+        # starting_pinned_ids at pin time so manually-pinned entities survive this expiry.
+        if state.tick_number == 29 and state.starting_pinned_ids:
             for eid in state.starting_pinned_ids:
                 entity = (
                     state.mortals.get(eid)

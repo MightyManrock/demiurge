@@ -1137,7 +1137,7 @@ class ActionBrowserModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box-tall"):
             yield Label("Queue Action", classes="modal-title")
-            with ScrollableContainer():
+            with ScrollableContainer(id="cat-list-container"):
                 with LoopingListView(id="cat-list"):
                     for i, (cat, _) in enumerate(self._cat_actions.items()):
                         is_cooling = self._state.category_cooldowns.counters.get(cat, 0) > 0
@@ -1165,6 +1165,7 @@ class ActionBrowserModal(ModalScreen):
             cat = self._initial_category
             actions = self._cat_actions.get(cat, [])
             if actions:
+                self.query_one("#cat-list-container").display = False
                 self.call_after_refresh(lambda: self._open_cat(cat, actions))
 
     @on(ListView.Selected, "#cat-list")
@@ -1175,6 +1176,13 @@ class ActionBrowserModal(ModalScreen):
             self.app.push_screen(ToastModal("Category on cooldown — not ready yet."))
             return
         self._open_cat(cat, actions)
+
+    def _reveal_cat_list(self) -> None:
+        try:
+            self.query_one("#cat-list-container").display = True
+            self.query_one("#cat-list", ListView).focus()
+        except Exception:
+            pass
 
     @work
     async def _open_cat(self, cat: "ActionCategory", actions: list) -> None:
@@ -1195,6 +1203,7 @@ class ActionBrowserModal(ModalScreen):
                 )
             )
             if choice == "leave" or choice is None:
+                self._reveal_cat_list()
                 return
             if choice == "stop":
                 del self._state.ongoing_actions[cat.value]
@@ -1212,6 +1221,7 @@ class ActionBrowserModal(ModalScreen):
                 )
             )
             if not cancel_it:
+                self._reveal_cat_list()
                 return
             # Remove that action instance from the queue
             cat_def_ids = {
@@ -1242,6 +1252,7 @@ class ActionBrowserModal(ModalScreen):
             PickerModal(cat.value.replace("_", " ").title(), items, show_back=True)
         )
         if chosen_key is None or chosen_key == BACK:
+            self._reveal_cat_list()
             return
 
         if chosen_key in _STUB_ACTIONS:
@@ -1252,6 +1263,7 @@ class ActionBrowserModal(ModalScreen):
                     "This action requires systems that are planned but not yet built.",
                 )
             )
+            self._reveal_cat_list()
             return
 
         if chosen_key in self._library:
