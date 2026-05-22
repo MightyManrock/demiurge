@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 4)
+> **Last updated:** 2026-05-22 (rev 5)
 
 ## Goal
 
@@ -19,7 +19,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Bind `spacebar` to toggle it; when active, fire ticks continuously with a short inter-tick delay
 - Preserve `t` for single-tick step regardless of auto-advance state
 
-**1b — Stability check**
+**1b — Stability check** ✓ complete
 - Confirm the game loop is stable under continuous advancement with no player input
 - Run `--autoplay` regression; no crashes or hangs expected
 
