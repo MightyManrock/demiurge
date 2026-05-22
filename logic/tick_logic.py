@@ -4757,11 +4757,19 @@ class TickLoop:
             try:
                 current_idx = leg_keys.index(loc.current_waypoint)
             except ValueError:
+                for occ_id in loc.occupants:
+                    mortal = state.mortals.get(str(occ_id))
+                    if mortal:
+                        mortal.travel_intent = None
                 to_remove.append(lid)
                 continue
 
             next_idx = current_idx + 1
             if next_idx >= len(leg_keys):
+                for occ_id in loc.occupants:
+                    mortal = state.mortals.get(str(occ_id))
+                    if mortal:
+                        mortal.travel_intent = None
                 to_remove.append(lid)
                 continue
 
