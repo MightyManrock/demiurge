@@ -640,7 +640,9 @@ class GameScreen(Screen):
         # the tick result without having to switch tabs manually, and snap the
         # left panel to Status for an at-a-glance numbers check.
         self.app.call_from_thread(self._activate_post_tick_tabs)
-        if self._auto_advance and any(e.is_hard_pause for e in result.pause_events):
+        if self._auto_advance and any(
+            e.is_hard_pause or e.pauses_by_default for e in result.pause_events
+        ):
             self._auto_advance = False
             self.app.call_from_thread(
                 self._feed_markup,

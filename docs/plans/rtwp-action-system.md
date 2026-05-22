@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 9)
+> **Last updated:** 2026-05-22 (rev 10)
 
 ## Goal
 
@@ -49,7 +49,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Define pause event types in `tick_logic.py`
 - Implement hard-pause triggers (not configurable): Luminary/Herald/Proxius contact, Luminary ultimatum
 
-**3b — Default-pause triggers**
+**3b — Default-pause triggers** ✓ complete
 - evaluation completes, Revelation threshold crossed, queued action completes, pinned mortal dies
 
 **3c — Default-silent triggers + config persistence**

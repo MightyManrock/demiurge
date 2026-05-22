@@ -747,10 +747,16 @@ class TerminalCheck(BaseModel):
 # ─────────────────────────────────────────
 
 class PauseEventType(str, Enum):
+    # Hard-pause (not configurable — Phase 3a)
     LUMINARY_CONTACT   = "luminary_contact"    # any Luminary dialogue trigger fires
     LUMINARY_ULTIMATUM = "luminary_ultimatum"  # CONSTRAINT_ULTIMATUM or THREAT trigger
     HERALD_CONTACT     = "herald_contact"      # stub — Heralds not yet implemented
     PROXIUS_CONTACT    = "proxius_contact"     # stub — urgent Proxius signal (TBD)
+    # Default-pause (configurable off — Phase 3b)
+    EVALUATION_COMPLETE    = "evaluation_complete"     # a Luminary evaluated this tick
+    REVELATION_THRESHOLD   = "revelation_threshold"    # an Imago node was revealed
+    QUEUED_ACTION_COMPLETE = "queued_action_complete"  # a manually-queued action resolved
+    PINNED_MORTAL_DIED     = "pinned_mortal_died"      # a pinned mortal died this tick
 
 # Trigger types that map to LUMINARY_ULTIMATUM (everything else is LUMINARY_CONTACT).
 _ULTIMATUM_DIALOGUE_TYPES: frozenset[DialogueTriggerType] = frozenset({
@@ -760,9 +766,10 @@ _ULTIMATUM_DIALOGUE_TYPES: frozenset[DialogueTriggerType] = frozenset({
 
 
 class PauseEvent(BaseModel):
-    event_type:    PauseEventType
-    description:   str = ""
-    is_hard_pause: bool = True  # Phase 3b/3c will add soft-pause events
+    event_type:       PauseEventType
+    description:      str = ""
+    is_hard_pause:    bool = True   # True → always pauses; False → configurable
+    pauses_by_default: bool = False  # for soft events: True = default-on, False = default-off
 
 
 # ─────────────────────────────────────────
@@ -981,6 +988,7 @@ class TickLoop:
         # Manually queued actions in the same category take priority;
         # _validate_and_filter_queue blocks any duplicate-category entry.
         # Map instance.id -> category so we can credit executed_ticks after.
+        manual_queue_count = len(state.action_queue)  # capture before ongoing injection
         ongoing_instance_ids: dict[str, str] = {}
         for cat_val, ongoing in list(state.ongoing_actions.items()):
             defn = self._action_library.get(ongoing.action_key)
@@ -1105,6 +1113,51 @@ class TickLoop:
                 result.pause_events.append(PauseEvent(
                     event_type=PauseEventType.LUMINARY_CONTACT,
                     description=trigger.subject_ref or trigger.trigger_type.value,
+                ))
+
+        # Default-pause: evaluation completed.
+        if result.evaluations:
+            result.pause_events.append(PauseEvent(
+                event_type=PauseEventType.EVALUATION_COMPLETE,
+                description=f"{len(result.evaluations)} luminary evaluation(s)",
+                is_hard_pause=False,
+                pauses_by_default=True,
+            ))
+
+        # Default-pause: an Imago node was revealed this tick.
+        for entry in result.action_result.entries:
+            if any(m.mutation_type == MutationType.IMAGO_REVEALED for m in entry.mutations):
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.REVELATION_THRESHOLD,
+                    description="Imago revealed",
+                    is_hard_pause=False,
+                    pauses_by_default=True,
+                ))
+                break  # one event per tick is enough
+
+        # Default-pause: a manually-queued action resolved this tick.
+        if manual_queue_count > 0:
+            non_ongoing_entries = [
+                e for e in result.action_result.entries
+                if str(e.action_instance_id) not in ongoing_instance_ids
+            ]
+            if non_ongoing_entries:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.QUEUED_ACTION_COMPLETE,
+                    description=f"{len(non_ongoing_entries)} action(s) resolved",
+                    is_hard_pause=False,
+                    pauses_by_default=True,
+                ))
+
+        # Default-pause: a pinned mortal died this tick.
+        for mut in passive.pending_death_mutations:
+            mortal = state.mortals.get(str(mut.target_id))
+            if mortal and mortal.pinned:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.PINNED_MORTAL_DIED,
+                    description=mortal.name,
+                    is_hard_pause=False,
+                    pauses_by_default=True,
                 ))
 
         # ── Bookkeeping ────────────────────────────────
