@@ -1,4 +1,4 @@
-> **Status:** parked
+> **Status:** complete
 > **TO-DO ref:** Warp gate world expansion
 > **Last updated:** 2026-05-22
 

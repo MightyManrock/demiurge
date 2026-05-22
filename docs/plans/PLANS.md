@@ -25,4 +25,4 @@ Read /root/demiurge/docs/TO-DO.md and /root/demiurge/docs/plans/PLANS.md. For ea
 | [mortal-travel-initial.md](mortal-travel-initial.md) | `complete` | TravelIntent agent state; tick-phase travel countdown; Karath Omn shuttle test |
 | [travel-location-system.md](travel-location-system.md) | `complete` | TravelLocation as first-class entity; travel_features routing; Durenn Vail test |
 | [travel-network-refactor.md](travel-network-refactor.md) | `complete` | Replace travel_features strings with explicit TravelNetwork objects |
-| [warp-gate-expansion.md](warp-gate-expansion.md) | `parked` | Add warp gate SignificantLocations; extend Vail route through FTL infrastructure |
+| [warp-gate-expansion.md](warp-gate-expansion.md) | `complete` | Add warp gate SignificantLocations; extend Vail route through FTL infrastructure |
