@@ -3,6 +3,19 @@
 
 ---
 
+## Tick and time standardization with RTwP
+> → plan: [rtwp-action-system.md](plans/rtwp-action-system.md)
+
+So far, one tick has been half a universe age unit. How long is a universe age unit? I don't know, maybe a year. So a tick is six months... maybe.
+
+After adding the travel system, it has become clear that we need to track time on a much smaller scale than 6-month periods. But that naturally brings up a concern: if we want a mortal's travel time to make sense in the setting, if we changed nothing else but say "ticks are days now," we would have a massive problem justifying the sorts of belief and culture shifts that can take place. If, however, we reduce the latter proportionally, then we're spending every turn doing things with extremely little ROI.
+
+I have a proposal to resolve this: simply, ticks are not turns. When you act, it can take longer than a tick to even "fire off," much less resolve, and the passing of ticks is not as crucial. This puts us in the territory of real-time with pause.
+
+For more details, read the brainstorming document [[rtwp_action_system|here]]. This will be a **massive** refactor, with a lot of moving parts, and it will fundamentally break the game until we get it right, so any work we plan to do **must** be done in a fork.
+
+---
+
 ### Human-readable Documentation
 > → plan: [human-readable-docs.md](plans/human-readable-docs.md)
 
