@@ -21,7 +21,3 @@ Choose the next major system: Agent expansion, Factions, Governments, or resourc
 
 ---
 
-### TravelLocation and travel routing
-> → plan: [travel-location-system.md](plans/travel-location-system.md)
-
-Please refer to [[travel_location_system|this]] brainstorming document.
