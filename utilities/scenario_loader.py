@@ -30,7 +30,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe,
+    Universe, TravelNetwork,
 )
 from core.action_core import (
     EssenceStockpile, OngoingAction, TargetType,
@@ -140,6 +140,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     pantheon = _load_pantheon(conn, constraints_by_owner)
     rules    = _load_universe_rules(conn)
     locations = _load_locations(conn)
+    travel_networks = _load_travel_networks(conn)
     species  = _load_species(conn)
     civs     = _load_civilizations(conn)
     pops     = _load_pops(conn)
@@ -186,6 +187,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         pantheon=pantheon,
         luminaries={str(l.id): l for l in lums.values()},
         locations=locations,
+        travel_networks=travel_networks,
         civilizations=civs,
         pops=pops,
         mortals=mortals,
@@ -419,7 +421,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 pinned=pinned,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
                 distance_from_core=int(row.get("distance_from_core", 0) or 0),
-                travel_features=set(_j(row.get("travel_features", "[]"))),
+                travel_network_ids=[UUID(x) for x in _j(row.get("travel_network_ids", "[]"))],
             )
         elif subclass == "travel_location":
             from core.universe_core import TravelLocation
@@ -458,6 +460,24 @@ def _load_locations(conn) -> dict[str, Location]:
 
         out[str(loc.id)] = loc
 
+    return out
+
+
+def _load_travel_networks(conn) -> dict[str, TravelNetwork]:
+    """Load all TravelNetworks from DB. Returns {} if table doesn't exist (old DBs)."""
+    if not conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='travel_networks'"
+    ).fetchone():
+        return {}
+    out: dict[str, TravelNetwork] = {}
+    for raw in conn.execute("SELECT * FROM travel_networks"):
+        row = dict(raw)
+        tn = TravelNetwork(
+            id=UUID(row["id"]),
+            name=row["name"],
+            member_ids=[UUID(x) for x in _j(row.get("member_ids", "[]"))],
+        )
+        out[str(tn.id)] = tn
     return out
 
 

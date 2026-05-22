@@ -30,7 +30,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe,
+    Universe, TravelNetwork,
 )
 from core.action_core import EssenceStockpile
 from core.event_core import Event
@@ -70,6 +70,7 @@ def export_scenario(
         _write_luminaries(conn, state)
         _write_pantheon(conn, state)
         _write_universe_rules(conn, state)
+        _write_travel_networks(conn, state)
         _write_locations(conn, state)
         _write_species(conn, state)
         _write_civilizations(conn, state)
@@ -237,6 +238,14 @@ def _write_universe_rules(conn, state: SimulationState):
     )
 
 
+def _write_travel_networks(conn, state: SimulationState):
+    for tn in state.travel_networks.values():
+        conn.execute(
+            "INSERT INTO travel_networks (id, name, member_ids) VALUES (?, ?, ?)",
+            (str(tn.id), tn.name, _j(tn.member_ids)),
+        )
+
+
 def _loc_subclass(loc: Location) -> str:
     if isinstance(loc, SignificantLocation):
         return "significant_location"
@@ -270,7 +279,7 @@ def _write_locations(conn, state: SimulationState):
         age = 0.0
         pop_ids = "[]"
         distance_from_core = 0
-        travel_features = "[]"
+        travel_network_ids_val = "[]"
         legs = "{}"
         travel_current_wp = ""
         travel_ticks_rem = 0
@@ -295,7 +304,7 @@ def _write_locations(conn, state: SimulationState):
         elif isinstance(loc, PopLocation):
             pop_ids = _j(loc.pop_ids)
             distance_from_core = int(loc.distance_from_core)
-            travel_features = _j(sorted(loc.travel_features))
+            travel_network_ids_val = _j(loc.travel_network_ids)
         elif isinstance(loc, TravelLocation):
             legs             = _j(loc.legs)
             travel_current_wp = loc.current_waypoint
@@ -312,7 +321,7 @@ def _write_locations(conn, state: SimulationState):
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
-                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_features,
+                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids,
                 visibility, pinned)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
@@ -340,7 +349,7 @@ def _write_locations(conn, state: SimulationState):
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
-                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_features,
+                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids_val,
                 loc.visibility, int(loc.pinned),
             ),
         )

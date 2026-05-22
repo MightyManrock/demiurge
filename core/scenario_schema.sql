@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS universe_rules (
     notes                          TEXT NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS travel_networks (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    member_ids TEXT NOT NULL DEFAULT '[]'
+);
+
 -- Unified locations table: galaxies, systems, planets/planes, pop locations.
 -- The 'subclass' column controls which Python class is instantiated on load:
 --   'location'             → Location (base; used for galaxies and freeform locations)
@@ -136,7 +142,7 @@ CREATE TABLE IF NOT EXISTS locations (
     travel_ticks_rem      INTEGER NOT NULL DEFAULT 0,
     travel_occupants      TEXT    NOT NULL DEFAULT '[]',   -- JSON array of UUID strs
     -- PopLocation addition
-    travel_features       TEXT    NOT NULL DEFAULT '[]',   -- JSON array (stored as set)
+    travel_network_ids    TEXT    NOT NULL DEFAULT '[]',   -- JSON array of TravelNetwork UUIDs
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0       -- bool; 1 = never decays (all starting locations)
