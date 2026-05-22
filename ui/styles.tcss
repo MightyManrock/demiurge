@@ -452,6 +452,13 @@ ImagoRevealCell.imago-eligible:focus {
 
 .cat-bar {
     height: 1;
+    color: $muted;
+    text-align: right;
+    padding: 0 1 0 0;
+}
+
+.category-row.cooling .cat-bar {
+    color: #3a5070;
 }
 
 /* ── LoadScreen ───────────────────────── */
