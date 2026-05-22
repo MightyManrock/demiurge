@@ -30,6 +30,7 @@ from core.action_core import (
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent, ChangeAffiliatedDomainsIntent,
     ScryIntent, ScryScope, DomainVector, CultureVector, Framing,
+    compute_cooldown,
 )
 from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, PopLocation,
@@ -596,6 +597,9 @@ class GameScreen(Screen):
                                 goal_pop.preaching_goal_cooldown_until = state.tick_number
                     elif proxius:
                         proxius.active_goal = None
+                if defn is not None:
+                    cd = compute_cooldown(defn.category, state.demiurge.puissance)
+                    state.category_cooldowns.counters[defn.category] = cd
                 self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}", "actions")
                 self._refresh_status()
 

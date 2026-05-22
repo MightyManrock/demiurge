@@ -6,6 +6,7 @@ Demiurge.
 """
 
 from __future__ import annotations
+import math
 from pydantic import BaseModel, Field
 from typing import Optional, Union
 from enum import Enum
@@ -85,6 +86,15 @@ CATEGORY_BASE_COOLDOWNS: dict[ActionCategory, int] = {
     ActionCategory.UNDERREAL:          12,
     ActionCategory.SELF_REFINEMENT:     6,
 }
+
+
+def compute_cooldown(category: ActionCategory, puissance: float) -> int:
+    """Return the cooldown ticks for a category, reduced by puissance.
+
+    Max reduction is 3 ticks (at puissance 1.0); floor is 75% of base.
+    """
+    base = CATEGORY_BASE_COOLDOWNS.get(category, 10)
+    return max(base - math.floor(puissance * 3), math.ceil(base * 0.75))
 
 
 class TargetType(str, Enum):

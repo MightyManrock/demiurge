@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 7)
+> **Last updated:** 2026-05-22 (rev 8)
 
 ## Goal
 
@@ -37,7 +37,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Gate action availability: actions in a cooling category are unavailable
 - Assign placeholder base cooldown values per category (to be tuned in playtesting)
 
-**2c — Trigger + puissance reduction**
+**2c — Trigger + puissance reduction** ✓ complete
 - Stopping an ongoing action sets that category's cooldown to its base value
 - Apply puissance formula on cooldown assignment: `max(base - floor(puissance * 3), ceil(base * 0.75))`
 
