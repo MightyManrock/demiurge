@@ -24,5 +24,5 @@ Read /root/demiurge/docs/TO-DO.md and /root/demiurge/docs/plans/PLANS.md. For ea
 | [evaluation-redesign.md](evaluation-redesign.md) | `complete` | Results = Essence-only; passive expectation creep; Vrath FootprintConstraints; omen-driven autoplay |
 | [mortal-travel-initial.md](mortal-travel-initial.md) | `complete` | TravelIntent agent state; tick-phase travel countdown; Karath Omn shuttle test |
 | [travel-location-system.md](travel-location-system.md) | `complete` | TravelLocation as first-class entity; travel_features routing; Durenn Vail test |
-| [travel-network-refactor.md](travel-network-refactor.md) | `active` | Replace travel_features strings with explicit TravelNetwork objects |
+| [travel-network-refactor.md](travel-network-refactor.md) | `complete` | Replace travel_features strings with explicit TravelNetwork objects |
 | [warp-gate-expansion.md](warp-gate-expansion.md) | `parked` | Add warp gate SignificantLocations; extend Vail route through FTL infrastructure |
