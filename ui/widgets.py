@@ -1386,6 +1386,7 @@ class CategoryRow(Widget):
     def __init__(self, category: ActionCategory) -> None:
         super().__init__(id=f"cat-row-{category.value}", classes="category-row")
         self._category = category
+        self._counter: int = 0
 
     def compose(self) -> ComposeResult:
         symbol = _CATEGORY_SYMBOLS[self._category]
@@ -1401,6 +1402,7 @@ class CategoryRow(Widget):
 
     def set_cooldown(self, counter: int) -> None:
         """Update the bar to reflect the current cooldown counter."""
+        self._counter = counter
         base = CATEGORY_BASE_COOLDOWNS[self._category]
         bar = self.query_one(ProgressBar)
         bar.update(total=base, progress=base - counter)
@@ -1409,9 +1411,21 @@ class CategoryRow(Widget):
         else:
             self.add_class("cooling")
 
+    class CategoryClicked(Message):
+        def __init__(self, category: ActionCategory, is_cooling: bool) -> None:
+            super().__init__()
+            self.category   = category
+            self.is_cooling = is_cooling
+
+    def on_click(self) -> None:
+        self.post_message(CategoryRow.CategoryClicked(self._category, self._counter > 0))
+
 
 class CategoryPanel(Vertical):
     """Narrow vertical panel on the far right showing per-category cooldown bars."""
+
+    # Alias so external handlers can reference CategoryPanel.CategoryClicked
+    CategoryClicked = CategoryRow.CategoryClicked
 
     def compose(self) -> ComposeResult:
         for cat in ActionCategory:

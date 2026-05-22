@@ -1140,6 +1140,7 @@ class ActionBrowserModal(ModalScreen):
             with ScrollableContainer():
                 with LoopingListView(id="cat-list"):
                     for i, (cat, _) in enumerate(self._cat_actions.items()):
+                        is_cooling = self._state.category_cooldowns.counters.get(cat, 0) > 0
                         used    = self._queued_cats.get(cat.value)
                         ongoing = self._state.ongoing_actions.get(cat.value)
                         if used:
@@ -1148,8 +1149,11 @@ class ActionBrowserModal(ModalScreen):
                             note = f"  [ongoing: {ongoing.action_key.replace('_',' ')} ({ongoing.executed_ticks}x)]"
                         else:
                             note = ""
+                        label_text = f"{cat.value.replace('_',' ').title()}{note}"
+                        if is_cooling:
+                            label_text = f"[#3a5070]{label_text}[/#3a5070]"
                         yield ListItem(
-                            Label(f"{cat.value.replace('_',' ').title()}{note}"),
+                            Label(label_text),
                             id=f"cat-{i}",
                         )
             with Horizontal(classes="btn-row"):
@@ -1167,6 +1171,9 @@ class ActionBrowserModal(ModalScreen):
     def _on_cat_selected(self, event: ListView.Selected) -> None:
         idx = int(event.item.id.split("-", 1)[1])
         cat, actions = list(self._cat_actions.items())[idx]
+        if self._state.category_cooldowns.counters.get(cat, 0) > 0:
+            self.app.push_screen(ToastModal("Category on cooldown — not ready yet."))
+            return
         self._open_cat(cat, actions)
 
     @work
