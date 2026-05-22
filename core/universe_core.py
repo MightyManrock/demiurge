@@ -188,6 +188,18 @@ class PopLocation(Location):
     # (surface settlement). 0 = the core itself. Higher values add to the
     # effective depth used by Scry and (future) travel mechanics.
     distance_from_core: int = 0
+    travel_features: set[str] = Field(default_factory=set)
+
+
+class TravelLocation(Location):
+    """Ephemeral in-transit location. Lives in state.locations while occupied."""
+    location_type: str = "travel_location"
+    legs: dict[str, int] = Field(default_factory=dict)
+    # Ordered dict: PopLocation UUID str → tick cost for leg starting at that waypoint.
+    # Last entry always has value 0 — that key IS the destination.
+    current_waypoint: str = ""   # UUID str of the leg currently in progress
+    ticks_remaining: int = 0
+    occupants: list[UUID] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────

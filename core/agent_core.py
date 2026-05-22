@@ -8,9 +8,7 @@ from core.action_core import DomainVector, CultureVector
 
 
 class TravelIntent(BaseModel):
-    destination: UUID
-    ticks_remaining: int
-    in_transit: bool = False
+    travel_location_id: UUID
 
 
 class AgentActionChoice(str, Enum):
