@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 12)
+> **Last updated:** 2026-05-22 (rev 13)
 
 ## Goal
 
@@ -65,7 +65,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - One row per `ActionCategory`: symbol + placeholder `ProgressBar`
 - Layout and basic styles in `ui/widgets.py` + `ui/styles.tcss`
 
-**4b — Live cooldown state**
+**4b — Live cooldown state** ✓ complete
 - Wire `CategoryCooldowns.counters` to each row's progress bar
 - Ready categories display at full; cooling categories show countdown
 

@@ -446,6 +446,10 @@ ImagoRevealCell.imago-eligible:focus {
     height: 1;
 }
 
+.category-row.cooling .cat-label {
+    color: #3a5070;
+}
+
 .cat-bar {
     height: 1;
 }

@@ -24,7 +24,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, ListView, ProgressBar, RichLog, Static
 
-from core.action_core import ActionCategory
+from core.action_core import ActionCategory, CATEGORY_BASE_COOLDOWNS
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 
@@ -1391,11 +1391,23 @@ class CategoryRow(Widget):
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
         yield Static(f"{symbol} {label}", classes="cat-label")
-        yield ProgressBar(total=1, show_eta=False, show_percentage=False,
+        base = CATEGORY_BASE_COOLDOWNS[self._category]
+        yield ProgressBar(total=base, show_eta=False, show_percentage=False,
                           classes="cat-bar", id=f"cat-bar-{self._category.value}")
 
     def on_mount(self) -> None:
-        self.query_one(ProgressBar).advance(1)
+        base = CATEGORY_BASE_COOLDOWNS[self._category]
+        self.query_one(ProgressBar).advance(base)
+
+    def set_cooldown(self, counter: int) -> None:
+        """Update the bar to reflect the current cooldown counter."""
+        base = CATEGORY_BASE_COOLDOWNS[self._category]
+        bar = self.query_one(ProgressBar)
+        bar.update(total=base, progress=base - counter)
+        if counter == 0:
+            self.remove_class("cooling")
+        else:
+            self.add_class("cooling")
 
 
 class CategoryPanel(Vertical):
@@ -1404,3 +1416,9 @@ class CategoryPanel(Vertical):
     def compose(self) -> ComposeResult:
         for cat in ActionCategory:
             yield CategoryRow(cat)
+
+    def refresh_state(self, state: "SimulationState") -> None:
+        counters = state.category_cooldowns.counters
+        for cat in ActionCategory:
+            counter = counters.get(cat, 0)
+            self.query_one(f"#cat-row-{cat.value}", CategoryRow).set_cooldown(counter)
