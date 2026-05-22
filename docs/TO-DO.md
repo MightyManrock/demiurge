@@ -21,17 +21,3 @@ Choose the next major system: Agent expansion, Factions, Governments, or resourc
 
 ---
 
-### TravelNetwork refactor
-> → plan: [travel-network-refactor.md](plans/travel-network-refactor.md)
-
-Replace implicit `travel_features` string-intersection routing with explicit `TravelNetwork` objects. Same semantics, explicit topology — eliminates the BFS shortcut bug class.
-
----
-
-### Warp gate world expansion
-> → plan: [warp-gate-expansion.md](plans/warp-gate-expansion.md)
-
-Add Warp Gate / Hyperlane `SignificantLocation` entries to the Neran and Sethis systems, extending the Vail travel route through real FTL infrastructure. Depends on TravelNetwork refactor.
-
----
-
