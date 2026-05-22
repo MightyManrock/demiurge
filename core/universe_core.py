@@ -181,6 +181,15 @@ class SignificantLocation(Location):
     age: float = 0.0    # In-universe time units; scenario defines the scale
 
 
+class TravelNetwork(BaseModel):
+    """Named travel network connecting a set of PopLocations.
+    All members are mutually adjacent for routing purposes (fully-connected semantics).
+    """
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    member_ids: list[UUID] = Field(default_factory=list)
+
+
 class PopLocation(Location):
     """Low-tier locations that house Pops (cities, towns, space stations, etc.)"""
     pop_ids: list[UUID] = Field(default_factory=list)
@@ -188,7 +197,7 @@ class PopLocation(Location):
     # (surface settlement). 0 = the core itself. Higher values add to the
     # effective depth used by Scry and (future) travel mechanics.
     distance_from_core: int = 0
-    travel_features: set[str] = Field(default_factory=set)
+    travel_network_ids: list[UUID] = Field(default_factory=list)
 
 
 class TravelLocation(Location):

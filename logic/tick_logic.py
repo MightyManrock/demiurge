@@ -42,7 +42,7 @@ from core.onto_core import (
     Demiurge, Pantheon, Luminary, FootprintConstraint, ResultsConstraint,
 )
 from core.universe_core import (
-    Universe, Location, System, SignificantLocation, PopLocation,
+    Universe, Location, System, SignificantLocation, PopLocation, TravelNetwork,
     Civilization, NotableMortal,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
@@ -800,7 +800,8 @@ class SimulationState(BaseModel):
     civilizations: dict[str, "Civilization"]
     pops:          dict[str, "Pop"] = Field(default_factory=dict)
     mortals:       dict[str, "NotableMortal"]
-    species:       dict[str, "Species"] = Field(default_factory=dict)
+    species:          dict[str, "Species"] = Field(default_factory=dict)
+    travel_networks:  dict[str, "TravelNetwork"] = Field(default_factory=dict)
 
     @property
     def worlds(self) -> "dict[str, SignificantLocation]":
