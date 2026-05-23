@@ -27,7 +27,7 @@ Execution order: Phase 1 → Phase 2 (batch schema changes together) → Phase 3
 
 In `_process_essence_generation`, after writing to `last_tick_essence_by_domain`, copy the result into `last_essence_capture_by_domain` and set `last_essence_capture_tick = state.tick_number`.
 
-**1c — Persistence**
+**1c — Persistence** ✓ complete
 
 - `core/scenario_schema.sql`: add `last_essence_capture_by_domain TEXT` (JSON) and `last_essence_capture_tick INTEGER DEFAULT 0` to the saves metadata table
 - `scenario_loader.py`: load with `.get()` defaults (empty dict / 0)

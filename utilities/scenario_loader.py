@@ -209,6 +209,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     luminary_production_accum = _jd_str(meta.get("luminary_production_accum", "{}"))
     domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
     last_tick_essence_by_domain = _jd_str(meta.get("last_tick_essence_by_domain", "{}"))
+    last_essence_capture_by_domain = _jd_str(meta.get("last_essence_capture_by_domain", "{}"))
+    last_essence_capture_tick = meta.get("last_essence_capture_tick", 0) or 0
     starting_pinned_ids = _j(meta.get("starting_pinned_ids", "[]"))
     rich_log_name = meta.get("rich_log_name", "") or ""
 
@@ -259,6 +261,8 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         luminary_production_this_eval=luminary_production_accum,
         domain_essence_claimed=domain_essence_claimed,
         last_tick_essence_by_domain=last_tick_essence_by_domain,
+        last_essence_capture_by_domain=last_essence_capture_by_domain,
+        last_essence_capture_tick=last_essence_capture_tick,
         tick_number=meta.get("tick_number", 0),
         starting_pinned_ids=starting_pinned_ids,
         rich_log_name=rich_log_name,
