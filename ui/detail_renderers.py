@@ -211,7 +211,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
 
     a(f"[bold #4a80b0]WORLD: {_e(world.name)}[/]")
     a("")
-    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age:.0f}")
+    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age:,.0f}")
     if world.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
@@ -475,7 +475,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     a(f"  cohesion:   {h.cohesion:+.0%}")
 
     if display.DEV_MODE:
-        a(f"  [#5a7090]age: {civ.age:.0f} years  |  founded: {_format_calendar_date(civ.founding_date)}[/]")
+        a(f"  [#5a7090]age: {civ.age:,.0f} years  |  founded: {_format_calendar_date(civ.founding_date)}[/]")
 
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
@@ -622,9 +622,9 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     a("")
     a(f"  \\[{role_str}]   status: \\[{status_str}]")
     a(f"  alignment: {m.alignment:+.2f}")
-    age_str = f"age:{m.chrono_age:.0f}"
+    age_str = f"age:{m.chrono_age:,.0f}"
     if m.bio_age != m.chrono_age:
-        age_str += f"  (bio:{m.bio_age:.0f})"
+        age_str += f"  (bio:{m.bio_age:,.0f})"
     a(f"  {age_str}")
     _manually_pinned = (
         m.pinned

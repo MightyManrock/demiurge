@@ -435,9 +435,9 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             continue
         mm = _OOW if m_oow else ""
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-        age_str  = f"age:{mortal.chrono_age:.0f}"
+        age_str  = f"age:{mortal.chrono_age:,.0f}"
         if mortal.bio_age != mortal.chrono_age:
-            age_str += f"(bio:{mortal.bio_age:.0f})"
+            age_str += f"(bio:{mortal.bio_age:,.0f})"
         prom_str = _prominence_label(mortal)
         vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
@@ -717,7 +717,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
                 w_vis    = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
                 lines.append(
-                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:.0f}  {life_str}"
+                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:,.0f}  {life_str}"
                 )
                 if world.domain_expression:
                     lines.append(f"{wm}        domain expression: {_format_beliefs(world.domain_expression)}")
@@ -800,9 +800,9 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         if c_obj:
             loc += f" · {c_obj.name}"
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-        age_str  = f"age:{mortal.chrono_age:.0f}"
+        age_str  = f"age:{mortal.chrono_age:,.0f}"
         if mortal.bio_age != mortal.chrono_age:
-            age_str += f"(bio:{mortal.bio_age:.0f})"
+            age_str += f"(bio:{mortal.bio_age:,.0f})"
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_note  = f"  [{sp_obj.name}]" if sp_obj else ""
         prom_str = _prominence_label(mortal)

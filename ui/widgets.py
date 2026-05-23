@@ -699,9 +699,9 @@ def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -
     a = lines.append
 
     role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-    age_str = f"age:{mortal.chrono_age:.0f}"
+    age_str = f"age:{mortal.chrono_age:,.0f}"
     if mortal.bio_age != mortal.chrono_age:
-        age_str += f"(bio:{mortal.bio_age:.0f})"
+        age_str += f"(bio:{mortal.bio_age:,.0f})"
     sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
     if sp_obj:
         sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))

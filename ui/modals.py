@@ -1024,9 +1024,9 @@ class MortalDetailModal(ModalScreen):
             lines.append(f"[#9090a8]{_e(m.description)}[/]")
         lines.append("")
 
-        age_str = f"{m.chrono_age:.0f}"
+        age_str = f"{m.chrono_age:,.0f}"
         if m.bio_age != m.chrono_age:
-            age_str += f"  (bio {m.bio_age:.0f})"
+            age_str += f"  (bio {m.bio_age:,.0f})"
         prom_str = "  ".join(r.value for r in m.prominence_roles if r.value != "none") or "none"
         lines.append(f"[bold #5a7090]OVERVIEW[/]")
         lines.append(f"  Age         {age_str}")
