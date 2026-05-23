@@ -1441,12 +1441,12 @@ _BAR_READY  = "#50b870"
 
 def _render_cat_bar(counter: int, base: int) -> str:
     if counter == 0:
-        return f"[{_BAR_READY}]{_BAR_CHAR * _BAR_CELLS}[/]"
+        return f"[bold {_BAR_READY}]{_BAR_CHAR * _BAR_CELLS}[/]"
     filled = min(round((base - counter) / base * _BAR_CELLS), _BAR_CELLS - 1)
     filled = max(0, filled)
     return (
-        f"[{_BAR_FILL}]{_BAR_CHAR * filled}[/]"
-        f"[{_BAR_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
+        f"[bold {_BAR_FILL}]{_BAR_CHAR * filled}[/]"
+        f"[bold {_BAR_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
     )
 
 
