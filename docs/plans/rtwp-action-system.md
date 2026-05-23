@@ -78,11 +78,12 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ### Phase 5: RTwP Control Modal
 
-**5a — Modal scaffold + layout**
+**5a — Modal scaffold + layout** ✓ complete
 - Triggered by `spacebar` from `GameScreen` (when no other modal is active)
 - Covers main content panel area only — tab name row, left panel, category panel remain visible
 - Background: standard modal dim; left panel + category panel at full brightness
 - Establish the three-section layout (log / auto-pause options / time control bar) with placeholder content
+- *Note: scaffold covers the full right panel including tab strip; exact column clipping deferred to later sub-phase when live content is in place*
 
 **5b — Live log feed**
 - Top ~2/3 of modal: log section that continues to refresh as ticks advance

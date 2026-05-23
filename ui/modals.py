@@ -1275,3 +1275,40 @@ class ActionBrowserModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# RTwP CONTROL MODAL
+# Real-Time with Pause overlay. Covers the right-panel column only;
+# left panel and category panel remain visible through transparent spacers.
+# ─────────────────────────────────────────
+
+class RTwPModal(ModalScreen):
+    BINDINGS = [("escape", "dismiss_modal", "Exit")]
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="rtwp-layout"):
+            yield Static("", id="rtwp-left-spacer")
+            with Vertical(id="rtwp-body"):
+                yield Static(
+                    "[#3a5a7a]Log feed — coming in 5b[/]",
+                    id="rtwp-log",
+                )
+                yield Static(
+                    "[#3a5a7a]Auto-pause options — coming in 5c[/]",
+                    id="rtwp-pauses",
+                )
+                with Horizontal(id="rtwp-time-bar"):
+                    yield Button("Exit",   id="rtwp-exit",  variant="default")
+                    yield Button("Slow",   id="rtwp-slow",  disabled=True)
+                    yield Button("▶ Play", id="rtwp-play",  disabled=True)
+                    yield Button("+1",     id="rtwp-step",  disabled=True)
+                    yield Button("Fast",   id="rtwp-fast",  disabled=True)
+            yield Static("", id="rtwp-right-spacer")
+
+    @on(Button.Pressed, "#rtwp-exit")
+    def _exit(self, _: Button.Pressed) -> None:
+        self.dismiss()
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss()

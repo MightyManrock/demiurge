@@ -68,7 +68,7 @@ from ui.modals import (
     QuitConfirmModal,
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
-    ActionBrowserModal,
+    ActionBrowserModal, RTwPModal,
 )
 
 
@@ -168,7 +168,7 @@ class GameScreen(Screen):
         ("a",      "queue_action",         "Queue"),
         ("o",      "manage_ongoing",       "Ongoing"),
         ("t",      "advance_tick",         "Advance"),
-        ("space",  "toggle_auto_advance",  "Auto"),
+        ("space",  "open_rtwp_modal",       "RTwP"),
         ("ctrl+s", "save_game",            "Save"),
         ("q",      "quit_confirm",         "Quit"),
         ("ctrl+q", "quit_immediate",       "Force quit"),
@@ -616,6 +616,9 @@ class GameScreen(Screen):
 
     def action_advance_tick(self) -> None:
         self._advance_tick_work()
+
+    def action_open_rtwp_modal(self) -> None:
+        self.app.push_screen(RTwPModal())
 
     def action_toggle_auto_advance(self) -> None:
         self._auto_advance = not self._auto_advance

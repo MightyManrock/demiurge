@@ -490,3 +490,59 @@ LoadScreen {
     text-style: bold;
     padding: 1 0 0 0;
 }
+
+/* ── RTwP Control Modal ──────────────── */
+
+RTwPModal {
+    background: transparent;
+    align: left top;
+}
+
+#rtwp-layout {
+    width: 100%;
+    height: 100%;
+}
+
+#rtwp-left-spacer {
+    width: 44;
+    height: 100%;
+    background: transparent;
+}
+
+#rtwp-right-spacer {
+    width: 14;
+    height: 100%;
+    background: transparent;
+}
+
+#rtwp-body {
+    width: 1fr;
+    height: 100%;
+    background: $bg-modal;
+    border-left: solid $border;
+    border-right: solid $border;
+}
+
+#rtwp-log {
+    height: 1fr;
+    border-bottom: solid $border;
+    color: $muted;
+    padding: 1 2;
+}
+
+#rtwp-pauses {
+    height: auto;
+    border-bottom: solid $border;
+    color: $muted;
+    padding: 1 2;
+}
+
+#rtwp-time-bar {
+    height: 3;
+    align: center middle;
+    padding: 0 1;
+}
+
+#rtwp-time-bar Button {
+    margin: 0 1;
+}
