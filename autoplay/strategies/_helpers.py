@@ -9,25 +9,28 @@ from __future__ import annotations
 from uuid import UUID
 from typing import Optional, Tuple
 
-from core.action_core import ActionInstance, TargetType
+from core.action_core import ActionInstance, OngoingAction, TargetType
 from core.universe_core import MortalRole, MortalStatus, SocialClass
 from logic.tick_logic import TickLoop, SimulationState, is_mortal_visible
 
 
 def queue(loop: TickLoop, state: SimulationState, key: str,
-          target_type: TargetType, target_id, intent=None, proxius_id=None):
+          target_type: TargetType, target_id, intent=None, proxius_id=None,
+          repeating: bool = False):
     defn = loop._action_library[key]
-    inst = ActionInstance(
+    state.pending_actions[defn.category.value] = OngoingAction(
+        action_key=key,
         action_definition_id=defn.id,
         target_type=target_type,
-        target_id=target_id,
-        timestamp=state.universe.current_age.to_float_years(),
-        demiurge_id=state.demiurge.id,
-        proxius_id=proxius_id,
+        target_id=UUID(str(target_id)) if target_id else None,
+        proxius_id=UUID(str(proxius_id)) if proxius_id else None,
         intent=intent,
+        repeating=repeating,
+        ticks_active=0,
+        executed_ticks=0,
+        successful_ticks=0,
+        started_at_tick=state.tick_number,
     )
-    state.action_queue.append(inst)
-    return inst
 
 
 def mortal_named(state: SimulationState, name: str):

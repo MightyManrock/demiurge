@@ -960,6 +960,26 @@ _CATEGORY_PRIORITY: list = [
 ]
 
 
+def _is_pending_target_valid(state: SimulationState, pending: "OngoingAction") -> bool:
+    """Return False if the pending action's target no longer exists or is deceased."""
+    if pending.target_id is None:
+        return True
+    tid = str(pending.target_id)
+    tt = pending.target_type
+    if tt == TargetType.MORTAL:
+        m = state.mortals.get(tid)
+        return m is not None and m.status != MortalStatus.DECEASED
+    if tt in (TargetType.WORLD, TargetType.SYSTEM, TargetType.GALAXY):
+        return tid in state.locations
+    if tt == TargetType.CIVILIZATION:
+        return tid in state.civilizations
+    if tt == TargetType.LUMINARY:
+        return tid in state.luminaries
+    if tt == TargetType.SPECIES:
+        return tid in state.species
+    return True
+
+
 # ─────────────────────────────────────────
 # TICK LOOP
 # ─────────────────────────────────────────
@@ -1048,6 +1068,17 @@ class TickLoop:
         state.last_tick_essence_by_domain = dict(essence_by_domain)
 
         # ── Phase 2: Pending action fire (priority order) ─────────────────
+        # Validate pending targets; cancel stale slots before attempting to fire.
+        stale_cats = [
+            cat_val for cat_val, pa in state.pending_actions.items()
+            if not _is_pending_target_valid(state, pa)
+        ]
+        for cat_val in stale_cats:
+            pa = state.pending_actions.pop(cat_val)
+            result.passive_result.narrative_events.append(
+                f"[Queue] Pending {pa.action_key.replace('_', ' ')} cancelled: target no longer valid."
+            )
+
         # Build fire_queue from pending_actions in category priority order.
         # Cooldown and Essence checks happen here; only actions that can run
         # this tick are included.
@@ -2108,15 +2139,13 @@ class TickLoop:
         cooldowns: "CategoryCooldowns",
     ) -> tuple[list["ActionInstance"], list[str]]:
         """
-        Enforce declarative action queue constraints. Returns (filtered_queue, rejection_messages).
-
-        Rules:
-        - At most one action per ActionCategory per tick.
-        - Actions in a cooling category are unavailable.
+        Enforce per-tick uniqueness: at most one action per ActionCategory.
+        Cooldown gating is handled upstream (Phase 2 fire loop).
+        Returns (accepted, rejection_messages).
         """
         accepted: list[ActionInstance] = []
         rejected: list[str] = []
-        seen_categories: dict[str, str] = {}  # category value -> name of action that claimed it
+        seen_categories: dict[str, str] = {}
 
         for instance in queue:
             key = self._action_key_by_id.get(str(instance.action_definition_id))
@@ -2125,14 +2154,6 @@ class TickLoop:
                 continue
 
             cat = defn.category.value
-            remaining = cooldowns.counters.get(defn.category, 0)
-            if remaining > 0:
-                rejected.append(
-                    f"{defn.name} blocked: {cat.replace('_', ' ')} is on cooldown "
-                    f"({remaining} tick{'s' if remaining != 1 else ''} remaining)."
-                )
-                continue
-
             if cat in seen_categories:
                 rejected.append(
                     f"{defn.name} blocked: a {cat.replace('_', ' ')} action "

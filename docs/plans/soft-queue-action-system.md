@@ -298,7 +298,7 @@ python main.py --autoplay wardens_compact
 python main.py --autoplay ledger_and_ash
 ```
 
-**2b — Target validation pass + remove cooldown gate from `_validate_and_filter_queue`**
+**2b — Target validation pass + remove cooldown gate from `_validate_and_filter_queue`** ✓ complete
 
 Files: `logic/tick_logic.py`
 
