@@ -185,7 +185,7 @@ Expected: both complete 50 ticks without errors. (Actions will not fire yet if t
 
 ### Phase 2: Tick logic refactor
 
-**2a — Replace inject-ongoing block with pending-fire-in-priority-order loop**
+**2a — Replace inject-ongoing block with pending-fire-in-priority-order loop** ✓ complete
 
 Files: `logic/tick_logic.py`
 

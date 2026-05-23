@@ -946,6 +946,20 @@ def _assign_category_cooldown(state: SimulationState, category: "ActionCategory"
     )
 
 
+from core.action_core import ActionCategory as _AC
+_CATEGORY_PRIORITY: list = [
+    _AC.DIRECT_CREATION,
+    _AC.OVERT_MIRACLE,
+    _AC.SUBTLE_INFLUENCE,
+    _AC.PROXIUS_DIRECTION,
+    _AC.OBSERVATION,
+    _AC.HERALD_INTERACTION,
+    _AC.LUMINARY_RELATIONS,
+    _AC.UNDERREAL,
+    _AC.SELF_REFINEMENT,
+]
+
+
 # ─────────────────────────────────────────
 # TICK LOOP
 # ─────────────────────────────────────────
@@ -1033,81 +1047,75 @@ class TickLoop:
         result.essence_claimed_by_domain = essence_by_domain
         state.last_tick_essence_by_domain = dict(essence_by_domain)
 
-        # ── Inject ongoing actions (appended after manual queue) ──────────
-        # Ongoing actions are standing orders: re-inject each tick when the
-        # category is ready and Essence is available. ticks_active always
-        # increments (tracks how long the order has existed); executed_ticks
-        # only increments when the action actually fires.
-        manual_queue_count = len(state.action_queue)  # capture before ongoing injection
-        manual_instance_cats: dict[str, "ActionCategory"] = {}
-        for inst in state.action_queue:
-            key = self._action_key_by_id.get(str(inst.action_definition_id))
-            d = self._action_library.get(key) if key else None
-            if d:
-                manual_instance_cats[str(inst.id)] = d.category
-
-        # Committed Essence from the manual queue (for Essence-gating ongoing injections)
+        # ── Phase 2: Pending action fire (priority order) ─────────────────
+        # Build fire_queue from pending_actions in category priority order.
+        # Cooldown and Essence checks happen here; only actions that can run
+        # this tick are included.
         committed_essence = 0.0
-        for inst in state.action_queue:
-            key = self._action_key_by_id.get(str(inst.action_definition_id))
-            d = self._action_library.get(key) if key else None
-            if d and d.essence_cost > 0:
-                committed_essence += d.essence_cost
+        fire_queue: list[ActionInstance] = []
+        fired_cat_vals: list[str] = []
+        fired_repeating_ids: set[str] = set()   # instance IDs from repeating slots
+        fired_oneshot_count: int = 0             # count of non-repeating slots that fired
 
-        ongoing_instance_ids: dict[str, str] = {}
-        for cat_val, ongoing in list(state.pending_actions.items()):
-            defn = self._action_library.get(ongoing.action_key)
+        for category in _CATEGORY_PRIORITY:
+            cat_val = category.value
+            pending = state.pending_actions.get(cat_val)
+            if pending is None:
+                continue
+            pending.ticks_active += 1
+
+            defn = self._action_library.get(pending.action_key)
             if defn is None:
                 continue
-            ongoing.ticks_active += 1
-            # Skip if category is cooling — re-inject automatically when cooldown expires
-            if state.category_cooldowns.counters.get(defn.category, 0) > 0:
+
+            if state.category_cooldowns.counters.get(category, 0) > 0:
                 continue
-            # Skip if Essence insufficient — re-inject when Essence recovers
+
             if defn.essence_cost > 0:
                 available = state.essence.actual - committed_essence
                 if defn.essence_cost > available:
                     continue
                 committed_essence += defn.essence_cost
+
             instance = ActionInstance(
                 action_definition_id=defn.id,
-                target_type=ongoing.target_type,
-                target_id=ongoing.target_id,
+                target_type=pending.target_type,
+                target_id=pending.target_id,
                 timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
-                proxius_id=ongoing.proxius_id,
-                intent=ongoing.intent,
+                proxius_id=pending.proxius_id,
+                intent=pending.intent,
             )
-            state.action_queue.append(instance)
-            ongoing_instance_ids[str(instance.id)] = cat_val
+            fire_queue.append(instance)
+            fired_cat_vals.append(cat_val)
+            if pending.repeating:
+                fired_repeating_ids.add(str(instance.id))
+            else:
+                fired_oneshot_count += 1
 
-        # ── Phase 2: Action Processing ─────────────────
         _essence_before = state.essence.actual
-        action_result = self._process_action_queue(state, cfg, phase_rng)
+        action_result = self._process_action_queue_list(state, cfg, phase_rng, fire_queue)
         result.action_result = action_result
         state = self._apply_action_mutations(state, action_result)
         state.action_queue = []
 
-        # Credit executed_ticks / successful_ticks and assign cooldown for ongoing
-        # actions that fired. Accepted entries keep their original instance.id;
-        # rejected entries get a fresh uuid4(), so membership is unambiguous.
+        # Credit stats, assign cooldowns, clear non-repeating slots.
         executed_ids = {str(e.action_instance_id) for e in action_result.entries}
         outcome_by_id = {str(e.action_instance_id): e.outcome for e in action_result.entries}
-        for iid, cat_val in ongoing_instance_ids.items():
-            if iid in executed_ids:
-                oa = state.pending_actions.get(cat_val)
-                if oa:
-                    oa.executed_ticks += 1
-                    if outcome_by_id.get(iid) != ActionOutcome.FAILURE:
-                        oa.successful_ticks += 1
-                    d = self._action_library.get(oa.action_key)
-                    if d:
-                        _assign_category_cooldown(state, d.category)
-
-        # Assign cooldown for each manually-queued action that actually fired.
-        for iid, cat in manual_instance_cats.items():
-            if iid in executed_ids:
-                _assign_category_cooldown(state, cat)
+        for instance, cat_val in zip(fire_queue, fired_cat_vals):
+            if str(instance.id) not in executed_ids:
+                continue
+            pending = state.pending_actions.get(cat_val)
+            if pending is None:
+                continue
+            pending.executed_ticks += 1
+            if outcome_by_id.get(str(instance.id)) != ActionOutcome.FAILURE:
+                pending.successful_ticks += 1
+            defn = self._action_library.get(pending.action_key)
+            if defn:
+                _assign_category_cooldown(state, defn.category)
+            if not pending.repeating:
+                del state.pending_actions[cat_val]
 
         # ── Deferred death check ───────────────────────
         # Applied after Phase 2 so a same-tick appoint_proxius saves the mortal.
@@ -1221,16 +1229,16 @@ class TickLoop:
                 ))
                 break  # one event per tick is enough
 
-        # Default-pause: a manually-queued action resolved this tick.
-        if manual_queue_count > 0:
-            non_ongoing_entries = [
+        # Default-pause: a one-shot (non-repeating) pending action resolved this tick.
+        if fired_oneshot_count > 0:
+            non_repeating_entries = [
                 e for e in result.action_result.entries
-                if str(e.action_instance_id) not in ongoing_instance_ids
+                if str(e.action_instance_id) not in fired_repeating_ids
             ]
-            if non_ongoing_entries:
+            if non_repeating_entries:
                 result.pause_events.append(PauseEvent(
                     event_type=PauseEventType.QUEUED_ACTION_COMPLETE,
-                    description=f"{len(non_ongoing_entries)} action(s) resolved",
+                    description=f"{len(non_repeating_entries)} action(s) resolved",
                     is_hard_pause=False,
                     pauses_by_default=True,
                 ))
@@ -2137,17 +2145,18 @@ class TickLoop:
 
         return accepted, rejected
 
-    def _process_action_queue(
+    def _process_action_queue_list(
         self,
         state: SimulationState,
         cfg: TickConfig,
         rng: random.Random,
+        queue: list["ActionInstance"],
     ) -> ActionProcessingResult:
 
         result = ActionProcessingResult()
 
         validated_queue, rejections = self._validate_and_filter_queue(
-            state.action_queue, state.category_cooldowns
+            queue, state.category_cooldowns
         )
         for msg in rejections:
             result.entries.append(ActionProcessingResult.ActionEntry(
