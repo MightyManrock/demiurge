@@ -54,7 +54,7 @@ In the `EssenceHarvestIntent` handler (~line 3708), on a successful harvest: set
 
 Same pattern: `last_harvest_amount REAL DEFAULT 0.0` and `last_harvest_tick INTEGER DEFAULT 0` in the schema; load with `.get()` defaults; export normally.
 
-**2d — Status tab line + CSS visibility** (`ui/widgets.py`, `ui/styles.tcss`)
+**2d — Status tab line + CSS visibility** (`ui/widgets.py`, `ui/styles.tcss`) ✓ complete
 
 Add a dedicated `Static` widget in the Essence section showing `Last underreal harvest: +{state.last_harvest_amount:.2f}`. In `refresh_state`, compute `stale = state.last_harvest_tick == 0 or (state.tick_number - state.last_harvest_tick) > 30` and toggle a CSS class (e.g. `harvest-stale`) on that widget. In `styles.tcss`: `.harvest-stale { display: none; }`.
 

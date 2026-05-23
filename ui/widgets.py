@@ -404,6 +404,13 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
         free = max(0.0, es.actual - committed)
         a(f"  committed [#c09030]{committed:.2f}[/]  free [bold]{free:.2f}[/]")
     a(f"  concealment [{ci_col}]{ci:.2f}[/]")
+    harvest_fresh = (
+        state.last_harvest_tick > 0
+        and (state.tick_number - state.last_harvest_tick) <= 30
+    )
+    if harvest_fresh:
+        a(f"  last harvest [#c09030]+{state.last_harvest_amount:.2f}[/] "
+          f"[dim](t{state.last_harvest_tick})[/]")
     a("")
 
     # Affiliated domains
