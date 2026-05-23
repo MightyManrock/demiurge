@@ -103,9 +103,60 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 
 ### Phase 6: Tick Scale Recalibration
 
-**6a — Audit all per-tick rates**
+**6a — Audit all per-tick rates** ✓ complete
 - Identify every system with a per-tick rate (Essence, Revelation, cultural drift, belief shifts, travel countdown, etc.)
 - Produce a checklist before touching any values
+
+#### 6a checklist (no values changed yet)
+
+**Action cooldowns** (`core/action_core.py:78`)
+- [ ] `CATEGORY_BASE_COOLDOWNS`: Direct=20, Overt=25, Influence=10, Proxius=8, Observe=5, Herald=15, Luminary=15, Underreal=12, Refine=6 ticks
+
+**Tick cadence** (`logic/tick_logic.py`)
+- [ ] `tick_duration` (~:499): 1.0 universe-time units per tick
+- [ ] `evaluation_interval` (~:558): 10.0 ticks between Luminary evaluations
+- [ ] Starting pin expiry (~:1602): tick 30
+
+**Visibility decay** (`logic/tick_logic.py`)
+- [ ] Mortal decay: 0.03/tick (modulated by prominence) (~:537)
+- [ ] Location decay: 0.01/tick (~:540)
+- [ ] Civilization decay: 0.01/tick (~:541)
+- [ ] Species decay: 0.01/tick (~:542)
+- [ ] Pop visibility drift: 0.02/tick (~:608)
+
+**Footprint & concealment** (`logic/tick_logic.py`)
+- [ ] Base footprint decay: 0.05/tick; category multipliers overt=1.0, influence=1.8, proxius=0.8, creation=0.4 (~:505–516)
+- [ ] Proxius passive footprint: 0.03/tick/Proxius; compliant worlds 0.3× (~:552, :72)
+- [ ] Concealment decay: 0.02/tick; stalls at ≥6 quiet ticks (~:519, :1758)
+
+**Belief & culture drift** (`logic/tick_logic.py`)
+- [ ] Pop conformity toward civ: 0.005/tick base × cohesion × scale_mult (~:604)
+- [ ] Civ established→dominant drift: 0.01/tick × cohesion (~:611)
+- [ ] Pop cross-contact base: 0.005/tick; cross-civ 0.15×, cross-species 0.50×, cross-stratum 0.70×/rank (~:616–620)
+- [ ] Rider trait attrition: 0.003/tick (~:188)
+- [ ] Values stubbornness: 0.1× normal rate (~:630)
+- [ ] `BELIEF_FLOOR` 0.02, `CULTURE_FLOOR` 0.01, `BELIEF_CAP` 0.9 (~:78–90) — may not need scaling
+
+**Mortal & civ aging** (`logic/tick_logic.py`)
+- [ ] Mortal alignment drift: 0.01/tick (Proxii 0.5×) (~:533)
+- [ ] Mortal bio-age: 1.0×tick_duration active, 0.2× dormant (~:1516)
+- [ ] Natural death probability: progress × 0.3 peak/tick (~:1537)
+- [ ] Pop affiliation age-out threshold: lifespan_min (~:1564)
+- [ ] Civ momentum drift: 0.02/tick; noise 0.01/tick (~:525)
+
+**Attention** (`logic/tick_logic.py`)
+- [ ] Luminary attention decay: 0.03/tick (~:546)
+
+**Essence generation** (`logic/tick_logic.py`)
+- [ ] Location weight: 3.0, Pop weight: 10.0, Mortal weight: 0.5 (~:561–570)
+- [ ] Luminary essence baseline: 10.0/affinity/tick (~:579)
+- [ ] Essence recall fraction: 0.20 of prior excess (~:591)
+- [ ] Passive expectation rise: 5.0/tick × (ticks_since / tick_number) (~:597)
+
+**Revelation & puissance** (`logic/tick_logic.py`)
+- [ ] Revelation base costs per tier: {1:60, 2:100, 3:200, 4:400} (~:295)
+- [ ] Revelation inflation: +0.3%/previously-revealed Imago (~:336)
+- [ ] Puissance saturation: `REV_SCALE`=500, `IMAGO_SCALE`=40, `TICK_SCALE`=200 (~:305)
 
 **6b — Age representation**
 - Change `Universe` age storage to `(billions, millions, thousands, years, months, days)`
