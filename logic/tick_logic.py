@@ -945,6 +945,11 @@ class SimulationState(BaseModel):
     last_essence_capture_by_domain: dict[str, float] = Field(default_factory=dict)
     last_essence_capture_tick: int = 0
 
+    # Last successful Harvest Essence from Underreal result.
+    # last_harvest_tick == 0 means never harvested.
+    last_harvest_amount: float = 0.0
+    last_harvest_tick: int = 0
+
     # Entity IDs (str(UUID)) that were pinned at scenario creation.
     # At tick 10 Phase 1, all are unpinned and this list is cleared.
     starting_pinned_ids: list[str] = Field(default_factory=list)

@@ -41,7 +41,7 @@ Replace the read of `state.last_tick_essence_by_domain` with `state.last_essence
 
 ## Phase 2 — Harvest Essence last-result line
 
-**2a — New `SimulationState` fields** (`logic/tick_logic.py` ~line 940)
+**2a — New `SimulationState` fields** (`logic/tick_logic.py` ~line 940) ✓ complete
 
 - `last_harvest_amount: float = 0.0`
 - `last_harvest_tick: int = 0`
