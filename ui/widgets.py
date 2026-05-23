@@ -1355,6 +1355,7 @@ class LogTab(Vertical):
                 yield LogChip(cat, active=True)
         yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
         with Vertical(id="log-rtwp"):
+            yield Static("Auto-pause when…", classes="rtwp-header")
             with Horizontal(id="log-pause-columns"):
                 with Vertical(id="log-pause-left"):
                     yield Checkbox("Evaluation completes",    value=self._paused_by(PauseEventType.EVALUATION_COMPLETE,  True),  id="pause-eval")
