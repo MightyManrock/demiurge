@@ -1474,7 +1474,7 @@ class CategoryRow(Widget):
     def compose(self) -> ComposeResult:
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
-        yield Static(f"{symbol}  {label}", classes="cat-label", id=f"cat-label-{self._category.value}")
+        yield Static(f"{symbol}  {label}", classes="cat-label", id=f"cat-label-{self._category.value}", markup=False)
         yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}", markup=True)
 
     def set_indicator(self, indicator: str) -> None:
