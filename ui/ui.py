@@ -68,7 +68,7 @@ from ui.modals import (
     QuitConfirmModal,
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
-    ActionBrowserModal, RTwPModal,
+    ActionBrowserModal,
 )
 
 
@@ -268,11 +268,6 @@ class GameScreen(Screen):
             self.query_one(LogTab).append(category, markup)
         except Exception:
             # Log tab not yet mounted (e.g. very early in startup).
-            pass
-        try:
-            if isinstance(self.app.screen, RTwPModal):
-                self.app.screen.append_entry(markup)
-        except Exception:
             pass
 
     def _refresh_status(self) -> None:
@@ -642,9 +637,6 @@ class GameScreen(Screen):
 
     def action_advance_tick(self) -> None:
         self._advance_tick_work()
-
-    def action_open_rtwp_modal(self) -> None:
-        self.app.push_screen(RTwPModal(self._rich_log.entries(), self._state.pause_config, self))
 
     def action_rtwp(self) -> None:
         self.action_toggle_auto_advance()

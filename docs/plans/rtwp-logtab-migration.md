@@ -71,7 +71,7 @@ Replace the `RTwPModal` overlay (Phases 5a–5d) with a bottom section bolted on
 
 ---
 
-### Phase R3: Remove RTwPModal + cleanup
+### Phase R3: Remove RTwPModal + cleanup ✓ complete
 
 - Delete `RTwPModal` class from `modals.py` (from `_SPEED_*` constants to end of file)
 - Remove the `_feed_markup` forwarding block from `GameScreen._feed_markup` (`isinstance(self.app.screen, RTwPModal)` check)
