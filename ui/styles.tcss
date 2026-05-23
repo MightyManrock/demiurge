@@ -455,12 +455,14 @@ ImagoRevealCell.imago-eligible:focus {
 #log-rtwp Checkbox {
     background: transparent;
     color: $muted;
-    padding: 0 0;
-    height: 1;
+    border: none;
+    height: auto;
+    padding: 0 1;
 }
 
 #log-rtwp Checkbox:focus {
     background: $highlight;
+    border: none;
 }
 
 #pause-on-log-open {
