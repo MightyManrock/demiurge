@@ -13,13 +13,14 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Input, Label, ListItem, ListView,
+    Button, Checkbox, Input, Label, ListItem, ListView,
     RadioButton, RadioSet, RichLog, Static,
 )
 
 from core.action_core import ActionCategory, ActionDefinition, compute_cooldown
 from logic.tick_logic import (
-    SimulationState, _compute_revelation_cap, _revelation_adjusted_cost,
+    SimulationState, PauseConfig, PauseEventType,
+    _compute_revelation_cap, _revelation_adjusted_cost,
 )
 from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -1283,12 +1284,33 @@ class ActionBrowserModal(ModalScreen):
 # left panel and category panel remain visible through transparent spacers.
 # ─────────────────────────────────────────
 
+_PAUSE_CHECKBOX_MAP: dict[str, PauseEventType] = {
+    "pause-eval":    PauseEventType.EVALUATION_COMPLETE,
+    "pause-rev":     PauseEventType.REVELATION_THRESHOLD,
+    "pause-action":  PauseEventType.QUEUED_ACTION_COMPLETE,
+    "pause-mortal":  PauseEventType.PINNED_MORTAL_DIED,
+    "pause-splint":  PauseEventType.POP_SPLINT,
+    "pause-domain":  PauseEventType.DOMAIN_THRESHOLD,
+    "pause-travel":  PauseEventType.TRAVEL_COMPLETE,
+    "pause-agent":   PauseEventType.MINOR_AGENT_UPDATE,
+}
+
+
 class RTwPModal(ModalScreen):
     BINDINGS = [("escape", "dismiss_modal", "Exit")]
 
-    def __init__(self, initial_entries: "list[tuple[int, str, str]]") -> None:
+    def __init__(
+        self,
+        initial_entries: "list[tuple[int, str, str]]",
+        pause_config: "PauseConfig",
+    ) -> None:
         super().__init__()
         self._initial_entries = initial_entries
+        self._pause_config = pause_config
+        self._auto_start: bool = False
+
+    def _paused_by(self, event_type: PauseEventType, default: bool) -> bool:
+        return self._pause_config.overrides.get(event_type, default)
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="rtwp-layout"):
@@ -1297,10 +1319,23 @@ class RTwPModal(ModalScreen):
                 # Note: @click entity links in markup won't resolve against RTwPModal
                 # (no open_detail_by_id action here); they silently no-op until delegated.
                 yield RichLog(id="rtwp-log", markup=True, highlight=False, wrap=True)
-                yield Static(
-                    "[#3a5a7a]Auto-pause options — coming in 5c[/]",
-                    id="rtwp-pauses",
-                )
+                with Vertical(id="rtwp-pauses"):
+                    yield Checkbox(
+                        "Begin advancing when this menu opens",
+                        value=self._auto_start,
+                        id="pause-autostart",
+                    )
+                    with Horizontal(id="rtwp-pause-columns"):
+                        with Vertical(id="rtwp-pause-left"):
+                            yield Checkbox("Evaluation completes",   value=self._paused_by(PauseEventType.EVALUATION_COMPLETE,  True),  id="pause-eval")
+                            yield Checkbox("Revelation threshold",   value=self._paused_by(PauseEventType.REVELATION_THRESHOLD,  True),  id="pause-rev")
+                            yield Checkbox("Queued action completes",value=self._paused_by(PauseEventType.QUEUED_ACTION_COMPLETE, True),  id="pause-action")
+                            yield Checkbox("Pinned mortal dies",     value=self._paused_by(PauseEventType.PINNED_MORTAL_DIED,    True),  id="pause-mortal")
+                        with Vertical(id="rtwp-pause-right"):
+                            yield Checkbox("Pop splints",            value=self._paused_by(PauseEventType.POP_SPLINT,            False), id="pause-splint")
+                            yield Checkbox("Domain threshold",       value=self._paused_by(PauseEventType.DOMAIN_THRESHOLD,      False), id="pause-domain")
+                            yield Checkbox("Travel completes",       value=self._paused_by(PauseEventType.TRAVEL_COMPLETE,       False), id="pause-travel")
+                            yield Checkbox("Minor agent update",     value=self._paused_by(PauseEventType.MINOR_AGENT_UPDATE,    False), id="pause-agent")
                 with Horizontal(id="rtwp-time-bar"):
                     yield Button("Exit",   id="rtwp-exit",  variant="default")
                     yield Button("Slow",   id="rtwp-slow",  disabled=True)
@@ -1319,6 +1354,16 @@ class RTwPModal(ModalScreen):
             self.query_one("#rtwp-log", RichLog).write(Text.from_markup(markup))
         except Exception:
             pass
+
+    @on(Checkbox.Changed)
+    def _on_checkbox(self, event: Checkbox.Changed) -> None:
+        cb_id = event.checkbox.id
+        if cb_id == "pause-autostart":
+            self._auto_start = event.value
+            return
+        event_type = _PAUSE_CHECKBOX_MAP.get(cb_id)
+        if event_type is not None:
+            self._pause_config.overrides[event_type] = event.value
 
     @on(Button.Pressed, "#rtwp-exit")
     def _exit(self, _: Button.Pressed) -> None:

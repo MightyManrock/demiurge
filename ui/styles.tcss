@@ -537,6 +537,32 @@ RTwPModal {
     padding: 1 2;
 }
 
+#rtwp-pause-columns {
+    height: auto;
+    margin: 1 0 0 0;
+}
+
+#rtwp-pause-left,
+#rtwp-pause-right {
+    width: 1fr;
+    height: auto;
+}
+
+#rtwp-pauses Checkbox {
+    background: transparent;
+    color: $muted;
+    padding: 0 0;
+    height: 1;
+}
+
+#rtwp-pauses Checkbox:focus {
+    background: $highlight;
+}
+
+#pause-autostart {
+    margin: 0 0 1 0;
+}
+
 #rtwp-time-bar {
     height: 3;
     align: center middle;

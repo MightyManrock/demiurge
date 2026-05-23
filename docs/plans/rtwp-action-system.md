@@ -88,7 +88,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 **5b — Live log feed** ✓ complete
 - Top ~2/3 of modal: log section that continues to refresh as ticks advance
 
-**5c — Auto-pause options panel**
+**5c — Auto-pause options panel** ✓ complete
 - Two-column layout with spanning header toggle: `[ ] Begin advancing when this menu opens`
 - Left column (default-on): evaluation completes, Revelation threshold, queued action completes, pinned mortal dies
 - Right column (default-off): pop splint, domain threshold, travel complete, minor agent updates

@@ -623,7 +623,7 @@ class GameScreen(Screen):
         self._advance_tick_work()
 
     def action_open_rtwp_modal(self) -> None:
-        self.app.push_screen(RTwPModal(self._rich_log.entries()))
+        self.app.push_screen(RTwPModal(self._rich_log.entries(), self._state.pause_config))
 
     def action_toggle_auto_advance(self) -> None:
         self._auto_advance = not self._auto_advance
