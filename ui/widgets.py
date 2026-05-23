@@ -1545,7 +1545,7 @@ class CategoryPanel(Vertical):
             if oa is None:
                 indicator = ""
             elif oa.repeating:
-                indicator = " ﹝o﹞"
+                indicator = " [o]"
             else:
-                indicator = " ﹝q﹞"
+                indicator = " [q]"
             row.set_indicator(indicator)

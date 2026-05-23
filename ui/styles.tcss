@@ -478,7 +478,7 @@ ImagoRevealCell.imago-eligible:focus {
 /* ── Category Panel ──────────────────── */
 
 #category-panel {
-    width: 22;
+    width: 18;
     background: $bg-panel;
     border-left: solid $border;
     padding: 1 1;
