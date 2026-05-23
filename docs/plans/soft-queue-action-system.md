@@ -498,7 +498,7 @@ class CategoryPendingModal(ModalScreen):
         self.dismiss("cancel")
 ```
 
-**4b — Wire `_on_category_clicked` to `CategoryPendingModal`**
+**4b — Wire `_on_category_clicked` to `CategoryPendingModal`** ✓ complete
 
 Files: `ui/ui.py`
 

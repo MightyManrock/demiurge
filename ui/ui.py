@@ -69,7 +69,7 @@ from ui.modals import (
     QuitConfirmModal,
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
-    ActionBrowserModal,
+    ActionBrowserModal, CategoryPendingModal,
 )
 
 
@@ -588,8 +588,9 @@ class GameScreen(Screen):
     #     """Switch focus to the Universe tab (was: dump snapshot to the log)."""
     #     self.query_one("#right-tabs", TabbedContent).active = "universe"
 
-    def action_queue_action(self) -> None:
-        self._queue_action_flow()
+    @work
+    async def action_queue_action(self) -> None:
+        await self._queue_action_flow()
 
     def action_manage_ongoing(self) -> None:
         self._manage_ongoing_flow()
@@ -795,13 +796,27 @@ class GameScreen(Screen):
     # ── Action queue flow ─────────────────────
 
     @on(CategoryPanel.CategoryClicked)
-    def _on_category_clicked(self, event: CategoryPanel.CategoryClicked) -> None:
-        if event.is_cooling:
-            self.app.push_screen(ToastModal("Category on cooldown — not ready yet."))
-        else:
-            self._queue_action_flow(initial_category=event.category)
-
     @work
+    async def _on_category_clicked(self, event: CategoryPanel.CategoryClicked) -> None:
+        cat_val = event.category.value
+        pending = self._state.pending_actions.get(cat_val)
+        if pending is None:
+            await self._queue_action_flow(initial_category=event.category)
+            return
+        cooldown_remaining = self._state.category_cooldowns.counters.get(event.category, 0)
+        defn = self.app.loop._action_library.get(pending.action_key)  # type: ignore[attr-defined]
+        action_name = defn.name if defn else pending.action_key
+        result = await self.app.push_screen_wait(
+            CategoryPendingModal(event.category, pending, action_name, cooldown_remaining)
+        )
+        if result == "replace":
+            await self._queue_action_flow(initial_category=event.category)
+        elif result == "cancel":
+            del self._state.pending_actions[cat_val]
+            self._feed_markup(f"[#c08070]Cancelled pending {_e(action_name)}.[/]", "actions")
+            self._refresh_status()
+        # None (keep) → do nothing
+
     async def _queue_action_flow(self, initial_category: "ActionCategory | None" = None) -> None:
         app     = self.app
         state   = self._state
