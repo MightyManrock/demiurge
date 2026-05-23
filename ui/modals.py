@@ -1333,6 +1333,7 @@ class CategoryPendingModal(ModalScreen):
                     "2  Override once, then resume",
                     id="override-btn",
                     variant="primary",
+                    disabled=not self._pending.repeating,
                 )
                 yield Button("3  Replace with new action", id="replace-btn", variant="warning")
                 yield Button("4  Cancel pending action", id="cancel-pending-btn", variant="error")

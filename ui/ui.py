@@ -847,15 +847,18 @@ class GameScreen(Screen):
                 continue
             break
 
-        # Ask once vs repeat
-        make_repeating = await app.push_screen_wait(
-            YesNoModal(
-                f"Queue '{defn.name}'",
-                "Fire once and clear, or repeat each tick until stopped?",
-                yes_label="Repeat",
-                no_label="Once",
+        # Ask once vs repeat — only actions tagged can_persist are eligible
+        if "can_persist" in (defn.tags or []):
+            make_repeating = await app.push_screen_wait(
+                YesNoModal(
+                    f"Queue '{defn.name}'",
+                    "Fire once and clear, or repeat each tick until stopped?",
+                    yes_label="Repeat",
+                    no_label="Once",
+                )
             )
-        )
+        else:
+            make_repeating = False
 
         state.pending_actions[defn.category.value] = OngoingAction(
             action_key=action_key,
