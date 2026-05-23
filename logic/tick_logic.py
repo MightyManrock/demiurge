@@ -555,7 +555,7 @@ class TickConfig(BaseModel):
     # Not every tick triggers a full Luminary evaluation.
     # Evaluation happens when: attention crosses a threshold,
     # a constraint is breached, or this many ticks have elapsed.
-    evaluation_interval: float = 10.0
+    evaluation_interval: float = 360.0
 
     # Essence generation weights (tuning targets; adjust after playtesting)
     essence_location_weight: float = 3.0
@@ -576,10 +576,12 @@ class TickConfig(BaseModel):
     # At 0.40: aff=0.2→52.5%, aff=0.5→75.8%, aff=0.8→91.5%, aff=0.9→95.9%.
     # Demiurge gets 1 − lum_fraction of any affiliated domain pool.
 
-    luminary_essence_baseline_rate: float = 10.0
+    luminary_essence_baseline_rate: float = 0.05
     # Expected weighted domain production per effective-affinity-point per tick.
     # Threshold = effective_affinity × baseline_rate × ticks_since_last_eval,
     # where effective_affinity uses diminishing returns (see luminary_essence_decay).
+    # At 1-day ticks with monthly essence fires and annual evaluation (360 ticks),
+    # threshold ≈ effective_affinity × 18 per year.
 
     luminary_essence_decay: float = 0.65
     # Geometric decay applied to each successive domain affinity when computing
@@ -594,7 +596,7 @@ class TickConfig(BaseModel):
     # of 6 (excess=8) adds 8×0.20=1.6 to their expectation floor next period.
     # Raised expectations decay by 0.10 per two consecutive shortfall periods.
 
-    luminary_essence_passive_rise: float = 5.0
+    luminary_essence_passive_rise: float = 0.1
     # Per-tick expectation creep added each evaluation period, diminishing with age.
     # Actual increment = passive_rise × ticks_since / max(tick_number, 1).
     # At tick 1 with ticks_since=6: full 0.50×6=3.0 added. At tick 50: 0.50×6/50=0.06.
@@ -1022,9 +1024,12 @@ class TickLoop:
         state = self._apply_passive_mutations(state, passive)
         state = self._prune_weak_beliefs(state)
 
-        # ── Essence generation (Phase 1 tail) ─────────
-        essence_gen_mutations, essence_by_domain = self._process_essence_generation(state, cfg)
-        state = self._apply_mutations(state, essence_gen_mutations)
+        # ── Essence generation (Phase 1 tail) — fires monthly (day 1 of each month) ─
+        if _new_age.day == 1:
+            essence_gen_mutations, essence_by_domain = self._process_essence_generation(state, cfg)
+            state = self._apply_mutations(state, essence_gen_mutations)
+        else:
+            essence_by_domain = {}
         result.essence_claimed_by_domain = essence_by_domain
         state.last_tick_essence_by_domain = dict(essence_by_domain)
 
@@ -2001,7 +2006,7 @@ class TickLoop:
                     universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
         if not universe_pool:
-            return []
+            return [], {}
 
         luminaries = list(state.luminaries.values())
         demiurge_affiliated = set(state.demiurge.affiliated_domains)
