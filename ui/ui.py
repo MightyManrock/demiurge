@@ -19,7 +19,7 @@ from textual.worker import Worker, WorkerState
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
-    Button, Footer, Header, Input, Label, ListItem, ListView, Static,
+    Button, Checkbox, Footer, Header, Input, Label, ListItem, ListView, Static,
     TabbedContent, TabPane,
 )
 from textual.containers import Horizontal, Vertical, ScrollableContainer
@@ -167,7 +167,7 @@ class GameScreen(Screen):
         ("a",      "queue_action",         "Queue"),
         ("o",      "manage_ongoing",       "Ongoing"),
         ("t",      "advance_tick",         "Advance"),
-        ("space",  "open_rtwp_modal",       "RTwP"),
+        ("space",  "rtwp",                  "Unpause"),
         ("ctrl+s", "save_game",            "Save"),
         ("q",      "quit_confirm",         "Quit"),
         ("ctrl+q", "quit_immediate",       "Force quit"),
@@ -341,6 +341,12 @@ class GameScreen(Screen):
                 event.tab.remove_class("discovered")
             except Exception:
                 pass
+            if self._auto_advance:
+                try:
+                    if self.query_one("#pause-on-log-open", Checkbox).value:
+                        self.action_toggle_auto_advance()
+                except Exception:
+                    pass
 
     def on_log_tab_new_content(self, _: LogTab.NewContent) -> None:
         """Add gold indicator to the Log tab when unseen entries arrive."""
@@ -640,12 +646,38 @@ class GameScreen(Screen):
     def action_open_rtwp_modal(self) -> None:
         self.app.push_screen(RTwPModal(self._rich_log.entries(), self._state.pause_config, self))
 
+    def action_rtwp(self) -> None:
+        self.action_toggle_auto_advance()
+
+    def _update_rtwp_binding(self) -> None:
+        desc = "Pause" if self._auto_advance else "Unpause"
+        self.bind("space", "rtwp", description=desc, show=True)
+        self.refresh_bindings()
+
+    def _refresh_rtwp_ui(self) -> None:
+        self._update_rtwp_binding()
+        try:
+            self.query_one(LogTab).refresh_play_button(self._auto_advance)
+        except Exception:
+            pass
+
     def action_toggle_auto_advance(self) -> None:
         self._auto_advance = not self._auto_advance
         label = "ON" if self._auto_advance else "OFF"
         self._feed_markup(f"[#3a6090]Auto-advance: {label}[/]", "other")
+        self._refresh_rtwp_ui()
         if self._auto_advance:
             self._advance_tick_work()
+
+    def on_log_tab_play_pause(self, _: LogTab.PlayPause) -> None:
+        self.action_toggle_auto_advance()
+
+    def on_log_tab_step(self, _: LogTab.Step) -> None:
+        if not self._auto_advance:
+            self.action_advance_tick()
+
+    def on_log_tab_set_speed(self, event: LogTab.SetSpeed) -> None:
+        self._auto_advance_delay_s = event.delay_s
 
     def _auto_advance_step(self) -> None:
         if self._auto_advance:
@@ -679,8 +711,10 @@ class GameScreen(Screen):
                 self._feed_markup,
                 "[#c09030]Auto-advance paused: divine contact.[/]", "other",
             )
+            self.app.call_from_thread(self._refresh_rtwp_ui)
         if result.terminal.triggered:
             self._auto_advance = False
+            self.app.call_from_thread(self._refresh_rtwp_ui)
             self._log.finalize(new_state, result)
             self.app.call_from_thread(
                 self._feed_markup,

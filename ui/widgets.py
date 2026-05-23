@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape as _e
 from rich.text import Text
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
@@ -1336,6 +1337,18 @@ class LogTab(Vertical):
     class NewContent(Message):
         """Fired once when unseen tick entries arrive while the Log tab is not active."""
 
+    class PlayPause(Message):
+        """User pressed the Play/Pause button in the Log tab."""
+
+    class Step(Message):
+        """User pressed the +1 step button in the Log tab."""
+
+    class SetSpeed(Message):
+        """User pressed Slow or Fast in the Log tab."""
+        def __init__(self, delay_s: float) -> None:
+            super().__init__()
+            self.delay_s = delay_s
+
     CATEGORIES = ("actions", "proxius", "luminary", "system", "other")
 
     def __init__(self, pause_config: PauseConfig) -> None:
@@ -1417,7 +1430,23 @@ class LogTab(Vertical):
         event_type = _PAUSE_CHECKBOX_MAP.get(event.checkbox.id or "")
         if event_type is not None:
             self._pause_config.overrides[event_type] = event.value
-        # pause-on-log-open is wired in R2
+        # pause-on-log-open handled by GameScreen via _on_tab_activated
+
+    @on(Button.Pressed, "#log-play")
+    def _play_pause_btn(self, _: Button.Pressed) -> None:
+        self.post_message(self.PlayPause())
+
+    @on(Button.Pressed, "#log-step")
+    def _step_btn(self, _: Button.Pressed) -> None:
+        self.post_message(self.Step())
+
+    @on(Button.Pressed, "#log-slow")
+    def _slow_btn(self, _: Button.Pressed) -> None:
+        self.post_message(self.SetSpeed(_SPEED_SLOW))
+
+    @on(Button.Pressed, "#log-fast")
+    def _fast_btn(self, _: Button.Pressed) -> None:
+        self.post_message(self.SetSpeed(_SPEED_FAST))
 
 
 # Category symbols in ActionCategory enum order.

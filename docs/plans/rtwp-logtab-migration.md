@@ -46,7 +46,7 @@ Replace the `RTwPModal` overlay (Phases 5a–5d) with a bottom section bolted on
 
 ---
 
-### Phase R2: Wire time bar + spacebar + auto-pause on Log open
+### Phase R2: Wire time bar + spacebar + auto-pause on Log open ✓ complete
 
 - Define Textual message classes inside `LogTab`:
   - `LogTab.PlayPause` (no data)
