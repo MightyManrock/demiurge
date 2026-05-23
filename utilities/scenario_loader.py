@@ -252,7 +252,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         luminary_attention=lum_attention,
         ticks_since_evaluation=ticks_since,
         config=cfg,
-        ongoing_actions=ongoing_actions,
+        pending_actions=ongoing_actions,
         active_events=active_events,
         luminary_production_this_eval=luminary_production_accum,
         domain_essence_claimed=domain_essence_claimed,
@@ -841,6 +841,7 @@ def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
             executed_ticks=row["executed_ticks"],
             successful_ticks=row.get("successful_ticks", 0),
             started_at_tick=row["started_at_tick"],
+            repeating=bool(row.get("repeating", 0)),
         )
     return out
 

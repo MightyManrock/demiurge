@@ -375,7 +375,7 @@ def _committed_essence(state: "SimulationState", loop) -> float:
         defn = library.get(key) if key else None
         if defn and defn.essence_cost > 0:
             total += defn.essence_cost
-    for oa in state.ongoing_actions.values():
+    for oa in state.pending_actions.values():
         defn = library.get(oa.action_key)
         if defn and defn.essence_cost > 0:
             total += defn.essence_cost
@@ -454,7 +454,7 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
 
     # At-a-glance reminder; full list lives on the Actions tab.
     q_count = len(state.action_queue)
-    o_count = len(state.ongoing_actions)
+    o_count = len(state.pending_actions)
     if q_count or o_count:
         a(f"[#5a7090]queue:[/] [#c09030]{q_count}[/]"
           f"  [#5a7090]ongoing:[/] [#60a070]{o_count}[/]")
@@ -660,8 +660,8 @@ class ActionsTab(ContentTab):
         a("")
         a("[bold #4a80b0]━━ ONGOING ━━[/]")
         a("")
-        if state.ongoing_actions:
-            for cat_val, oa in state.ongoing_actions.items():
+        if state.pending_actions:
+            for cat_val, oa in state.pending_actions.items():
                 cat = cat_val.replace("_", " ").title()
                 defn = library.get(oa.action_key)
                 if defn:

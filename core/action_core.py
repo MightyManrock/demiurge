@@ -677,8 +677,9 @@ class ActionInstance(BaseModel):
 
 class OngoingAction(BaseModel):
     """
-    A persistent action that auto-executes each tick until explicitly stopped.
-    Keyed by ActionCategory.value in SimulationState.ongoing_actions.
+    A pending action occupying one category slot in SimulationState.pending_actions.
+    repeating=False: fires once, then the slot is cleared.
+    repeating=True: slot is kept after firing (standing order).
     """
     action_key: str
     action_definition_id: UUID
@@ -690,6 +691,7 @@ class OngoingAction(BaseModel):
     executed_ticks: int = 0
     successful_ticks: int = 0
     started_at_tick: int = 0
+    repeating: bool = False
 
 
 # ─────────────────────────────────────────

@@ -1143,7 +1143,7 @@ class ActionBrowserModal(ModalScreen):
                     for i, (cat, _) in enumerate(self._cat_actions.items()):
                         is_cooling = self._state.category_cooldowns.counters.get(cat, 0) > 0
                         used    = self._queued_cats.get(cat.value)
-                        ongoing = self._state.ongoing_actions.get(cat.value)
+                        ongoing = self._state.pending_actions.get(cat.value)
                         if used:
                             note = f"  [used: {used}]"
                         elif ongoing:
@@ -1188,7 +1188,7 @@ class ActionBrowserModal(ModalScreen):
     @work
     async def _open_cat(self, cat: "ActionCategory", actions: list) -> None:
         # If ongoing action in this category, offer management
-        ongoing = self._state.ongoing_actions.get(cat.value)
+        ongoing = self._state.pending_actions.get(cat.value)
         if ongoing:
             od    = self._library.get(ongoing.action_key)
             oname = od.name if od else ongoing.action_key
@@ -1207,7 +1207,7 @@ class ActionBrowserModal(ModalScreen):
                 self._reveal_cat_list()
                 return
             if choice == "stop":
-                del self._state.ongoing_actions[cat.value]
+                del self._state.pending_actions[cat.value]
                 self._state.category_cooldowns.counters[cat] = compute_cooldown(
                     cat, self._state.demiurge.puissance
                 )

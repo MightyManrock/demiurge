@@ -701,15 +701,16 @@ def _write_active_events(conn, state: SimulationState):
 
 
 def _write_ongoing_actions(conn, state: SimulationState):
-    for cat_val, oa in state.ongoing_actions.items():
+    for cat_val, oa in state.pending_actions.items():
         intent_type = type(oa.intent).__name__ if oa.intent is not None else None
         intent_data = oa.intent.model_dump_json() if oa.intent is not None else None
         conn.execute(
             """INSERT INTO ongoing_actions
                (category_key, action_key, action_definition_id, target_type,
                 target_id, proxius_id, intent_type, intent_data,
-                ticks_active, executed_ticks, successful_ticks, started_at_tick)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ticks_active, executed_ticks, successful_ticks, started_at_tick,
+                repeating)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cat_val,
                 oa.action_key,
@@ -723,6 +724,7 @@ def _write_ongoing_actions(conn, state: SimulationState):
                 oa.executed_ticks,
                 oa.successful_ticks,
                 oa.started_at_tick,
+                int(oa.repeating),
             ),
         )
 

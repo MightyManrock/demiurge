@@ -598,22 +598,22 @@ class GameScreen(Screen):
     async def _manage_ongoing_flow(self) -> None:
         state   = self._state
         library = self.app.loop._action_library  # type: ignore[attr-defined]
-        if not state.ongoing_actions:
+        if not state.pending_actions:
             self._feed_markup("[#5a7090]No ongoing actions.[/]", "actions")
             return
         items = []
-        for cat_val, oa in state.ongoing_actions.items():
+        for cat_val, oa in state.pending_actions.items():
             defn  = library.get(oa.action_key)
             name  = defn.name if defn else oa.action_key
             label = cat_val.replace("_", " ").title()
             items.append((cat_val, f"[{label}] {name}  ({oa.successful_ticks}/{oa.executed_ticks})"))
         chosen = await self.app.push_screen_wait(PickerModal("Ongoing Actions", items))
-        if chosen and chosen in state.ongoing_actions:
+        if chosen and chosen in state.pending_actions:
             confirmed = await self.app.push_screen_wait(
                 YesNoModal(f"Stop this ongoing action?")
             )
             if confirmed:
-                oa   = state.ongoing_actions.pop(chosen)
+                oa   = state.pending_actions.pop(chosen)
                 defn = library.get(oa.action_key)
                 name = defn.name if defn else oa.action_key
                 # Clear the Proxius's active goal when a preach_imago is stopped,
@@ -828,7 +828,7 @@ class GameScreen(Screen):
                     and library[key].essence_cost > 0
                 ) + sum(
                     library[oa.action_key].essence_cost
-                    for oa in state.ongoing_actions.values()
+                    for oa in state.pending_actions.values()
                     if library.get(oa.action_key) is not None
                     and library[oa.action_key].essence_cost > 0
                 )
@@ -861,7 +861,7 @@ class GameScreen(Screen):
                 )
             )
             if make_persistent:
-                state.ongoing_actions[defn.category.value] = OngoingAction(
+                state.pending_actions[defn.category.value] = OngoingAction(
                     action_key=action_key,
                     action_definition_id=defn.id,
                     target_type=instance.target_type,

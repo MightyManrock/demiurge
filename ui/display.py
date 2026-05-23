@@ -450,8 +450,8 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
         )
     lines.append(SEP)
     lines.append("ONGOING ACTIONS")
-    if state.ongoing_actions:
-        for cat_val, oa in state.ongoing_actions.items():
+    if state.pending_actions:
+        for cat_val, oa in state.pending_actions.items():
             cat_label  = cat_val.replace("_", " ").title()
             target_str = f" → {_name_for_id(oa.target_id, state)}" if oa.target_id else ""
             lines.append(

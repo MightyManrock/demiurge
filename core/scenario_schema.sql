@@ -371,7 +371,8 @@ CREATE TABLE IF NOT EXISTS ongoing_actions (
     ticks_active           INTEGER NOT NULL DEFAULT 0,
     executed_ticks         INTEGER NOT NULL DEFAULT 0,
     successful_ticks       INTEGER NOT NULL DEFAULT 0,
-    started_at_tick        INTEGER NOT NULL DEFAULT 0
+    started_at_tick        INTEGER NOT NULL DEFAULT 0,
+    repeating              INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS active_events (

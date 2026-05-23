@@ -903,10 +903,10 @@ class SimulationState(BaseModel):
     # Used to stall passive concealment decay when the Demiurge goes quiet.
     ticks_without_essence_gain: int = 0
 
-    # Persistent actions that auto-execute each tick.
-    # Keyed by ActionCategory.value; appended to action_queue before Phase 2.
-    # Manually queued actions in the same category take priority and block the ongoing one.
-    ongoing_actions: dict[str, OngoingAction] = Field(default_factory=dict)
+    # One pending slot per ActionCategory.
+    # repeating=False: fire once, then clear. repeating=True: keep after firing.
+    # Keyed by ActionCategory.value.
+    pending_actions: dict[str, OngoingAction] = Field(default_factory=dict)
 
     # Active events: divine acts that continue to affect the world across multiple ticks.
     # Keyed by str(Event.id). Populated by EVENT_EMITTED mutations; pruned when expired.
@@ -1055,7 +1055,7 @@ class TickLoop:
                 committed_essence += d.essence_cost
 
         ongoing_instance_ids: dict[str, str] = {}
-        for cat_val, ongoing in list(state.ongoing_actions.items()):
+        for cat_val, ongoing in list(state.pending_actions.items()):
             defn = self._action_library.get(ongoing.action_key)
             if defn is None:
                 continue
@@ -1095,7 +1095,7 @@ class TickLoop:
         outcome_by_id = {str(e.action_instance_id): e.outcome for e in action_result.entries}
         for iid, cat_val in ongoing_instance_ids.items():
             if iid in executed_ids:
-                oa = state.ongoing_actions.get(cat_val)
+                oa = state.pending_actions.get(cat_val)
                 if oa:
                     oa.executed_ticks += 1
                     if outcome_by_id.get(iid) != ActionOutcome.FAILURE:
@@ -1130,14 +1130,14 @@ class TickLoop:
         # If ongoing Explore Beliefs has filled the pool to cap, cancel it automatically.
         from core.action_core import ActionCategory as _AC
         _sr_key = _AC.SELF_REFINEMENT.value
-        if _sr_key in state.ongoing_actions:
-            _oa = state.ongoing_actions[_sr_key]
+        if _sr_key in state.pending_actions:
+            _oa = state.pending_actions[_sr_key]
             if _oa.action_key == "explore_beliefs" and isinstance(_oa.intent, ExploreBeliefIntent):
                 _tag = _oa.intent.domain_tag
                 _cap = _compute_revelation_cap(state, _tag)
                 _pool = state.demiurge.revelation_pools.get(_tag, 0.0)
                 if _cap == 0.0 or _pool >= _cap:
-                    del state.ongoing_actions[_sr_key]
+                    del state.pending_actions[_sr_key]
                     _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
                     _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
                     result.passive_result.narrative_events.append(
