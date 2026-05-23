@@ -1448,7 +1448,7 @@ class CategoryRow(Widget):
     def compose(self) -> ComposeResult:
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
-        yield Static(f"{symbol}  {label}", classes="cat-label")
+        yield Static(f"{symbol}   {label}", classes="cat-label")
         # Countdown Static (active). Swap for ProgressBar block below when troubleshooting.
         yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}")
         # ProgressBar alternative (disabled — see quantization note in commit history):
@@ -1500,10 +1500,10 @@ class CategoryPanel(Vertical):
             yield CategoryRow(cat)
         yield Static("", id="cat-speed-label")
         with Horizontal(id="cat-controls"):
-            yield Button("⏪", id="cat-slow")
-            yield Button("▶",  id="cat-play")
+            yield Button("«", id="cat-slow")
+            yield Button("▶", id="cat-play")
             yield Button("⁺1", id="cat-step")
-            yield Button("⏩", id="cat-fast")
+            yield Button("»", id="cat-fast")
 
     def refresh_play_button(self, is_playing: bool) -> None:
         try:

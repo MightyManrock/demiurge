@@ -519,9 +519,9 @@ ImagoRevealCell.imago-eligible:focus {
 }
 
 #cat-controls Button {
-    min-width: 3;
+    min-width: 1;
     width: auto;
-    padding: 0 1;
+    padding: 0;
     margin: 0;
     border: none;
 }
