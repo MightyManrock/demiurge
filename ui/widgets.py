@@ -23,7 +23,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, Checkbox, ListView, ProgressBar, RichLog, Static
+from textual.widgets import Button, Checkbox, ListView, RichLog, Static
 
 from core.action_core import ActionCategory, CATEGORY_BASE_COOLDOWNS
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
@@ -1433,6 +1433,25 @@ _CATEGORY_LABELS: dict[ActionCategory, str] = {
     ActionCategory.SELF_REFINEMENT:    "Refine",
 }
 
+_BAR_CELLS  = 8
+_BAR_CHAR   = "▬"
+_BAR_EMPTY  = "#3a5070"
+_BAR_FILL   = "#4a80b0"
+_BAR_READY  = "#50b870"
+
+def _render_cat_bar(counter: int, base: int) -> str:
+    if counter == 0:
+        return f"[{_BAR_READY}]{_BAR_CHAR * _BAR_CELLS}[/]"
+    if counter >= base - 1:
+        return f"[{_BAR_EMPTY}]{_BAR_CHAR * _BAR_CELLS}[/]"
+    effective = base - 2
+    filled = round((effective - counter) / effective * _BAR_CELLS)
+    filled = max(0, min(filled, _BAR_CELLS))
+    return (
+        f"[{_BAR_FILL}]{_BAR_CHAR * filled}[/]"
+        f"[{_BAR_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
+    )
+
 
 class CategoryRow(Widget):
     """One row in the category panel: symbol label + cooldown progress bar."""
@@ -1448,20 +1467,17 @@ class CategoryRow(Widget):
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
         yield Static(f"{symbol}   {label}", classes="cat-label")
-        base = CATEGORY_BASE_COOLDOWNS[self._category]
-        yield ProgressBar(total=base, show_eta=False, show_percentage=False,
-                          classes="cat-bar", id=f"cat-bar-{self._category.value}")
+        yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}", markup=True)
 
     def set_cooldown(self, counter: int) -> None:
         self._counter = counter
         base = CATEGORY_BASE_COOLDOWNS[self._category]
-        bar = self.query_one(ProgressBar)
+        self.query_one(f"#cat-bar-{self._category.value}", Static).update(
+            _render_cat_bar(counter, base)
+        )
         if counter == 0:
-            bar.update(total=base, progress=base)
             self.remove_class("cooling")
         else:
-            progress = 0 if counter >= base - 1 else base - counter
-            bar.update(total=base, progress=progress)
             self.add_class("cooling")
 
     class CategoryClicked(Message):
