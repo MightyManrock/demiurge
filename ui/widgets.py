@@ -1359,12 +1359,12 @@ class LogTab(Vertical):
             with Horizontal(id="log-pause-columns"):
                 with Vertical(id="log-pause-left"):
                     yield Checkbox("Evaluation completes",    value=self._paused_by(PauseEventType.EVALUATION_COMPLETE,  True),  id="pause-eval")
-                    yield Checkbox("Revelation threshold",    value=self._paused_by(PauseEventType.REVELATION_THRESHOLD,  True),  id="pause-rev")
+                    yield Checkbox("Revelation threshold reached", value=self._paused_by(PauseEventType.REVELATION_THRESHOLD,  True),  id="pause-rev")
                     yield Checkbox("Queued action completes", value=self._paused_by(PauseEventType.QUEUED_ACTION_COMPLETE, True),  id="pause-action")
                     yield Checkbox("Pinned mortal dies",      value=self._paused_by(PauseEventType.PINNED_MORTAL_DIED,    True),  id="pause-mortal")
                 with Vertical(id="log-pause-right"):
                     yield Checkbox("Pop splints",             value=self._paused_by(PauseEventType.POP_SPLINT,            False), id="pause-splint")
-                    yield Checkbox("Domain threshold",        value=self._paused_by(PauseEventType.DOMAIN_THRESHOLD,      False), id="pause-domain")
+                    yield Checkbox("Domain threshold reached", value=self._paused_by(PauseEventType.DOMAIN_THRESHOLD,      False), id="pause-domain")
                     yield Checkbox("Travel completes",        value=self._paused_by(PauseEventType.TRAVEL_COMPLETE,       False), id="pause-travel")
                     yield Checkbox("Minor agent update",      value=self._paused_by(PauseEventType.MINOR_AGENT_UPDATE,    False), id="pause-agent")
             yield Checkbox("Pause when Log opens", id="pause-on-log-open", value=False)
