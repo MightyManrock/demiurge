@@ -428,6 +428,55 @@ ImagoRevealCell.imago-eligible:focus {
     content-align: left middle;
 }
 
+/* ── Log tab: RTwP controls ─────────── */
+
+#main-feed {
+    height: 1fr;
+}
+
+#log-rtwp {
+    height: auto;
+    background: $bg-panel;
+    border-top: solid $border;
+    padding: 1 2;
+}
+
+#log-pause-columns {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#log-pause-left,
+#log-pause-right {
+    width: 1fr;
+    height: auto;
+}
+
+#log-rtwp Checkbox {
+    background: transparent;
+    color: $muted;
+    padding: 0 0;
+    height: 1;
+}
+
+#log-rtwp Checkbox:focus {
+    background: $highlight;
+}
+
+#pause-on-log-open {
+    margin: 0 0 1 0;
+}
+
+#log-time-bar {
+    height: 3;
+    align: center middle;
+    padding: 0 1;
+}
+
+#log-time-bar Button {
+    margin: 0 1;
+}
+
 /* ── Category Panel ──────────────────── */
 
 #category-panel {

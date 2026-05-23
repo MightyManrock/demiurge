@@ -22,13 +22,13 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, ListView, RichLog, Static
+from textual.widgets import Button, Checkbox, ListView, RichLog, Static
 # from textual.widgets import ProgressBar  # re-enable when troubleshooting bar quantization
 
 from core.action_core import ActionCategory
 # from core.action_core import ActionCategory, CATEGORY_BASE_COOLDOWNS  # re-enable with ProgressBar
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
-from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
+from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR, PauseConfig, PauseEventType
 
 from ui import display
 from ui.display import (
@@ -1270,6 +1270,25 @@ class DivineWisdomTab(ContentTab):
 
 
 # ─────────────────────────────────────────
+# Log tab: RTwP speed constants and pause-checkbox map
+# ─────────────────────────────────────────
+
+_SPEED_SLOW   = 0.5
+_SPEED_NORMAL = 0.2
+_SPEED_FAST   = 0.05
+
+_PAUSE_CHECKBOX_MAP: dict[str, PauseEventType] = {
+    "pause-eval":    PauseEventType.EVALUATION_COMPLETE,
+    "pause-rev":     PauseEventType.REVELATION_THRESHOLD,
+    "pause-action":  PauseEventType.QUEUED_ACTION_COMPLETE,
+    "pause-mortal":  PauseEventType.PINNED_MORTAL_DIED,
+    "pause-splint":  PauseEventType.POP_SPLINT,
+    "pause-domain":  PauseEventType.DOMAIN_THRESHOLD,
+    "pause-travel":  PauseEventType.TRAVEL_COMPLETE,
+    "pause-agent":   PauseEventType.MINOR_AGENT_UPDATE,
+}
+
+
 # Log tab: chip filter row + filtered RichLog
 # ─────────────────────────────────────────
 
@@ -1308,24 +1327,50 @@ class LogChip(Static):
 
 
 class LogTab(Vertical):
-    """Composite tab body: chip row on top, filtered RichLog beneath.
+    """Composite tab body: chip row on top, filtered RichLog, RTwP controls at bottom.
 
     Tick-result lines (and ad-hoc status messages) come in via `append(category, markup)`.
     The full history is retained; chip toggles re-render the visible portion.
     """
 
+    class NewContent(Message):
+        """Fired once when unseen tick entries arrive while the Log tab is not active."""
+
     CATEGORIES = ("actions", "proxius", "luminary", "system", "other")
 
-    def __init__(self) -> None:
+    def __init__(self, pause_config: PauseConfig) -> None:
         super().__init__()
+        self._pause_config = pause_config
         self._active: set[str] = set(self.CATEGORIES)
         self._entries: list[tuple[str, str]] = []
+        self._has_unseen: bool = False
+
+    def _paused_by(self, event_type: PauseEventType, default: bool) -> bool:
+        return self._pause_config.overrides.get(event_type, default)
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="log-chips"):
             for cat in self.CATEGORIES:
                 yield LogChip(cat, active=True)
         yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
+        with Vertical(id="log-rtwp"):
+            with Horizontal(id="log-pause-columns"):
+                with Vertical(id="log-pause-left"):
+                    yield Checkbox("Evaluation completes",    value=self._paused_by(PauseEventType.EVALUATION_COMPLETE,  True),  id="pause-eval")
+                    yield Checkbox("Revelation threshold",    value=self._paused_by(PauseEventType.REVELATION_THRESHOLD,  True),  id="pause-rev")
+                    yield Checkbox("Queued action completes", value=self._paused_by(PauseEventType.QUEUED_ACTION_COMPLETE, True),  id="pause-action")
+                    yield Checkbox("Pinned mortal dies",      value=self._paused_by(PauseEventType.PINNED_MORTAL_DIED,    True),  id="pause-mortal")
+                with Vertical(id="log-pause-right"):
+                    yield Checkbox("Pop splints",             value=self._paused_by(PauseEventType.POP_SPLINT,            False), id="pause-splint")
+                    yield Checkbox("Domain threshold",        value=self._paused_by(PauseEventType.DOMAIN_THRESHOLD,      False), id="pause-domain")
+                    yield Checkbox("Travel completes",        value=self._paused_by(PauseEventType.TRAVEL_COMPLETE,       False), id="pause-travel")
+                    yield Checkbox("Minor agent update",      value=self._paused_by(PauseEventType.MINOR_AGENT_UPDATE,    False), id="pause-agent")
+            yield Checkbox("Pause when Log opens", id="pause-on-log-open", value=False)
+            with Horizontal(id="log-time-bar"):
+                yield Button("Slow",   id="log-slow")
+                yield Button("▶ Play", id="log-play")
+                yield Button("+1",     id="log-step")
+                yield Button("Fast",   id="log-fast")
 
     def append(self, category: str, markup: str) -> None:
         """Record an entry and write it to the log if its category is active."""
@@ -1334,6 +1379,9 @@ class LogTab(Vertical):
         self._entries.append((category, markup))
         if category in self._active:
             self.query_one("#main-feed", RichLog).write(Text.from_markup(markup))
+        if not self._has_unseen:
+            self._has_unseen = True
+            self.post_message(self.NewContent())
 
     def clear(self) -> None:
         self._entries.clear()
@@ -1346,12 +1394,30 @@ class LogTab(Vertical):
             if cat in self._active:
                 log.write(Text.from_markup(mk))
 
+    def mark_seen(self) -> None:
+        """Clear the unseen flag (called by GameScreen when Log tab is opened)."""
+        self._has_unseen = False
+
+    def refresh_play_button(self, is_playing: bool) -> None:
+        """Update the Play/Pause button label to match current auto-advance state."""
+        try:
+            self.query_one("#log-play", Button).label = "⏸ Pause" if is_playing else "▶ Play"
+        except Exception:
+            pass
+
     def on_log_chip_toggled(self, event: LogChip.Toggled) -> None:
         if event.active:
             self._active.add(event.category)
         else:
             self._active.discard(event.category)
         self._rerender()
+
+    @on(Checkbox.Changed)
+    def _on_checkbox(self, event: Checkbox.Changed) -> None:
+        event_type = _PAUSE_CHECKBOX_MAP.get(event.checkbox.id or "")
+        if event_type is not None:
+            self._pause_config.overrides[event_type] = event.value
+        # pause-on-log-open is wired in R2
 
 
 # Category symbols in ActionCategory enum order.

@@ -229,7 +229,7 @@ class GameScreen(Screen):
                 with TabPane("Divine Wisdom", id="divine_wisdom"):
                     yield DivineWisdomTab()
                 with TabPane("Log", id="log"):
-                    yield LogTab()
+                    yield LogTab(self._state.pause_config)
             yield CategoryPanel(id="category-panel")
         yield Footer()
 
@@ -335,6 +335,21 @@ class GameScreen(Screen):
                 event.tab.remove_class("discovered")
             except Exception:
                 pass
+        elif pane_id == "log":
+            try:
+                self.query_one(LogTab).mark_seen()
+                event.tab.remove_class("discovered")
+            except Exception:
+                pass
+
+    def on_log_tab_new_content(self, _: LogTab.NewContent) -> None:
+        """Add gold indicator to the Log tab when unseen entries arrive."""
+        try:
+            right = self.query_one("#right-tabs", TabbedContent)
+            if right.active != "log":
+                right.get_tab("log").add_class("discovered")
+        except Exception:
+            pass
 
     def _record_discoveries(self, before_ids: dict[str, set[str]]) -> None:
         """Diff in-Window IDs before/after a tick to populate unseen sets."""
