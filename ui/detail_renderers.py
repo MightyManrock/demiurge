@@ -626,7 +626,12 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     if m.bio_age != m.chrono_age:
         age_str += f"  (bio:{m.bio_age:.0f})"
     a(f"  {age_str}")
-    if display.DEV_MODE:
+    _manually_pinned = (
+        m.pinned
+        and str(m.id) not in state.starting_pinned_ids
+        and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
+    )
+    if display.DEV_MODE or _manually_pinned:
         a(f"  [#5a7090]born: {_format_calendar_date(m.birthday)}[/]")
     if m.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
