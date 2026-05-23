@@ -6,6 +6,7 @@ lib64
 pyvenv.cfg
 
 logs/*.log
+logs/*.jsonl
 # docs/ is an Obsidian/SyncThing vault — ignore sync/app metadata, track everything else
 docs/.obsidian/
 docs/.trash/
