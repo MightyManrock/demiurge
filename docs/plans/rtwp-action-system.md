@@ -162,9 +162,15 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - `UniverseAge(year, month, day)` model replaces `float`; `advance_days(n)` + `display()` helpers
 - Top-bar/status/briefing display: `"Day D of Month M, Year Y"` (year formatted with commas)
 - `birthday: (month, day)` on `NotableMortal`; `founding_date: (year, month, day)` on `Civilization`; both derived from existing age data during migration
-- Birthday interval check (`_birthday_fires`) gates chrono/bio age increments for mortals and age increments for civilizations; `days_per_tick = round(tick_duration × 360)` stays correct across tick scales
+- Birthday interval check (`_birthday_fires`) gates chrono/bio age increments for mortals; dormant Proxii bio_age increments 0.2 on birthday only
+- Civ age increments by 1 on founding anniversary (`_birthday_fires` over founding month/day)
 - Schema: `age_year/age_month/age_day` columns (legacy `current_age` float preserved); `birthday_month/birthday_day` on mortals; `founding_year/month/day` on civs
 - Existing scenarios migrated via `--rebuild --scenario`
+
+**6b2 — Founding date + birthday curation** ✓ complete
+- All 9 civs in wardens_compact.db and 9 in ledger_and_ash.db assigned distinct founding month/day via deterministic MD5 hash of name
+- All mortals in both scenarios assigned distinct birthdays by same method
+- Applied directly to scenario DBs; autoplay regression passes
 
 **6c — Recalibrate Essence + Revelation**
 - Adjust per-tick rates to suit tick = 1 day; drop per-tick minimums; rely on fractional accumulation
