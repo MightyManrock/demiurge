@@ -26,7 +26,7 @@ Unify `action_queue` (transient list) and `ongoing_actions` (persistent dict) in
 
 ### Phase 1: Data model + persistence
 
-**1a — Add `repeating` to `OngoingAction`; rename field in `SimulationState`** ✓ _not started_
+**1a — Add `repeating` to `OngoingAction`; rename field in `SimulationState`** ✓ complete
 
 Files:
 - `core/action_core.py` — add `repeating: bool = False` to `OngoingAction`; update docstring
