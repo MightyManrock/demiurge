@@ -1337,18 +1337,6 @@ class LogTab(Vertical):
     class NewContent(Message):
         """Fired once when unseen tick entries arrive while the Log tab is not active."""
 
-    class PlayPause(Message):
-        """User pressed the Play/Pause button in the Log tab."""
-
-    class Step(Message):
-        """User pressed the +1 step button in the Log tab."""
-
-    class SetSpeed(Message):
-        """User pressed Slow or Fast in the Log tab."""
-        def __init__(self, delay_s: float) -> None:
-            super().__init__()
-            self.delay_s = delay_s
-
     CATEGORIES = ("actions", "proxius", "luminary", "system", "other")
 
     def __init__(self, pause_config: PauseConfig) -> None:
@@ -1379,11 +1367,6 @@ class LogTab(Vertical):
                     yield Checkbox("Travel completes",        value=self._paused_by(PauseEventType.TRAVEL_COMPLETE,       False), id="pause-travel")
                     yield Checkbox("Minor agent update",      value=self._paused_by(PauseEventType.MINOR_AGENT_UPDATE,    False), id="pause-agent")
             yield Checkbox("Pause when Log opens", id="pause-on-log-open", value=False)
-            with Horizontal(id="log-time-bar"):
-                yield Button("Slow",   id="log-slow")
-                yield Button("▶ Play", id="log-play")
-                yield Button("+1",     id="log-step")
-                yield Button("Fast",   id="log-fast")
 
     def append(self, category: str, markup: str) -> None:
         """Record an entry and write it to the log if its category is active."""
@@ -1411,13 +1394,6 @@ class LogTab(Vertical):
         """Clear the unseen flag (called by GameScreen when Log tab is opened)."""
         self._has_unseen = False
 
-    def refresh_play_button(self, is_playing: bool) -> None:
-        """Update the Play/Pause button label to match current auto-advance state."""
-        try:
-            self.query_one("#log-play", Button).label = "⏸ Pause" if is_playing else "▶ Play"
-        except Exception:
-            pass
-
     def on_log_chip_toggled(self, event: LogChip.Toggled) -> None:
         if event.active:
             self._active.add(event.category)
@@ -1431,22 +1407,6 @@ class LogTab(Vertical):
         if event_type is not None:
             self._pause_config.overrides[event_type] = event.value
         # pause-on-log-open handled by GameScreen via _on_tab_activated
-
-    @on(Button.Pressed, "#log-play")
-    def _play_pause_btn(self, _: Button.Pressed) -> None:
-        self.post_message(self.PlayPause())
-
-    @on(Button.Pressed, "#log-step")
-    def _step_btn(self, _: Button.Pressed) -> None:
-        self.post_message(self.Step())
-
-    @on(Button.Pressed, "#log-slow")
-    def _slow_btn(self, _: Button.Pressed) -> None:
-        self.post_message(self.SetSpeed(_SPEED_SLOW))
-
-    @on(Button.Pressed, "#log-fast")
-    def _fast_btn(self, _: Button.Pressed) -> None:
-        self.post_message(self.SetSpeed(_SPEED_FAST))
 
 
 # Category symbols in ActionCategory enum order.
@@ -1488,7 +1448,7 @@ class CategoryRow(Widget):
     def compose(self) -> ComposeResult:
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
-        yield Static(f"{symbol} {label}", classes="cat-label")
+        yield Static(f"{symbol}  {label}", classes="cat-label")
         # Countdown Static (active). Swap for ProgressBar block below when troubleshooting.
         yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}")
         # ProgressBar alternative (disabled — see quantization note in commit history):
@@ -1538,6 +1498,24 @@ class CategoryPanel(Vertical):
     def compose(self) -> ComposeResult:
         for cat in ActionCategory:
             yield CategoryRow(cat)
+        yield Static("", id="cat-speed-label")
+        with Horizontal(id="cat-controls"):
+            yield Button("⏪", id="cat-slow")
+            yield Button("▶",  id="cat-play")
+            yield Button("⁺1", id="cat-step")
+            yield Button("⏩", id="cat-fast")
+
+    def refresh_play_button(self, is_playing: bool) -> None:
+        try:
+            self.query_one("#cat-play", Button).label = "⏸" if is_playing else "▶"
+        except Exception:
+            pass
+
+    def refresh_speed_label(self, delay_s: float) -> None:
+        try:
+            self.query_one("#cat-speed-label", Static).update(f"{delay_s:.2f}s")
+        except Exception:
+            pass
 
     def refresh_state(self, state: "SimulationState") -> None:
         counters = state.category_cooldowns.counters

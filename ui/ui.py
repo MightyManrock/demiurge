@@ -60,6 +60,7 @@ from ui.widgets import (
     BriefingTab, UniverseTab, LuminariesTab, LogTab,
     DivineWisdomTab, CategoryPanel,
     set_detail_action_provider, set_unseen_predicate,
+    _SPEED_SLOW, _SPEED_FAST,
 )
 from ui.detail_tabs import DetailTabManager
 from ui.session_log import SessionLog, RichLogBuffer
@@ -245,6 +246,7 @@ class GameScreen(Screen):
         )
         # Render all tabs from the initial state.
         self._refresh_all()
+        self._refresh_rtwp_ui()
         # Restore rich log from previous session if this is a loaded save.
         if self._state.rich_log_name:
             rich_log_path = _LOGS_DIR / f"{self._state.rich_log_name}.jsonl"
@@ -643,7 +645,9 @@ class GameScreen(Screen):
 
     def _refresh_rtwp_ui(self) -> None:
         try:
-            self.query_one(LogTab).refresh_play_button(self._auto_advance)
+            panel = self.query_one(CategoryPanel)
+            panel.refresh_play_button(self._auto_advance)
+            panel.refresh_speed_label(self._auto_advance_delay_s)
         except Exception:
             pass
 
@@ -655,15 +659,24 @@ class GameScreen(Screen):
         if self._auto_advance:
             self._advance_tick_work()
 
-    def on_log_tab_play_pause(self, _: LogTab.PlayPause) -> None:
+    @on(Button.Pressed, "#cat-play")
+    def _cat_play_btn(self, _: Button.Pressed) -> None:
         self.action_toggle_auto_advance()
 
-    def on_log_tab_step(self, _: LogTab.Step) -> None:
+    @on(Button.Pressed, "#cat-step")
+    def _cat_step_btn(self, _: Button.Pressed) -> None:
         if not self._auto_advance:
             self.action_advance_tick()
 
-    def on_log_tab_set_speed(self, event: LogTab.SetSpeed) -> None:
-        self._auto_advance_delay_s = event.delay_s
+    @on(Button.Pressed, "#cat-slow")
+    def _cat_slow_btn(self, _: Button.Pressed) -> None:
+        self._auto_advance_delay_s = _SPEED_SLOW
+        self._refresh_rtwp_ui()
+
+    @on(Button.Pressed, "#cat-fast")
+    def _cat_fast_btn(self, _: Button.Pressed) -> None:
+        self._auto_advance_delay_s = _SPEED_FAST
+        self._refresh_rtwp_ui()
 
     def _auto_advance_step(self) -> None:
         if self._auto_advance:

@@ -469,20 +469,10 @@ ImagoRevealCell.imago-eligible:focus {
     margin: 0 0 1 0;
 }
 
-#log-time-bar {
-    height: 3;
-    align: center middle;
-    padding: 0 1;
-}
-
-#log-time-bar Button {
-    margin: 0 1;
-}
-
 /* ── Category Panel ──────────────────── */
 
 #category-panel {
-    width: 14;
+    width: 18;
     background: $bg-panel;
     border-left: solid $border;
     padding: 1 1;
@@ -513,6 +503,27 @@ ImagoRevealCell.imago-eligible:focus {
 
 .category-row.cooling .cat-bar {
     color: #3a5070;
+}
+
+#cat-speed-label {
+    text-align: center;
+    color: $muted;
+    height: 1;
+    margin: 1 0 0 0;
+}
+
+#cat-controls {
+    height: 3;
+    align: center middle;
+    margin: 0 0 0 0;
+}
+
+#cat-controls Button {
+    min-width: 3;
+    width: auto;
+    padding: 0 1;
+    margin: 0;
+    border: none;
 }
 
 /* ── LoadScreen ───────────────────────── */

@@ -1,6 +1,6 @@
 > **Status:** active
 > **TO-DO ref:** RTwP → Log Tab migration
-> **Last updated:** 2026-05-23 (rev 2)
+> **Last updated:** 2026-05-23 (rev 3)
 
 ## Goal
 
@@ -87,6 +87,40 @@ Replace the `RTwPModal` overlay (Phases 5a–5d) with a bottom section bolted on
 - Autoplay regression; commit + push + Telegram
 
 **Files:** `ui/modals.py`, `ui/ui.py`, `ui/styles.tcss`
+
+---
+
+### Phase R4: Move media controls to CategoryPanel ✦ pending
+
+**Goal:** The Slow/Play/Step/Fast buttons belong at the top level, always visible — not buried in a tab. Move them to the bottom of the right-hand CategoryPanel. Add a speed label above them. Clean up LogTab and widen the panel.
+
+**Changes:**
+
+**`ui/widgets.py`**
+- `CategoryPanel.compose()`: after the `CategoryRow` loop, yield a `Static("", id="cat-speed-label")` and a `Horizontal` with four buttons:
+  - `Button("⏪", id="cat-slow")`, `Button("▶", id="cat-play")`, `Button("⁺1", id="cat-step")`, `Button("⏩", id="cat-fast")`
+- Add `refresh_play_button(is_playing: bool)` to `CategoryPanel`: updates `#cat-play` label to `"⏸"` or `"▶"`
+- Add `refresh_speed_label(delay_s: float)` to `CategoryPanel`: updates `#cat-speed-label` — placeholder format `f"{delay_s:.2f}s"` for now
+- Remove time bar `Horizontal` (`#log-time-bar` + its four buttons) from `LogTab.compose()`
+- Remove `LogTab.PlayPause`, `LogTab.Step`, `LogTab.SetSpeed` message classes
+- Remove `LogTab.refresh_play_button()` method
+- Remove `@on(Button.Pressed)` handlers for `#log-slow`, `#log-play`, `#log-step`, `#log-fast` from `LogTab`
+- Category label spacing: change `f"{symbol} {label}"` → `f"{symbol}  {label}"` (two spaces)
+
+**`ui/ui.py`**
+- Remove `on_log_tab_play_pause`, `on_log_tab_step`, `on_log_tab_set_speed` handlers
+- Add `@on(Button.Pressed, "#cat-play")`, `@on(Button.Pressed, "#cat-step")`, `@on(Button.Pressed, "#cat-slow")`, `@on(Button.Pressed, "#cat-fast")` handlers in `GameScreen` — same logic as the removed LogTab handlers
+- Update `_refresh_rtwp_ui()`: call `self.query_one(CategoryPanel).refresh_play_button(self._auto_advance)` and `self.query_one(CategoryPanel).refresh_speed_label(self._auto_advance_delay_s)`
+- Initialize speed label on mount: call `_refresh_rtwp_ui()` in `on_mount` (or equivalent) so it reflects the default delay from the start
+
+**`ui/styles.tcss`**
+- `#category-panel { width: 18; }` (restore from 14)
+- Remove `#log-time-bar` and `#log-time-bar Button` rules
+- Add CSS for `#cat-speed-label`, `#cat-controls`, `#cat-controls Button`
+
+**Autoplay regression; commit + push + Telegram**
+
+**Files:** `ui/widgets.py`, `ui/ui.py`, `ui/styles.tcss`
 
 ---
 
