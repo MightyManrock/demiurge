@@ -33,7 +33,7 @@ In `_process_essence_generation`, after writing to `last_tick_essence_by_domain`
 - `scenario_loader.py`: load with `.get()` defaults (empty dict / 0)
 - `scenario_exporter.py`: serialize dict as JSON; export int normally
 
-**1d — Wire Status tab** (`ui/widgets.py` ~line 413)
+**1d — Wire Status tab** (`ui/widgets.py` ~line 413) ✓ complete
 
 Replace the read of `state.last_tick_essence_by_domain` with `state.last_essence_capture_by_domain`. When `last_essence_capture_tick > 0`, append a dim annotation such as `[dim](tick {state.last_essence_capture_tick})[/]` to the section header so the player knows how fresh the data is.
 

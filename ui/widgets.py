@@ -409,19 +409,17 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     # Affiliated domains
     aff = state.demiurge.affiliated_domains
     if aff:
-        a("[bold #4a80b0]AFFINITIES[/]")
-        show_essence = state.tick_number > 0
-        last_tick = state.last_tick_essence_by_domain if show_essence else {}
+        capture_tick = state.last_essence_capture_tick
+        tick_note = f" [dim](t{capture_tick})[/]" if capture_tick > 0 else ""
+        a(f"[bold #4a80b0]AFFINITIES[/]{tick_note}")
+        snapshot = state.last_essence_capture_by_domain
         for t in aff:
             label = _short_tag(t)
             name = f"[@click=screen.open_divine_wisdom('{t}')][#a0c0e0]{_e(label)}[/][/]"
-            if show_essence:
-                v = last_tick.get(t, 0.0)
-                essence = f"[#c09030]+{v:.2f}[/]" if v > 0.0 else "[dim]—[/]"
-                pad = " " * max(1, 14 - len(label))
-                a(f"  {name}{pad}{essence}")
-            else:
-                a(f"  {name}")
+            v = snapshot.get(t, 0.0)
+            essence = f"[#c09030]+{v:.2f}[/]" if v > 0.0 else "[dim]—[/]"
+            pad = " " * max(1, 14 - len(label))
+            a(f"  {name}{pad}{essence}")
         a("")
 
     # Puissance
