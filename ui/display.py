@@ -388,7 +388,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             continue
         wm = _OOW if w_oow else ""
         domain_str = _format_beliefs(world.domain_expression) or "none"
-        vis_note = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
+        vis_note = f"  [vis:{world.visibility:.0%}]" if not world.pinned else ""
         lines.append(f"{wm}  {world.name}  [{world.condition.value}]{vis_note}  domain: {domain_str}")
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
@@ -399,7 +399,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 continue
             cm = _OOW if (w_oow or c_oow) else ""
             h = civ.health
-            civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+            civ_vis = f"  [vis:{civ.visibility:.0%}]" if not civ.pinned else ""
             lines.append(
                 f"{cm}    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
                 f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
@@ -420,7 +420,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 belief_str = "  ".join(
                     f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs
                 ) or "none"
-                vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                vis_note = f"  [vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                 lines.append(
                     f"{pm}       ↳ {class_label}{sp_note}  sz:{pop.size_magnitude}"
                     f"  {belief_str}{vis_note}"
@@ -439,7 +439,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
         if mortal.bio_age != mortal.chrono_age:
             age_str += f"(bio:{mortal.bio_age:,.0f})"
         prom_str = _prominence_label(mortal)
-        vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+        vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_str   = f"  sp:{sp_obj.name}" if sp_obj else ""
         pop_obj  = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
@@ -706,7 +706,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         if g_oow and not dev_mode:
             continue
         gm = _OOW if g_oow else ""
-        gal_vis = f"  [vis:{galaxy.visibility:.2f}]" if not galaxy.pinned else ""
+        gal_vis = f"  [vis:{galaxy.visibility:.0%}]" if not galaxy.pinned else ""
         lines += ["", f"{gm}  Galaxy: {galaxy.name}{gal_vis}"]
         for sid in galaxy.child_ids:
             sys_obj  = state.locations.get(str(sid))
@@ -717,7 +717,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 continue
             sm = _OOW if (g_oow or s_oow) else ""
             star_str = f"  [{sys_obj.star_type.value}]" if hasattr(sys_obj, "star_type") else ""
-            sys_vis  = f"  [vis:{sys_obj.visibility:.2f}]" if not sys_obj.pinned else ""
+            sys_vis  = f"  [vis:{sys_obj.visibility:.0%}]" if not sys_obj.pinned else ""
             lines.append(f"{sm}    System: {sys_obj.name}{star_str}{sys_vis}")
             for wid in sys_obj.child_ids:
                 world = state.worlds.get(str(wid))
@@ -729,7 +729,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 wm = _OOW if (g_oow or s_oow or w_oow) else ""
                 n_civs   = len(world.civilization_ids)
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
-                w_vis    = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
+                w_vis    = f"  [vis:{world.visibility:.0%}]" if not world.pinned else ""
                 lines.append(
                     f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:,.0f}  {life_str}"
                 )
@@ -751,7 +751,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         continue
                     cm = _OOW if (wm or c_oow) else ""
                     h = civ.health
-                    civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                    civ_vis = f"  [vis:{civ.visibility:.0%}]" if not civ.pinned else ""
                     lines.append(
                         f"{cm}        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
                         f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
@@ -773,7 +773,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         belief_str = "  ".join(
                             f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs
                         ) or "none"
-                        vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                        vis_note = f"  [vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                         lines.append(
                             f"{pm}           ↳ {class_label} (sz {pop.size_magnitude})"
                             f"  {belief_str}{vis_note}"
@@ -792,7 +792,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
             origin  = w_obj.name if w_obj else "unknown"
             sap_str = "sapient" if sp.sapient else "non-sapient"
             xp_str  = "  [transplanted]" if sp.transplanted else ""
-            sp_vis  = f"  [vis:{sp.visibility:.2f}]" if not sp.pinned else ""
+            sp_vis  = f"  [vis:{sp.visibility:.0%}]" if not sp.pinned else ""
             lines.append(
                 f"{spm}  {sp.name:16s} [{sap_str}]{sp_vis}  origin:{origin}  "
                 f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  [{sp.condition.value}]{xp_str}"
@@ -820,7 +820,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_note  = f"  [{sp_obj.name}]" if sp_obj else ""
         prom_str = _prominence_label(mortal)
-        vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+        vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
         lines.append(
             f"{mm}  {mortal.name:16s} [{role_str:7s}]  align:{mortal.alignment:.2f}  "
             f"{age_str}{sp_note}{vis_note}   {loc}"

@@ -723,7 +723,7 @@ def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -
         sp_str = f"  \\[{sp_md}]"
     else:
         sp_str = ""
-    vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+    vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
     mortal_link = _click_link("mortal", str(mortal.id), f"[bold]{_e(mortal.name)}[/]")
     a(f"{mm}● {mortal_link} \\[{role_str}]  "
       f"align:{mortal.alignment:.2f}  {age_str}{vis_note}{sp_str}{me}")
@@ -833,7 +833,7 @@ class UniverseTab(ContentTab):
                     any_oow_above = g_oow or s_oow or w_oow
                     wm = "[dim]" if any_oow_above else ""
                     we = "[/]" if any_oow_above else ""
-                    vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
+                    vis_note = f"  \\[vis:{world.visibility:.0%}]" if not world.pinned else ""
                     domain_str = _format_beliefs_markup(world.domain_expression, top_n=4) or "[#5a7090]none[/]"
                     world_link = _click_link("world", wid, f"[bold]{_e(world.name)}[/]")
                     a(f"{wm}{IDX}● {world_link}  "
@@ -874,7 +874,7 @@ class UniverseTab(ContentTab):
                             _format_beliefs_markup(pop.dominant_beliefs, top_n=4)
                             or "[#5a7090]none[/]"
                         )
-                        vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                        vn = f"  \\[vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                         a(f"{pm}{indent}{prefix}{pop_label}  sz:{pop.size_magnitude}  "
                           f"{belief_str}{vn}{pe}")
 
@@ -896,7 +896,7 @@ class UniverseTab(ContentTab):
                         cm = "[dim]" if (w_oow or c_oow) else ""
                         ce = "[/]" if (w_oow or c_oow) else ""
                         h = civ.health
-                        civ_vis = f"  \\[vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                        civ_vis = f"  \\[vis:{civ.visibility:.0%}]" if not civ.pinned else ""
                         civ_link = _click_link("civ", str(cid_iter), f"[bold]{_e(civ.name)}[/]")
                         a(f"{cm}{IDX}    └─ {civ_link} "
                           f"\\[{_e(civ.scale.value)}]{civ_vis}  "

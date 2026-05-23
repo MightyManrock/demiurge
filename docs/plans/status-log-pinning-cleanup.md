@@ -1,5 +1,5 @@
-> **Status:** pending
-> **Last updated:** 2026-05-23 (rev 1)
+> **Status:** complete
+> **Last updated:** 2026-05-23 (rev 2)
 
 ## Goal
 
@@ -88,7 +88,7 @@ In `ui/ui.py`'s tick-result processing, skip all `_feed_markup` calls when the r
 
 Run `--rebuild --scenario` (the migrator round-trip) after removing the schema column. Any entity previously in `starting_pinned_ids` must have `visibility = 1.0` already set in its scenario row — verify this is the case by inspecting the wardens_compact scenario, and patch manually via `--inject` if any entity's visibility was left at a lower value.
 
-**4c — Visibility as percentage in UI**
+**4c — Visibility as percentage in UI** ✓ complete
 
 Audit every place entity visibility is displayed:
 - `ui/widgets.py` — Entities tab rows

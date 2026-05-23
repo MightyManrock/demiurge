@@ -215,7 +215,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
     if world.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {world.visibility:.2f}")
+        a(f"  visibility: {world.visibility:.0%}")
 
     if world.geo_tags:
         a(f"  geography:  {_e(', '.join(_short_tag(t) for t in world.geo_tags))}")
@@ -406,7 +406,7 @@ def render_system_detail(state: "SimulationState", system_id: str) -> Text:
     if sys_obj.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {sys_obj.visibility:.2f}")
+        a(f"  visibility: {sys_obj.visibility:.0%}")
 
     parent = state.locations.get(str(sys_obj.parent_id)) if sys_obj.parent_id else None
     if parent:
@@ -466,7 +466,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     if civ.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {civ.visibility:.2f}")
+        a(f"  visibility: {civ.visibility:.0%}")
 
     a("")
     a("[bold #4a80b0]HEALTH[/]")
@@ -576,7 +576,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
                     belief_str = "  ".join(
                         _color_short_tag(t, v) for t, v in top
                     ) or "[#5a7090]none[/]"
-                    vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                    vis = f"  \\[vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                     a(f"{pop_indent}{pm}↳ {pop_label}  sz:{pop.size_magnitude}{vis}{pe}")
                     a(f"{pop_indent}    {pm}{belief_str}{pe}")
 
@@ -635,7 +635,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     if m.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {m.visibility:.2f}")
+        a(f"  visibility: {m.visibility:.0%}")
     a(f"  {_e(_prominence_label(m))}")
 
     sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
@@ -950,7 +950,7 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     if pop.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {pop.visibility:.2f}")
+        a(f"  visibility: {pop.visibility:.0%}")
 
     if sp_obj:
         sp_link = _click_link("species", str(sp_obj.id), f"{_e(sp_obj.name)}")
@@ -1046,7 +1046,7 @@ def render_species_detail(state: "SimulationState", species_id: str) -> Text:
     if sp.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {sp.visibility:.2f}")
+        a(f"  visibility: {sp.visibility:.0%}")
 
     origin = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
     if origin:
@@ -1107,7 +1107,7 @@ def render_galaxy_detail(state: "SimulationState", galaxy_id: str) -> Text:
     if galaxy.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {galaxy.visibility:.2f}")
+        a(f"  visibility: {galaxy.visibility:.0%}")
     if galaxy.description:
         a("")
         a(f"  [#7090b0]{_e(galaxy.description)}[/]")
@@ -1159,7 +1159,7 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
     if loc.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {loc.visibility:.2f}")
+        a(f"  visibility: {loc.visibility:.0%}")
     a(f"  distance from core: [#a0c0e0]{loc.distance_from_core}[/]")
     if loc.description:
         a("")
