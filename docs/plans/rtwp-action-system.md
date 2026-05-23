@@ -85,7 +85,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Establish the three-section layout (log / auto-pause options / time control bar) with placeholder content
 - *Note: scaffold covers the full right panel including tab strip; exact column clipping deferred to later sub-phase when live content is in place*
 
-**5b — Live log feed**
+**5b — Live log feed** ✓ complete
 - Top ~2/3 of modal: log section that continues to refresh as ticks advance
 
 **5c — Auto-pause options panel**

@@ -269,6 +269,11 @@ class GameScreen(Screen):
         except Exception:
             # Log tab not yet mounted (e.g. very early in startup).
             pass
+        try:
+            if isinstance(self.app.screen, RTwPModal):
+                self.app.screen.append_entry(markup)
+        except Exception:
+            pass
 
     def _refresh_status(self) -> None:
         """Compat alias — refreshes every tab and the subtitle."""
@@ -618,7 +623,7 @@ class GameScreen(Screen):
         self._advance_tick_work()
 
     def action_open_rtwp_modal(self) -> None:
-        self.app.push_screen(RTwPModal())
+        self.app.push_screen(RTwPModal(self._rich_log.entries()))
 
     def action_toggle_auto_advance(self) -> None:
         self._auto_advance = not self._auto_advance

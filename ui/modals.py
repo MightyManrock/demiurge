@@ -14,7 +14,7 @@ from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Input, Label, ListItem, ListView,
-    RadioButton, RadioSet, Static,
+    RadioButton, RadioSet, RichLog, Static,
 )
 
 from core.action_core import ActionCategory, ActionDefinition, compute_cooldown
@@ -1286,14 +1286,17 @@ class ActionBrowserModal(ModalScreen):
 class RTwPModal(ModalScreen):
     BINDINGS = [("escape", "dismiss_modal", "Exit")]
 
+    def __init__(self, initial_entries: "list[tuple[int, str, str]]") -> None:
+        super().__init__()
+        self._initial_entries = initial_entries
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="rtwp-layout"):
             yield Static("", id="rtwp-left-spacer")
             with Vertical(id="rtwp-body"):
-                yield Static(
-                    "[#3a5a7a]Log feed — coming in 5b[/]",
-                    id="rtwp-log",
-                )
+                # Note: @click entity links in markup won't resolve against RTwPModal
+                # (no open_detail_by_id action here); they silently no-op until delegated.
+                yield RichLog(id="rtwp-log", markup=True, highlight=False, wrap=True)
                 yield Static(
                     "[#3a5a7a]Auto-pause options — coming in 5c[/]",
                     id="rtwp-pauses",
@@ -1305,6 +1308,17 @@ class RTwPModal(ModalScreen):
                     yield Button("+1",     id="rtwp-step",  disabled=True)
                     yield Button("Fast",   id="rtwp-fast",  disabled=True)
             yield Static("", id="rtwp-right-spacer")
+
+    def on_mount(self) -> None:
+        log = self.query_one("#rtwp-log", RichLog)
+        for _tick, _cat, markup in self._initial_entries:
+            log.write(Text.from_markup(markup))
+
+    def append_entry(self, markup: str) -> None:
+        try:
+            self.query_one("#rtwp-log", RichLog).write(Text.from_markup(markup))
+        except Exception:
+            pass
 
     @on(Button.Pressed, "#rtwp-exit")
     def _exit(self, _: Button.Pressed) -> None:
