@@ -66,7 +66,7 @@ Add a dedicated `Static` widget in the Essence section showing `Last underreal h
 
 In `_resolve_mortal_travel_decisions` and `_process_mortal_travel` (`logic/tick_logic.py` ~lines 4994–5105), gate travel narrative appends on `mortal.pinned`. Currently only Karath Omn and Durenn Vail have travel logic — once their `pinned` flags are cleared in Phase 4, their notifications will disappear automatically. The explicit gate ensures future mortals with travel logic respect the same rule.
 
-**3b — Suppress empty-tick log entries**
+**3b — Suppress empty-tick log entries** ✓ complete
 
 In `display_tick_result_categorized` (`ui/display.py`), after assembling all sections, check whether anything substantive was added (i.e., any category other than `"other"` has at least one non-empty line, or the `"other"` section contains more than just the tick header/separator). If nothing substantive was produced, return `[]`.
 

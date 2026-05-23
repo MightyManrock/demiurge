@@ -637,6 +637,9 @@ def display_tick_result_categorized(
         out.append(("other", f"  {result.terminal.note}"))
         out.append(("other", SEP2))
 
+    if not any(cat != "other" for cat, _ in out):
+        return []
+
     return out
 
 
