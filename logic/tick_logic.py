@@ -3748,6 +3748,9 @@ class TickLoop:
                     note="Essence concealment leak during harvest",
                 ))
 
+            state.last_harvest_amount = actual_yield
+            state.last_harvest_tick   = state.tick_number
+
             narrative = (
                 f"Harvested {actual_yield:.2f} Essence from the Underreal. "
                 f"Apparent leak: {apparent_leak:.2f}. "
