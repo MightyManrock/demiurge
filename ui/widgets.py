@@ -1456,10 +1456,11 @@ class CategoryRow(Widget):
         self._counter = counter
         base = CATEGORY_BASE_COOLDOWNS[self._category]
         bar = self.query_one(ProgressBar)
-        bar.update(total=base, progress=base - counter)
         if counter == 0:
+            bar.update(total=base, progress=base)
             self.remove_class("cooling")
         else:
+            bar.update(total=base, progress=max(0, base - counter - 1))
             self.add_class("cooling")
 
     class CategoryClicked(Message):
