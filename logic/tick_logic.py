@@ -908,6 +908,10 @@ class SimulationState(BaseModel):
     # Keyed by ActionCategory.value.
     pending_actions: dict[str, OngoingAction] = Field(default_factory=dict)
 
+    # When a one-shot override is queued over a repeating action, the repeating
+    # action is stored here. After the one-shot fires, it is restored.
+    pending_resume: dict[str, OngoingAction] = Field(default_factory=dict)
+
     # Active events: divine acts that continue to affect the world across multiple ticks.
     # Keyed by str(Event.id). Populated by EVENT_EMITTED mutations; pruned when expired.
     active_events: dict[str, Event] = Field(default_factory=dict)
@@ -1147,6 +1151,9 @@ class TickLoop:
                 _assign_category_cooldown(state, defn.category)
             if not pending.repeating:
                 del state.pending_actions[cat_val]
+                resume = state.pending_resume.pop(cat_val, None)
+                if resume is not None:
+                    state.pending_actions[cat_val] = resume
 
         # ── Deferred death check ───────────────────────
         # Applied after Phase 2 so a same-tick appoint_proxius saves the mortal.

@@ -204,6 +204,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     )
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
+    pending_resume = _load_pending_resume(conn)
     active_events = _load_active_events(conn)
     luminary_production_accum = _jd_str(meta.get("luminary_production_accum", "{}"))
     domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
@@ -253,6 +254,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         ticks_since_evaluation=ticks_since,
         config=cfg,
         pending_actions=ongoing_actions,
+        pending_resume=pending_resume,
         active_events=active_events,
         luminary_production_this_eval=luminary_production_accum,
         domain_essence_claimed=domain_essence_claimed,
@@ -821,6 +823,35 @@ def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
     out: dict[str, OngoingAction] = {}
     try:
         rows = conn.execute("SELECT * FROM ongoing_actions").fetchall()
+    except Exception:
+        return out  # table absent in old DBs
+    for raw in rows:
+        row = dict(raw)
+        intent = None
+        intent_type = row.get("intent_type")
+        intent_data = row.get("intent_data")
+        if intent_type and intent_data and intent_type in _INTENT_CLASSES:
+            intent = _INTENT_CLASSES[intent_type].model_validate_json(intent_data)
+        out[row["category_key"]] = OngoingAction(
+            action_key=row["action_key"],
+            action_definition_id=UUID(row["action_definition_id"]),
+            target_type=TargetType(row["target_type"]),
+            target_id=_uuid(row.get("target_id")),
+            proxius_id=_uuid(row.get("proxius_id")),
+            intent=intent,
+            ticks_active=row["ticks_active"],
+            executed_ticks=row["executed_ticks"],
+            successful_ticks=row.get("successful_ticks", 0),
+            started_at_tick=row["started_at_tick"],
+            repeating=bool(row.get("repeating", 0)),
+        )
+    return out
+
+
+def _load_pending_resume(conn) -> dict[str, OngoingAction]:
+    out: dict[str, OngoingAction] = {}
+    try:
+        rows = conn.execute("SELECT * FROM pending_resume").fetchall()
     except Exception:
         return out  # table absent in old DBs
     for raw in rows:

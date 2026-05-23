@@ -554,7 +554,7 @@ python main.py --autoplay ledger_and_ash
 
 ### Phase 5: Override-once-then-resume
 
-**5a — `pending_resume` state + tick restore logic**
+**5a — `pending_resume` state + tick restore logic** ✓ complete
 
 Files: `logic/tick_logic.py`, `core/scenario_schema.sql`, `utilities/scenario_loader.py`, `utilities/scenario_exporter.py`
 

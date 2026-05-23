@@ -375,6 +375,23 @@ CREATE TABLE IF NOT EXISTS ongoing_actions (
     repeating              INTEGER NOT NULL DEFAULT 0
 );
 
+-- Repeating actions temporarily displaced by a one-shot override; restored after the override fires.
+CREATE TABLE IF NOT EXISTS pending_resume (
+    category_key           TEXT PRIMARY KEY,
+    action_key             TEXT NOT NULL,
+    action_definition_id   TEXT NOT NULL,
+    target_type            TEXT NOT NULL,
+    target_id              TEXT,
+    proxius_id             TEXT,
+    intent_type            TEXT,
+    intent_data            TEXT,
+    ticks_active           INTEGER NOT NULL DEFAULT 0,
+    executed_ticks         INTEGER NOT NULL DEFAULT 0,
+    successful_ticks       INTEGER NOT NULL DEFAULT 0,
+    started_at_tick        INTEGER NOT NULL DEFAULT 0,
+    repeating              INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS active_events (
     id                     TEXT PRIMARY KEY,
     event_type             TEXT NOT NULL,

@@ -82,6 +82,7 @@ def export_scenario(
         _write_civ_momentum(conn, state)
         _write_luminary_state(conn, state)
         _write_ongoing_actions(conn, state)
+        _write_pending_resume(conn, state)
         _write_active_events(conn, state)
         conn.commit()
     except Exception:
@@ -706,6 +707,35 @@ def _write_ongoing_actions(conn, state: SimulationState):
         intent_data = oa.intent.model_dump_json() if oa.intent is not None else None
         conn.execute(
             """INSERT INTO ongoing_actions
+               (category_key, action_key, action_definition_id, target_type,
+                target_id, proxius_id, intent_type, intent_data,
+                ticks_active, executed_ticks, successful_ticks, started_at_tick,
+                repeating)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cat_val,
+                oa.action_key,
+                str(oa.action_definition_id),
+                oa.target_type.value,
+                str(oa.target_id) if oa.target_id else None,
+                str(oa.proxius_id) if oa.proxius_id else None,
+                intent_type,
+                intent_data,
+                oa.ticks_active,
+                oa.executed_ticks,
+                oa.successful_ticks,
+                oa.started_at_tick,
+                int(oa.repeating),
+            ),
+        )
+
+
+def _write_pending_resume(conn, state: SimulationState):
+    for cat_val, oa in state.pending_resume.items():
+        intent_type = type(oa.intent).__name__ if oa.intent is not None else None
+        intent_data = oa.intent.model_dump_json() if oa.intent is not None else None
+        conn.execute(
+            """INSERT INTO pending_resume
                (category_key, action_key, action_definition_id, target_type,
                 target_id, proxius_id, intent_type, intent_data,
                 ticks_active, executed_ticks, successful_ticks, started_at_tick,
