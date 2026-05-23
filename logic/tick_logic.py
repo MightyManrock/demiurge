@@ -1076,6 +1076,9 @@ class TickLoop:
             essence_by_domain = {}
         result.essence_claimed_by_domain = essence_by_domain
         state.last_tick_essence_by_domain = dict(essence_by_domain)
+        if essence_by_domain:
+            state.last_essence_capture_by_domain = dict(essence_by_domain)
+            state.last_essence_capture_tick = state.tick_number
 
         # ── Phase 2: Pending action fire (priority order) ─────────────────
         # Validate pending targets; cancel stale slots before attempting to fire.

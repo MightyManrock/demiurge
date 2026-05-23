@@ -18,12 +18,12 @@ Execution order: Phase 1 → Phase 2 (batch schema changes together) → Phase 3
 
 **Problem:** `last_tick_essence_by_domain` is cleared and repopulated monthly (Phase 1 of the tick loop). On all other ticks it is empty, so the affinities section of the Status tab goes blank between capture events.
 
-**1a — New `SimulationState` fields** (`logic/tick_logic.py` ~line 940)
+**1a — New `SimulationState` fields** (`logic/tick_logic.py` ~line 940) ✓ complete
 
 - `last_essence_capture_by_domain: dict[str, float] = Field(default_factory=dict)` — most recent non-empty monthly snapshot
 - `last_essence_capture_tick: int = 0` — tick number when the snapshot was taken
 
-**1b — Populate in tick_logic**
+**1b — Populate in tick_logic** ✓ complete
 
 In `_process_essence_generation`, after writing to `last_tick_essence_by_domain`, copy the result into `last_essence_capture_by_domain` and set `last_essence_capture_tick = state.tick_number`.
 
