@@ -1433,7 +1433,7 @@ _CATEGORY_LABELS: dict[ActionCategory, str] = {
     ActionCategory.SELF_REFINEMENT:    "Refine",
 }
 
-_BAR_CELLS  = 8
+_BAR_CELLS  = 12
 _BAR_CHAR   = "▬"
 _BAR_EMPTY  = "#3a5070"
 _BAR_FILL   = "#4a80b0"
@@ -1442,11 +1442,8 @@ _BAR_READY  = "#50b870"
 def _render_cat_bar(counter: int, base: int) -> str:
     if counter == 0:
         return f"[{_BAR_READY}]{_BAR_CHAR * _BAR_CELLS}[/]"
-    if counter >= base - 1:
-        return f"[{_BAR_EMPTY}]{_BAR_CHAR * _BAR_CELLS}[/]"
-    effective = base - 2
-    filled = round((effective - counter) / effective * _BAR_CELLS)
-    filled = max(0, min(filled, _BAR_CELLS))
+    filled = min(round((base - counter) / base * _BAR_CELLS), _BAR_CELLS - 1)
+    filled = max(0, filled)
     return (
         f"[{_BAR_FILL}]{_BAR_CHAR * filled}[/]"
         f"[{_BAR_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"

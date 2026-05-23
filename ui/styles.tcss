@@ -500,6 +500,7 @@ ImagoRevealCell.imago-eligible:focus {
 
 .cat-bar {
     height: 1;
+    width: 1fr;
 }
 
 .category-row.cooling .cat-bar {
