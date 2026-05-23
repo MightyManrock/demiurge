@@ -438,7 +438,7 @@ ImagoRevealCell.imago-eligible:focus {
     height: auto;
     background: $bg-panel;
     border-top: solid $border;
-    padding: 1 2 2 2;
+    padding: 1 2;
 }
 
 .rtwp-header {
