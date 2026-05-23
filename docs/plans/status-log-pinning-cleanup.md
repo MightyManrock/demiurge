@@ -62,7 +62,7 @@ Add a dedicated `Static` widget in the Essence section showing `Last underreal h
 
 ## Phase 3 — Log verbosity
 
-**3a — Travel notifications: pinned mortals only**
+**3a — Travel notifications: pinned mortals only** ✓ complete
 
 In `_resolve_mortal_travel_decisions` and `_process_mortal_travel` (`logic/tick_logic.py` ~lines 4994–5105), gate travel narrative appends on `mortal.pinned`. Currently only Karath Omn and Durenn Vail have travel logic — once their `pinned` flags are cleared in Phase 4, their notifications will disappear automatically. The explicit gate ensures future mortals with travel logic respect the same rule.
 

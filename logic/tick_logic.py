@@ -5056,10 +5056,11 @@ class TickLoop:
             mortal.travel_intent = TravelIntent(travel_location_id=tl.id)
 
             total_ticks = sum(v for v in legs.values())
-            narratives.append(
-                f"{mortal.name} begins traveling to {dest_name} "
-                f"({total_ticks} tick{'s' if total_ticks != 1 else ''})."
-            )
+            if mortal.pinned:
+                narratives.append(
+                    f"{mortal.name} begins traveling to {dest_name} "
+                    f"({total_ticks} tick{'s' if total_ticks != 1 else ''})."
+                )
         return narratives
 
     def _process_mortal_travel(self, state: SimulationState) -> list[str]:
@@ -5110,7 +5111,8 @@ class TickLoop:
                     if mortal:
                         mortal.current_location = UUID(next_wp)
                         mortal.travel_intent    = None
-                        narratives.append(f"{mortal.name} arrives at {dest_name}.")
+                        if mortal.pinned:
+                            narratives.append(f"{mortal.name} arrives at {dest_name}.")
                 to_remove.append(lid)
             else:
                 loc.current_waypoint  = next_wp
