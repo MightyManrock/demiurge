@@ -272,6 +272,33 @@ def _name_for_id(uid: "UUID", state: "SimulationState") -> str:
     return sid[:8]
 
 
+_KIND_FOR_COLLECTION = [
+    ("mortals",       "mortal"),
+    ("civilizations", "civ"),
+    ("species",       "species"),
+]
+
+def _name_link_for_id(uid: "UUID", state: "SimulationState") -> str:
+    """Like _name_for_id but returns a styled @click link for the entity's detail page."""
+    sid = str(uid)
+    for attr, kind in _KIND_FOR_COLLECTION:
+        col = getattr(state, attr)
+        if sid in col:
+            name = getattr(col[sid], "name", sid[:8])
+            return _entity_link(kind, sid, name)
+    if sid in state.locations:
+        loc = state.locations[sid]
+        name = getattr(loc, "name", sid[:8])
+        loc_kind = "poploc" if isinstance(loc, PopLocation) else (
+            "world" if hasattr(loc, "child_ids") else "location"
+        )
+        return _entity_link(loc_kind, sid, name)
+    if sid in state.luminaries:
+        name = getattr(state.luminaries[sid], "name", sid[:8])
+        return _entity_link("luminary", sid, name)
+    return _e(sid[:8])
+
+
 def _wrap_desc(text: str, width: int = 58, indent: str = "  ") -> str:
     """Word-wrap description text, indenting continuation lines."""
     if not text:

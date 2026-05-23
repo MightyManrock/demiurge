@@ -33,7 +33,7 @@ from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from ui import display
 from ui.display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
-    _name_for_id, _short_tag, _trait_color, _pop_stratum_label,
+    _name_for_id, _name_link_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,
     display_briefing, _lines_to_text,
 )
@@ -648,7 +648,7 @@ class ActionsTab(ContentTab):
             for ai in state.action_queue:
                 tgt = ""
                 if ai.target_id:
-                    tgt = f"  → [#3a6a8a]{_e(_name_for_id(ai.target_id, state))}[/]"
+                    tgt = f"  → {_name_link_for_id(ai.target_id, state)}"
                 key = key_by_id.get(str(ai.action_definition_id))
                 defn = library.get(key) if key else None
                 if defn:
@@ -671,7 +671,7 @@ class ActionsTab(ContentTab):
                     label = oa.action_key.replace("_", " ").title()
                 tgt = ""
                 if oa.target_id:
-                    tgt = f"  → [#3a6a8a]{_e(_name_for_id(oa.target_id, state))}[/]"
+                    tgt = f"  → {_name_link_for_id(oa.target_id, state)}"
                 a(f"  [#5a7090]({_e(cat)})[/]")
                 a(f"    [#60a070]{_e(label)}[/]{tgt}  "
                   f"[#2a4060]{oa.successful_ticks}/{oa.executed_ticks} success[/]")

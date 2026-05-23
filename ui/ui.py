@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
+from rich.markup import escape as _e
 from rich.text import Text
 from textual import on, work
 from textual.worker import Worker, WorkerState
@@ -48,7 +49,7 @@ from ui import display
 from ui.display import (
     display_state, display_briefing, display_tick_result,
     display_tick_result_categorized,
-    _strip_oow, _name_for_id, _personality_label, _wrap_desc, _short_tag,
+    _strip_oow, _name_for_id, _name_link_for_id, _personality_label, _wrap_desc, _short_tag,
     _pop_stratum_label, _pop_identity_label,
 )
 
@@ -821,11 +822,10 @@ class GameScreen(Screen):
                 return
 
         state.action_queue.append(instance)
-        summary = defn.name
-        if instance.target_id:
-            summary += f" → {_name_for_id(instance.target_id, state)}"
-        self._log.write_action(summary)
-        self._feed_markup(f"[#a0d080]Queued:[/] {summary}", "actions")
+        plain_target = f" → {_name_for_id(instance.target_id, state)}" if instance.target_id else ""
+        link_target  = f" → {_name_link_for_id(instance.target_id, state)}" if instance.target_id else ""
+        self._log.write_action(defn.name + plain_target)
+        self._feed_markup(f"[#a0d080]Queued:[/] {_e(defn.name)}{link_target}", "actions")
         self._refresh_status()
         self._focus_actions_tab()
 
