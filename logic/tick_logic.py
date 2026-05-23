@@ -939,6 +939,12 @@ class SimulationState(BaseModel):
     # Overwritten each tick by Phase 1 essence generation; surfaced in the Status tab.
     last_tick_essence_by_domain: dict[str, float] = Field(default_factory=dict)
 
+    # Persistent snapshot of the most recent non-empty essence capture event.
+    # Unlike last_tick_essence_by_domain (cleared each non-capture tick), these
+    # fields survive save/load and are always available for display.
+    last_essence_capture_by_domain: dict[str, float] = Field(default_factory=dict)
+    last_essence_capture_tick: int = 0
+
     # Entity IDs (str(UUID)) that were pinned at scenario creation.
     # At tick 10 Phase 1, all are unpinned and this list is cleared.
     starting_pinned_ids: list[str] = Field(default_factory=list)
