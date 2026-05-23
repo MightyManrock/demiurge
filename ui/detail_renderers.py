@@ -628,7 +628,6 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     a(f"  {age_str}")
     _manually_pinned = (
         m.pinned
-        and str(m.id) not in state.starting_pinned_ids
         and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
     )
     if display.DEV_MODE or _manually_pinned:

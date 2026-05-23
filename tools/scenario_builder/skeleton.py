@@ -124,10 +124,4 @@ def build_skeleton_state(scenario_name: str, initialism: str) -> SimulationState
         pops={str(pop.id): pop},
         mortals={str(mortal.id): mortal},
         species={str(species.id): species},
-        starting_pinned_ids=[
-            str(e.id) for e in (
-                galaxy, system, planet, settlement,
-                species, civ, pop, mortal,
-            )
-        ],
     )

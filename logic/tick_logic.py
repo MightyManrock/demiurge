@@ -950,9 +950,6 @@ class SimulationState(BaseModel):
     last_harvest_amount: float = 0.0
     last_harvest_tick: int = 0
 
-    # Entity IDs (str(UUID)) that were pinned at scenario creation.
-    # At tick 10 Phase 1, all are unpinned and this list is cleared.
-    starting_pinned_ids: list[str] = Field(default_factory=list)
 
 
 def _assign_category_cooldown(state: SimulationState, category: "ActionCategory") -> None:
@@ -1697,22 +1694,6 @@ class TickLoop:
                     delta=-(mortal.visibility - new_vis),
                     note=f"{mortal.name} visibility decay",
                 ))
-
-        # ── Starting-pin expiry ────────────────────────
-        # tick_number is pre-increment here; 29 means "this is the 30th tick processing".
-        # When player entity-pinning is implemented, remove an entity from
-        # starting_pinned_ids at pin time so manually-pinned entities survive this expiry.
-        if state.tick_number == 359 and state.starting_pinned_ids:
-            for eid in state.starting_pinned_ids:
-                entity = (
-                    state.mortals.get(eid)
-                    or state.locations.get(eid)
-                    or state.civilizations.get(eid)
-                    or state.species.get(eid)
-                )
-                if entity is not None:
-                    entity.pinned = False
-            state.starting_pinned_ids.clear()
 
         # ── Location visibility decay ──────────────────
         for lid, loc in state.locations.items():

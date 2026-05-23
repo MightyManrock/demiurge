@@ -33,12 +33,11 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     luminary_production_accum TEXT NOT NULL DEFAULT '{}',  -- JSON {luminary_id: float} weighted-production accumulator
     domain_essence_claimed  TEXT NOT NULL DEFAULT '{}',  -- JSON {domain_tag: float} cumulative Demiurge claim
     universe_domain_expression TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} per-domain baseline (0.1 default if absent)
-    starting_pinned_ids        TEXT NOT NULL DEFAULT '[]',  -- JSON [str(UUID), ...] entities pinned at scenario start; unpinned at tick 10
     last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
     last_essence_capture_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} most recent non-empty monthly snapshot
     last_essence_capture_tick   INTEGER NOT NULL DEFAULT 0,  -- tick number of last_essence_capture_by_domain
     last_harvest_amount         REAL    NOT NULL DEFAULT 0.0, -- actual_yield of most recent successful Harvest Essence action
-    last_harvest_tick           INTEGER NOT NULL DEFAULT 0    -- tick number of last_harvest_amount (0 = never harvested)
+    last_harvest_tick           INTEGER NOT NULL DEFAULT 0,   -- tick number of last_harvest_amount (0 = never harvested)
     category_cooldowns          TEXT NOT NULL DEFAULT '{}', -- JSON CategoryCooldowns model (counters: dict[ActionCategory, int])
     pause_config                TEXT NOT NULL DEFAULT '{}', -- JSON PauseConfig model (overrides: dict[PauseEventType, bool])
     rich_log_name               TEXT NOT NULL DEFAULT ''    -- base filename (no path/ext) of the JSONL rich-log; empty = none yet

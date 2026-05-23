@@ -76,7 +76,7 @@ In `ui/ui.py`'s tick-result processing, skip all `_feed_markup` calls when the r
 
 ## Phase 4 — Remove starting-pinned; visibility as percentage
 
-**4a — Remove the concept**
+**4a — Remove the concept** ✓ complete
 
 - Drop `starting_pinned_ids: list[str]` from `SimulationState` (`logic/tick_logic.py` ~line 944)
 - Remove the tick-360 unpin loop (`logic/tick_logic.py` ~lines 1691–1701)

@@ -114,11 +114,11 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             age_billions, age_millions, age_thousands, age_years, age_month, age_day,
             tick_number, demiurge_id, pantheon_id,
             luminary_production_accum, domain_essence_claimed, universe_domain_expression,
-            starting_pinned_ids, last_tick_essence_by_domain,
+            last_tick_essence_by_domain,
             last_essence_capture_by_domain, last_essence_capture_tick,
             last_harvest_amount, last_harvest_tick,
             category_cooldowns, pause_config, rich_log_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -139,7 +139,6 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.luminary_production_this_eval),
             json.dumps(state.domain_essence_claimed),
             json.dumps(state.universe.universe_domain_expression),
-            json.dumps(state.starting_pinned_ids),
             json.dumps(state.last_tick_essence_by_domain),
             json.dumps(state.last_essence_capture_by_domain),
             state.last_essence_capture_tick,
