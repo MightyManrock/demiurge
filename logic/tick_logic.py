@@ -502,7 +502,7 @@ class TickConfig(BaseModel):
 
     # Footprint decay
     # Divine traces fade naturally each tick.
-    footprint_decay_rate: float = 0.05
+    footprint_decay_rate: float = 0.0005
     # Subtracted from each footprint category per tick,
     # floor 0.0. Subtle influence fades faster than
     # direct creation — handled by per-category multipliers.
@@ -516,7 +516,7 @@ class TickConfig(BaseModel):
     )
 
     # Concealment degradation
-    concealment_decay_rate: float = 0.02
+    concealment_decay_rate: float = 0.001
     # concealment_integrity drops this much per tick passively.
     # Spending Essence adds on top of this.
 
@@ -534,22 +534,22 @@ class TickConfig(BaseModel):
 
     # Mortal visibility decay
     # Base rate; modulated by prominence: effective_decay = rate * (1.0 - prominence).
-    mortal_visibility_decay_rate: float = 0.03
+    mortal_visibility_decay_rate: float = 0.001
 
     # Window visibility decay for non-mortal entities
-    location_visibility_decay_rate: float = 0.01
-    civ_visibility_decay_rate: float = 0.01
-    species_visibility_decay_rate: float = 0.01
+    location_visibility_decay_rate: float = 0.0003
+    civ_visibility_decay_rate: float = 0.0003
+    species_visibility_decay_rate: float = 0.0003
 
     # Luminary attention decay
     # Attention naturally falls when nothing interesting happens.
-    attention_decay_rate: float = 0.03
+    attention_decay_rate: float = 0.002
 
     # Passive Proxius footprint
     # Each active Proxius generates this much proxius_activity per tick.
     # Policy-compliant worlds (≤ max_per_world Proxii) contribute at
     # PROXIUS_COMPLIANCE_FACTOR of this rate; excess Proxii contribute at full rate.
-    proxius_passive_footprint_rate: float = 0.03
+    proxius_passive_footprint_rate: float = 0.0002
 
     # Evaluation frequency
     # Not every tick triggers a full Luminary evaluation.

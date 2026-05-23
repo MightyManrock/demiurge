@@ -172,11 +172,23 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - All mortals in both scenarios assigned distinct birthdays by same method
 - Applied directly to scenario DBs; autoplay regression passes
 
-**6c — Recalibrate Essence + Revelation**
-- Adjust per-tick rates to suit tick = 1 day; drop per-tick minimums; rely on fractional accumulation
+**6c — Recalibrate Essence + Revelation** ✓ complete
+- `evaluation_interval` → 360 ticks (annual); gate essence generation to `day == 1` (monthly)
+- `luminary_essence_baseline_rate` 10.0 → 0.05; `luminary_essence_passive_rise` 5.0 → 0.1
+- Fixed early-return bug in `_process_essence_generation` (`return []` → `return [], {}`)
+- `core/scenario_schema.sql` default updated; both scenario DBs migrated
 
-**6d — Recalibrate cultural drift + belief shifts + remaining systems**
-- Work through the audit checklist from 6a
+**6d1 — Recalibrate decay rates** ✓ complete
+- Footprint, concealment, visibility (mortal/location/civ/species), attention, proxius passive footprint
+- All scaled from ~180-day-tick magnitudes down to 1-day-tick magnitudes
+- Targets: footprint lingers ~2.7 yr, concealment degrades ~2.7 yr, attention 1.0→0.1 in ~1 yr, mortal vis fades over years, location/civ/species slower, proxius trace minimal daily
+
+**6d2 — Recalibrate belief/culture drift**
+- `pop_conformity_base`, `established_drift_base`, `pop_contact_base_rate`, `RIDER_ATTRITION_BASE`
+- `alignment_drift_rate`, `civ_momentum_rate`, `civ_noise_factor`, `pop_visibility_drift_rate`
+
+**6d3 — TICK_SCALE / puissance recalibration**
+- `TICK_SCALE` (currently 200) needs design thought before changing — deferred to dedicated session
 
 **6e — Full regression**
 - `--autoplay` pass; fix any remaining rate anomalies
