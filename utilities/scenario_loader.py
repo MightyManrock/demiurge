@@ -30,7 +30,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe, TravelNetwork,
+    Universe, TravelNetwork, UniverseAge,
 )
 from core.action_core import (
     EssenceStockpile, OngoingAction, TargetType,
@@ -58,6 +58,23 @@ _INTENT_CLASSES: dict[str, type] = {
 }
 
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
+
+
+def _load_universe_age(meta: dict) -> UniverseAge:
+    """Load UniverseAge from a scenario_meta row; falls back to legacy current_age float."""
+    if meta.get("age_year") is not None:
+        return UniverseAge(year=meta["age_year"], month=meta["age_month"], day=meta["age_day"])
+    old = float(meta.get("current_age") or 0.0)
+    return UniverseAge(year=int(old), month=1, day=1)
+
+
+def _derive_founding_date(civ_age: float, universe_age: UniverseAge) -> tuple[int, int, int]:
+    founding_year = max(0, universe_age.year - int(civ_age))
+    return (founding_year, universe_age.month, universe_age.day)
+
+
+def _derive_birthday(chrono_age: float, universe_age: UniverseAge) -> tuple[int, int]:
+    return (universe_age.month, universe_age.day)
 
 
 _MAX_INDIVIDUAL_AFFINITY = 0.8   # no single Luminary may exceed this for any one domain
@@ -141,10 +158,11 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     rules    = _load_universe_rules(conn)
     locations = _load_locations(conn)
     travel_networks = _load_travel_networks(conn)
+    universe_age = _load_universe_age(meta)
     species  = _load_species(conn)
-    civs     = _load_civilizations(conn)
+    civs     = _load_civilizations(conn, universe_age)
     pops     = _load_pops(conn)
-    mortals  = _load_mortals(conn)
+    mortals  = _load_mortals(conn, universe_age)
     demiurge = _load_demiurge(conn)
     essence  = _load_essence(conn)
     cfg      = _load_tick_config(conn)
@@ -183,7 +201,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         pantheon_id=pantheon.id,
         rules=rules,
         child_ids=galaxy_ids,
-        current_age=meta["current_age"],
+        current_age=_load_universe_age(meta),
         universe_domain_expression=_jd_str(meta.get("universe_domain_expression", "{}")),
     )
 
@@ -514,7 +532,7 @@ def _load_species(conn) -> dict[str, Species]:
     return out
 
 
-def _load_civilizations(conn) -> dict[str, Civilization]:
+def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilization]:
     out = {}
     for raw in conn.execute("SELECT * FROM civilizations"):
         row = dict(raw)
@@ -545,6 +563,11 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
             divine_awareness=row["divine_awareness"],
             core_locs=[UUID(x) for x in _j(row.get("core_locs", "[]"))],
             age=row["age"],
+            founding_date=(
+                (row["founding_year"], row["founding_month"], row["founding_day"])
+                if row.get("founding_year") is not None
+                else _derive_founding_date(row["age"], universe_age)
+            ),
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
         )
@@ -592,7 +615,7 @@ def _load_pops(conn) -> dict[str, Pop]:
     return out
 
 
-def _load_mortals(conn) -> dict[str, NotableMortal]:
+def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
     out = {}
     for raw in conn.execute("SELECT * FROM mortals"):
         row = dict(raw)
@@ -614,6 +637,11 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],
+            birthday=(
+                (row["birthday_month"], row["birthday_day"])
+                if row.get("birthday_month") is not None
+                else _derive_birthday(row["chrono_age"], universe_age)
+            ),
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
             home_location=UUID(row["home_location"]),

@@ -453,6 +453,7 @@ class Civilization(BaseModel):
     core_locs: list[UUID] = Field(default_factory=list)
 
     age: float = 0.0
+    founding_date: tuple[int, int, int] = (0, 1, 1)  # (year, month, day)
     visibility: float = 0.0
     pinned: bool = False
 
@@ -546,8 +547,9 @@ class NotableMortal(BaseModel):
     # patron's agenda vs. their own. 1.0 = fully aligned.
     alignment: float = Field(ge=0.0, le=1.0, default=0.8)
 
-    chrono_age: float = 0.0  # Always increments each tick
-    bio_age: float = 0.0     # Frozen while mortal is an active Proxius or Herald
+    chrono_age: float = 0.0  # Increments by 1 each year on birthday
+    bio_age: float = 0.0     # Frozen while active Proxius/Herald; slow while dormant
+    birthday: tuple[int, int] = (1, 1)  # (month, day)
 
     # Where this mortal was born / first recorded (fixed).
     # Where they are now (changes when moved to a new world or sub-world location).
@@ -595,6 +597,31 @@ class NotableMortal(BaseModel):
 
 
 # ─────────────────────────────────────────
+# AGE REPRESENTATION
+# ─────────────────────────────────────────
+
+class UniverseAge(BaseModel):
+    """Calendar position of the universe. Calendar: 12 months × 30 days."""
+    year:  int = 0
+    month: int = 1   # 1–12
+    day:   int = 1   # 1–30
+
+    def advance_days(self, n: int) -> "UniverseAge":
+        """Return a new UniverseAge advanced by n days."""
+        d = self.day - 1 + n        # 0-indexed day
+        m = self.month - 1          # 0-indexed month
+        d_carry, new_day   = divmod(d, 30)
+        m_carry, new_month = divmod(m + d_carry, 12)
+        return UniverseAge(year=self.year + m_carry, month=new_month + 1, day=new_day + 1)
+
+    def display(self) -> str:
+        return f"Day {self.day} of Month {self.month}, Year {self.year:,}"
+
+    def to_float_years(self) -> float:
+        return self.year + (self.month - 1) / 12.0 + (self.day - 1) / 360.0
+
+
+# ─────────────────────────────────────────
 # UNIVERSE — top-level container
 # ─────────────────────────────────────────
 
@@ -606,9 +633,7 @@ class Universe(Location):
     pantheon_id: UUID
     rules: UniverseRules = Field(default_factory=UniverseRules)
 
-    # Running clock. Scenario defines what one unit means —
-    # could be years, centuries, or abstract "eras."
-    current_age: float = 0.0
+    current_age: UniverseAge = Field(default_factory=UniverseAge)
 
     # Per-domain expression baseline. Keys are domain:xxx tags.
     # Missing keys default to 0.1 in _compute_universal_expression.

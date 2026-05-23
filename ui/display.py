@@ -358,7 +358,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     lines = [
         SEP2,
         f"  UNIVERSE: {state.universe.name}",
-        f"  Age: {state.universe.current_age:.1f}  |  Tick: {state.tick_number}",
+        f"  {state.universe.current_age.display()}  |  Tick: {state.tick_number}",
         SEP2,
     ]
     fp = state.demiurge.footprint
@@ -548,7 +548,7 @@ def display_tick_result_categorized(
     out.append((
         "other",
         f"  TICK {result.tick_number} RESULT  "
-        f"(age {result.universe_age_before:.1f} → {result.universe_age_after:.1f})",
+        f"({result.universe_age_before.display()} → {result.universe_age_after.display()})",
     ))
     out.append(("other", SEP))
 
@@ -635,7 +635,7 @@ def display_tick_result(result: "TickResult", dev_mode: bool = False) -> str:
 
 
 def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[str]:
-    lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  (Age {state.universe.current_age:.1f})", SEP2, ""]
+    lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  ({state.universe.current_age.display()})", SEP2, ""]
     pan = state.pantheon
     lines.append(f"PANTHEON: {pan.name}")
     if pan.collective_constraints:

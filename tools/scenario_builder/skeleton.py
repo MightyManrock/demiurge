@@ -11,7 +11,7 @@ from core.onto_core import Demiurge, FootprintProfile, Luminary, Pantheon
 from core.action_core import EssenceStockpile
 from core.universe_core import (
     Civilization, Location, NotableMortal, Pop, PopLocation,
-    SignificantLocation, SocialClass, Species, System, Universe, UniverseRules,
+    SignificantLocation, SocialClass, Species, System, Universe, UniverseAge, UniverseRules,
 )
 from logic.tick_logic import SimulationState
 
@@ -103,7 +103,7 @@ def build_skeleton_state(scenario_name: str, initialism: str) -> SimulationState
         pantheon_id=pantheon.id,
         rules=UniverseRules(),
         child_ids=[galaxy.id],
-        current_age=0.0,
+        current_age=UniverseAge(),
     )
 
     locations: dict[str, Location] = {

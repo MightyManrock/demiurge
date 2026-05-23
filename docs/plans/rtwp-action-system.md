@@ -158,11 +158,13 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - [ ] Revelation inflation: +0.3%/previously-revealed Imago (~:336)
 - [ ] Puissance saturation: `REV_SCALE`=500, `IMAGO_SCALE`=40, `TICK_SCALE`=200 (~:305)
 
-**6b — Age representation**
-- Change `Universe` age storage to `(billions, millions, thousands, years, months, days)`
-- Update top-bar display: `"Day 13 of Month 5, Year 13,675,482,090"`
-- Add `birthday` (month, day) to `NotableMortal`; derive from current age in-game. Add `founding_date` (year, month, day) to `Civilization`; assign a realistic historical value (hundreds to tens of thousands of years, context-dependent), with arbitrary month/day. Calendar: 12 months × 30 days.
-- Replace unconditional per-tick age increment for mortals and civilizations with a birthday/founding-date check: age increments only on the matching (month, day) each year.
+**6b — Age representation** ✓ complete
+- `UniverseAge(year, month, day)` model replaces `float`; `advance_days(n)` + `display()` helpers
+- Top-bar/status/briefing display: `"Day D of Month M, Year Y"` (year formatted with commas)
+- `birthday: (month, day)` on `NotableMortal`; `founding_date: (year, month, day)` on `Civilization`; both derived from existing age data during migration
+- Birthday interval check (`_birthday_fires`) gates chrono/bio age increments for mortals and age increments for civilizations; `days_per_tick = round(tick_duration × 360)` stays correct across tick scales
+- Schema: `age_year/age_month/age_day` columns (legacy `current_age` float preserved); `birthday_month/birthday_day` on mortals; `founding_year/month/day` on civs
+- Existing scenarios migrated via `--rebuild --scenario`
 
 **6c — Recalibrate Essence + Revelation**
 - Adjust per-tick rates to suit tick = 1 day; drop per-tick minimums; rely on fractional accumulation

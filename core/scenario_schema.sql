@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     universe_name       TEXT NOT NULL,
     universe_save_name  TEXT NOT NULL,
     universe_description TEXT NOT NULL DEFAULT '',
-    current_age         REAL NOT NULL DEFAULT 0.0,
+    current_age         REAL NOT NULL DEFAULT 0.0,  -- legacy; superseded by age_year/month/day
+    age_year            INTEGER NOT NULL DEFAULT 0,
+    age_month           INTEGER NOT NULL DEFAULT 1,
+    age_day             INTEGER NOT NULL DEFAULT 1,
     tick_number         INTEGER NOT NULL DEFAULT 0,
     demiurge_id         TEXT NOT NULL,
     pantheon_id         TEXT NOT NULL,
@@ -187,6 +190,9 @@ CREATE TABLE IF NOT EXISTS civilizations (
     divine_awareness    REAL NOT NULL DEFAULT 0.3,
     core_locs           TEXT    NOT NULL DEFAULT '[]',  -- JSON array of SignificantLocation UUIDs
     age                 REAL NOT NULL DEFAULT 0.0,
+    founding_year       INTEGER NOT NULL DEFAULT 0,
+    founding_month      INTEGER NOT NULL DEFAULT 1,
+    founding_day        INTEGER NOT NULL DEFAULT 1,
     visibility          REAL    NOT NULL DEFAULT 0.0,
     pinned              INTEGER NOT NULL DEFAULT 0
 );
@@ -231,6 +237,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     alignment              REAL NOT NULL DEFAULT 0.8,
     chrono_age             REAL NOT NULL DEFAULT 0.0,
     bio_age                REAL NOT NULL DEFAULT 0.0,
+    birthday_month         INTEGER NOT NULL DEFAULT 1,
+    birthday_day           INTEGER NOT NULL DEFAULT 1,
     appointed_by_demiurge  TEXT,
     appointed_by_luminary  TEXT,
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)

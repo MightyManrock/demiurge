@@ -288,7 +288,7 @@ class GameScreen(Screen):
         # Demiurge-authored Pops get a [ Rename ] button.
         set_detail_action_provider(self._detail_actions_for)
         self.app.sub_title = (
-            f"{state.universe.name}  ·  Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}"
+            f"{state.universe.name}  ·  {state.universe.current_age.display()}  ·  Tick {state.tick_number}"
         )
         self.query_one(StatusPanel).refresh_state(state, self.app.loop)
         self.query_one(LocationsTab).refresh_state(state)
@@ -759,7 +759,7 @@ class GameScreen(Screen):
             if not overwrite:
                 self._feed_markup("[#5a7090]Save cancelled.[/]")
                 return
-        description = f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
+        description = f"Tick {state.tick_number}  |  {state.universe.current_age.display()}"
         self._flush_rich_log(name)
         export_scenario(state, db_path, scenario_name=name, description=description)
         self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
@@ -784,7 +784,7 @@ class GameScreen(Screen):
             name = f"{state.universe.save_name}_{dt}"
             db_path = _SAVES_DIR / f"{name}.db"
             description = (
-                f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
+                f"Tick {state.tick_number}  |  {state.universe.current_age.display()}"
             )
             self._flush_rich_log(name)
             export_scenario(state, db_path, scenario_name=name, description=description)
@@ -930,7 +930,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=TargetType.MORTAL,
                 target_id=proxius_id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=proxius_id,
                 intent=intent,
@@ -1083,7 +1083,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=TargetType.MORTAL,
                 target_id=UUID(pid),
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=UUID(pid),
                 intent=intent,
@@ -1102,7 +1102,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=TargetType.MORTAL,
                 target_id=proxius_id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=proxius_id,
                 intent=None,
@@ -1144,7 +1144,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=target_type,
                 target_id=target_id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=None,
                 intent=ScryIntent(scope=chosen_scope),
@@ -1198,7 +1198,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.MORTAL,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1225,7 +1225,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.CIVILIZATION,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1249,7 +1249,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.LUMINARY,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1275,7 +1275,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.SPECIES,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1294,7 +1294,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=target_type,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1304,7 +1304,7 @@ class GameScreen(Screen):
             if action_key in _NO_PARAMS:
                 return ActionInstance(
                     action_definition_id=defn.id, target_type=target_type,
-                    target_id=None, timestamp=state.universe.current_age,
+                    target_id=None, timestamp=state.universe.current_age.to_float_years(),
                     demiurge_id=state.demiurge.id, proxius_id=None, intent=None,
                 )
             intent = await self._build_intent_params(action_key, defn, None, state)
@@ -1312,7 +1312,7 @@ class GameScreen(Screen):
             if intent == BACK: return BACK
             return ActionInstance(
                 action_definition_id=defn.id, target_type=target_type,
-                target_id=None, timestamp=state.universe.current_age,
+                target_id=None, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None, intent=intent,
             )
 
@@ -1320,7 +1320,7 @@ class GameScreen(Screen):
         if action_key in _NO_PARAMS:
             return ActionInstance(
                 action_definition_id=defn.id, target_type=target_type,
-                target_id=None, timestamp=state.universe.current_age,
+                target_id=None, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None, intent=None,
             )
         intent = await self._build_intent_params(action_key, defn, None, state)
@@ -1328,7 +1328,7 @@ class GameScreen(Screen):
         if intent == BACK: return BACK
         return ActionInstance(
             action_definition_id=defn.id, target_type=target_type,
-            target_id=None, timestamp=state.universe.current_age,
+            target_id=None, timestamp=state.universe.current_age.to_float_years(),
             demiurge_id=state.demiurge.id, proxius_id=None, intent=intent,
         )
 
