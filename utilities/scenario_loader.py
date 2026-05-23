@@ -61,20 +61,49 @@ SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
 
 
 def _load_universe_age(meta: dict) -> UniverseAge:
-    """Load UniverseAge from a scenario_meta row; falls back to legacy current_age float."""
+    """Load UniverseAge; prefers 6-component columns, falls back to legacy age_year, then current_age float."""
+    if meta.get("age_billions") is not None:
+        return UniverseAge(
+            billions=meta["age_billions"], millions=meta["age_millions"],
+            thousands=meta["age_thousands"], years=meta["age_years"],
+            month=meta["age_month"], day=meta["age_day"],
+        )
     if meta.get("age_year") is not None:
-        return UniverseAge(year=meta["age_year"], month=meta["age_month"], day=meta["age_day"])
+        return UniverseAge.from_full_year(meta["age_year"], meta.get("age_month", 1), meta.get("age_day", 1))
     old = float(meta.get("current_age") or 0.0)
-    return UniverseAge(year=int(old), month=1, day=1)
+    return UniverseAge.from_full_year(int(old))
 
 
-def _derive_founding_date(civ_age: float, universe_age: UniverseAge) -> tuple[int, int, int]:
-    founding_year = max(0, universe_age.year - int(civ_age))
-    return (founding_year, universe_age.month, universe_age.day)
+def _derive_founding_date(civ_age: float, universe_age: UniverseAge) -> tuple[int, int, int, int, int, int]:
+    ua = UniverseAge.from_full_year(
+        max(0, universe_age.full_year() - int(civ_age)),
+        universe_age.month, universe_age.day,
+    )
+    return (ua.billions, ua.millions, ua.thousands, ua.years, ua.month, ua.day)
 
 
-def _derive_birthday(chrono_age: float, universe_age: UniverseAge) -> tuple[int, int]:
-    return (universe_age.month, universe_age.day)
+def _derive_birthday(chrono_age: float, universe_age: UniverseAge) -> tuple:
+    born = UniverseAge.from_full_year(max(0, universe_age.full_year() - int(chrono_age)))
+    return (born.billions, born.millions, born.thousands, born.years, universe_age.month, universe_age.day)
+
+
+def _load_birthday(row: dict, universe_age: UniverseAge) -> tuple:
+    """Load mortal birthday tuple.
+
+    If upper components (billions/millions/thousands) are stored, use them directly.
+    If NULL, derive the full birth date from chrono_age — this correctly handles
+    mortals who crossed a millennium boundary during their lifetime."""
+    bm = row.get("birthday_month", 1)
+    bd = row.get("birthday_day", 1)
+    bi = row.get("birthday_billions")
+    if bi is not None:
+        return (bi, row["birthday_millions"], row["birthday_thousands"],
+                row["birthday_years"], bm, bd)
+    # Derive all year components from birth year
+    full_birth = max(0, universe_age.full_year() - int(row.get("chrono_age", 0)))
+    born = UniverseAge.from_full_year(full_birth)
+    yr = row.get("birthday_years", born.years)
+    return (born.billions, born.millions, born.thousands, yr, bm, bd)
 
 
 _MAX_INDIVIDUAL_AFFINITY = 0.8   # no single Luminary may exceed this for any one domain
@@ -564,9 +593,14 @@ def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilizati
             core_locs=[UUID(x) for x in _j(row.get("core_locs", "[]"))],
             age=row["age"],
             founding_date=(
-                (row["founding_year"], row["founding_month"], row["founding_day"])
-                if row.get("founding_year") is not None
-                else _derive_founding_date(row["age"], universe_age)
+                (row["founding_billions"], row["founding_millions"], row["founding_thousands"],
+                 row["founding_year"], row["founding_month"], row["founding_day"])
+                if row.get("founding_billions") is not None
+                else (
+                    (0, 0, 0, row["founding_year"], row["founding_month"], row["founding_day"])
+                    if row.get("founding_year") is not None
+                    else _derive_founding_date(row["age"], universe_age)
+                )
             ),
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
@@ -637,11 +671,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],
-            birthday=(
-                (row["birthday_month"], row["birthday_day"])
-                if row.get("birthday_month") is not None
-                else _derive_birthday(row["chrono_age"], universe_age)
-            ),
+            birthday=_load_birthday(row, universe_age),
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
             home_location=UUID(row["home_location"]),

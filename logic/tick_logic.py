@@ -950,10 +950,12 @@ def _assign_category_cooldown(state: SimulationState, category: "ActionCategory"
 
 def _birthday_fires(old: UniverseAge, new: UniverseAge, month: int, day: int) -> bool:
     """True if (month, day) anniversary falls in the half-open interval (old, new]."""
-    old_t = (old.year, old.month, old.day)
-    new_t = (new.year, new.month, new.day)
-    for year in range(old.year, new.year + 1):
-        if old_t < (year, month, day) <= new_t:
+    old_fy = old.full_year()
+    new_fy = new.full_year()
+    old_t  = (old_fy, old.month, old.day)
+    new_t  = (new_fy, new.month, new.day)
+    for y in range(old_fy, new_fy + 1):
+        if old_t < (y, month, day) <= new_t:
             return True
     return False
 
@@ -1411,7 +1413,7 @@ class TickLoop:
                 ))
 
             # Civilization age increments on founding anniversary
-            fy, fm, fd = civ.founding_date
+            *_, fm, fd = civ.founding_date
             if _birthday_fires(_old_age, _new_age_obj, fm, fd):
                 result.civilization_mutations.append(StateMutation(
                     mutation_type=MutationType.CIVILIZATION_STAT,
@@ -1536,7 +1538,7 @@ class TickLoop:
             if mortal.status == MortalStatus.DECEASED:
                 continue
 
-            bm, bd = mortal.birthday
+            *_, bm, bd = mortal.birthday
             on_birthday = _birthday_fires(_old_age, _new_age_obj, bm, bd)
 
             if on_birthday:
