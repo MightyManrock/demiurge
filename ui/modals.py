@@ -1284,14 +1284,14 @@ class ActionBrowserModal(ModalScreen):
 # ─────────────────────────────────────────
 # CATEGORY PENDING MODAL
 # Shown when the player clicks an occupied action category slot.
-# Returns: None (keep), "replace", or "cancel".
-# "override" (once-then-resume) is Phase 5 — button present but disabled.
+# Returns: None (keep), "override_resume", "replace", or "cancel".
 # ─────────────────────────────────────────
 
 class CategoryPendingModal(ModalScreen):
     BINDINGS = [
         ("escape", "keep", "Keep"),
         ("1", "keep", "Keep"),
+        ("2", "override_resume", "Override once"),
         ("3", "replace", "Replace"),
         ("4", "cancel_pending", "Cancel pending"),
     ]
@@ -1330,10 +1330,9 @@ class CategoryPendingModal(ModalScreen):
             with Vertical(id="modal-buttons"):
                 yield Button("1  Keep current", id="keep-btn", variant="default")
                 yield Button(
-                    "2  Override once, then resume  [dim](Phase 5)[/dim]",
+                    "2  Override once, then resume",
                     id="override-btn",
-                    variant="default",
-                    disabled=True,
+                    variant="primary",
                 )
                 yield Button("3  Replace with new action", id="replace-btn", variant="warning")
                 yield Button("4  Cancel pending action", id="cancel-pending-btn", variant="error")
@@ -1346,12 +1345,19 @@ class CategoryPendingModal(ModalScreen):
     def _replace(self, _: Button.Pressed) -> None:
         self.dismiss("replace")
 
+    @on(Button.Pressed, "#override-btn")
+    def _override_resume(self, _: Button.Pressed) -> None:
+        self.dismiss("override_resume")
+
     @on(Button.Pressed, "#cancel-pending-btn")
     def _cancel_pending(self, _: Button.Pressed) -> None:
         self.dismiss("cancel")
 
     def action_keep(self) -> None:
         self.dismiss(None)
+
+    def action_override_resume(self) -> None:
+        self.dismiss("override_resume")
 
     def action_replace(self) -> None:
         self.dismiss("replace")

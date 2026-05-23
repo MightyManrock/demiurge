@@ -1,4 +1,4 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** Soft queue / pending slot system
 > **Last updated:** 2026-05-23 (rev 1)
 
@@ -596,7 +596,7 @@ CREATE TABLE IF NOT EXISTS pending_resume (
 
 Add `_load_pending_resume(conn)` and `_write_pending_resume(conn, state)` in loader/exporter — structurally identical to their `ongoing_actions` counterparts, but reading/writing the `pending_resume` table and `state.pending_resume`.
 
-**5b — Wire "Override once, then resume" in `CategoryPendingModal`**
+**5b — Wire "Override once, then resume" in `CategoryPendingModal`** ✓ complete
 
 Files: `ui/modals.py`, `ui/ui.py`
 

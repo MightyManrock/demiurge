@@ -809,7 +809,13 @@ class GameScreen(Screen):
         result = await self.app.push_screen_wait(
             CategoryPendingModal(event.category, pending, action_name, cooldown_remaining)
         )
-        if result == "replace":
+        if result == "override_resume":
+            self._state.pending_resume[cat_val] = pending
+            await self._queue_action_flow(initial_category=event.category)
+            new_pending = self._state.pending_actions.get(cat_val)
+            if new_pending and new_pending is not pending:
+                new_pending.repeating = False
+        elif result == "replace":
             await self._queue_action_flow(initial_category=event.category)
         elif result == "cancel":
             del self._state.pending_actions[cat_val]
