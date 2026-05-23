@@ -94,7 +94,7 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - Right column (default-off): pop splint, domain threshold, travel complete, minor agent updates
 - Wire to the pause config state from Phase 3c
 
-**5d — Time control bar + keybindings**
+**5d — Time control bar + keybindings** ✓ complete
 - Button row (left to right): Exit | Slow | Pause/Play | +1 | Fast
 - `spacebar` → Pause/Play; `t` → +1; `numpad +` / `numpad -` → Fast / Slow
 - `Esc` → Exit (pauses first if advancing); Exit while advancing always pauses before closing

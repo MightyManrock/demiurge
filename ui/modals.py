@@ -33,6 +33,7 @@ from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
+    from ui.ui import GameScreen
 
 
 # ─────────────────────────────────────────
@@ -1284,6 +1285,10 @@ class ActionBrowserModal(ModalScreen):
 # left panel and category panel remain visible through transparent spacers.
 # ─────────────────────────────────────────
 
+_SPEED_SLOW   = 0.5
+_SPEED_NORMAL = 0.2
+_SPEED_FAST   = 0.05
+
 _PAUSE_CHECKBOX_MAP: dict[str, PauseEventType] = {
     "pause-eval":    PauseEventType.EVALUATION_COMPLETE,
     "pause-rev":     PauseEventType.REVELATION_THRESHOLD,
@@ -1297,16 +1302,24 @@ _PAUSE_CHECKBOX_MAP: dict[str, PauseEventType] = {
 
 
 class RTwPModal(ModalScreen):
-    BINDINGS = [("escape", "dismiss_modal", "Exit")]
+    BINDINGS = [
+        ("escape", "dismiss_modal", "Exit"),
+        ("space",  "play_pause",    "Play/Pause"),
+        ("t",      "step",          "Step"),
+        ("plus",   "set_fast",      "Fast"),
+        ("minus",  "set_slow",      "Slow"),
+    ]
 
     def __init__(
         self,
         initial_entries: "list[tuple[int, str, str]]",
         pause_config: "PauseConfig",
+        game_screen: "GameScreen",
     ) -> None:
         super().__init__()
         self._initial_entries = initial_entries
         self._pause_config = pause_config
+        self._game_screen = game_screen
         self._auto_start: bool = False
 
     def _paused_by(self, event_type: PauseEventType, default: bool) -> bool:
@@ -1338,16 +1351,41 @@ class RTwPModal(ModalScreen):
                             yield Checkbox("Minor agent update",     value=self._paused_by(PauseEventType.MINOR_AGENT_UPDATE,    False), id="pause-agent")
                 with Horizontal(id="rtwp-time-bar"):
                     yield Button("Exit",   id="rtwp-exit",  variant="default")
-                    yield Button("Slow",   id="rtwp-slow",  disabled=True)
-                    yield Button("▶ Play", id="rtwp-play",  disabled=True)
-                    yield Button("+1",     id="rtwp-step",  disabled=True)
-                    yield Button("Fast",   id="rtwp-fast",  disabled=True)
+                    yield Button("Slow",   id="rtwp-slow")
+                    yield Button("▶ Play", id="rtwp-play")
+                    yield Button("+1",     id="rtwp-step")
+                    yield Button("Fast",   id="rtwp-fast")
             yield Static("", id="rtwp-right-spacer")
 
     def on_mount(self) -> None:
         log = self.query_one("#rtwp-log", RichLog)
         for _tick, _cat, markup in self._initial_entries:
             log.write(Text.from_markup(markup))
+        self._refresh_play_button()
+        if self._auto_start and not self._game_screen._auto_advance:
+            self._game_screen.action_toggle_auto_advance()
+            self._refresh_play_button()
+
+    def _refresh_play_button(self) -> None:
+        btn = self.query_one("#rtwp-play", Button)
+        btn.label = "⏸ Pause" if self._game_screen._auto_advance else "▶ Play"
+
+    def _do_play_pause(self) -> None:
+        self._game_screen.action_toggle_auto_advance()
+        self._refresh_play_button()
+
+    def action_play_pause(self) -> None:
+        self._do_play_pause()
+
+    def action_step(self) -> None:
+        if not self._game_screen._auto_advance:
+            self._game_screen.action_advance_tick()
+
+    def action_set_fast(self) -> None:
+        self._game_screen._auto_advance_delay_s = _SPEED_FAST
+
+    def action_set_slow(self) -> None:
+        self._game_screen._auto_advance_delay_s = _SPEED_SLOW
 
     def append_entry(self, markup: str) -> None:
         try:
@@ -1365,9 +1403,27 @@ class RTwPModal(ModalScreen):
         if event_type is not None:
             self._pause_config.overrides[event_type] = event.value
 
+    @on(Button.Pressed, "#rtwp-play")
+    def _play_pause_btn(self, _: Button.Pressed) -> None:
+        self._do_play_pause()
+
+    @on(Button.Pressed, "#rtwp-step")
+    def _step_btn(self, _: Button.Pressed) -> None:
+        self.action_step()
+
+    @on(Button.Pressed, "#rtwp-slow")
+    def _slow_btn(self, _: Button.Pressed) -> None:
+        self.action_set_slow()
+
+    @on(Button.Pressed, "#rtwp-fast")
+    def _fast_btn(self, _: Button.Pressed) -> None:
+        self.action_set_fast()
+
     @on(Button.Pressed, "#rtwp-exit")
     def _exit(self, _: Button.Pressed) -> None:
-        self.dismiss()
+        self.action_dismiss_modal()
 
     def action_dismiss_modal(self) -> None:
+        if self._game_screen._auto_advance:
+            self._game_screen.action_toggle_auto_advance()
         self.dismiss()

@@ -161,7 +161,6 @@ class LoadScreen(Screen):
 # ─────────────────────────────────────────
 
 class GameScreen(Screen):
-    _AUTO_ADVANCE_DELAY_S = 0.2
 
     BINDINGS = [
         ("b",      "briefing",             "Briefing"),
@@ -206,6 +205,7 @@ class GameScreen(Screen):
         # (set when the user activates the tab; the active render still shows gold).
         self._pending_clear: set[str] = set()
         self._auto_advance: bool = False
+        self._auto_advance_delay_s: float = 0.2
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -623,7 +623,7 @@ class GameScreen(Screen):
         self._advance_tick_work()
 
     def action_open_rtwp_modal(self) -> None:
-        self.app.push_screen(RTwPModal(self._rich_log.entries(), self._state.pause_config))
+        self.app.push_screen(RTwPModal(self._rich_log.entries(), self._state.pause_config, self))
 
     def action_toggle_auto_advance(self) -> None:
         self._auto_advance = not self._auto_advance
@@ -639,7 +639,7 @@ class GameScreen(Screen):
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.name == "tick_worker" and event.state == WorkerState.SUCCESS:
             if self._auto_advance:
-                self.set_timer(self._AUTO_ADVANCE_DELAY_S, self._auto_advance_step)
+                self.set_timer(self._auto_advance_delay_s, self._auto_advance_step)
 
     @work(thread=True, name="tick_worker")
     def _advance_tick_work(self) -> None:
