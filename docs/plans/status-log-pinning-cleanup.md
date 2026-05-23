@@ -50,7 +50,7 @@ Replace the read of `state.last_tick_essence_by_domain` with `state.last_essence
 
 In the `EssenceHarvestIntent` handler (~line 3708), on a successful harvest: set `state.last_harvest_amount = actual_yield` and `state.last_harvest_tick = state.tick_number`. (Leave unchanged on failure so the last successful value persists.)
 
-**2c — Persistence**
+**2c — Persistence** ✓ complete
 
 Same pattern: `last_harvest_amount REAL DEFAULT 0.0` and `last_harvest_tick INTEGER DEFAULT 0` in the schema; load with `.get()` defaults; export normally.
 

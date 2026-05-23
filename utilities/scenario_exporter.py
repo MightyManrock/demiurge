@@ -116,8 +116,9 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             luminary_production_accum, domain_essence_claimed, universe_domain_expression,
             starting_pinned_ids, last_tick_essence_by_domain,
             last_essence_capture_by_domain, last_essence_capture_tick,
+            last_harvest_amount, last_harvest_tick,
             category_cooldowns, pause_config, rich_log_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -142,6 +143,8 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             json.dumps(state.last_tick_essence_by_domain),
             json.dumps(state.last_essence_capture_by_domain),
             state.last_essence_capture_tick,
+            state.last_harvest_amount,
+            state.last_harvest_tick,
             state.category_cooldowns.model_dump_json(),
             state.pause_config.model_dump_json(),
             state.rich_log_name,

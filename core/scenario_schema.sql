@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
     last_essence_capture_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} most recent non-empty monthly snapshot
     last_essence_capture_tick   INTEGER NOT NULL DEFAULT 0,  -- tick number of last_essence_capture_by_domain
+    last_harvest_amount         REAL    NOT NULL DEFAULT 0.0, -- actual_yield of most recent successful Harvest Essence action
+    last_harvest_tick           INTEGER NOT NULL DEFAULT 0    -- tick number of last_harvest_amount (0 = never harvested)
     category_cooldowns          TEXT NOT NULL DEFAULT '{}', -- JSON CategoryCooldowns model (counters: dict[ActionCategory, int])
     pause_config                TEXT NOT NULL DEFAULT '{}', -- JSON PauseConfig model (overrides: dict[PauseEventType, bool])
     rich_log_name               TEXT NOT NULL DEFAULT ''    -- base filename (no path/ext) of the JSONL rich-log; empty = none yet
