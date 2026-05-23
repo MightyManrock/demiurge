@@ -186,7 +186,7 @@ LINEAGE_BLEED_FRACTION = 0.20
 # Fraction of a splash delta that bleeds further to a Pop's parent and children.
 # Moderated by cosine similarity — diverged relatives resist the bleed.
 
-RIDER_ATTRITION_BASE = 0.003
+RIDER_ATTRITION_BASE = 0.00002
 # Base decay rate per tick applied to culture_tags that conflict with a Pop's active rider_traits.
 # Multiplied by (1.0 - synergy): syn=-1 → 2x, syn=0 → 1x, syn=+1 → 0x.
 
@@ -522,15 +522,15 @@ class TickConfig(BaseModel):
 
     # Civilization momentum
     # How much a civilization's stats move on their own per tick.
-    civ_momentum_rate: float = 0.02
-    civ_noise_factor: float = 0.01
+    civ_momentum_rate: float = 0.003
+    civ_noise_factor: float = 0.004
     # Small random perturbation each tick — civilizations
     # are not perfectly predictable.
 
     # Mortal alignment drift
     # Proxii and Heralds slowly drift toward their personal tags
     # and away from their patron's agenda unless directed.
-    alignment_drift_rate: float = 0.01
+    alignment_drift_rate: float = 0.001
 
     # Mortal visibility decay
     # Base rate; modulated by prominence: effective_decay = rate * (1.0 - prominence).
@@ -603,19 +603,19 @@ class TickConfig(BaseModel):
     # Ensures idle play eventually falls short even if starting conditions are generous.
 
     # Pop dynamics
-    pop_conformity_base: float = 0.005
+    pop_conformity_base: float = 0.0003
     # Base rate at which Pops are nudged toward civ.established_beliefs per tick.
     # Scaled by scale_conformity_mult * civ.health.cohesion at runtime.
 
-    pop_visibility_drift_rate: float = 0.02
+    pop_visibility_drift_rate: float = 0.002
     # Rate at which Pop.visibility converges toward min(civ.visibility, world.visibility).
 
-    established_drift_base: float = 0.01
+    established_drift_base: float = 0.0005
     # Base rate at which civ.established_beliefs drifts toward civ.dominant_beliefs per tick.
     # Scaled by civ.health.cohesion at runtime.
 
     # Cross-Pop contact (passive belief drift between co-located Pops of different civs)
-    pop_contact_base_rate: float = 0.005
+    pop_contact_base_rate: float = 0.00003
     cross_civ_contact_factor: float = 0.15
     cross_civ_scale_penalty: float = 0.08
     cross_species_contact_factor: float = 0.50
@@ -1336,42 +1336,42 @@ class TickLoop:
                 CivilizationMomentum(civilization_id=UUID(cid))
             )
 
-            # prosperity and cohesion drift from momentum
-            for stat, delta in [
-                ("prosperity", momentum.prosperity_delta),
-                ("cohesion",   momentum.cohesion_delta),
-            ]:
+            stability_delta = 0.0
+            # prosperity, cohesion, and stability momentum fires monthly (day 1 of each month)
+            if _new_age_obj.day == 1:
+                for stat, delta in [
+                    ("prosperity", momentum.prosperity_delta),
+                    ("cohesion",   momentum.cohesion_delta),
+                ]:
+                    noise = rng.gauss(0, cfg.civ_noise_factor)
+                    effective_delta = (delta * cfg.civ_momentum_rate) + noise
+                    current = getattr(civ.health, stat)
+                    new_val = max(0.0, min(1.0, current + effective_delta))
+                    if abs(new_val - current) > 0.001:
+                        result.civilization_mutations.append(StateMutation(
+                            mutation_type=MutationType.CIVILIZATION_STAT,
+                            target_id=UUID(cid),
+                            field=f"health.{stat}",
+                            delta=effective_delta,
+                            note=f"{civ.name} {stat} passive drift",
+                        ))
+
+                if civ.dominant_beliefs and civ.established_beliefs:
+                    stability_target = self._cosine_similarity(
+                        civ.dominant_beliefs, civ.established_beliefs
+                    )
+                else:
+                    stability_target = civ.health.stability
+                stability_delta = (stability_target - civ.health.stability) * cfg.civ_momentum_rate
                 noise = rng.gauss(0, cfg.civ_noise_factor)
-                effective_delta = (delta * cfg.civ_momentum_rate) + noise
-                current = getattr(civ.health, stat)
-                new_val = max(0.0, min(1.0, current + effective_delta))
-                if abs(new_val - current) > 0.001:
+                if abs(stability_delta + noise) > 0.001:
                     result.civilization_mutations.append(StateMutation(
                         mutation_type=MutationType.CIVILIZATION_STAT,
                         target_id=UUID(cid),
-                        field=f"health.{stat}",
-                        delta=effective_delta,
-                        note=f"{civ.name} {stat} passive drift",
+                        field="health.stability",
+                        delta=stability_delta + noise,
+                        note=f"{civ.name} stability from belief alignment",
                     ))
-
-            # Stability: nudge toward cosine similarity between dominant and established beliefs.
-            # When Pops diverge from the official profile, stability falls.
-            if civ.dominant_beliefs and civ.established_beliefs:
-                stability_target = self._cosine_similarity(
-                    civ.dominant_beliefs, civ.established_beliefs
-                )
-            else:
-                stability_target = civ.health.stability  # no change if no beliefs yet
-            stability_delta = (stability_target - civ.health.stability) * cfg.civ_momentum_rate
-            noise = rng.gauss(0, cfg.civ_noise_factor)
-            if abs(stability_delta + noise) > 0.001:
-                result.civilization_mutations.append(StateMutation(
-                    mutation_type=MutationType.CIVILIZATION_STAT,
-                    target_id=UUID(cid),
-                    field="health.stability",
-                    delta=stability_delta + noise,
-                    note=f"{civ.name} stability from belief alignment",
-                ))
 
             # established_beliefs drifts toward dominant_beliefs (institutional lag).
             established_rate = cfg.established_drift_base * civ.health.cohesion

@@ -183,9 +183,11 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - All scaled from ~180-day-tick magnitudes down to 1-day-tick magnitudes
 - Targets: footprint lingers ~2.7 yr, concealment degrades ~2.7 yr, attention 1.0→0.1 in ~1 yr, mortal vis fades over years, location/civ/species slower, proxius trace minimal daily
 
-**6d2 — Recalibrate belief/culture drift**
-- `pop_conformity_base`, `established_drift_base`, `pop_contact_base_rate`, `RIDER_ATTRITION_BASE`
-- `alignment_drift_rate`, `civ_momentum_rate`, `civ_noise_factor`, `pop_visibility_drift_rate`
+**6d2 — Recalibrate belief/culture drift** ✓ complete
+- `pop_conformity_base` 0.005 → 0.0003; `established_drift_base` 0.01 → 0.0005; `pop_contact_base_rate` 0.005 → 0.00003; `RIDER_ATTRITION_BASE` 0.003 → 0.00002
+- `alignment_drift_rate` 0.01 → 0.001; `pop_visibility_drift_rate` 0.02 → 0.002
+- `civ_momentum_rate` 0.02 → 0.003; `civ_noise_factor` 0.01 → 0.004
+- Civ momentum/stability gated to monthly (day==1), same pattern as essence; `stability_delta` initialized to 0.0 before gate to preserve threshold-crossing narrative events
 
 **6d3 — TICK_SCALE / puissance recalibration**
 - `TICK_SCALE` (currently 200) needs design thought before changing — deferred to dedicated session
