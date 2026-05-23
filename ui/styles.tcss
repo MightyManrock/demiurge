@@ -485,7 +485,7 @@ ImagoRevealCell.imago-eligible:focus {
 }
 
 .category-row {
-    height: 3;
+    height: 4;
     margin: 0 0 1 0;
 }
 
@@ -505,6 +505,16 @@ ImagoRevealCell.imago-eligible:focus {
 
 .category-row.cooling .cat-bar {
     color: #3a5070;
+}
+
+.ess-bar {
+    height: 1;
+    width: 1fr;
+    display: none;
+}
+
+.ess-bar.ess-bar-visible {
+    display: block;
 }
 
 #cat-speed-label {

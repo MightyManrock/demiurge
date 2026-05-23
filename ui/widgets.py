@@ -1454,6 +1454,10 @@ _BAR_EMPTY  = "#3a5070"
 _BAR_FILL   = "#4a80b0"
 _BAR_READY  = "#50b870"
 
+_ESS_ACTIVE = "#c09030"
+_ESS_FILL   = "#7a5818"
+_ESS_EMPTY  = "#2e2008"
+
 def _render_cat_bar(counter: int, base: int) -> str:
     if counter == 0:
         return f"[bold {_BAR_READY}]{_BAR_CHAR * _BAR_CELLS}[/]"
@@ -1462,6 +1466,17 @@ def _render_cat_bar(counter: int, base: int) -> str:
     return (
         f"[bold {_BAR_FILL}]{_BAR_CHAR * filled}[/]"
         f"[bold {_BAR_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
+    )
+
+
+def _render_essence_bar(current: float, required: float) -> str:
+    if current >= required:
+        return f"[bold {_ESS_ACTIVE}]{_BAR_CHAR * _BAR_CELLS}[/]"
+    filled = max(0, round(current / required * _BAR_CELLS))
+    filled = min(filled, _BAR_CELLS - 1)
+    return (
+        f"[bold {_ESS_FILL}]{_BAR_CHAR * filled}[/]"
+        f"[bold {_ESS_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
     )
 
 
@@ -1481,6 +1496,7 @@ class CategoryRow(Widget):
         label  = _CATEGORY_LABELS[self._category]
         yield Static(f"{symbol}  {label}", classes="cat-label", id=f"cat-label-{self._category.value}")
         yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}", markup=True)
+        yield Static("", classes="ess-bar", id=f"ess-bar-{self._category.value}", markup=True)
 
     def set_indicator(self, indicator: str) -> None:
         if indicator == self._indicator:
@@ -1500,6 +1516,15 @@ class CategoryRow(Widget):
             self.remove_class("cooling")
         else:
             self.add_class("cooling")
+
+    def set_essence_bar(self, current: float, required: float) -> None:
+        bar = self.query_one(f"#ess-bar-{self._category.value}", Static)
+        if required <= 0.0:
+            bar.remove_class("ess-bar-visible")
+            bar.update("")
+        else:
+            bar.update(_render_essence_bar(current, required))
+            bar.add_class("ess-bar-visible")
 
     class CategoryClicked(Message):
         def __init__(self, category: ActionCategory, is_cooling: bool) -> None:
@@ -1539,9 +1564,10 @@ class CategoryPanel(Vertical):
         except Exception:
             pass
 
-    def refresh_state(self, state: "SimulationState") -> None:
+    def refresh_state(self, state: "SimulationState", library: "dict | None" = None) -> None:
         counters = state.category_cooldowns.counters
         pending  = state.pending_actions
+        current_essence = state.essence.actual
         for cat in ActionCategory:
             counter = counters.get(cat, 0)
             row = self.query_one(f"#cat-row-{cat.value}", CategoryRow)
@@ -1549,8 +1575,10 @@ class CategoryPanel(Vertical):
             oa = pending.get(cat.value)
             if oa is None:
                 indicator = ""
-            elif oa.repeating:
-                indicator = " [#6090a8]o[/]"
+                essence_required = 0.0
             else:
-                indicator = " [#6090a8]q[/]"
+                indicator = " [#6090a8]o[/]" if oa.repeating else " [#6090a8]q[/]"
+                defn = (library or {}).get(oa.action_key)
+                essence_required = defn.essence_cost if defn else 0.0
             row.set_indicator(indicator)
+            row.set_essence_bar(current_essence, essence_required)

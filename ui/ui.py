@@ -303,7 +303,8 @@ class GameScreen(Screen):
         self.query_one(DivineWisdomTab).refresh_state(state)
         if self._detail_mgr is not None:
             self._detail_mgr.refresh_all(state)
-        self.query_one(CategoryPanel).refresh_state(state)
+        library = self.app.loop._action_library if self.app.loop else {}
+        self.query_one(CategoryPanel).refresh_state(state, library)
         self._refresh_tab_discovery_styles()
 
     def _refresh_tab_discovery_styles(self) -> None:
