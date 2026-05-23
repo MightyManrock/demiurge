@@ -453,10 +453,10 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     a("")
 
     # At-a-glance reminder; full list lives on the Actions tab.
-    q_count = len(state.action_queue)
-    o_count = len(state.pending_actions)
+    q_count = len(state.action_queue) + sum(1 for oa in state.pending_actions.values() if not oa.repeating)
+    o_count = sum(1 for oa in state.pending_actions.values() if oa.repeating)
     if q_count or o_count:
-        a(f"[#5a7090]queue:[/] [#c09030]{q_count}[/]"
+        a(f"[#5a7090]queued:[/] [#c09030]{q_count}[/]"
           f"  [#5a7090]ongoing:[/] [#60a070]{o_count}[/]")
 
     return Text.from_markup("\n".join(lines))
@@ -641,8 +641,11 @@ class ActionsTab(ContentTab):
         key_by_id = loop._action_key_by_id if loop else {}
         lines: list[str] = []
         a = lines.append
-        a("[bold #4a80b0]━━ QUEUED THIS TICK ━━[/]")
+        one_shots = {k: v for k, v in state.pending_actions.items() if not v.repeating}
+        standing  = {k: v for k, v in state.pending_actions.items() if v.repeating}
+        a("[bold #4a80b0]━━ QUEUED ━━[/]")
         a("")
+        has_queued = bool(state.action_queue or one_shots)
         if state.action_queue:
             for ai in state.action_queue:
                 tgt = ""
@@ -655,13 +658,20 @@ class ActionsTab(ContentTab):
                 else:
                     label = key.replace("_", " ").title() if key else "Action"
                 a(f"  • [#a0d080]{_e(label)}[/]{tgt}")
-        else:
+        for cat_val, oa in one_shots.items():
+            cat = cat_val.replace("_", " ").title()
+            defn = library.get(oa.action_key)
+            label = (defn.short_name or defn.name) if defn else oa.action_key.replace("_", " ").title()
+            tgt = f"  → {_name_link_for_id(oa.target_id, state)}" if oa.target_id else ""
+            a(f"  [#5a7090]({_e(cat)})[/]")
+            a(f"    [#a0d080]{_e(label)}[/]{tgt}")
+        if not has_queued:
             a("[#5a7090]  (none queued)[/]")
         a("")
         a("[bold #4a80b0]━━ ONGOING ━━[/]")
         a("")
-        if state.pending_actions:
-            for cat_val, oa in state.pending_actions.items():
+        if standing:
+            for cat_val, oa in standing.items():
                 cat = cat_val.replace("_", " ").title()
                 defn = library.get(oa.action_key)
                 if defn:
