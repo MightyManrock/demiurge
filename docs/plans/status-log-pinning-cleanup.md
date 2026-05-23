@@ -84,7 +84,7 @@ In `ui/ui.py`'s tick-result processing, skip all `_feed_markup` calls when the r
 - Drop the column from `core/scenario_schema.sql`
 - Remove the `starting_pinned_ids` field from `tools/scenario_builder/skeleton.py` (~line 127)
 
-**4b — Set affected entities to 1.00 visibility**
+**4b — Set affected entities to 1.00 visibility** ✓ complete
 
 Run `--rebuild --scenario` (the migrator round-trip) after removing the schema column. Any entity previously in `starting_pinned_ids` must have `visibility = 1.0` already set in its scenario row — verify this is the case by inspecting the wardens_compact scenario, and patch manually via `--inject` if any entity's visibility was left at a lower value.
 
