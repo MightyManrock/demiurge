@@ -641,13 +641,7 @@ class GameScreen(Screen):
     def action_rtwp(self) -> None:
         self.action_toggle_auto_advance()
 
-    def _update_rtwp_binding(self) -> None:
-        desc = "Pause" if self._auto_advance else "Unpause"
-        self.bind("space", "rtwp", description=desc, show=True)
-        self.refresh_bindings()
-
     def _refresh_rtwp_ui(self) -> None:
-        self._update_rtwp_binding()
         try:
             self.query_one(LogTab).refresh_play_button(self._auto_advance)
         except Exception:
