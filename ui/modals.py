@@ -1176,9 +1176,6 @@ class ActionBrowserModal(ModalScreen):
     def _on_cat_selected(self, event: ListView.Selected) -> None:
         idx = int(event.item.id.split("-", 1)[1])
         cat, actions = list(self._cat_actions.items())[idx]
-        if self._state.category_cooldowns.counters.get(cat, 0) > 0:
-            self.app.push_screen(ToastModal("Category on cooldown — not ready yet."))
-            return
         self._open_cat(cat, actions)
 
     def _reveal_cat_list(self) -> None:
