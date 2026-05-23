@@ -526,6 +526,17 @@ def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
     return "".join(parts)
 
 
+_POP_SENTINEL_RE = re.compile(r"§pop§([^§]+)§([^§]+)§")
+
+
+def _resolve_pop_sentinels(text: str) -> str:
+    """Replace §pop§uuid§label§ tokens (emitted by tick_logic) with entity links."""
+    return _POP_SENTINEL_RE.sub(
+        lambda m: _entity_link("pop", m.group(1), m.group(2)),
+        text,
+    )
+
+
 def display_tick_result_categorized(
     result: "TickResult", dev_mode: bool = False,
     state: "SimulationState | None" = None,
@@ -571,7 +582,7 @@ def display_tick_result_categorized(
         for entry in result.action_result.entries:
             out.append((
                 "actions",
-                f"  \\[{entry.outcome.value.upper()}] {_linkify(entry.narrative, _nl)}",
+                f"  \\[{entry.outcome.value.upper()}] {_resolve_pop_sentinels(_linkify(entry.narrative, _nl))}",
             ))
         out.append(("actions", ""))
 

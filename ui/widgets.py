@@ -1469,12 +1469,21 @@ class CategoryRow(Widget):
         super().__init__(id=f"cat-row-{category.value}", classes="category-row")
         self._category = category
         self._counter: int = 0
+        self._indicator: str = ""
 
     def compose(self) -> ComposeResult:
         symbol = _CATEGORY_SYMBOLS[self._category]
         label  = _CATEGORY_LABELS[self._category]
-        yield Static(f"{symbol}   {label}", classes="cat-label")
+        yield Static(f"{symbol}  {label}", classes="cat-label")
         yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}", markup=True)
+
+    def set_indicator(self, indicator: str) -> None:
+        if indicator == self._indicator:
+            return
+        self._indicator = indicator
+        symbol = _CATEGORY_SYMBOLS[self._category]
+        label  = _CATEGORY_LABELS[self._category]
+        self.query_one(".cat-label", Static).update(f"{symbol}  {label}{indicator}")
 
     def set_cooldown(self, counter: int) -> None:
         self._counter = counter
@@ -1527,6 +1536,16 @@ class CategoryPanel(Vertical):
 
     def refresh_state(self, state: "SimulationState") -> None:
         counters = state.category_cooldowns.counters
+        pending  = state.pending_actions
         for cat in ActionCategory:
             counter = counters.get(cat, 0)
-            self.query_one(f"#cat-row-{cat.value}", CategoryRow).set_cooldown(counter)
+            row = self.query_one(f"#cat-row-{cat.value}", CategoryRow)
+            row.set_cooldown(counter)
+            oa = pending.get(cat.value)
+            if oa is None:
+                indicator = ""
+            elif oa.repeating:
+                indicator = " ﹝o﹞"
+            else:
+                indicator = " ﹝q﹞"
+            row.set_indicator(indicator)

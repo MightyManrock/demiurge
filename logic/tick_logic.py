@@ -3243,7 +3243,7 @@ class TickLoop:
                     if not was_visible:
                         class_label = pop.stratum.title() if pop.stratum else "Pop"
                         discovered_pops.append(
-                            f"{civ.name} {class_label} class (sz {pop.size_magnitude})"
+                            f"{civ.name} §pop§{pid}§{class_label} Pop§ (sz {pop.size_magnitude})"
                         )
 
             parts = [f"You scryed at {scope.value} scope."]
