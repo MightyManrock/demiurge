@@ -17,7 +17,7 @@ from textual.widgets import (
     RadioButton, RadioSet, RichLog, Static,
 )
 
-from core.action_core import ActionCategory, ActionDefinition, compute_cooldown
+from core.action_core import ActionCategory, ActionDefinition, OngoingAction, compute_cooldown
 from logic.tick_logic import (
     SimulationState,
     _compute_revelation_cap, _revelation_adjusted_cost,
@@ -1279,4 +1279,83 @@ class ActionBrowserModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# CATEGORY PENDING MODAL
+# Shown when the player clicks an occupied action category slot.
+# Returns: None (keep), "replace", or "cancel".
+# "override" (once-then-resume) is Phase 5 — button present but disabled.
+# ─────────────────────────────────────────
+
+class CategoryPendingModal(ModalScreen):
+    BINDINGS = [
+        ("escape", "keep", "Keep"),
+        ("1", "keep", "Keep"),
+        ("3", "replace", "Replace"),
+        ("4", "cancel_pending", "Cancel pending"),
+    ]
+
+    def __init__(
+        self,
+        category: ActionCategory,
+        pending: OngoingAction,
+        action_name: str,
+        cooldown_remaining: int = 0,
+    ) -> None:
+        super().__init__()
+        self._category = category
+        self._pending = pending
+        self._action_name = action_name
+        self._cooldown_remaining = cooldown_remaining
+
+    def compose(self) -> ComposeResult:
+        mode_label = "[REPEATING]" if self._pending.repeating else "[ONE-SHOT]"
+        cooldown_line = ""
+        if self._cooldown_remaining > 0:
+            cooldown_line = f"\nCooldown: {self._cooldown_remaining} tick(s) remaining"
+
+        with Vertical(id="category-pending-modal"):
+            yield Label(
+                f"[bold]{self._category.value}[/bold] slot occupied",
+                id="modal-title",
+            )
+            yield Static(
+                f"{self._action_name}  {mode_label}"
+                f"\nQueued at tick {self._pending.started_at_tick}"
+                f"  ·  Active {self._pending.ticks_active} tick(s)"
+                + cooldown_line,
+                id="pending-info",
+            )
+            with Vertical(id="modal-buttons"):
+                yield Button("1  Keep current", id="keep-btn", variant="default")
+                yield Button(
+                    "2  Override once, then resume  [dim](Phase 5)[/dim]",
+                    id="override-btn",
+                    variant="default",
+                    disabled=True,
+                )
+                yield Button("3  Replace with new action", id="replace-btn", variant="warning")
+                yield Button("4  Cancel pending action", id="cancel-pending-btn", variant="error")
+
+    @on(Button.Pressed, "#keep-btn")
+    def _keep(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#replace-btn")
+    def _replace(self, _: Button.Pressed) -> None:
+        self.dismiss("replace")
+
+    @on(Button.Pressed, "#cancel-pending-btn")
+    def _cancel_pending(self, _: Button.Pressed) -> None:
+        self.dismiss("cancel")
+
+    def action_keep(self) -> None:
+        self.dismiss(None)
+
+    def action_replace(self) -> None:
+        self.dismiss("replace")
+
+    def action_cancel_pending(self) -> None:
+        self.dismiss("cancel")
 

@@ -445,7 +445,7 @@ python main.py --autoplay ledger_and_ash
 
 ### Phase 4: Cooling category modal
 
-**4a — `CategoryPendingModal` scaffold**
+**4a — `CategoryPendingModal` scaffold** ✓ complete
 
 Files: `ui/modals.py`
 
