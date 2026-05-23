@@ -25,6 +25,13 @@ if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
 
 
+def _format_calendar_date(date_tuple: tuple) -> str:
+    """Format a (billions, millions, thousands, years, month, day) tuple as a calendar string."""
+    bi, mi, th, yr, mo, dy = date_tuple
+    full_year = bi * 1_000_000_000 + mi * 1_000_000 + th * 1_000 + yr
+    return f"Day {dy} of Month {mo}, Year {full_year:,}"
+
+
 def _not_found(label: str) -> Text:
     return Text.from_markup(f"[#b04050]{_e(label)} not found in current state.[/]")
 
@@ -467,6 +474,9 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     a(f"  wealth:     {h.prosperity:+.0%}")
     a(f"  cohesion:   {h.cohesion:+.0%}")
 
+    if display.DEV_MODE:
+        a(f"  [#5a7090]age: {civ.age:.0f} years  |  founded: {_format_calendar_date(civ.founding_date)}[/]")
+
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
         oow = not is_in_window(origin)
@@ -616,6 +626,8 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     if m.bio_age != m.chrono_age:
         age_str += f"  (bio:{m.bio_age:.0f})"
     a(f"  {age_str}")
+    if display.DEV_MODE:
+        a(f"  [#5a7090]born: {_format_calendar_date(m.birthday)}[/]")
     if m.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
