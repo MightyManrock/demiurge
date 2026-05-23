@@ -1,6 +1,6 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** Tick and time standardization with RTwP
-> **Last updated:** 2026-05-22 (rev 14)
+> **Last updated:** 2026-05-23 (rev 15)
 
 ## Goal
 
@@ -193,8 +193,11 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - `TICK_SCALE` 200 → 3650 (10-year saturation at 1-day/tick; preserves "minor long-run contribution" character)
 - Starting pin expiry: tick 29 → tick 359 (30 days → 1 year; old 30-tick expiry was ~15yr at 180-day ticks)
 
-**6e — Full regression**
-- `--autoplay` pass; fix any remaining rate anomalies
+**6e — Full regression** ✓ complete
+- Both scenarios (wardens_compact, ledger_and_ash) run clean 50-tick autoplay
+- Mortal death rolls confirmed correct — fire once/year on birthday, not per-day
+- Essence generation, cooldowns, belief drift, luminary dispositions all within expected ranges
+- No rate anomalies found; action cooldowns (20d Direct, 25d Overt, etc.) reasonable for 1-day ticks; playtest tuning deferred
 
 *Phase 6 should not be started until Phases 1–5 are stable and playtested.*
 
