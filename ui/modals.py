@@ -1187,30 +1187,51 @@ class ActionBrowserModal(ModalScreen):
 
     @work
     async def _open_cat(self, cat: "ActionCategory", actions: list) -> None:
-        # If ongoing action in this category, offer management
+        # If an action is already pending in this category, offer management
         ongoing = self._state.pending_actions.get(cat.value)
         if ongoing:
             od    = self._library.get(ongoing.action_key)
             oname = od.name if od else ongoing.action_key
-            choice = await self.app.push_screen_wait(
-                PickerModal(
-                    f"[ONGOING] {oname}",
-                    [
-                        ("stop",     "Stop ongoing action"),
-                        ("override", "Override this tick only"),
-                        ("leave",    "Leave it running"),
-                    ],
-                    description=f"{ongoing.successful_ticks}/{ongoing.executed_ticks} successes, {ongoing.ticks_active} ticks old",
+            if ongoing.repeating:
+                choice = await self.app.push_screen_wait(
+                    PickerModal(
+                        f"[ONGOING] {oname}",
+                        [
+                            ("stop",     "Stop ongoing action"),
+                            ("override", "Override this tick only"),
+                            ("leave",    "Leave it running"),
+                        ],
+                        description=f"{ongoing.successful_ticks}/{ongoing.executed_ticks} successes, {ongoing.ticks_active} ticks old",
+                    )
                 )
-            )
-            if choice == "leave" or choice is None:
-                self._reveal_cat_list()
-                return
-            if choice == "stop":
+                if choice == "leave" or choice is None:
+                    self._reveal_cat_list()
+                    return
+                if choice == "stop":
+                    del self._state.pending_actions[cat.value]
+                    self._state.category_cooldowns.counters[cat] = compute_cooldown(
+                        cat, self._state.demiurge.puissance
+                    )
+                # "override" falls through to the action picker below
+            else:
+                choice = await self.app.push_screen_wait(
+                    PickerModal(
+                        f"[QUEUED] {oname}",
+                        [
+                            ("replace", "Cancel and pick another action"),
+                            ("cancel",  "Cancel this action"),
+                            ("keep",    "Keep it queued"),
+                        ],
+                    )
+                )
+                if choice == "keep" or choice is None:
+                    self._reveal_cat_list()
+                    return
                 del self._state.pending_actions[cat.value]
-                self._state.category_cooldowns.counters[cat] = compute_cooldown(
-                    cat, self._state.demiurge.puissance
-                )
+                if choice == "cancel":
+                    self._reveal_cat_list()
+                    return
+                # "replace" falls through to the action picker below
 
         # If a manually queued action already occupies this category, ask to cancel it
         if cat.value in self._queued_cats:
