@@ -1460,7 +1460,8 @@ class CategoryRow(Widget):
             bar.update(total=base, progress=base)
             self.remove_class("cooling")
         else:
-            bar.update(total=base, progress=max(0, base - counter - 1))
+            progress = 0 if counter >= base - 1 else base - counter
+            bar.update(total=base, progress=progress)
             self.add_class("cooling")
 
     class CategoryClicked(Message):
