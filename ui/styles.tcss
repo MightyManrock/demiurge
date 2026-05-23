@@ -498,13 +498,8 @@ ImagoRevealCell.imago-eligible:focus {
     color: #3a5070;
 }
 
-/* Countdown Static (active). If swapping back to ProgressBar, remove color/text-align/padding
-   here — ProgressBar manages its own color and the original rule was just: height: 1; */
 .cat-bar {
     height: 1;
-    color: $muted;
-    text-align: right;
-    padding: 0 1 0 0;
 }
 
 .category-row.cooling .cat-bar {
