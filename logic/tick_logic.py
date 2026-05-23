@@ -305,7 +305,7 @@ _REVELATION_EXPRESSION_FULL: float = 3.0
 
 REV_SCALE    = 500.0   # lifetime_revelation saturation point (revelation component)
 IMAGO_SCALE  = 40.0    # tier-weighted imago score saturation point
-TICK_SCALE   = 200.0   # tick number saturation point (minor long-run contribution)
+TICK_SCALE   = 3650.0  # tick number saturation point (minor long-run contribution; ~10yr at 1 day/tick)
 _IMAGO_TIER_WEIGHTS: dict[int, int] = {1: 1, 2: 2, 3: 4, 4: 8}
 
 BASE_INFLUENCE       = 0.75   # floor success chance for Whisper / Shape Dream
@@ -1642,7 +1642,7 @@ class TickLoop:
         # tick_number is pre-increment here; 29 means "this is the 30th tick processing".
         # When player entity-pinning is implemented, remove an entity from
         # starting_pinned_ids at pin time so manually-pinned entities survive this expiry.
-        if state.tick_number == 29 and state.starting_pinned_ids:
+        if state.tick_number == 359 and state.starting_pinned_ids:
             for eid in state.starting_pinned_ids:
                 entity = (
                     state.mortals.get(eid)

@@ -189,8 +189,9 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 - `civ_momentum_rate` 0.02 → 0.003; `civ_noise_factor` 0.01 → 0.004
 - Civ momentum/stability gated to monthly (day==1), same pattern as essence; `stability_delta` initialized to 0.0 before gate to preserve threshold-crossing narrative events
 
-**6d3 — TICK_SCALE / puissance recalibration**
-- `TICK_SCALE` (currently 200) needs design thought before changing — deferred to dedicated session
+**6d3 — TICK_SCALE / puissance recalibration** ✓ complete
+- `TICK_SCALE` 200 → 3650 (10-year saturation at 1-day/tick; preserves "minor long-run contribution" character)
+- Starting pin expiry: tick 29 → tick 359 (30 days → 1 year; old 30-tick expiry was ~15yr at 180-day ticks)
 
 **6e — Full regression**
 - `--autoplay` pass; fix any remaining rate anomalies
