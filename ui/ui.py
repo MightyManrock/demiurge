@@ -167,7 +167,7 @@ class GameScreen(Screen):
         ("a",      "queue_action",         "Queue"),
         ("o",      "manage_ongoing",       "Ongoing"),
         ("t",      "advance_tick",         "Advance"),
-        ("space",  "rtwp",                  "Unpause"),
+        ("space",  "rtwp",                  "Real-time"),
         ("ctrl+s", "save_game",            "Save"),
         ("q",      "quit_confirm",         "Quit"),
         ("ctrl+q", "quit_immediate",       "Force quit"),
@@ -641,13 +641,7 @@ class GameScreen(Screen):
     def action_rtwp(self) -> None:
         self.action_toggle_auto_advance()
 
-    def _update_rtwp_binding(self) -> None:
-        desc = "Pause" if self._auto_advance else "Unpause"
-        self.app.bind("space", "rtwp", description=desc, show=True)
-        self.refresh_bindings()
-
     def _refresh_rtwp_ui(self) -> None:
-        self._update_rtwp_binding()
         try:
             self.query_one(LogTab).refresh_play_button(self._auto_advance)
         except Exception:
