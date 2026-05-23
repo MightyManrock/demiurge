@@ -453,6 +453,7 @@ class Civilization(BaseModel):
     core_locs: list[UUID] = Field(default_factory=list)
 
     age: float = 0.0
+    founding_date: tuple[int, int, int, int, int, int] = (0, 0, 0, 0, 1, 1)  # (billions, millions, thousands, years, month, day)
     visibility: float = 0.0
     pinned: bool = False
 
@@ -546,8 +547,9 @@ class NotableMortal(BaseModel):
     # patron's agenda vs. their own. 1.0 = fully aligned.
     alignment: float = Field(ge=0.0, le=1.0, default=0.8)
 
-    chrono_age: float = 0.0  # Always increments each tick
-    bio_age: float = 0.0     # Frozen while mortal is an active Proxius or Herald
+    chrono_age: float = 0.0  # Increments by 1 each year on birthday
+    bio_age: float = 0.0     # Frozen while active Proxius/Herald; slow while dormant
+    birthday: tuple[Optional[int], Optional[int], Optional[int], int, int, int] = (None, None, None, 0, 1, 1)  # (billions|None, millions|None, thousands|None, years, month, day)
 
     # Where this mortal was born / first recorded (fixed).
     # Where they are now (changes when moved to a new world or sub-world location).
@@ -595,6 +597,61 @@ class NotableMortal(BaseModel):
 
 
 # ─────────────────────────────────────────
+# AGE REPRESENTATION
+# ─────────────────────────────────────────
+
+class UniverseAge(BaseModel):
+    """Calendar position of the universe. Calendar: 12 months × 30 days.
+
+    The year is split into billions/millions/thousands/years (each 0–999)
+    to avoid unwieldy integers in the normal display path while preserving
+    exact arithmetic across cosmological timescales."""
+    billions:  int = 0
+    millions:  int = 0
+    thousands: int = 0
+    years:     int = 0   # 0–999 within the current millennium
+    month:     int = 1   # 1–12
+    day:       int = 1   # 1–30
+
+    def full_year(self) -> int:
+        """Total years as a single integer."""
+        return (self.billions * 1_000_000_000
+                + self.millions * 1_000_000
+                + self.thousands * 1_000
+                + self.years)
+
+    @classmethod
+    def from_full_year(cls, full_year: int, month: int = 1, day: int = 1) -> "UniverseAge":
+        bi, rem = divmod(max(0, full_year), 1_000_000_000)
+        mi, rem = divmod(rem, 1_000_000)
+        th, yr  = divmod(rem, 1_000)
+        return cls(billions=bi, millions=mi, thousands=th, years=yr, month=month, day=day)
+
+    def advance_days(self, n: int) -> "UniverseAge":
+        d = self.day - 1 + n
+        m = self.month - 1
+        d_carry, new_day     = divmod(d, 30)
+        m_carry, new_month   = divmod(m + d_carry, 12)
+        y_carry, new_years   = divmod(self.years + m_carry, 1000)
+        t_carry, new_thou    = divmod(self.thousands + y_carry, 1000)
+        mi_carry, new_mil    = divmod(self.millions + t_carry, 1000)
+        return UniverseAge(
+            billions=self.billions + mi_carry,
+            millions=new_mil,
+            thousands=new_thou,
+            years=new_years,
+            month=new_month + 1,
+            day=new_day + 1,
+        )
+
+    def display(self) -> str:
+        return f"Day {self.day} of Month {self.month}, Year {self.full_year():,}"
+
+    def to_float_years(self) -> float:
+        return self.full_year() + (self.month - 1) / 12.0 + (self.day - 1) / 360.0
+
+
+# ─────────────────────────────────────────
 # UNIVERSE — top-level container
 # ─────────────────────────────────────────
 
@@ -606,9 +663,7 @@ class Universe(Location):
     pantheon_id: UUID
     rules: UniverseRules = Field(default_factory=UniverseRules)
 
-    # Running clock. Scenario defines what one unit means —
-    # could be years, centuries, or abstract "eras."
-    current_age: float = 0.0
+    current_age: UniverseAge = Field(default_factory=UniverseAge)
 
     # Per-domain expression baseline. Keys are domain:xxx tags.
     # Missing keys default to 0.1 in _compute_universal_expression.

@@ -14,12 +14,13 @@ from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Input, Label, ListItem, ListView,
-    RadioButton, RadioSet, Static,
+    RadioButton, RadioSet, RichLog, Static,
 )
 
-from core.action_core import ActionCategory, ActionDefinition
+from core.action_core import ActionCategory, ActionDefinition, OngoingAction, compute_cooldown
 from logic.tick_logic import (
-    SimulationState, _compute_revelation_cap, _revelation_adjusted_cost,
+    SimulationState,
+    _compute_revelation_cap, _revelation_adjusted_cost,
 )
 from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -230,10 +231,13 @@ class PopLatitudePickerModal(ModalScreen):
 class YesNoModal(ModalScreen):
     BINDINGS = [("escape", "no", "No")]
 
-    def __init__(self, question: str, detail: str = ""):
+    def __init__(self, question: str, detail: str = "",
+                 yes_label: str = "Yes", no_label: str = "No"):
         super().__init__()
-        self._question = question
-        self._detail   = detail
+        self._question  = question
+        self._detail    = detail
+        self._yes_label = yes_label
+        self._no_label  = no_label
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
@@ -241,8 +245,8 @@ class YesNoModal(ModalScreen):
             if self._detail:
                 yield Label(self._detail, classes="modal-desc")
             with Horizontal(classes="btn-row"):
-                yield Button("Yes", id="yes-btn", classes="-primary")
-                yield Button("No",  id="no-btn",  classes="-danger")
+                yield Button(self._yes_label, id="yes-btn", classes="-primary")
+                yield Button(self._no_label,  id="no-btn",  classes="-danger")
 
     @on(Button.Pressed, "#yes-btn")
     def _yes(self, _: Button.Pressed) -> None:
@@ -1023,9 +1027,9 @@ class MortalDetailModal(ModalScreen):
             lines.append(f"[#9090a8]{_e(m.description)}[/]")
         lines.append("")
 
-        age_str = f"{m.chrono_age:.0f}"
+        age_str = f"{m.chrono_age:,.0f}"
         if m.bio_age != m.chrono_age:
-            age_str += f"  (bio {m.bio_age:.0f})"
+            age_str += f"  (bio {m.bio_age:,.0f})"
         prom_str = "  ".join(r.value for r in m.prominence_roles if r.value != "none") or "none"
         lines.append(f"[bold #5a7090]OVERVIEW[/]")
         lines.append(f"  Age         {age_str}")
@@ -1113,10 +1117,12 @@ class ActionBrowserModal(ModalScreen):
         ("ctrl+escape", "cancel",       ""),
     ]
 
-    def __init__(self, state: SimulationState, library: dict):
+    def __init__(self, state: SimulationState, library: dict,
+                 initial_category: "ActionCategory | None" = None):
         super().__init__()
-        self._state   = state
-        self._library = library
+        self._state            = state
+        self._library          = library
+        self._initial_category = initial_category
 
         # Group by category
         self._cat_actions: dict[ActionCategory, list[tuple[str, ActionDefinition]]] = {}
@@ -1135,19 +1141,23 @@ class ActionBrowserModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box-tall"):
             yield Label("Queue Action", classes="modal-title")
-            with ScrollableContainer():
+            with ScrollableContainer(id="cat-list-container"):
                 with LoopingListView(id="cat-list"):
                     for i, (cat, _) in enumerate(self._cat_actions.items()):
+                        is_cooling = self._state.category_cooldowns.counters.get(cat, 0) > 0
                         used    = self._queued_cats.get(cat.value)
-                        ongoing = self._state.ongoing_actions.get(cat.value)
+                        ongoing = self._state.pending_actions.get(cat.value)
                         if used:
                             note = f"  [used: {used}]"
                         elif ongoing:
                             note = f"  [ongoing: {ongoing.action_key.replace('_',' ')} ({ongoing.executed_ticks}x)]"
                         else:
                             note = ""
+                        label_text = f"{cat.value.replace('_',' ').title()}{note}"
+                        if is_cooling:
+                            label_text = f"[#3a5070]{label_text}[/#3a5070]"
                         yield ListItem(
-                            Label(f"{cat.value.replace('_',' ').title()}{note}"),
+                            Label(label_text),
                             id=f"cat-{i}",
                         )
             with Horizontal(classes="btn-row"):
@@ -1155,36 +1165,73 @@ class ActionBrowserModal(ModalScreen):
 
     def on_mount(self) -> None:
         self.query_one("#cat-list", ListView).focus()
+        if self._initial_category is not None:
+            cat = self._initial_category
+            actions = self._cat_actions.get(cat, [])
+            if actions:
+                self.query_one("#cat-list-container").display = False
+                self.call_after_refresh(lambda: self._open_cat(cat, actions))
 
     @on(ListView.Selected, "#cat-list")
     def _on_cat_selected(self, event: ListView.Selected) -> None:
-        self._handle_cat_selected(event)
-
-    @work
-    async def _handle_cat_selected(self, event: ListView.Selected) -> None:
         idx = int(event.item.id.split("-", 1)[1])
         cat, actions = list(self._cat_actions.items())[idx]
+        self._open_cat(cat, actions)
 
-        # If ongoing action in this category, offer management
-        ongoing = self._state.ongoing_actions.get(cat.value)
+    def _reveal_cat_list(self) -> None:
+        try:
+            self.query_one("#cat-list-container").display = True
+            self.query_one("#cat-list", ListView).focus()
+        except Exception:
+            pass
+
+    @work
+    async def _open_cat(self, cat: "ActionCategory", actions: list) -> None:
+        # If an action is already pending in this category, offer management
+        ongoing = self._state.pending_actions.get(cat.value)
         if ongoing:
             od    = self._library.get(ongoing.action_key)
             oname = od.name if od else ongoing.action_key
-            choice = await self.app.push_screen_wait(
-                PickerModal(
-                    f"[ONGOING] {oname}",
-                    [
-                        ("stop",     "Stop ongoing action"),
-                        ("override", "Override this tick only"),
-                        ("leave",    "Leave it running"),
-                    ],
-                    description=f"{ongoing.executed_ticks}x executed, {ongoing.ticks_active} ticks old",
+            if ongoing.repeating:
+                choice = await self.app.push_screen_wait(
+                    PickerModal(
+                        f"[ONGOING] {oname}",
+                        [
+                            ("stop",     "Stop ongoing action"),
+                            ("override", "Override this tick only"),
+                            ("leave",    "Leave it running"),
+                        ],
+                        description=f"{ongoing.successful_ticks}/{ongoing.executed_ticks} successes, {ongoing.ticks_active} ticks old",
+                    )
                 )
-            )
-            if choice == "leave" or choice is None:
-                return
-            if choice == "stop":
-                del self._state.ongoing_actions[cat.value]
+                if choice == "leave" or choice is None:
+                    self._reveal_cat_list()
+                    return
+                if choice == "stop":
+                    del self._state.pending_actions[cat.value]
+                    self._state.category_cooldowns.counters[cat] = compute_cooldown(
+                        cat, self._state.demiurge.puissance
+                    )
+                # "override" falls through to the action picker below
+            else:
+                choice = await self.app.push_screen_wait(
+                    PickerModal(
+                        f"[QUEUED] {oname}",
+                        [
+                            ("replace", "Cancel and pick another action"),
+                            ("cancel",  "Cancel this action"),
+                            ("keep",    "Keep it queued"),
+                        ],
+                    )
+                )
+                if choice == "keep" or choice is None:
+                    self._reveal_cat_list()
+                    return
+                del self._state.pending_actions[cat.value]
+                if choice == "cancel":
+                    self._reveal_cat_list()
+                    return
+                # "replace" falls through to the action picker below
 
         # If a manually queued action already occupies this category, ask to cancel it
         if cat.value in self._queued_cats:
@@ -1196,6 +1243,7 @@ class ActionBrowserModal(ModalScreen):
                 )
             )
             if not cancel_it:
+                self._reveal_cat_list()
                 return
             # Remove that action instance from the queue
             cat_def_ids = {
@@ -1226,6 +1274,7 @@ class ActionBrowserModal(ModalScreen):
             PickerModal(cat.value.replace("_", " ").title(), items, show_back=True)
         )
         if chosen_key is None or chosen_key == BACK:
+            self._reveal_cat_list()
             return
 
         if chosen_key in _STUB_ACTIONS:
@@ -1236,6 +1285,7 @@ class ActionBrowserModal(ModalScreen):
                     "This action requires systems that are planned but not yet built.",
                 )
             )
+            self._reveal_cat_list()
             return
 
         if chosen_key in self._library:
@@ -1247,3 +1297,90 @@ class ActionBrowserModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# CATEGORY PENDING MODAL
+# Shown when the player clicks an occupied action category slot.
+# Returns: None (keep), "override_resume", "replace", or "cancel".
+# ─────────────────────────────────────────
+
+class CategoryPendingModal(ModalScreen):
+    BINDINGS = [
+        ("escape", "keep", "Keep"),
+        ("1", "keep", "Keep"),
+        ("2", "override_resume", "Override once"),
+        ("3", "replace", "Replace"),
+        ("4", "cancel_pending", "Cancel pending"),
+    ]
+
+    def __init__(
+        self,
+        category: ActionCategory,
+        pending: OngoingAction,
+        action_name: str,
+        cooldown_remaining: int = 0,
+    ) -> None:
+        super().__init__()
+        self._category = category
+        self._pending = pending
+        self._action_name = action_name
+        self._cooldown_remaining = cooldown_remaining
+
+    def compose(self) -> ComposeResult:
+        mode_label = "[REPEATING]" if self._pending.repeating else "[ONE-SHOT]"
+        cooldown_line = ""
+        if self._cooldown_remaining > 0:
+            cooldown_line = f"\nCooldown: {self._cooldown_remaining} tick(s) remaining"
+
+        with Vertical(id="category-pending-modal"):
+            yield Label(
+                f"[bold]{self._category.value}[/bold] slot occupied",
+                id="modal-title",
+            )
+            yield Static(
+                f"{self._action_name}  {mode_label}"
+                f"\nQueued at tick {self._pending.started_at_tick}"
+                f"  ·  Active {self._pending.ticks_active} tick(s)"
+                + cooldown_line,
+                id="pending-info",
+            )
+            with Vertical(id="modal-buttons"):
+                yield Button("1  Keep current", id="keep-btn", variant="default")
+                yield Button(
+                    "2  Override once, then resume",
+                    id="override-btn",
+                    variant="primary",
+                    disabled=not self._pending.repeating,
+                )
+                yield Button("3  Replace with new action", id="replace-btn", variant="warning")
+                yield Button("4  Cancel pending action", id="cancel-pending-btn", variant="error")
+
+    @on(Button.Pressed, "#keep-btn")
+    def _keep(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#replace-btn")
+    def _replace(self, _: Button.Pressed) -> None:
+        self.dismiss("replace")
+
+    @on(Button.Pressed, "#override-btn")
+    def _override_resume(self, _: Button.Pressed) -> None:
+        self.dismiss("override_resume")
+
+    @on(Button.Pressed, "#cancel-pending-btn")
+    def _cancel_pending(self, _: Button.Pressed) -> None:
+        self.dismiss("cancel")
+
+    def action_keep(self) -> None:
+        self.dismiss(None)
+
+    def action_override_resume(self) -> None:
+        self.dismiss("override_resume")
+
+    def action_replace(self) -> None:
+        self.dismiss("replace")
+
+    def action_cancel_pending(self) -> None:
+        self.dismiss("cancel")
+

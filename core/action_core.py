@@ -6,6 +6,7 @@ Demiurge.
 """
 
 from __future__ import annotations
+import math
 from pydantic import BaseModel, Field
 from typing import Optional, Union
 from enum import Enum
@@ -66,6 +67,34 @@ class ActionCategory(str, Enum):
     LUMINARY_RELATIONS = "luminary_relations"
     UNDERREAL         = "underreal"
     SELF_REFINEMENT   = "self_refinement"
+
+
+class CategoryCooldowns(BaseModel):
+    counters: dict[ActionCategory, int] = Field(default_factory=dict)
+
+
+# Placeholder base cooldown values (ticks) per category.
+# Tuned in playtesting; direct/overt actions cool longer than subtle/internal.
+CATEGORY_BASE_COOLDOWNS: dict[ActionCategory, int] = {
+    ActionCategory.DIRECT_CREATION:   20,
+    ActionCategory.OVERT_MIRACLE:     25,
+    ActionCategory.SUBTLE_INFLUENCE:  10,
+    ActionCategory.PROXIUS_DIRECTION:  8,
+    ActionCategory.OBSERVATION:        5,
+    ActionCategory.HERALD_INTERACTION: 15,
+    ActionCategory.LUMINARY_RELATIONS: 15,
+    ActionCategory.UNDERREAL:          12,
+    ActionCategory.SELF_REFINEMENT:     6,
+}
+
+
+def compute_cooldown(category: ActionCategory, puissance: float) -> int:
+    """Return the cooldown ticks for a category, reduced by puissance.
+
+    Max reduction is 3 ticks (at puissance 1.0); floor is 75% of base.
+    """
+    base = CATEGORY_BASE_COOLDOWNS.get(category, 10)
+    return max(base - math.floor(puissance * 3), math.ceil(base * 0.75))
 
 
 class TargetType(str, Enum):
@@ -648,8 +677,9 @@ class ActionInstance(BaseModel):
 
 class OngoingAction(BaseModel):
     """
-    A persistent action that auto-executes each tick until explicitly stopped.
-    Keyed by ActionCategory.value in SimulationState.ongoing_actions.
+    A pending action occupying one category slot in SimulationState.pending_actions.
+    repeating=False: fires once, then the slot is cleared.
+    repeating=True: slot is kept after firing (standing order).
     """
     action_key: str
     action_definition_id: UUID
@@ -659,7 +689,9 @@ class OngoingAction(BaseModel):
     intent: Optional[ActionIntent] = None
     ticks_active: int = 0
     executed_ticks: int = 0
+    successful_ticks: int = 0
     started_at_tick: int = 0
+    repeating: bool = False
 
 
 # ─────────────────────────────────────────

@@ -112,6 +112,7 @@ ContentTab {
 #status-panel {
     background: $bg-panel;
     padding: 0 1 1 1;
+    height: 1fr;
 }
 
 #main-feed {
@@ -427,6 +428,116 @@ ImagoRevealCell.imago-eligible:focus {
     content-align: left middle;
 }
 
+/* ── Log tab: RTwP controls ─────────── */
+
+#main-feed {
+    height: 1fr;
+}
+
+#log-rtwp {
+    height: auto;
+    background: $bg-panel;
+    border-top: solid $border;
+    padding: 1 2;
+}
+
+.rtwp-header {
+    color: $muted;
+    text-style: bold;
+    padding: 0 0 1 0;
+}
+
+#log-pause-columns {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#log-pause-left,
+#log-pause-right {
+    width: 1fr;
+    height: auto;
+}
+
+#log-rtwp Checkbox {
+    background: transparent;
+    color: $muted;
+    border: none;
+    height: auto;
+    padding: 0 1;
+}
+
+#log-rtwp Checkbox:focus {
+    background: $highlight;
+    border: none;
+}
+
+#pause-on-log-open {
+    margin: 0 0 1 0;
+}
+
+/* ── Category Panel ──────────────────── */
+
+#category-panel {
+    width: 18;
+    background: $bg-panel;
+    border-left: solid $border;
+    padding: 1 1;
+}
+
+.category-row {
+    height: 4;
+    margin: 0 0 1 0;
+}
+
+.cat-label {
+    color: $muted;
+    height: 1;
+}
+
+.category-row.cooling .cat-label {
+    color: #3a5070;
+}
+
+.cat-bar {
+    height: 1;
+    width: 1fr;
+}
+
+.category-row.cooling .cat-bar {
+    color: #3a5070;
+}
+
+.ess-bar {
+    height: 1;
+    width: 1fr;
+    display: none;
+}
+
+.ess-bar.ess-bar-visible {
+    display: block;
+}
+
+#cat-speed-label {
+    text-align: center;
+    color: $muted;
+    height: 1;
+    margin: 1 0 0 0;
+}
+
+#cat-controls {
+    height: 3;
+    align: center middle;
+    margin: 0 0 0 0;
+}
+
+#cat-controls Button {
+    min-width: 1;
+    width: auto;
+    padding: 0;
+    margin: 0;
+    border: none;
+}
+
 /* ── LoadScreen ───────────────────────── */
 
 LoadScreen {
@@ -453,3 +564,4 @@ LoadScreen {
     text-style: bold;
     padding: 1 0 0 0;
 }
+

@@ -32,9 +32,9 @@ from core.universe_core import (
     Pop, SocialClass, WildStratum,
     Universe, TravelNetwork,
 )
-from core.action_core import EssenceStockpile
+from core.action_core import EssenceStockpile, CategoryCooldowns
 from core.event_core import Event
-from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig
+from logic.tick_logic import SimulationState, CivilizationMomentum, TickConfig, PauseConfig
 
 
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
@@ -82,6 +82,7 @@ def export_scenario(
         _write_civ_momentum(conn, state)
         _write_luminary_state(conn, state)
         _write_ongoing_actions(conn, state)
+        _write_pending_resume(conn, state)
         _write_active_events(conn, state)
         conn.commit()
     except Exception:
@@ -109,10 +110,15 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
     conn.execute(
         """INSERT INTO scenario_meta
            (name, description, universe_id, universe_name, universe_save_name,
-            universe_description, current_age, tick_number, demiurge_id, pantheon_id,
+            universe_description, current_age,
+            age_billions, age_millions, age_thousands, age_years, age_month, age_day,
+            tick_number, demiurge_id, pantheon_id,
             luminary_production_accum, domain_essence_claimed, universe_domain_expression,
-            starting_pinned_ids, last_tick_essence_by_domain)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            last_tick_essence_by_domain,
+            last_essence_capture_by_domain, last_essence_capture_tick,
+            last_harvest_amount, last_harvest_tick,
+            category_cooldowns, pause_config, rich_log_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             name,
             desc,
@@ -120,15 +126,27 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             state.universe.name,
             state.universe.save_name,
             state.universe.description,
-            state.universe.current_age,
+            state.universe.current_age.to_float_years(),
+            state.universe.current_age.billions,
+            state.universe.current_age.millions,
+            state.universe.current_age.thousands,
+            state.universe.current_age.years,
+            state.universe.current_age.month,
+            state.universe.current_age.day,
             state.tick_number,
             str(state.demiurge.id),
             str(state.pantheon.id),
             json.dumps(state.luminary_production_this_eval),
             json.dumps(state.domain_essence_claimed),
             json.dumps(state.universe.universe_domain_expression),
-            json.dumps(state.starting_pinned_ids),
             json.dumps(state.last_tick_essence_by_domain),
+            json.dumps(state.last_essence_capture_by_domain),
+            state.last_essence_capture_tick,
+            state.last_harvest_amount,
+            state.last_harvest_tick,
+            state.category_cooldowns.model_dump_json(),
+            state.pause_config.model_dump_json(),
+            state.rich_log_name,
         ),
     )
 
@@ -393,8 +411,11 @@ def _write_civilizations(conn, state: SimulationState):
                 health_stability, health_prosperity, health_cohesion,
                 primary_species_id, dominant_beliefs, established_beliefs, pop_ids,
                 culture_tags, established_culture_tags,
-                theistic, divine_awareness, core_locs, age, visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                theistic, divine_awareness, core_locs, age,
+                founding_billions, founding_millions, founding_thousands,
+                founding_year, founding_month, founding_day,
+                visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -414,6 +435,12 @@ def _write_civilizations(conn, state: SimulationState):
                 c.divine_awareness,
                 json.dumps([str(x) for x in core_locs]),
                 c.age,
+                c.founding_date[0],
+                c.founding_date[1],
+                c.founding_date[2],
+                c.founding_date[3],
+                c.founding_date[4],
+                c.founding_date[5],
                 c.visibility,
                 int(c.pinned),
             ),
@@ -464,13 +491,15 @@ def _write_mortals(conn, state: SimulationState):
                 species_id, prominence_roles, prominence, visibility,
                 belief_tags, personal_tags, status_tags, culture_tags,
                 alignment, chrono_age, bio_age,
+                birthday_billions, birthday_millions, birthday_thousands, birthday_years,
+                birthday_month, birthday_day,
                 appointed_by_demiurge, appointed_by_luminary,
                 home_location, current_location, pinned,
                 active_goal_json,
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -489,6 +518,12 @@ def _write_mortals(conn, state: SimulationState):
                 m.alignment,
                 m.chrono_age,
                 m.bio_age,
+                m.birthday[0],  # billions (None → NULL)
+                m.birthday[1],  # millions (None → NULL)
+                m.birthday[2],  # thousands (None → NULL)
+                m.birthday[3],  # years
+                m.birthday[4],  # month
+                m.birthday[5],  # day
                 str(m.appointed_by_demiurge) if m.appointed_by_demiurge else None,
                 str(m.appointed_by_luminary) if m.appointed_by_luminary else None,
                 str(m.home_location),
@@ -672,15 +707,16 @@ def _write_active_events(conn, state: SimulationState):
 
 
 def _write_ongoing_actions(conn, state: SimulationState):
-    for cat_val, oa in state.ongoing_actions.items():
+    for cat_val, oa in state.pending_actions.items():
         intent_type = type(oa.intent).__name__ if oa.intent is not None else None
         intent_data = oa.intent.model_dump_json() if oa.intent is not None else None
         conn.execute(
             """INSERT INTO ongoing_actions
                (category_key, action_key, action_definition_id, target_type,
                 target_id, proxius_id, intent_type, intent_data,
-                ticks_active, executed_ticks, started_at_tick)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ticks_active, executed_ticks, successful_ticks, started_at_tick,
+                repeating)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cat_val,
                 oa.action_key,
@@ -692,7 +728,38 @@ def _write_ongoing_actions(conn, state: SimulationState):
                 intent_data,
                 oa.ticks_active,
                 oa.executed_ticks,
+                oa.successful_ticks,
                 oa.started_at_tick,
+                int(oa.repeating),
+            ),
+        )
+
+
+def _write_pending_resume(conn, state: SimulationState):
+    for cat_val, oa in state.pending_resume.items():
+        intent_type = type(oa.intent).__name__ if oa.intent is not None else None
+        intent_data = oa.intent.model_dump_json() if oa.intent is not None else None
+        conn.execute(
+            """INSERT INTO pending_resume
+               (category_key, action_key, action_definition_id, target_type,
+                target_id, proxius_id, intent_type, intent_data,
+                ticks_active, executed_ticks, successful_ticks, started_at_tick,
+                repeating)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cat_val,
+                oa.action_key,
+                str(oa.action_definition_id),
+                oa.target_type.value,
+                str(oa.target_id) if oa.target_id else None,
+                str(oa.proxius_id) if oa.proxius_id else None,
+                intent_type,
+                intent_data,
+                oa.ticks_active,
+                oa.executed_ticks,
+                oa.successful_ticks,
+                oa.started_at_tick,
+                int(oa.repeating),
             ),
         )
 

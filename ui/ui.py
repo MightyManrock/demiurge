@@ -12,12 +12,14 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
+from rich.markup import escape as _e
 from rich.text import Text
 from textual import on, work
+from textual.worker import Worker, WorkerState
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import (
-    Button, Footer, Header, Input, Label, ListItem, ListView, Static,
+    Button, Checkbox, Footer, Header, Input, Label, ListItem, ListView, Static,
     TabbedContent, TabPane,
 )
 from textual.containers import Horizontal, Vertical, ScrollableContainer
@@ -29,6 +31,7 @@ from core.action_core import (
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent, ChangeAffiliatedDomainsIntent,
     ScryIntent, ScryScope, DomainVector, CultureVector, Framing,
+    compute_cooldown,
 )
 from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, PopLocation,
@@ -46,7 +49,7 @@ from ui import display
 from ui.display import (
     display_state, display_briefing, display_tick_result,
     display_tick_result_categorized,
-    _strip_oow, _name_for_id, _personality_label, _wrap_desc, _short_tag,
+    _strip_oow, _name_for_id, _name_link_for_id, _personality_label, _wrap_desc, _short_tag,
     _pop_stratum_label, _pop_identity_label,
 )
 
@@ -55,17 +58,18 @@ from ui.widgets import (
     StatusPanel, LoopingListView,
     LocationsTab, EntitiesTab, ActionsTab,
     BriefingTab, UniverseTab, LuminariesTab, LogTab,
-    DivineWisdomTab,
+    DivineWisdomTab, CategoryPanel,
     set_detail_action_provider, set_unseen_predicate,
+    _SPEED_SLOW, _SPEED_FAST,
 )
 from ui.detail_tabs import DetailTabManager
-from ui.session_log import SessionLog
+from ui.session_log import SessionLog, RichLogBuffer
 from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
     QuitConfirmModal,
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
-    ActionBrowserModal,
+    ActionBrowserModal, CategoryPendingModal,
 )
 
 
@@ -158,14 +162,16 @@ class LoadScreen(Screen):
 # ─────────────────────────────────────────
 
 class GameScreen(Screen):
+
     BINDINGS = [
-        ("b",      "briefing",        "Briefing"),
-        ("a",      "queue_action",    "Queue"),
-        ("o",      "manage_ongoing",  "Ongoing"),
-        ("t",      "advance_tick",    "Advance"),
-        ("ctrl+s", "save_game",       "Save"),
-        ("q",      "quit_confirm",    "Quit"),
-        ("ctrl+q", "quit_immediate",  "Force quit"),
+        ("b",      "briefing",             "Briefing"),
+        ("a",      "queue_action",         "Queue"),
+        ("o",      "manage_ongoing",       "Ongoing"),
+        ("t",      "advance_tick",         "Advance"),
+        ("space",  "rtwp",                  "Real-time"),
+        ("ctrl+s", "save_game",            "Save"),
+        ("q",      "quit_confirm",         "Quit"),
+        ("ctrl+q", "quit_immediate",       "Force quit"),
         # Tab switching: digits for left panel.
         ("1", "left_tab('status')",      "Status"),
         ("2", "left_tab('locations')",   "Locs"),
@@ -199,6 +205,8 @@ class GameScreen(Screen):
         # Tab pane IDs whose unseen sets should be cleared on the next refresh
         # (set when the user activates the tab; the active render still shows gold).
         self._pending_clear: set[str] = set()
+        self._auto_advance: bool = False
+        self._auto_advance_delay_s: float = 0.2
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -222,7 +230,8 @@ class GameScreen(Screen):
                 with TabPane("Divine Wisdom", id="divine_wisdom"):
                     yield DivineWisdomTab()
                 with TabPane("Log", id="log"):
-                    yield LogTab()
+                    yield LogTab(self._state.pause_config)
+            yield CategoryPanel(id="category-panel")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -230,12 +239,21 @@ class GameScreen(Screen):
         _LOGS_DIR.mkdir(exist_ok=True)
         log_path = _LOGS_DIR / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         self._log = SessionLog(log_path)
+        self._rich_log = RichLogBuffer()
         # Initialise the detail-tab manager once the right TabbedContent exists.
         self._detail_mgr = DetailTabManager(
             self, self.query_one("#right-tabs", TabbedContent),
         )
         # Render all tabs from the initial state.
         self._refresh_all()
+        self._refresh_rtwp_ui()
+        # Restore rich log from previous session if this is a loaded save.
+        if self._state.rich_log_name:
+            rich_log_path = _LOGS_DIR / f"{self._state.rich_log_name}.jsonl"
+            self._rich_log.load(rich_log_path)
+            for _tick, cat, markup in self._rich_log.entries():
+                self._feed_markup(markup, cat)
+            self._feed_markup(f"[#2a4a6a]— session resumed —[/]")
         # Plain-text session log still receives the full briefing + state snapshot.
         briefing_lines = display_briefing(self._state, dev_mode=display.DEV_MODE)
         self._log.write(_strip_oow(briefing_lines))
@@ -270,7 +288,7 @@ class GameScreen(Screen):
         # Demiurge-authored Pops get a [ Rename ] button.
         set_detail_action_provider(self._detail_actions_for)
         self.app.sub_title = (
-            f"{state.universe.name}  ·  Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}"
+            f"{state.universe.name}  ·  {state.universe.current_age.display()}  ·  Tick {state.tick_number}"
         )
         self.query_one(StatusPanel).refresh_state(state, self.app.loop)
         self.query_one(LocationsTab).refresh_state(state)
@@ -285,6 +303,8 @@ class GameScreen(Screen):
         self.query_one(DivineWisdomTab).refresh_state(state)
         if self._detail_mgr is not None:
             self._detail_mgr.refresh_all(state)
+        library = self.app.loop._action_library if self.app.loop else {}
+        self.query_one(CategoryPanel).refresh_state(state, library)
         self._refresh_tab_discovery_styles()
 
     def _refresh_tab_discovery_styles(self) -> None:
@@ -313,6 +333,27 @@ class GameScreen(Screen):
                 event.tab.remove_class("discovered")
             except Exception:
                 pass
+        elif pane_id == "log":
+            try:
+                self.query_one(LogTab).mark_seen()
+                event.tab.remove_class("discovered")
+            except Exception:
+                pass
+            if self._auto_advance:
+                try:
+                    if self.query_one("#pause-on-log-open", Checkbox).value:
+                        self.action_toggle_auto_advance()
+                except Exception:
+                    pass
+
+    def on_log_tab_new_content(self, _: LogTab.NewContent) -> None:
+        """Add gold indicator to the Log tab when unseen entries arrive."""
+        try:
+            right = self.query_one("#right-tabs", TabbedContent)
+            if right.active != "log":
+                right.get_tab("log").add_class("discovered")
+        except Exception:
+            pass
 
     def _record_discoveries(self, before_ids: dict[str, set[str]]) -> None:
         """Diff in-Window IDs before/after a tick to populate unseen sets."""
@@ -548,8 +589,9 @@ class GameScreen(Screen):
     #     """Switch focus to the Universe tab (was: dump snapshot to the log)."""
     #     self.query_one("#right-tabs", TabbedContent).active = "universe"
 
-    def action_queue_action(self) -> None:
-        self._queue_action_flow()
+    @work
+    async def action_queue_action(self) -> None:
+        await self._queue_action_flow()
 
     def action_manage_ongoing(self) -> None:
         self._manage_ongoing_flow()
@@ -558,22 +600,22 @@ class GameScreen(Screen):
     async def _manage_ongoing_flow(self) -> None:
         state   = self._state
         library = self.app.loop._action_library  # type: ignore[attr-defined]
-        if not state.ongoing_actions:
+        if not state.pending_actions:
             self._feed_markup("[#5a7090]No ongoing actions.[/]", "actions")
             return
         items = []
-        for cat_val, oa in state.ongoing_actions.items():
+        for cat_val, oa in state.pending_actions.items():
             defn  = library.get(oa.action_key)
             name  = defn.name if defn else oa.action_key
             label = cat_val.replace("_", " ").title()
-            items.append((cat_val, f"[{label}] {name}  ({oa.executed_ticks}/{oa.ticks_active})"))
+            items.append((cat_val, f"[{label}] {name}  ({oa.successful_ticks}/{oa.executed_ticks})"))
         chosen = await self.app.push_screen_wait(PickerModal("Ongoing Actions", items))
-        if chosen and chosen in state.ongoing_actions:
+        if chosen and chosen in state.pending_actions:
             confirmed = await self.app.push_screen_wait(
                 YesNoModal(f"Stop this ongoing action?")
             )
             if confirmed:
-                oa   = state.ongoing_actions.pop(chosen)
+                oa   = state.pending_actions.pop(chosen)
                 defn = library.get(oa.action_key)
                 name = defn.name if defn else oa.action_key
                 # Clear the Proxius's active goal when a preach_imago is stopped,
@@ -591,13 +633,63 @@ class GameScreen(Screen):
                                 goal_pop.preaching_goal_cooldown_until = state.tick_number
                     elif proxius:
                         proxius.active_goal = None
+                if defn is not None:
+                    cd = compute_cooldown(defn.category, state.demiurge.puissance)
+                    state.category_cooldowns.counters[defn.category] = cd
                 self._feed_markup(f"[#c09030]Stopped ongoing:[/] {name}", "actions")
                 self._refresh_status()
 
     def action_advance_tick(self) -> None:
         self._advance_tick_work()
 
-    @work(thread=True)
+    def action_rtwp(self) -> None:
+        self.action_toggle_auto_advance()
+
+    def _refresh_rtwp_ui(self) -> None:
+        try:
+            panel = self.query_one(CategoryPanel)
+            panel.refresh_play_button(self._auto_advance)
+            panel.refresh_speed_label(self._auto_advance_delay_s)
+        except Exception:
+            pass
+
+    def action_toggle_auto_advance(self) -> None:
+        self._auto_advance = not self._auto_advance
+        label = "ON" if self._auto_advance else "OFF"
+        self._feed_markup(f"[#3a6090]Auto-advance: {label}[/]", "other")
+        self._refresh_rtwp_ui()
+        if self._auto_advance:
+            self._advance_tick_work()
+
+    @on(Button.Pressed, "#cat-play")
+    def _cat_play_btn(self, _: Button.Pressed) -> None:
+        self.action_toggle_auto_advance()
+
+    @on(Button.Pressed, "#cat-step")
+    def _cat_step_btn(self, _: Button.Pressed) -> None:
+        if not self._auto_advance:
+            self.action_advance_tick()
+
+    @on(Button.Pressed, "#cat-slow")
+    def _cat_slow_btn(self, _: Button.Pressed) -> None:
+        self._auto_advance_delay_s = _SPEED_SLOW
+        self._refresh_rtwp_ui()
+
+    @on(Button.Pressed, "#cat-fast")
+    def _cat_fast_btn(self, _: Button.Pressed) -> None:
+        self._auto_advance_delay_s = _SPEED_FAST
+        self._refresh_rtwp_ui()
+
+    def _auto_advance_step(self) -> None:
+        if self._auto_advance:
+            self._advance_tick_work()
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker.name == "tick_worker" and event.state == WorkerState.SUCCESS:
+            if self._auto_advance:
+                self.set_timer(self._auto_advance_delay_s, self._auto_advance_step)
+
+    @work(thread=True, name="tick_worker")
     def _advance_tick_work(self) -> None:
         state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
@@ -607,15 +699,23 @@ class GameScreen(Screen):
         self._state = new_state
         self._last_result = result
         self.app.call_from_thread(self._record_discoveries, before_ids)
-        categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE)
+        categorized = display_tick_result_categorized(result, dev_mode=display.DEV_MODE, state=new_state)
         self._log.write_tick(result)
+        self._rich_log.append_tick(result.tick_number, categorized)
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
-        # After each tick, surface the freshly-written log so the player sees
-        # the tick result without having to switch tabs manually, and snap the
-        # left panel to Status for an at-a-glance numbers check.
-        self.app.call_from_thread(self._activate_post_tick_tabs)
+        if self._auto_advance and any(
+            new_state.pause_config.should_pause(e) for e in result.pause_events
+        ):
+            self._auto_advance = False
+            self.app.call_from_thread(
+                self._feed_markup,
+                "[#c09030]Auto-advance paused: divine contact.[/]", "other",
+            )
+            self.app.call_from_thread(self._refresh_rtwp_ui)
         if result.terminal.triggered:
+            self._auto_advance = False
+            self.app.call_from_thread(self._refresh_rtwp_ui)
             self._log.finalize(new_state, result)
             self.app.call_from_thread(
                 self._feed_markup,
@@ -629,17 +729,17 @@ class GameScreen(Screen):
             self._feed_markup(line, cat)
 
     def _activate_post_tick_tabs(self) -> None:
-        try:
-            self.query_one("#right-tabs", TabbedContent).active = "log"
-        except Exception:
-            pass
-        try:
-            self.query_one("#left-tabs", TabbedContent).active = "status"
-        except Exception:
-            pass
+        pass
 
     def action_save_game(self) -> None:
         self._save_game_flow()
+
+    def _flush_rich_log(self, save_name: str) -> None:
+        """Assign rich_log_name if not yet set, then write the JSONL buffer."""
+        if not self._state.rich_log_name:
+            self._state.rich_log_name = f"{save_name}_rich"
+        _LOGS_DIR.mkdir(exist_ok=True)
+        self._rich_log.save(_LOGS_DIR / f"{self._state.rich_log_name}.jsonl")
 
     @work
     async def _save_game_flow(self) -> None:
@@ -661,7 +761,8 @@ class GameScreen(Screen):
             if not overwrite:
                 self._feed_markup("[#5a7090]Save cancelled.[/]")
                 return
-        description = f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
+        description = f"Tick {state.tick_number}  |  {state.universe.current_age.display()}"
+        self._flush_rich_log(name)
         export_scenario(state, db_path, scenario_name=name, description=description)
         self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
 
@@ -685,8 +786,9 @@ class GameScreen(Screen):
             name = f"{state.universe.save_name}_{dt}"
             db_path = _SAVES_DIR / f"{name}.db"
             description = (
-                f"Tick {state.tick_number}  |  Age {state.universe.current_age:.1f}"
+                f"Tick {state.tick_number}  |  {state.universe.current_age.display()}"
             )
+            self._flush_rich_log(name)
             export_scenario(state, db_path, scenario_name=name, description=description)
             self._feed_markup(f"[#50b870]Saved to saves/{name}.db[/]")
         self._log.finalize(self._state, self._last_result)
@@ -694,44 +796,48 @@ class GameScreen(Screen):
 
     # ── Action queue flow ─────────────────────
 
+    @on(CategoryPanel.CategoryClicked)
     @work
-    async def _queue_action_flow(self) -> None:
+    async def _on_category_clicked(self, event: CategoryPanel.CategoryClicked) -> None:
+        cat_val = event.category.value
+        pending = self._state.pending_actions.get(cat_val)
+        if pending is None:
+            await self._queue_action_flow(initial_category=event.category)
+            return
+        cooldown_remaining = self._state.category_cooldowns.counters.get(event.category, 0)
+        defn = self.app.loop._action_library.get(pending.action_key)  # type: ignore[attr-defined]
+        action_name = defn.name if defn else pending.action_key
+        result = await self.app.push_screen_wait(
+            CategoryPendingModal(event.category, pending, action_name, cooldown_remaining)
+        )
+        if result == "override_resume":
+            self._state.pending_resume[cat_val] = pending
+            await self._queue_action_flow(initial_category=event.category)
+            new_pending = self._state.pending_actions.get(cat_val)
+            if new_pending and new_pending is not pending:
+                new_pending.repeating = False
+        elif result == "replace":
+            await self._queue_action_flow(initial_category=event.category)
+        elif result == "cancel":
+            del self._state.pending_actions[cat_val]
+            self._feed_markup(f"[#c08070]Cancelled pending {_e(action_name)}.[/]", "actions")
+            self._refresh_status()
+        # None (keep) → do nothing
+
+    async def _queue_action_flow(self, initial_category: "ActionCategory | None" = None) -> None:
         app     = self.app
         state   = self._state
         library = app.loop._action_library  # type: ignore[attr-defined]
 
         while True:
             # Browse and pick action
-            picked = await app.push_screen_wait(ActionBrowserModal(state, library))
+            picked = await app.push_screen_wait(
+                ActionBrowserModal(state, library, initial_category=initial_category)
+            )
+            initial_category = None  # only pre-select on first open
             if picked is None:
                 return
             action_key, defn = picked
-
-            # Essence affordability check — before submenus
-            if defn.essence_cost > 0:
-                key_by_id = app.loop._action_key_by_id  # type: ignore[attr-defined]
-                committed = sum(
-                    library[key].essence_cost
-                    for ai in state.action_queue
-                    if (key := key_by_id.get(str(ai.action_definition_id)))
-                    and library.get(key) is not None
-                    and library[key].essence_cost > 0
-                ) + sum(
-                    library[oa.action_key].essence_cost
-                    for oa in state.ongoing_actions.values()
-                    if library.get(oa.action_key) is not None
-                    and library[oa.action_key].essence_cost > 0
-                )
-                available = state.essence.actual - committed
-                if defn.essence_cost > available:
-                    committed_str = f" − {committed:.2f} committed" if committed > 0 else ""
-                    await app.push_screen_wait(ToastModal(
-                        f"Insufficient Essence.\n\n"
-                        f"  Cost:      {defn.essence_cost:g}\n"
-                        f"  Available: {available:.2f}\n"
-                        f"  (stockpile {state.essence.actual:.2f}{committed_str})"
-                    ))
-                    continue
 
             # Build intent; BACK means "re-show action browser"
             instance = await self._build_intent(action_key, defn)
@@ -742,37 +848,36 @@ class GameScreen(Screen):
                 continue
             break
 
-        # Offer persistence for eligible actions
-        if "can_persist" in defn.tags:
-            make_persistent = await app.push_screen_wait(
+        # Ask once vs repeat — only actions tagged can_persist are eligible
+        if "can_persist" in (defn.tags or []):
+            make_repeating = await app.push_screen_wait(
                 YesNoModal(
-                    f"Make '{defn.name}' persistent?",
-                    "It will auto-execute each tick until you stop it.",
+                    f"Queue '{defn.name}'",
+                    "Fire once and clear, or repeat each tick until stopped?",
+                    yes_label="Repeat",
+                    no_label="Once",
                 )
             )
-            if make_persistent:
-                state.ongoing_actions[defn.category.value] = OngoingAction(
-                    action_key=action_key,
-                    action_definition_id=defn.id,
-                    target_type=instance.target_type,
-                    target_id=instance.target_id,
-                    proxius_id=instance.proxius_id,
-                    intent=instance.intent,
-                    ticks_active=0,
-                    started_at_tick=state.tick_number,
-                )
-                self._log.write_action(f"[ONGOING SET] {defn.name}")
-                self._feed_markup(f"[#60a870][ONGOING SET][/] {defn.name}", "actions")
-                self._refresh_status()
-                self._focus_actions_tab()
-                return
+        else:
+            make_repeating = False
 
-        state.action_queue.append(instance)
-        summary = defn.name
-        if instance.target_id:
-            summary += f" → {_name_for_id(instance.target_id, state)}"
-        self._log.write_action(summary)
-        self._feed_markup(f"[#a0d080]Queued:[/] {summary}", "actions")
+        state.pending_actions[defn.category.value] = OngoingAction(
+            action_key=action_key,
+            action_definition_id=defn.id,
+            target_type=instance.target_type,
+            target_id=instance.target_id,
+            proxius_id=instance.proxius_id,
+            intent=instance.intent,
+            repeating=bool(make_repeating),
+            ticks_active=0,
+            started_at_tick=state.tick_number,
+        )
+        label = "[REPEATING]" if make_repeating else "[QUEUED]"
+        color = "#60a870" if make_repeating else "#a0d080"
+        plain_target = f" → {_name_for_id(instance.target_id, state)}" if instance.target_id else ""
+        link_target  = f" → {_name_link_for_id(instance.target_id, state)}" if instance.target_id else ""
+        self._log.write_action(f"{label} {defn.name}{plain_target}")
+        self._feed_markup(f"[{color}]{label}[/] {_e(defn.name)}{link_target}", "actions")
         self._refresh_status()
         self._focus_actions_tab()
 
@@ -821,7 +926,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=TargetType.MORTAL,
                 target_id=proxius_id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=proxius_id,
                 intent=intent,
@@ -830,10 +935,10 @@ class GameScreen(Screen):
         # ── preach_imago: multi-step (proxius → domain/imago → pop) ──
         if action_key == "preach_imago":
             already_directed = {
-                str(ai.proxius_id)
-                for ai in state.action_queue
-                if isinstance(ai.intent, ProxiusDirectiveIntent)
-                and ai.proxius_id is not None
+                str(pa.proxius_id)
+                for pa in state.pending_actions.values()
+                if isinstance(pa.intent, ProxiusDirectiveIntent)
+                and pa.proxius_id is not None
             }
             step = 0
             pid = None
@@ -974,7 +1079,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=TargetType.MORTAL,
                 target_id=UUID(pid),
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=UUID(pid),
                 intent=intent,
@@ -993,7 +1098,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=TargetType.MORTAL,
                 target_id=proxius_id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=proxius_id,
                 intent=None,
@@ -1035,7 +1140,7 @@ class GameScreen(Screen):
                 action_definition_id=defn.id,
                 target_type=target_type,
                 target_id=target_id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=None,
                 intent=ScryIntent(scope=chosen_scope),
@@ -1089,7 +1194,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.MORTAL,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1116,7 +1221,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.CIVILIZATION,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1140,7 +1245,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.LUMINARY,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1166,7 +1271,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=TargetType.SPECIES,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1185,7 +1290,7 @@ class GameScreen(Screen):
                 break
             return ActionInstance(
                 action_definition_id=defn.id, target_type=target_type,
-                target_id=target_id, timestamp=state.universe.current_age,
+                target_id=target_id, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None,
                 intent=None if action_key in _NO_PARAMS else intent,
             )
@@ -1195,7 +1300,7 @@ class GameScreen(Screen):
             if action_key in _NO_PARAMS:
                 return ActionInstance(
                     action_definition_id=defn.id, target_type=target_type,
-                    target_id=None, timestamp=state.universe.current_age,
+                    target_id=None, timestamp=state.universe.current_age.to_float_years(),
                     demiurge_id=state.demiurge.id, proxius_id=None, intent=None,
                 )
             intent = await self._build_intent_params(action_key, defn, None, state)
@@ -1203,7 +1308,7 @@ class GameScreen(Screen):
             if intent == BACK: return BACK
             return ActionInstance(
                 action_definition_id=defn.id, target_type=target_type,
-                target_id=None, timestamp=state.universe.current_age,
+                target_id=None, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None, intent=intent,
             )
 
@@ -1211,7 +1316,7 @@ class GameScreen(Screen):
         if action_key in _NO_PARAMS:
             return ActionInstance(
                 action_definition_id=defn.id, target_type=target_type,
-                target_id=None, timestamp=state.universe.current_age,
+                target_id=None, timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id, proxius_id=None, intent=None,
             )
         intent = await self._build_intent_params(action_key, defn, None, state)
@@ -1219,7 +1324,7 @@ class GameScreen(Screen):
         if intent == BACK: return BACK
         return ActionInstance(
             action_definition_id=defn.id, target_type=target_type,
-            target_id=None, timestamp=state.universe.current_age,
+            target_id=None, timestamp=state.universe.current_age.to_float_years(),
             demiurge_id=state.demiurge.id, proxius_id=None, intent=intent,
         )
 

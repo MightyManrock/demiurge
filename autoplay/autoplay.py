@@ -112,7 +112,7 @@ def run(
         action_narratives  = [e.narrative for e in result.action_result.entries]
         disp_changes       = result.disposition_changes
 
-        print(f"── Tick {tick:02d}  (age {result.universe_age_after:.1f}) {'─'*38}")
+        print(f"── Tick {tick:02d}  ({result.universe_age_after.display()}) {'─'*38}")
         print(f"  ACTION: {action_desc}")
 
         for narr in action_narratives:

@@ -30,7 +30,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe, TravelNetwork,
+    Universe, TravelNetwork, UniverseAge,
 )
 from core.action_core import (
     EssenceStockpile, OngoingAction, TargetType,
@@ -38,13 +38,13 @@ from core.action_core import (
     ProxiusDirectiveIntent, LuminaryPetitionIntent, EssenceHarvestIntent,
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent,
-    DomainVector, CultureVector,
+    DomainVector, CultureVector, CategoryCooldowns,
 )
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
-    compute_mortal_alignment_base,
+    PauseConfig, compute_mortal_alignment_base,
 )
 
 _INTENT_CLASSES: dict[str, type] = {
@@ -58,6 +58,52 @@ _INTENT_CLASSES: dict[str, type] = {
 }
 
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
+
+
+def _load_universe_age(meta: dict) -> UniverseAge:
+    """Load UniverseAge; prefers 6-component columns, falls back to legacy age_year, then current_age float."""
+    if meta.get("age_billions") is not None:
+        return UniverseAge(
+            billions=meta["age_billions"], millions=meta["age_millions"],
+            thousands=meta["age_thousands"], years=meta["age_years"],
+            month=meta["age_month"], day=meta["age_day"],
+        )
+    if meta.get("age_year") is not None:
+        return UniverseAge.from_full_year(meta["age_year"], meta.get("age_month", 1), meta.get("age_day", 1))
+    old = float(meta.get("current_age") or 0.0)
+    return UniverseAge.from_full_year(int(old))
+
+
+def _derive_founding_date(civ_age: float, universe_age: UniverseAge) -> tuple[int, int, int, int, int, int]:
+    ua = UniverseAge.from_full_year(
+        max(0, universe_age.full_year() - int(civ_age)),
+        universe_age.month, universe_age.day,
+    )
+    return (ua.billions, ua.millions, ua.thousands, ua.years, ua.month, ua.day)
+
+
+def _derive_birthday(chrono_age: float, universe_age: UniverseAge) -> tuple:
+    born = UniverseAge.from_full_year(max(0, universe_age.full_year() - int(chrono_age)))
+    return (born.billions, born.millions, born.thousands, born.years, universe_age.month, universe_age.day)
+
+
+def _load_birthday(row: dict, universe_age: UniverseAge) -> tuple:
+    """Load mortal birthday tuple.
+
+    If upper components (billions/millions/thousands) are stored, use them directly.
+    If NULL, derive the full birth date from chrono_age — this correctly handles
+    mortals who crossed a millennium boundary during their lifetime."""
+    bm = row.get("birthday_month", 1)
+    bd = row.get("birthday_day", 1)
+    bi = row.get("birthday_billions")
+    if bi is not None:
+        return (bi, row["birthday_millions"], row["birthday_thousands"],
+                row["birthday_years"], bm, bd)
+    # Derive all year components from birth year
+    full_birth = max(0, universe_age.full_year() - int(row.get("chrono_age", 0)))
+    born = UniverseAge.from_full_year(full_birth)
+    yr = row.get("birthday_years", born.years)
+    return (born.billions, born.millions, born.thousands, yr, bm, bd)
 
 
 _MAX_INDIVIDUAL_AFFINITY = 0.8   # no single Luminary may exceed this for any one domain
@@ -141,21 +187,33 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     rules    = _load_universe_rules(conn)
     locations = _load_locations(conn)
     travel_networks = _load_travel_networks(conn)
+    universe_age = _load_universe_age(meta)
     species  = _load_species(conn)
-    civs     = _load_civilizations(conn)
+    civs     = _load_civilizations(conn, universe_age)
     pops     = _load_pops(conn)
-    mortals  = _load_mortals(conn)
+    mortals  = _load_mortals(conn, universe_age)
     demiurge = _load_demiurge(conn)
     essence  = _load_essence(conn)
     cfg      = _load_tick_config(conn)
     civ_momentum = _load_civ_momentum(conn)
+    category_cooldowns = CategoryCooldowns.model_validate_json(
+        meta.get("category_cooldowns", "{}")
+    )
+    pause_config = PauseConfig.model_validate_json(
+        meta.get("pause_config", "{}")
+    )
     lum_attention, ticks_since = _load_luminary_state(conn)
     ongoing_actions = _load_ongoing_actions(conn)
+    pending_resume = _load_pending_resume(conn)
     active_events = _load_active_events(conn)
     luminary_production_accum = _jd_str(meta.get("luminary_production_accum", "{}"))
     domain_essence_claimed = _jd_str(meta.get("domain_essence_claimed", "{}"))
     last_tick_essence_by_domain = _jd_str(meta.get("last_tick_essence_by_domain", "{}"))
-    starting_pinned_ids = _j(meta.get("starting_pinned_ids", "[]"))
+    last_essence_capture_by_domain = _jd_str(meta.get("last_essence_capture_by_domain", "{}"))
+    last_essence_capture_tick = meta.get("last_essence_capture_tick", 0) or 0
+    last_harvest_amount = float(meta.get("last_harvest_amount", 0.0) or 0.0)
+    last_harvest_tick   = meta.get("last_harvest_tick", 0) or 0
+    rich_log_name = meta.get("rich_log_name", "") or ""
 
     # Universe ID: stored in scenario_meta if present, else generate one.
     universe_id_str = meta.get("universe_id", "")
@@ -176,7 +234,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         pantheon_id=pantheon.id,
         rules=rules,
         child_ids=galaxy_ids,
-        current_age=meta["current_age"],
+        current_age=_load_universe_age(meta),
         universe_domain_expression=_jd_str(meta.get("universe_domain_expression", "{}")),
     )
 
@@ -193,16 +251,23 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         mortals=mortals,
         species=species,
         civ_momentum=civ_momentum,
+        category_cooldowns=category_cooldowns,
+        pause_config=pause_config,
         luminary_attention=lum_attention,
         ticks_since_evaluation=ticks_since,
         config=cfg,
-        ongoing_actions=ongoing_actions,
+        pending_actions=ongoing_actions,
+        pending_resume=pending_resume,
         active_events=active_events,
         luminary_production_this_eval=luminary_production_accum,
         domain_essence_claimed=domain_essence_claimed,
         last_tick_essence_by_domain=last_tick_essence_by_domain,
+        last_essence_capture_by_domain=last_essence_capture_by_domain,
+        last_essence_capture_tick=last_essence_capture_tick,
+        last_harvest_amount=last_harvest_amount,
+        last_harvest_tick=last_harvest_tick,
         tick_number=meta.get("tick_number", 0),
-        starting_pinned_ids=starting_pinned_ids,
+        rich_log_name=rich_log_name,
     )
 
     # If the scenario DB didn't specify starting affiliated domains, derive them:
@@ -504,7 +569,7 @@ def _load_species(conn) -> dict[str, Species]:
     return out
 
 
-def _load_civilizations(conn) -> dict[str, Civilization]:
+def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilization]:
     out = {}
     for raw in conn.execute("SELECT * FROM civilizations"):
         row = dict(raw)
@@ -535,6 +600,16 @@ def _load_civilizations(conn) -> dict[str, Civilization]:
             divine_awareness=row["divine_awareness"],
             core_locs=[UUID(x) for x in _j(row.get("core_locs", "[]"))],
             age=row["age"],
+            founding_date=(
+                (row["founding_billions"], row["founding_millions"], row["founding_thousands"],
+                 row["founding_year"], row["founding_month"], row["founding_day"])
+                if row.get("founding_billions") is not None
+                else (
+                    (0, 0, 0, row["founding_year"], row["founding_month"], row["founding_day"])
+                    if row.get("founding_year") is not None
+                    else _derive_founding_date(row["age"], universe_age)
+                )
+            ),
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
         )
@@ -582,7 +657,7 @@ def _load_pops(conn) -> dict[str, Pop]:
     return out
 
 
-def _load_mortals(conn) -> dict[str, NotableMortal]:
+def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
     out = {}
     for raw in conn.execute("SELECT * FROM mortals"):
         row = dict(raw)
@@ -604,6 +679,7 @@ def _load_mortals(conn) -> dict[str, NotableMortal]:
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],
+            birthday=_load_birthday(row, universe_age),
             appointed_by_demiurge=_uuid(row["appointed_by_demiurge"]),
             appointed_by_luminary=_uuid(row["appointed_by_luminary"]),
             home_location=UUID(row["home_location"]),
@@ -771,7 +847,38 @@ def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
             intent=intent,
             ticks_active=row["ticks_active"],
             executed_ticks=row["executed_ticks"],
+            successful_ticks=row.get("successful_ticks", 0),
             started_at_tick=row["started_at_tick"],
+            repeating=bool(row.get("repeating", 0)),
+        )
+    return out
+
+
+def _load_pending_resume(conn) -> dict[str, OngoingAction]:
+    out: dict[str, OngoingAction] = {}
+    try:
+        rows = conn.execute("SELECT * FROM pending_resume").fetchall()
+    except Exception:
+        return out  # table absent in old DBs
+    for raw in rows:
+        row = dict(raw)
+        intent = None
+        intent_type = row.get("intent_type")
+        intent_data = row.get("intent_data")
+        if intent_type and intent_data and intent_type in _INTENT_CLASSES:
+            intent = _INTENT_CLASSES[intent_type].model_validate_json(intent_data)
+        out[row["category_key"]] = OngoingAction(
+            action_key=row["action_key"],
+            action_definition_id=UUID(row["action_definition_id"]),
+            target_type=TargetType(row["target_type"]),
+            target_id=_uuid(row.get("target_id")),
+            proxius_id=_uuid(row.get("proxius_id")),
+            intent=intent,
+            ticks_active=row["ticks_active"],
+            executed_ticks=row["executed_ticks"],
+            successful_ticks=row.get("successful_ticks", 0),
+            started_at_tick=row["started_at_tick"],
+            repeating=bool(row.get("repeating", 0)),
         )
     return out
 

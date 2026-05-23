@@ -20,15 +20,27 @@ CREATE TABLE IF NOT EXISTS scenario_meta (
     universe_name       TEXT NOT NULL,
     universe_save_name  TEXT NOT NULL,
     universe_description TEXT NOT NULL DEFAULT '',
-    current_age         REAL NOT NULL DEFAULT 0.0,
+    current_age         REAL NOT NULL DEFAULT 0.0,  -- legacy; superseded by age_* columns
+    age_billions        INTEGER NOT NULL DEFAULT 0,
+    age_millions        INTEGER NOT NULL DEFAULT 0,
+    age_thousands       INTEGER NOT NULL DEFAULT 0,
+    age_years           INTEGER NOT NULL DEFAULT 0,
+    age_month           INTEGER NOT NULL DEFAULT 1,
+    age_day             INTEGER NOT NULL DEFAULT 1,
     tick_number         INTEGER NOT NULL DEFAULT 0,
     demiurge_id         TEXT NOT NULL,
     pantheon_id         TEXT NOT NULL,
     luminary_production_accum TEXT NOT NULL DEFAULT '{}',  -- JSON {luminary_id: float} weighted-production accumulator
     domain_essence_claimed  TEXT NOT NULL DEFAULT '{}',  -- JSON {domain_tag: float} cumulative Demiurge claim
     universe_domain_expression TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} per-domain baseline (0.1 default if absent)
-    starting_pinned_ids        TEXT NOT NULL DEFAULT '[]',  -- JSON [str(UUID), ...] entities pinned at scenario start; unpinned at tick 10
-    last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}'  -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
+    last_tick_essence_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} Demiurge Essence claimed last tick, for Status display
+    last_essence_capture_by_domain TEXT NOT NULL DEFAULT '{}', -- JSON {domain_tag: float} most recent non-empty monthly snapshot
+    last_essence_capture_tick   INTEGER NOT NULL DEFAULT 0,  -- tick number of last_essence_capture_by_domain
+    last_harvest_amount         REAL    NOT NULL DEFAULT 0.0, -- actual_yield of most recent successful Harvest Essence action
+    last_harvest_tick           INTEGER NOT NULL DEFAULT 0,   -- tick number of last_harvest_amount (0 = never harvested)
+    category_cooldowns          TEXT NOT NULL DEFAULT '{}', -- JSON CategoryCooldowns model (counters: dict[ActionCategory, int])
+    pause_config                TEXT NOT NULL DEFAULT '{}', -- JSON PauseConfig model (overrides: dict[PauseEventType, bool])
+    rich_log_name               TEXT NOT NULL DEFAULT ''    -- base filename (no path/ext) of the JSONL rich-log; empty = none yet
 );
 
 -- ─────────────────────────────────────────
@@ -184,6 +196,12 @@ CREATE TABLE IF NOT EXISTS civilizations (
     divine_awareness    REAL NOT NULL DEFAULT 0.3,
     core_locs           TEXT    NOT NULL DEFAULT '[]',  -- JSON array of SignificantLocation UUIDs
     age                 REAL NOT NULL DEFAULT 0.0,
+    founding_billions   INTEGER NOT NULL DEFAULT 0,
+    founding_millions   INTEGER NOT NULL DEFAULT 0,
+    founding_thousands  INTEGER NOT NULL DEFAULT 0,
+    founding_year       INTEGER NOT NULL DEFAULT 0,
+    founding_month      INTEGER NOT NULL DEFAULT 1,
+    founding_day        INTEGER NOT NULL DEFAULT 1,
     visibility          REAL    NOT NULL DEFAULT 0.0,
     pinned              INTEGER NOT NULL DEFAULT 0
 );
@@ -228,6 +246,12 @@ CREATE TABLE IF NOT EXISTS mortals (
     alignment              REAL NOT NULL DEFAULT 0.8,
     chrono_age             REAL NOT NULL DEFAULT 0.0,
     bio_age                REAL NOT NULL DEFAULT 0.0,
+    birthday_billions      INTEGER,                    -- NULL = use universe billions at load
+    birthday_millions      INTEGER,                    -- NULL = use universe millions at load
+    birthday_thousands     INTEGER,                    -- NULL = use universe thousands at load
+    birthday_years         INTEGER NOT NULL DEFAULT 0,
+    birthday_month         INTEGER NOT NULL DEFAULT 1,
+    birthday_day           INTEGER NOT NULL DEFAULT 1,
     appointed_by_demiurge  TEXT,
     appointed_by_luminary  TEXT,
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
@@ -292,7 +316,7 @@ CREATE TABLE IF NOT EXISTS tick_config (
     civ_noise_factor            REAL NOT NULL DEFAULT 0.01,
     alignment_drift_rate               REAL NOT NULL DEFAULT 0.01,
     attention_decay_rate               REAL NOT NULL DEFAULT 0.03,
-    evaluation_interval                REAL NOT NULL DEFAULT 10.0,
+    evaluation_interval                REAL NOT NULL DEFAULT 360.0,
     mortal_visibility_decay_rate            REAL NOT NULL DEFAULT 0.03,
     proxius_passive_footprint_rate          REAL NOT NULL DEFAULT 0.03,
     location_visibility_decay_rate          REAL NOT NULL DEFAULT 0.01,
@@ -349,7 +373,26 @@ CREATE TABLE IF NOT EXISTS ongoing_actions (
     intent_data            TEXT,    -- JSON of intent fields, or NULL
     ticks_active           INTEGER NOT NULL DEFAULT 0,
     executed_ticks         INTEGER NOT NULL DEFAULT 0,
-    started_at_tick        INTEGER NOT NULL DEFAULT 0
+    successful_ticks       INTEGER NOT NULL DEFAULT 0,
+    started_at_tick        INTEGER NOT NULL DEFAULT 0,
+    repeating              INTEGER NOT NULL DEFAULT 0
+);
+
+-- Repeating actions temporarily displaced by a one-shot override; restored after the override fires.
+CREATE TABLE IF NOT EXISTS pending_resume (
+    category_key           TEXT PRIMARY KEY,
+    action_key             TEXT NOT NULL,
+    action_definition_id   TEXT NOT NULL,
+    target_type            TEXT NOT NULL,
+    target_id              TEXT,
+    proxius_id             TEXT,
+    intent_type            TEXT,
+    intent_data            TEXT,
+    ticks_active           INTEGER NOT NULL DEFAULT 0,
+    executed_ticks         INTEGER NOT NULL DEFAULT 0,
+    successful_ticks       INTEGER NOT NULL DEFAULT 0,
+    started_at_tick        INTEGER NOT NULL DEFAULT 0,
+    repeating              INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS active_events (

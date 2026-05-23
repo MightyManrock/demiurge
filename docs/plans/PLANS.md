@@ -26,4 +26,5 @@ Read /root/demiurge/docs/TO-DO.md and /root/demiurge/docs/plans/PLANS.md. For ea
 | [travel-location-system.md](travel-location-system.md) | `complete` | TravelLocation as first-class entity; travel_features routing; Durenn Vail test |
 | [travel-network-refactor.md](travel-network-refactor.md) | `complete` | Replace travel_features strings with explicit TravelNetwork objects |
 | [warp-gate-expansion.md](warp-gate-expansion.md) | `complete` | Add warp gate SignificantLocations; extend Vail route through FTL infrastructure |
-| [rtwp-action-system.md](rtwp-action-system.md) | `active` | RTwP refactor: continuous auto-advance, per-category cooldowns, auto-pause, category panel, control modal, tick scale to days |
+| [rtwp-action-system.md](rtwp-action-system.md) | `complete` | RTwP refactor: continuous auto-advance, per-category cooldowns, auto-pause, category panel, control modal, tick scale to days |
+| [soft-queue-action-system.md](soft-queue-action-system.md) | `complete` | Unify action_queue + ongoing_actions into pending_actions; repeating flag; per-category pending modal |

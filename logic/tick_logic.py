@@ -23,12 +23,12 @@ from core.action_core import (
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope,
-    TargetType,
+    TargetType, CategoryCooldowns, CATEGORY_BASE_COOLDOWNS, compute_cooldown,
 )
 from core.eval_core import (
     UniverseDomainProfile,
     LuminaryEvaluation,
-    DialogueTrigger,
+    DialogueTrigger, DialogueTriggerType,
     EvaluationEngine,
     AttentionTrigger,
     FootprintAssessment,
@@ -43,7 +43,7 @@ from core.onto_core import (
 )
 from core.universe_core import (
     Universe, Location, System, SignificantLocation, PopLocation, TravelNetwork,
-    Civilization, NotableMortal,
+    Civilization, NotableMortal, UniverseAge,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
     Pop, SocialClass, is_wild_civ,
@@ -186,7 +186,7 @@ LINEAGE_BLEED_FRACTION = 0.20
 # Fraction of a splash delta that bleeds further to a Pop's parent and children.
 # Moderated by cosine similarity — diverged relatives resist the bleed.
 
-RIDER_ATTRITION_BASE = 0.003
+RIDER_ATTRITION_BASE = 0.00002
 # Base decay rate per tick applied to culture_tags that conflict with a Pop's active rider_traits.
 # Multiplied by (1.0 - synergy): syn=-1 → 2x, syn=0 → 1x, syn=+1 → 0x.
 
@@ -305,7 +305,7 @@ _REVELATION_EXPRESSION_FULL: float = 3.0
 
 REV_SCALE    = 500.0   # lifetime_revelation saturation point (revelation component)
 IMAGO_SCALE  = 40.0    # tier-weighted imago score saturation point
-TICK_SCALE   = 200.0   # tick number saturation point (minor long-run contribution)
+TICK_SCALE   = 3650.0  # tick number saturation point (minor long-run contribution; ~10yr at 1 day/tick)
 _IMAGO_TIER_WEIGHTS: dict[int, int] = {1: 1, 2: 2, 3: 4, 4: 8}
 
 BASE_INFLUENCE       = 0.75   # floor success chance for Whisper / Shape Dream
@@ -502,7 +502,7 @@ class TickConfig(BaseModel):
 
     # Footprint decay
     # Divine traces fade naturally each tick.
-    footprint_decay_rate: float = 0.05
+    footprint_decay_rate: float = 0.0005
     # Subtracted from each footprint category per tick,
     # floor 0.0. Subtle influence fades faster than
     # direct creation — handled by per-category multipliers.
@@ -516,46 +516,46 @@ class TickConfig(BaseModel):
     )
 
     # Concealment degradation
-    concealment_decay_rate: float = 0.02
+    concealment_decay_rate: float = 0.001
     # concealment_integrity drops this much per tick passively.
     # Spending Essence adds on top of this.
 
     # Civilization momentum
     # How much a civilization's stats move on their own per tick.
-    civ_momentum_rate: float = 0.02
-    civ_noise_factor: float = 0.01
+    civ_momentum_rate: float = 0.003
+    civ_noise_factor: float = 0.004
     # Small random perturbation each tick — civilizations
     # are not perfectly predictable.
 
     # Mortal alignment drift
     # Proxii and Heralds slowly drift toward their personal tags
     # and away from their patron's agenda unless directed.
-    alignment_drift_rate: float = 0.01
+    alignment_drift_rate: float = 0.001
 
     # Mortal visibility decay
     # Base rate; modulated by prominence: effective_decay = rate * (1.0 - prominence).
-    mortal_visibility_decay_rate: float = 0.03
+    mortal_visibility_decay_rate: float = 0.001
 
     # Window visibility decay for non-mortal entities
-    location_visibility_decay_rate: float = 0.01
-    civ_visibility_decay_rate: float = 0.01
-    species_visibility_decay_rate: float = 0.01
+    location_visibility_decay_rate: float = 0.0003
+    civ_visibility_decay_rate: float = 0.0003
+    species_visibility_decay_rate: float = 0.0003
 
     # Luminary attention decay
     # Attention naturally falls when nothing interesting happens.
-    attention_decay_rate: float = 0.03
+    attention_decay_rate: float = 0.002
 
     # Passive Proxius footprint
     # Each active Proxius generates this much proxius_activity per tick.
     # Policy-compliant worlds (≤ max_per_world Proxii) contribute at
     # PROXIUS_COMPLIANCE_FACTOR of this rate; excess Proxii contribute at full rate.
-    proxius_passive_footprint_rate: float = 0.03
+    proxius_passive_footprint_rate: float = 0.0002
 
     # Evaluation frequency
     # Not every tick triggers a full Luminary evaluation.
     # Evaluation happens when: attention crosses a threshold,
     # a constraint is breached, or this many ticks have elapsed.
-    evaluation_interval: float = 10.0
+    evaluation_interval: float = 360.0
 
     # Essence generation weights (tuning targets; adjust after playtesting)
     essence_location_weight: float = 3.0
@@ -576,10 +576,12 @@ class TickConfig(BaseModel):
     # At 0.40: aff=0.2→52.5%, aff=0.5→75.8%, aff=0.8→91.5%, aff=0.9→95.9%.
     # Demiurge gets 1 − lum_fraction of any affiliated domain pool.
 
-    luminary_essence_baseline_rate: float = 10.0
+    luminary_essence_baseline_rate: float = 0.05
     # Expected weighted domain production per effective-affinity-point per tick.
     # Threshold = effective_affinity × baseline_rate × ticks_since_last_eval,
     # where effective_affinity uses diminishing returns (see luminary_essence_decay).
+    # At 1-day ticks with monthly essence fires and annual evaluation (360 ticks),
+    # threshold ≈ effective_affinity × 18 per year.
 
     luminary_essence_decay: float = 0.65
     # Geometric decay applied to each successive domain affinity when computing
@@ -594,26 +596,26 @@ class TickConfig(BaseModel):
     # of 6 (excess=8) adds 8×0.20=1.6 to their expectation floor next period.
     # Raised expectations decay by 0.10 per two consecutive shortfall periods.
 
-    luminary_essence_passive_rise: float = 5.0
+    luminary_essence_passive_rise: float = 0.1
     # Per-tick expectation creep added each evaluation period, diminishing with age.
     # Actual increment = passive_rise × ticks_since / max(tick_number, 1).
     # At tick 1 with ticks_since=6: full 0.50×6=3.0 added. At tick 50: 0.50×6/50=0.06.
     # Ensures idle play eventually falls short even if starting conditions are generous.
 
     # Pop dynamics
-    pop_conformity_base: float = 0.005
+    pop_conformity_base: float = 0.0003
     # Base rate at which Pops are nudged toward civ.established_beliefs per tick.
     # Scaled by scale_conformity_mult * civ.health.cohesion at runtime.
 
-    pop_visibility_drift_rate: float = 0.02
+    pop_visibility_drift_rate: float = 0.002
     # Rate at which Pop.visibility converges toward min(civ.visibility, world.visibility).
 
-    established_drift_base: float = 0.01
+    established_drift_base: float = 0.0005
     # Base rate at which civ.established_beliefs drifts toward civ.dominant_beliefs per tick.
     # Scaled by civ.health.cohesion at runtime.
 
     # Cross-Pop contact (passive belief drift between co-located Pops of different civs)
-    pop_contact_base_rate: float = 0.005
+    pop_contact_base_rate: float = 0.00003
     cross_civ_contact_factor: float = 0.15
     cross_civ_scale_penalty: float = 0.08
     cross_species_contact_factor: float = 0.50
@@ -742,6 +744,52 @@ class TerminalCheck(BaseModel):
 
 
 # ─────────────────────────────────────────
+# PAUSE EVENTS
+# Signals to the RTwP loop that auto-advance should stop.
+# ─────────────────────────────────────────
+
+class PauseEventType(str, Enum):
+    # Hard-pause (not configurable — Phase 3a)
+    LUMINARY_CONTACT   = "luminary_contact"    # any Luminary dialogue trigger fires
+    LUMINARY_ULTIMATUM = "luminary_ultimatum"  # CONSTRAINT_ULTIMATUM or THREAT trigger
+    HERALD_CONTACT     = "herald_contact"      # stub — Heralds not yet implemented
+    PROXIUS_CONTACT    = "proxius_contact"     # stub — urgent Proxius signal (TBD)
+    # Default-pause (configurable off — Phase 3b)
+    EVALUATION_COMPLETE    = "evaluation_complete"     # a Luminary evaluated this tick
+    REVELATION_THRESHOLD   = "revelation_threshold"    # an Imago node was revealed
+    QUEUED_ACTION_COMPLETE = "queued_action_complete"  # a manually-queued action resolved
+    PINNED_MORTAL_DIED     = "pinned_mortal_died"      # a pinned mortal died this tick
+    # Default-silent (configurable on — Phase 3c)
+    POP_SPLINT          = "pop_splint"           # a Pop splinted this tick
+    DOMAIN_THRESHOLD    = "domain_threshold"     # a domain expression shifted significantly
+    TRAVEL_COMPLETE     = "travel_complete"      # a mortal arrived at their destination
+    MINOR_AGENT_UPDATE  = "minor_agent_update"   # Proxius report surfaced this tick
+
+# Trigger types that map to LUMINARY_ULTIMATUM (everything else is LUMINARY_CONTACT).
+_ULTIMATUM_DIALOGUE_TYPES: frozenset[DialogueTriggerType] = frozenset({
+    DialogueTriggerType.CONSTRAINT_ULTIMATUM,
+    DialogueTriggerType.THREAT,
+})
+
+
+class PauseEvent(BaseModel):
+    event_type:       PauseEventType
+    description:      str = ""
+    is_hard_pause:    bool = True   # True → always pauses; False → configurable
+    pauses_by_default: bool = False  # for soft events: True = default-on, False = default-off
+
+
+class PauseConfig(BaseModel):
+    """Per-trigger pause overrides persisted in save state."""
+    overrides: dict[PauseEventType, bool] = Field(default_factory=dict)
+
+    def should_pause(self, event: "PauseEvent") -> bool:
+        if event.is_hard_pause:
+            return True
+        return self.overrides.get(event.event_type, event.pauses_by_default)
+
+
+# ─────────────────────────────────────────
 # TICK RESULT
 # The complete output of one tick.
 # ─────────────────────────────────────────
@@ -753,8 +801,8 @@ class TickResult(BaseModel):
     The event log stores these.
     """
     tick_number: int
-    universe_age_before: float
-    universe_age_after:  float
+    universe_age_before: UniverseAge
+    universe_age_after:  UniverseAge
 
     passive_result:     PassiveWorldResult
     action_result:      ActionProcessingResult
@@ -772,6 +820,9 @@ class TickResult(BaseModel):
     # Unsuppressed triggers only — these go to the player
 
     terminal: TerminalCheck = Field(default_factory=TerminalCheck)
+
+    pause_events: list[PauseEvent] = Field(default_factory=list)
+    # Hard-pause events stop auto-advance; soft-pause events (3b/3c) are configurable.
 
     essence_claimed_by_domain: dict[str, float] = Field(default_factory=dict)
     # domain tag -> Demiurge's claim this tick
@@ -821,6 +872,17 @@ class SimulationState(BaseModel):
         default_factory=dict
     )
 
+    # Per-category cooldown counters; decremented each tick in Phase 2b
+    category_cooldowns: CategoryCooldowns = Field(
+        default_factory=CategoryCooldowns
+    )
+
+    # User-configurable pause trigger overrides (RTwP)
+    pause_config: PauseConfig = Field(default_factory=PauseConfig)
+
+    # Base filename (no path/ext) of the JSONL rich-log file; empty string = none assigned yet
+    rich_log_name: str = ""
+
     # Queued actions waiting to be processed this tick
     action_queue: list["ActionInstance"] = Field(default_factory=list)
 
@@ -841,10 +903,14 @@ class SimulationState(BaseModel):
     # Used to stall passive concealment decay when the Demiurge goes quiet.
     ticks_without_essence_gain: int = 0
 
-    # Persistent actions that auto-execute each tick.
-    # Keyed by ActionCategory.value; appended to action_queue before Phase 2.
-    # Manually queued actions in the same category take priority and block the ongoing one.
-    ongoing_actions: dict[str, OngoingAction] = Field(default_factory=dict)
+    # One pending slot per ActionCategory.
+    # repeating=False: fire once, then clear. repeating=True: keep after firing.
+    # Keyed by ActionCategory.value.
+    pending_actions: dict[str, OngoingAction] = Field(default_factory=dict)
+
+    # When a one-shot override is queued over a repeating action, the repeating
+    # action is stored here. After the one-shot fires, it is restored.
+    pending_resume: dict[str, OngoingAction] = Field(default_factory=dict)
 
     # Active events: divine acts that continue to affect the world across multiple ticks.
     # Keyed by str(Event.id). Populated by EVENT_EMITTED mutations; pruned when expired.
@@ -873,14 +939,74 @@ class SimulationState(BaseModel):
     # Overwritten each tick by Phase 1 essence generation; surfaced in the Status tab.
     last_tick_essence_by_domain: dict[str, float] = Field(default_factory=dict)
 
-    # Entity IDs (str(UUID)) that were pinned at scenario creation.
-    # At tick 10 Phase 1, all are unpinned and this list is cleared.
-    starting_pinned_ids: list[str] = Field(default_factory=list)
+    # Persistent snapshot of the most recent non-empty essence capture event.
+    # Unlike last_tick_essence_by_domain (cleared each non-capture tick), these
+    # fields survive save/load and are always available for display.
+    last_essence_capture_by_domain: dict[str, float] = Field(default_factory=dict)
+    last_essence_capture_tick: int = 0
+
+    # Last successful Harvest Essence from Underreal result.
+    # last_harvest_tick == 0 means never harvested.
+    last_harvest_amount: float = 0.0
+    last_harvest_tick: int = 0
+
+
+
+def _assign_category_cooldown(state: SimulationState, category: "ActionCategory") -> None:
+    state.category_cooldowns.counters[category] = compute_cooldown(
+        category, state.demiurge.puissance
+    )
+
+
+from core.action_core import ActionCategory as _AC
+_CATEGORY_PRIORITY: list = [
+    _AC.DIRECT_CREATION,
+    _AC.OVERT_MIRACLE,
+    _AC.SUBTLE_INFLUENCE,
+    _AC.PROXIUS_DIRECTION,
+    _AC.OBSERVATION,
+    _AC.HERALD_INTERACTION,
+    _AC.LUMINARY_RELATIONS,
+    _AC.UNDERREAL,
+    _AC.SELF_REFINEMENT,
+]
+
+
+def _is_pending_target_valid(state: SimulationState, pending: "OngoingAction") -> bool:
+    """Return False if the pending action's target no longer exists or is deceased."""
+    if pending.target_id is None:
+        return True
+    tid = str(pending.target_id)
+    tt = pending.target_type
+    if tt == TargetType.MORTAL:
+        m = state.mortals.get(tid)
+        return m is not None and m.status != MortalStatus.DECEASED
+    if tt in (TargetType.WORLD, TargetType.SYSTEM, TargetType.GALAXY):
+        return tid in state.locations
+    if tt == TargetType.CIVILIZATION:
+        return tid in state.civilizations
+    if tt == TargetType.LUMINARY:
+        return tid in state.luminaries
+    if tt == TargetType.SPECIES:
+        return tid in state.species
+    return True
 
 
 # ─────────────────────────────────────────
 # TICK LOOP
 # ─────────────────────────────────────────
+
+def _birthday_fires(old: UniverseAge, new: UniverseAge, month: int, day: int) -> bool:
+    """True if (month, day) anniversary falls in the half-open interval (old, new]."""
+    old_fy = old.full_year()
+    new_fy = new.full_year()
+    old_t  = (old_fy, old.month, old.day)
+    new_t  = (new_fy, new.month, new.day)
+    for y in range(old_fy, new_fy + 1):
+        if old_t < (y, month, day) <= new_t:
+            return True
+    return False
+
 
 class TickLoop:
 
@@ -912,14 +1038,16 @@ class TickLoop:
         seed = self._rng.randint(0, 2**32)
         phase_rng = random.Random(seed)
 
+        _days_this_tick = max(1, round(cfg.tick_duration * 360))
+        _new_age = state.universe.current_age.advance_days(_days_this_tick)
         result = TickResult(
             tick_number=state.tick_number,
             universe_age_before=state.universe.current_age,
-            universe_age_after=state.universe.current_age + cfg.tick_duration,
+            universe_age_after=_new_age,
             passive_result=PassiveWorldResult(),
             action_result=ActionProcessingResult(),
             domain_profile=UniverseDomainProfile(
-                timestamp=state.universe.current_age
+                timestamp=state.universe.current_age.to_float_years()
             ),
             seed=seed,
         )
@@ -928,7 +1056,10 @@ class TickLoop:
         state.demiurge.puissance = _compute_puissance(state)
 
         # ── Phase 1: Passive World ─────────────────────
-        passive = self._run_passive_phase(state, cfg, phase_rng)
+        passive = self._run_passive_phase(
+            state, cfg, phase_rng,
+            result.universe_age_before, _new_age,
+        )
         result.passive_result = passive
 
         # ── Active event continuation (Phase 1 extension) ─
@@ -939,50 +1070,101 @@ class TickLoop:
         state = self._apply_passive_mutations(state, passive)
         state = self._prune_weak_beliefs(state)
 
-        # ── Essence generation (Phase 1 tail) ─────────
-        essence_gen_mutations, essence_by_domain = self._process_essence_generation(state, cfg)
-        state = self._apply_mutations(state, essence_gen_mutations)
+        # ── Essence generation (Phase 1 tail) — fires monthly (day 1 of each month) ─
+        if _new_age.day == 1:
+            essence_gen_mutations, essence_by_domain = self._process_essence_generation(state, cfg)
+            state = self._apply_mutations(state, essence_gen_mutations)
+        else:
+            essence_by_domain = {}
         result.essence_claimed_by_domain = essence_by_domain
         state.last_tick_essence_by_domain = dict(essence_by_domain)
+        if essence_by_domain:
+            state.last_essence_capture_by_domain = dict(essence_by_domain)
+            state.last_essence_capture_tick = state.tick_number
 
-        # ── Inject ongoing actions (appended after manual queue) ──────────
-        # Manually queued actions in the same category take priority;
-        # _validate_and_filter_queue blocks any duplicate-category entry.
-        # Map instance.id -> category so we can credit executed_ticks after.
-        ongoing_instance_ids: dict[str, str] = {}
-        for cat_val, ongoing in list(state.ongoing_actions.items()):
-            defn = self._action_library.get(ongoing.action_key)
+        # ── Phase 2: Pending action fire (priority order) ─────────────────
+        # Validate pending targets; cancel stale slots before attempting to fire.
+        stale_cats = [
+            cat_val for cat_val, pa in state.pending_actions.items()
+            if not _is_pending_target_valid(state, pa)
+        ]
+        for cat_val in stale_cats:
+            pa = state.pending_actions.pop(cat_val)
+            result.passive_result.narrative_events.append(
+                f"[Queue] Pending {pa.action_key.replace('_', ' ')} cancelled: target no longer valid."
+            )
+
+        # Build fire_queue from pending_actions in category priority order.
+        # Cooldown and Essence checks happen here; only actions that can run
+        # this tick are included.
+        committed_essence = 0.0
+        fire_queue: list[ActionInstance] = []
+        fired_cat_vals: list[str] = []
+        fired_repeating_ids: set[str] = set()   # instance IDs from repeating slots
+        fired_oneshot_count: int = 0             # count of non-repeating slots that fired
+
+        for category in _CATEGORY_PRIORITY:
+            cat_val = category.value
+            pending = state.pending_actions.get(cat_val)
+            if pending is None:
+                continue
+            pending.ticks_active += 1
+
+            defn = self._action_library.get(pending.action_key)
             if defn is None:
                 continue
+
+            if state.category_cooldowns.counters.get(category, 0) > 0:
+                continue
+
+            if defn.essence_cost > 0:
+                available = state.essence.actual - committed_essence
+                if defn.essence_cost > available:
+                    continue
+                committed_essence += defn.essence_cost
+
             instance = ActionInstance(
                 action_definition_id=defn.id,
-                target_type=ongoing.target_type,
-                target_id=ongoing.target_id,
-                timestamp=state.universe.current_age,
+                target_type=pending.target_type,
+                target_id=pending.target_id,
+                timestamp=state.universe.current_age.to_float_years(),
                 demiurge_id=state.demiurge.id,
-                proxius_id=ongoing.proxius_id,
-                intent=ongoing.intent,
+                proxius_id=pending.proxius_id,
+                intent=pending.intent,
             )
-            state.action_queue.append(instance)
-            ongoing_instance_ids[str(instance.id)] = cat_val
-            ongoing.ticks_active += 1
+            fire_queue.append(instance)
+            fired_cat_vals.append(cat_val)
+            if pending.repeating:
+                fired_repeating_ids.add(str(instance.id))
+            else:
+                fired_oneshot_count += 1
 
-        # ── Phase 2: Action Processing ─────────────────
         _essence_before = state.essence.actual
-        action_result = self._process_action_queue(state, cfg, phase_rng)
+        action_result = self._process_action_queue_list(state, cfg, phase_rng, fire_queue)
         result.action_result = action_result
         state = self._apply_action_mutations(state, action_result)
         state.action_queue = []
 
-        # Credit executed_ticks for ongoing actions that weren't category-blocked.
-        # Accepted entries keep their original instance.id; rejected entries get
-        # a fresh uuid4(), so membership in this set is unambiguous.
+        # Credit stats, assign cooldowns, clear non-repeating slots.
         executed_ids = {str(e.action_instance_id) for e in action_result.entries}
-        for iid, cat_val in ongoing_instance_ids.items():
-            if iid in executed_ids:
-                oa = state.ongoing_actions.get(cat_val)
-                if oa:
-                    oa.executed_ticks += 1
+        outcome_by_id = {str(e.action_instance_id): e.outcome for e in action_result.entries}
+        for instance, cat_val in zip(fire_queue, fired_cat_vals):
+            if str(instance.id) not in executed_ids:
+                continue
+            pending = state.pending_actions.get(cat_val)
+            if pending is None:
+                continue
+            pending.executed_ticks += 1
+            if outcome_by_id.get(str(instance.id)) != ActionOutcome.FAILURE:
+                pending.successful_ticks += 1
+            defn = self._action_library.get(pending.action_key)
+            if defn:
+                _assign_category_cooldown(state, defn.category)
+            if not pending.repeating:
+                del state.pending_actions[cat_val]
+                resume = state.pending_resume.pop(cat_val, None)
+                if resume is not None:
+                    state.pending_actions[cat_val] = resume
 
         # ── Deferred death check ───────────────────────
         # Applied after Phase 2 so a same-tick appoint_proxius saves the mortal.
@@ -1005,14 +1187,15 @@ class TickLoop:
         # If ongoing Explore Beliefs has filled the pool to cap, cancel it automatically.
         from core.action_core import ActionCategory as _AC
         _sr_key = _AC.SELF_REFINEMENT.value
-        if _sr_key in state.ongoing_actions:
-            _oa = state.ongoing_actions[_sr_key]
+        if _sr_key in state.pending_actions:
+            _oa = state.pending_actions[_sr_key]
             if _oa.action_key == "explore_beliefs" and isinstance(_oa.intent, ExploreBeliefIntent):
                 _tag = _oa.intent.domain_tag
                 _cap = _compute_revelation_cap(state, _tag)
                 _pool = state.demiurge.revelation_pools.get(_tag, 0.0)
                 if _cap == 0.0 or _pool >= _cap:
-                    del state.ongoing_actions[_sr_key]
+                    del state.pending_actions[_sr_key]
+                    _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
                     _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
                     result.passive_result.narrative_events.append(
                         f"[Revelation] Explore Beliefs on {_short} stopped: pool full ({_pool:.2f} / {_cap:.2f}). "
@@ -1061,8 +1244,109 @@ class TickLoop:
         terminal = self._check_terminal_conditions(state, profile)
         result.terminal = terminal
 
+        # ── Pause event generation ─────────────────────
+        # Hard-pause: any Luminary dialogue trigger (ultimatum gets its own type).
+        for trigger in result.dialogue_triggers:
+            if trigger.trigger_type in _ULTIMATUM_DIALOGUE_TYPES:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.LUMINARY_ULTIMATUM,
+                    description=trigger.subject_ref or trigger.trigger_type.value,
+                ))
+            else:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.LUMINARY_CONTACT,
+                    description=trigger.subject_ref or trigger.trigger_type.value,
+                ))
+
+        # Default-pause: evaluation completed.
+        if result.evaluations:
+            result.pause_events.append(PauseEvent(
+                event_type=PauseEventType.EVALUATION_COMPLETE,
+                description=f"{len(result.evaluations)} luminary evaluation(s)",
+                is_hard_pause=False,
+                pauses_by_default=True,
+            ))
+
+        # Default-pause: an Imago node was revealed this tick.
+        for entry in result.action_result.entries:
+            if any(m.mutation_type == MutationType.IMAGO_REVEALED for m in entry.mutations):
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.REVELATION_THRESHOLD,
+                    description="Imago revealed",
+                    is_hard_pause=False,
+                    pauses_by_default=True,
+                ))
+                break  # one event per tick is enough
+
+        # Default-pause: a one-shot (non-repeating) pending action resolved this tick.
+        if fired_oneshot_count > 0:
+            non_repeating_entries = [
+                e for e in result.action_result.entries
+                if str(e.action_instance_id) not in fired_repeating_ids
+            ]
+            if non_repeating_entries:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.QUEUED_ACTION_COMPLETE,
+                    description=f"{len(non_repeating_entries)} action(s) resolved",
+                    is_hard_pause=False,
+                    pauses_by_default=True,
+                ))
+
+        # Default-pause: a pinned mortal died this tick.
+        for mut in passive.pending_death_mutations:
+            mortal = state.mortals.get(str(mut.target_id))
+            if mortal and mortal.pinned:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.PINNED_MORTAL_DIED,
+                    description=mortal.name,
+                    is_hard_pause=False,
+                    pauses_by_default=True,
+                ))
+
+        # Default-silent: a Pop splinted this tick.
+        for m in result.passive_result.civilization_mutations:
+            if m.mutation_type == MutationType.POP_SPLINTER:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.POP_SPLINT,
+                    description=m.note or "Pop splinted",
+                    is_hard_pause=False,
+                    pauses_by_default=False,
+                ))
+                break
+
+        # Default-silent: a domain expression shifted significantly.
+        for m in result.passive_result.entity_mutations:
+            if m.mutation_type == MutationType.DOMAIN_EXPRESSION and abs(m.delta or 0.0) >= 0.05:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.DOMAIN_THRESHOLD,
+                    description=m.field or "domain expression",
+                    is_hard_pause=False,
+                    pauses_by_default=False,
+                ))
+                break
+
+        # Default-silent: a mortal arrived at their destination.
+        for ev in result.passive_result.narrative_events:
+            if "arrives at" in ev.text:
+                result.pause_events.append(PauseEvent(
+                    event_type=PauseEventType.TRAVEL_COMPLETE,
+                    description=ev.text,
+                    is_hard_pause=False,
+                    pauses_by_default=False,
+                ))
+                break
+
+        # Default-silent: a Proxius report surfaced this tick.
+        if result.agent_narratives:
+            result.pause_events.append(PauseEvent(
+                event_type=PauseEventType.MINOR_AGENT_UPDATE,
+                description=f"{len(result.agent_narratives)} agent update(s)",
+                is_hard_pause=False,
+                pauses_by_default=False,
+            ))
+
         # ── Bookkeeping ────────────────────────────────
-        state.universe.current_age += cfg.tick_duration
+        state.universe.current_age = _new_age
         state.previous_domain_profile = profile
         state.tick_number += 1
 
@@ -1077,9 +1361,23 @@ class TickLoop:
         state: SimulationState,
         cfg: TickConfig,
         rng: random.Random,
+        old_age: UniverseAge = None,
+        new_age: UniverseAge = None,
     ) -> PassiveWorldResult:
 
         result = PassiveWorldResult()
+
+        _old_age = old_age or state.universe.current_age
+        _new_age_obj = new_age or state.universe.current_age.advance_days(
+            max(1, round(cfg.tick_duration * 360))
+        )
+
+        # ── Category cooldown decrement ────────────────
+        counters = state.category_cooldowns.counters
+        for cat in list(counters):
+            counters[cat] -= 1
+            if counters[cat] <= 0:
+                del counters[cat]
 
         # ── Civilization momentum ──────────────────────
         # Scale conformity multipliers: larger civs have stronger institutional pressure.
@@ -1095,42 +1393,42 @@ class TickLoop:
                 CivilizationMomentum(civilization_id=UUID(cid))
             )
 
-            # prosperity and cohesion drift from momentum
-            for stat, delta in [
-                ("prosperity", momentum.prosperity_delta),
-                ("cohesion",   momentum.cohesion_delta),
-            ]:
+            stability_delta = 0.0
+            # prosperity, cohesion, and stability momentum fires monthly (day 1 of each month)
+            if _new_age_obj.day == 1:
+                for stat, delta in [
+                    ("prosperity", momentum.prosperity_delta),
+                    ("cohesion",   momentum.cohesion_delta),
+                ]:
+                    noise = rng.gauss(0, cfg.civ_noise_factor)
+                    effective_delta = (delta * cfg.civ_momentum_rate) + noise
+                    current = getattr(civ.health, stat)
+                    new_val = max(0.0, min(1.0, current + effective_delta))
+                    if abs(new_val - current) > 0.001:
+                        result.civilization_mutations.append(StateMutation(
+                            mutation_type=MutationType.CIVILIZATION_STAT,
+                            target_id=UUID(cid),
+                            field=f"health.{stat}",
+                            delta=effective_delta,
+                            note=f"{civ.name} {stat} passive drift",
+                        ))
+
+                if civ.dominant_beliefs and civ.established_beliefs:
+                    stability_target = self._cosine_similarity(
+                        civ.dominant_beliefs, civ.established_beliefs
+                    )
+                else:
+                    stability_target = civ.health.stability
+                stability_delta = (stability_target - civ.health.stability) * cfg.civ_momentum_rate
                 noise = rng.gauss(0, cfg.civ_noise_factor)
-                effective_delta = (delta * cfg.civ_momentum_rate) + noise
-                current = getattr(civ.health, stat)
-                new_val = max(0.0, min(1.0, current + effective_delta))
-                if abs(new_val - current) > 0.001:
+                if abs(stability_delta + noise) > 0.001:
                     result.civilization_mutations.append(StateMutation(
                         mutation_type=MutationType.CIVILIZATION_STAT,
                         target_id=UUID(cid),
-                        field=f"health.{stat}",
-                        delta=effective_delta,
-                        note=f"{civ.name} {stat} passive drift",
+                        field="health.stability",
+                        delta=stability_delta + noise,
+                        note=f"{civ.name} stability from belief alignment",
                     ))
-
-            # Stability: nudge toward cosine similarity between dominant and established beliefs.
-            # When Pops diverge from the official profile, stability falls.
-            if civ.dominant_beliefs and civ.established_beliefs:
-                stability_target = self._cosine_similarity(
-                    civ.dominant_beliefs, civ.established_beliefs
-                )
-            else:
-                stability_target = civ.health.stability  # no change if no beliefs yet
-            stability_delta = (stability_target - civ.health.stability) * cfg.civ_momentum_rate
-            noise = rng.gauss(0, cfg.civ_noise_factor)
-            if abs(stability_delta + noise) > 0.001:
-                result.civilization_mutations.append(StateMutation(
-                    mutation_type=MutationType.CIVILIZATION_STAT,
-                    target_id=UUID(cid),
-                    field="health.stability",
-                    delta=stability_delta + noise,
-                    note=f"{civ.name} stability from belief alignment",
-                ))
 
             # established_beliefs drifts toward dominant_beliefs (institutional lag).
             established_rate = cfg.established_drift_base * civ.health.cohesion
@@ -1174,6 +1472,17 @@ class TickLoop:
                 result.narrative_events.append(NarrativeEvent(
                     text=f"{civ.name} has achieved remarkable stability.",
                     in_window=is_in_window(civ),
+                ))
+
+            # Civilization age increments on founding anniversary
+            *_, fm, fd = civ.founding_date
+            if _birthday_fires(_old_age, _new_age_obj, fm, fd):
+                result.civilization_mutations.append(StateMutation(
+                    mutation_type=MutationType.CIVILIZATION_STAT,
+                    target_id=UUID(cid),
+                    field="age",
+                    delta=1.0,
+                    note=f"{civ.name} founding anniversary (age {civ.age + 1:.0f})",
                 ))
 
         # ── Civ → Pop conformity pressure ──────────────
@@ -1291,24 +1600,27 @@ class TickLoop:
             if mortal.status == MortalStatus.DECEASED:
                 continue
 
-            # chrono_age always increments
-            result.mortal_mutations.append(StateMutation(
-                mutation_type=MutationType.MORTAL_AGE,
-                target_id=UUID(mid),
-                field="chrono_age",
-                delta=cfg.tick_duration,
-                note=f"{mortal.name} chrono_age +{cfg.tick_duration}",
-            ))
+            *_, bm, bd = mortal.birthday
+            on_birthday = _birthday_fires(_old_age, _new_age_obj, bm, bd)
 
-            # bio_age frozen for active Proxii/Heralds, slow for dormant Proxii
+            if on_birthday:
+                result.mortal_mutations.append(StateMutation(
+                    mutation_type=MutationType.MORTAL_AGE,
+                    target_id=UUID(mid),
+                    field="chrono_age",
+                    delta=1.0,
+                    note=f"{mortal.name} chrono_age +1 (birthday {bm}/{bd})",
+                ))
+
+            # bio_age frozen for active Proxii/Heralds; dormant Proxii age slowly (0.2/yr)
             if (mortal.status == MortalStatus.ACTIVE
                     and mortal.role in (MortalRole.PROXIUS, MortalRole.HERALD)):
                 bio_delta = 0.0
             elif (mortal.status == MortalStatus.DORMANT
                     and mortal.role == MortalRole.PROXIUS):
-                bio_delta = cfg.tick_duration / 5.0
+                bio_delta = 0.2 if on_birthday else 0.0
             else:
-                bio_delta = cfg.tick_duration
+                bio_delta = 1.0 if on_birthday else 0.0
 
             if bio_delta > 0.0:
                 new_bio_age = mortal.bio_age + bio_delta
@@ -1382,20 +1694,6 @@ class TickLoop:
                     delta=-(mortal.visibility - new_vis),
                     note=f"{mortal.name} visibility decay",
                 ))
-
-        # ── Starting-pin expiry ────────────────────────
-        # tick_number is pre-increment here; 9 means "this is the 10th tick processing".
-        if state.tick_number == 9 and state.starting_pinned_ids:
-            for eid in state.starting_pinned_ids:
-                entity = (
-                    state.mortals.get(eid)
-                    or state.locations.get(eid)
-                    or state.civilizations.get(eid)
-                    or state.species.get(eid)
-                )
-                if entity is not None:
-                    entity.pinned = False
-            state.starting_pinned_ids.clear()
 
         # ── Location visibility decay ──────────────────
         for lid, loc in state.locations.items():
@@ -1749,7 +2047,7 @@ class TickLoop:
                     universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
         if not universe_pool:
-            return []
+            return [], {}
 
         luminaries = list(state.luminaries.values())
         demiurge_affiliated = set(state.demiurge.affiliated_domains)
@@ -1840,15 +2138,16 @@ class TickLoop:
     def _validate_and_filter_queue(
         self,
         queue: list["ActionInstance"],
+        cooldowns: "CategoryCooldowns",
     ) -> tuple[list["ActionInstance"], list[str]]:
         """
-        Enforce declarative action queue constraints. Returns (filtered_queue, rejection_messages).
-
-        Rule: at most one action per ActionCategory per tick.
+        Enforce per-tick uniqueness: at most one action per ActionCategory.
+        Cooldown gating is handled upstream (Phase 2 fire loop).
+        Returns (accepted, rejection_messages).
         """
         accepted: list[ActionInstance] = []
         rejected: list[str] = []
-        seen_categories: dict[str, str] = {}  # category value -> name of action that claimed it
+        seen_categories: dict[str, str] = {}
 
         for instance in queue:
             key = self._action_key_by_id.get(str(instance.action_definition_id))
@@ -1869,16 +2168,19 @@ class TickLoop:
 
         return accepted, rejected
 
-    def _process_action_queue(
+    def _process_action_queue_list(
         self,
         state: SimulationState,
         cfg: TickConfig,
         rng: random.Random,
+        queue: list["ActionInstance"],
     ) -> ActionProcessingResult:
 
         result = ActionProcessingResult()
 
-        validated_queue, rejections = self._validate_and_filter_queue(state.action_queue)
+        validated_queue, rejections = self._validate_and_filter_queue(
+            queue, state.category_cooldowns
+        )
         for msg in rejections:
             result.entries.append(ActionProcessingResult.ActionEntry(
                 action_instance_id=uuid4(),
@@ -2936,7 +3238,7 @@ class TickLoop:
                     if not was_visible:
                         class_label = pop.stratum.title() if pop.stratum else "Pop"
                         discovered_pops.append(
-                            f"{civ.name} {class_label} class (sz {pop.size_magnitude})"
+                            f"{civ.name} §pop§{pid}§{class_label} Pop§ (sz {pop.size_magnitude})"
                         )
 
             parts = [f"You scryed at {scope.value} scope."]
@@ -3426,6 +3728,9 @@ class TickLoop:
                     delta=apparent_leak,
                     note="Essence concealment leak during harvest",
                 ))
+
+            state.last_harvest_amount = actual_yield
+            state.last_harvest_tick   = state.tick_number
 
             narrative = (
                 f"Harvested {actual_yield:.2f} Essence from the Underreal. "
@@ -4155,7 +4460,7 @@ class TickLoop:
 
         if total_weight == 0.0:
             return UniverseDomainProfile(
-                timestamp=state.universe.current_age
+                timestamp=state.universe.current_age.to_float_years()
             )
 
         normalized = {
@@ -4164,7 +4469,7 @@ class TickLoop:
         }
 
         return UniverseDomainProfile(
-            timestamp=state.universe.current_age,
+            timestamp=state.universe.current_age.to_float_years(),
             scores=normalized,
         )
 
@@ -4376,12 +4681,12 @@ class TickLoop:
                 delta=delta,
                 constraint_evals=constraint_evals,
                 essence_suspicion=essence_suspicion,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
             )
 
             ev = LuminaryEvaluation(
                 luminary_id=luminary.id,
-                timestamp=state.universe.current_age,
+                timestamp=state.universe.current_age.to_float_years(),
                 attention_level=attention_level,
                 attention_triggers=attention_triggers,
                 domain_alignment_scores=domain_scores,
@@ -4732,10 +5037,11 @@ class TickLoop:
             mortal.travel_intent = TravelIntent(travel_location_id=tl.id)
 
             total_ticks = sum(v for v in legs.values())
-            narratives.append(
-                f"{mortal.name} begins traveling to {dest_name} "
-                f"({total_ticks} tick{'s' if total_ticks != 1 else ''})."
-            )
+            if mortal.pinned:
+                narratives.append(
+                    f"{mortal.name} begins traveling to {dest_name} "
+                    f"({total_ticks} tick{'s' if total_ticks != 1 else ''})."
+                )
         return narratives
 
     def _process_mortal_travel(self, state: SimulationState) -> list[str]:
@@ -4786,7 +5092,8 @@ class TickLoop:
                     if mortal:
                         mortal.current_location = UUID(next_wp)
                         mortal.travel_intent    = None
-                        narratives.append(f"{mortal.name} arrives at {dest_name}.")
+                        if mortal.pinned:
+                            narratives.append(f"{mortal.name} arrives at {dest_name}.")
                 to_remove.append(lid)
             else:
                 loc.current_waypoint  = next_wp
@@ -5927,10 +6234,11 @@ class TickLoop:
                         setattr(obj, parts[1], max(0.0, min(1.0, current + (m.delta or 0))))
                     elif len(parts) == 1:
                         current = getattr(state.civilizations[tid], parts[0], 0.0)
-                        setattr(
-                            state.civilizations[tid], parts[0],
-                            max(0.0, min(1.0, current + (m.delta or 0)))
-                        )
+                        new_val = current + (m.delta or 0)
+                        # age is unbounded; health stats are [0, 1]
+                        if parts[0] != "age":
+                            new_val = max(0.0, min(1.0, new_val))
+                        setattr(state.civilizations[tid], parts[0], new_val)
 
             elif m.mutation_type in (
                 MutationType.BELIEF_SHIFT,

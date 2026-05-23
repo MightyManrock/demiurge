@@ -25,6 +25,13 @@ if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
 
 
+def _format_calendar_date(date_tuple: tuple) -> str:
+    """Format a (billions, millions, thousands, years, month, day) tuple as a calendar string."""
+    bi, mi, th, yr, mo, dy = date_tuple
+    full_year = bi * 1_000_000_000 + mi * 1_000_000 + th * 1_000 + yr
+    return f"Day {dy} of Month {mo}, Year {full_year:,}"
+
+
 def _not_found(label: str) -> Text:
     return Text.from_markup(f"[#b04050]{_e(label)} not found in current state.[/]")
 
@@ -204,11 +211,11 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
 
     a(f"[bold #4a80b0]WORLD: {_e(world.name)}[/]")
     a("")
-    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age:.0f}")
+    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age:,.0f}")
     if world.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {world.visibility:.2f}")
+        a(f"  visibility: {world.visibility:.0%}")
 
     if world.geo_tags:
         a(f"  geography:  {_e(', '.join(_short_tag(t) for t in world.geo_tags))}")
@@ -399,7 +406,7 @@ def render_system_detail(state: "SimulationState", system_id: str) -> Text:
     if sys_obj.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {sys_obj.visibility:.2f}")
+        a(f"  visibility: {sys_obj.visibility:.0%}")
 
     parent = state.locations.get(str(sys_obj.parent_id)) if sys_obj.parent_id else None
     if parent:
@@ -459,13 +466,16 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     if civ.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {civ.visibility:.2f}")
+        a(f"  visibility: {civ.visibility:.0%}")
 
     a("")
     a("[bold #4a80b0]HEALTH[/]")
     a(f"  stability:  {h.stability:+.0%}")
     a(f"  wealth:     {h.prosperity:+.0%}")
     a(f"  cohesion:   {h.cohesion:+.0%}")
+
+    if display.DEV_MODE:
+        a(f"  [#5a7090]age: {civ.age:,.0f} years  |  founded: {_format_calendar_date(civ.founding_date)}[/]")
 
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
@@ -566,7 +576,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
                     belief_str = "  ".join(
                         _color_short_tag(t, v) for t, v in top
                     ) or "[#5a7090]none[/]"
-                    vis = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                    vis = f"  \\[vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                     a(f"{pop_indent}{pm}↳ {pop_label}  sz:{pop.size_magnitude}{vis}{pe}")
                     a(f"{pop_indent}    {pm}{belief_str}{pe}")
 
@@ -612,14 +622,20 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     a("")
     a(f"  \\[{role_str}]   status: \\[{status_str}]")
     a(f"  alignment: {m.alignment:+.2f}")
-    age_str = f"age:{m.chrono_age:.0f}"
+    age_str = f"age:{m.chrono_age:,.0f}"
     if m.bio_age != m.chrono_age:
-        age_str += f"  (bio:{m.bio_age:.0f})"
+        age_str += f"  (bio:{m.bio_age:,.0f})"
     a(f"  {age_str}")
+    _manually_pinned = (
+        m.pinned
+        and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
+    )
+    if display.DEV_MODE or _manually_pinned:
+        a(f"  [#5a7090]born: {_format_calendar_date(m.birthday)}[/]")
     if m.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {m.visibility:.2f}")
+        a(f"  visibility: {m.visibility:.0%}")
     a(f"  {_e(_prominence_label(m))}")
 
     sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
@@ -934,7 +950,7 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     if pop.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {pop.visibility:.2f}")
+        a(f"  visibility: {pop.visibility:.0%}")
 
     if sp_obj:
         sp_link = _click_link("species", str(sp_obj.id), f"{_e(sp_obj.name)}")
@@ -1030,7 +1046,7 @@ def render_species_detail(state: "SimulationState", species_id: str) -> Text:
     if sp.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {sp.visibility:.2f}")
+        a(f"  visibility: {sp.visibility:.0%}")
 
     origin = state.locations.get(str(sp.origin_world_id)) if sp.origin_world_id else None
     if origin:
@@ -1091,7 +1107,7 @@ def render_galaxy_detail(state: "SimulationState", galaxy_id: str) -> Text:
     if galaxy.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {galaxy.visibility:.2f}")
+        a(f"  visibility: {galaxy.visibility:.0%}")
     if galaxy.description:
         a("")
         a(f"  [#7090b0]{_e(galaxy.description)}[/]")
@@ -1143,7 +1159,7 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
     if loc.pinned:
         a(f"  [#5a7090]pinned (always in Window)[/]")
     else:
-        a(f"  visibility: {loc.visibility:.2f}")
+        a(f"  visibility: {loc.visibility:.0%}")
     a(f"  distance from core: [#a0c0e0]{loc.distance_from_core}[/]")
     if loc.description:
         a("")

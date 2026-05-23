@@ -6,13 +6,14 @@ Imports only from core/, logic/, utilities/, and rich — never from textual
 or ui/. This module is the lower layer; ui/ depends on it, not the reverse.
 """
 from __future__ import annotations
+import re
 from uuid import UUID
 from typing import TYPE_CHECKING
 
 from rich.markup import escape as _e
 from rich.text import Text
 
-from core.universe_core import MortalRole, MortalStatus, MortalProminence
+from core.universe_core import MortalRole, MortalStatus, MortalProminence, PopLocation
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from utilities.domain_registry import get_registry as get_domain_registry
 
@@ -271,6 +272,33 @@ def _name_for_id(uid: "UUID", state: "SimulationState") -> str:
     return sid[:8]
 
 
+_KIND_FOR_COLLECTION = [
+    ("mortals",       "mortal"),
+    ("civilizations", "civ"),
+    ("species",       "species"),
+]
+
+def _name_link_for_id(uid: "UUID", state: "SimulationState") -> str:
+    """Like _name_for_id but returns a styled @click link for the entity's detail page."""
+    sid = str(uid)
+    for attr, kind in _KIND_FOR_COLLECTION:
+        col = getattr(state, attr)
+        if sid in col:
+            name = getattr(col[sid], "name", sid[:8])
+            return _entity_link(kind, sid, name)
+    if sid in state.locations:
+        loc = state.locations[sid]
+        name = getattr(loc, "name", sid[:8])
+        loc_kind = "poploc" if isinstance(loc, PopLocation) else (
+            "world" if hasattr(loc, "child_ids") else "location"
+        )
+        return _entity_link(loc_kind, sid, name)
+    if sid in state.luminaries:
+        name = getattr(state.luminaries[sid], "name", sid[:8])
+        return _entity_link("luminary", sid, name)
+    return _e(sid[:8])
+
+
 def _wrap_desc(text: str, width: int = 58, indent: str = "  ") -> str:
     """Word-wrap description text, indenting continuation lines."""
     if not text:
@@ -330,7 +358,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     lines = [
         SEP2,
         f"  UNIVERSE: {state.universe.name}",
-        f"  Age: {state.universe.current_age:.1f}  |  Tick: {state.tick_number}",
+        f"  {state.universe.current_age.display()}  |  Tick: {state.tick_number}",
         SEP2,
     ]
     fp = state.demiurge.footprint
@@ -360,7 +388,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             continue
         wm = _OOW if w_oow else ""
         domain_str = _format_beliefs(world.domain_expression) or "none"
-        vis_note = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
+        vis_note = f"  [vis:{world.visibility:.0%}]" if not world.pinned else ""
         lines.append(f"{wm}  {world.name}  [{world.condition.value}]{vis_note}  domain: {domain_str}")
         for cid in world.civilization_ids:
             civ = state.civilizations.get(str(cid))
@@ -371,7 +399,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 continue
             cm = _OOW if (w_oow or c_oow) else ""
             h = civ.health
-            civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+            civ_vis = f"  [vis:{civ.visibility:.0%}]" if not civ.pinned else ""
             lines.append(
                 f"{cm}    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
                 f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
@@ -392,7 +420,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 belief_str = "  ".join(
                     f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs
                 ) or "none"
-                vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                vis_note = f"  [vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                 lines.append(
                     f"{pm}       ↳ {class_label}{sp_note}  sz:{pop.size_magnitude}"
                     f"  {belief_str}{vis_note}"
@@ -407,11 +435,11 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             continue
         mm = _OOW if m_oow else ""
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-        age_str  = f"age:{mortal.chrono_age:.0f}"
+        age_str  = f"age:{mortal.chrono_age:,.0f}"
         if mortal.bio_age != mortal.chrono_age:
-            age_str += f"(bio:{mortal.bio_age:.0f})"
+            age_str += f"(bio:{mortal.bio_age:,.0f})"
         prom_str = _prominence_label(mortal)
-        vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+        vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_str   = f"  sp:{sp_obj.name}" if sp_obj else ""
         pop_obj  = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
@@ -422,13 +450,13 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
         )
     lines.append(SEP)
     lines.append("ONGOING ACTIONS")
-    if state.ongoing_actions:
-        for cat_val, oa in state.ongoing_actions.items():
+    if state.pending_actions:
+        for cat_val, oa in state.pending_actions.items():
             cat_label  = cat_val.replace("_", " ").title()
             target_str = f" → {_name_for_id(oa.target_id, state)}" if oa.target_id else ""
             lines.append(
                 f"  [{cat_label}] {oa.action_key.replace('_', ' ').title()}"
-                f"{target_str}  ({oa.executed_ticks}/{oa.ticks_active} ticks executed)"
+                f"{target_str}  ({oa.successful_ticks}/{oa.executed_ticks} success)"
             )
     else:
         lines.append("  None")
@@ -436,8 +464,82 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     return lines
 
 
+_LOG_LINK_COLORS: dict[str, str] = {
+    "galaxy":   "#60a070",
+    "system":   "#9aa870",
+    "world":    "#d4b070",
+    "civ":      "#c89050",
+    "mortal":   "#a080c0",
+    "species":  "#80a0b0",
+    "location": "#80b0a0",
+    "poploc":   "#7090a8",
+}
+
+
+def _entity_link(kind: str, eid: str, name: str) -> str:
+    color = _LOG_LINK_COLORS.get(kind, "#c0ccdc")
+    return (
+        f"[@click=screen.open_detail_by_id('{kind}','{eid}')]"
+        f"[{color}]{_e(name)}[/][/]"
+    )
+
+
+def _build_name_index(state: "SimulationState") -> dict[str, tuple[str, str]]:
+    index: dict[str, tuple[str, str]] = {}
+    for eid, e in state.mortals.items():
+        if e.name:
+            index[e.name] = ("mortal", str(eid))
+    for eid, e in state.civilizations.items():
+        if e.name:
+            index[e.name] = ("civ", str(eid))
+    for eid, e in state.species.items():
+        if e.name:
+            index[e.name] = ("species", str(eid))
+    for eid, e in state.worlds.items():
+        if e.name:
+            index[e.name] = ("world", str(eid))
+    for eid, e in state.systems.items():
+        if e.name:
+            index[e.name] = ("system", str(eid))
+    for eid, e in state.galaxies.items():
+        if e.name:
+            index[e.name] = ("galaxy", str(eid))
+    for eid, e in state.locations.items():
+        if isinstance(e, PopLocation) and e.name:
+            index[e.name] = ("poploc", str(eid))
+    return index
+
+
+def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
+    """Escape plain text for Rich, replacing known entity names with @click links."""
+    if not name_index:
+        return _e(text)
+    pattern = re.compile("|".join(re.escape(n) for n in sorted(name_index, key=len, reverse=True)))
+    parts: list[str] = []
+    last = 0
+    for m in pattern.finditer(text):
+        parts.append(_e(text[last:m.start()]))
+        kind, eid = name_index[m.group()]
+        parts.append(_entity_link(kind, eid, m.group()))
+        last = m.end()
+    parts.append(_e(text[last:]))
+    return "".join(parts)
+
+
+_POP_SENTINEL_RE = re.compile(r"§pop§([^§]+)§([^§]+)§")
+
+
+def _resolve_pop_sentinels(text: str) -> str:
+    """Replace §pop§uuid§label§ tokens (emitted by tick_logic) with entity links."""
+    return _POP_SENTINEL_RE.sub(
+        lambda m: _entity_link("pop", m.group(1), m.group(2)),
+        text,
+    )
+
+
 def display_tick_result_categorized(
     result: "TickResult", dev_mode: bool = False,
+    state: "SimulationState | None" = None,
 ) -> list[tuple[str, str]]:
     """
     Same content as `display_tick_result` but emitted as a list of
@@ -451,12 +553,13 @@ def display_tick_result_categorized(
       - 'luminary' — disposition changes and dialogue triggers
     """
     out: list[tuple[str, str]] = []
+    _nl = _build_name_index(state) if state is not None else {}
 
     out.append(("other", ""))
     out.append((
         "other",
         f"  TICK {result.tick_number} RESULT  "
-        f"(age {result.universe_age_before:.1f} → {result.universe_age_after:.1f})",
+        f"({result.universe_age_before.display()} → {result.universe_age_after.display()})",
     ))
     out.append(("other", SEP))
 
@@ -467,7 +570,7 @@ def display_tick_result_categorized(
     if visible_events:
         out.append(("system", "WORLD EVENTS"))
         for ev in visible_events:
-            text = _e(ev.text)
+            text = _linkify(ev.text, _nl)
             if not ev.in_window:
                 out.append(("system", f"  • [dim]{text}[/dim]"))
             else:
@@ -479,14 +582,14 @@ def display_tick_result_categorized(
         for entry in result.action_result.entries:
             out.append((
                 "actions",
-                f"  \\[{entry.outcome.value.upper()}] {_e(entry.narrative)}",
+                f"  \\[{entry.outcome.value.upper()}] {_resolve_pop_sentinels(_linkify(entry.narrative, _nl))}",
             ))
         out.append(("actions", ""))
 
     if result.agent_narratives:
         out.append(("proxius", "PROXIUS REPORTS"))
         for n in result.agent_narratives:
-            out.append(("proxius", f"  • {_e(n)}"))
+            out.append(("proxius", f"  • {_linkify(n, _nl)}"))
         out.append(("proxius", ""))
 
     if result.essence_claimed_by_domain:
@@ -534,6 +637,9 @@ def display_tick_result_categorized(
         out.append(("other", f"  {result.terminal.note}"))
         out.append(("other", SEP2))
 
+    if not any(cat != "other" for cat, _ in out):
+        return []
+
     return out
 
 
@@ -543,7 +649,7 @@ def display_tick_result(result: "TickResult", dev_mode: bool = False) -> str:
 
 
 def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[str]:
-    lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  (Age {state.universe.current_age:.1f})", SEP2, ""]
+    lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  ({state.universe.current_age.display()})", SEP2, ""]
     pan = state.pantheon
     lines.append(f"PANTHEON: {pan.name}")
     if pan.collective_constraints:
@@ -600,7 +706,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         if g_oow and not dev_mode:
             continue
         gm = _OOW if g_oow else ""
-        gal_vis = f"  [vis:{galaxy.visibility:.2f}]" if not galaxy.pinned else ""
+        gal_vis = f"  [vis:{galaxy.visibility:.0%}]" if not galaxy.pinned else ""
         lines += ["", f"{gm}  Galaxy: {galaxy.name}{gal_vis}"]
         for sid in galaxy.child_ids:
             sys_obj  = state.locations.get(str(sid))
@@ -611,7 +717,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 continue
             sm = _OOW if (g_oow or s_oow) else ""
             star_str = f"  [{sys_obj.star_type.value}]" if hasattr(sys_obj, "star_type") else ""
-            sys_vis  = f"  [vis:{sys_obj.visibility:.2f}]" if not sys_obj.pinned else ""
+            sys_vis  = f"  [vis:{sys_obj.visibility:.0%}]" if not sys_obj.pinned else ""
             lines.append(f"{sm}    System: {sys_obj.name}{star_str}{sys_vis}")
             for wid in sys_obj.child_ids:
                 world = state.worlds.get(str(wid))
@@ -623,9 +729,9 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 wm = _OOW if (g_oow or s_oow or w_oow) else ""
                 n_civs   = len(world.civilization_ids)
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
-                w_vis    = f"  [vis:{world.visibility:.2f}]" if not world.pinned else ""
+                w_vis    = f"  [vis:{world.visibility:.0%}]" if not world.pinned else ""
                 lines.append(
-                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:.0f}  {life_str}"
+                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:,.0f}  {life_str}"
                 )
                 if world.domain_expression:
                     lines.append(f"{wm}        domain expression: {_format_beliefs(world.domain_expression)}")
@@ -645,7 +751,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         continue
                     cm = _OOW if (wm or c_oow) else ""
                     h = civ.health
-                    civ_vis = f"  [vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                    civ_vis = f"  [vis:{civ.visibility:.0%}]" if not civ.pinned else ""
                     lines.append(
                         f"{cm}        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
                         f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
@@ -667,7 +773,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         belief_str = "  ".join(
                             f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs
                         ) or "none"
-                        vis_note = f"  [vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                        vis_note = f"  [vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                         lines.append(
                             f"{pm}           ↳ {class_label} (sz {pop.size_magnitude})"
                             f"  {belief_str}{vis_note}"
@@ -686,7 +792,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
             origin  = w_obj.name if w_obj else "unknown"
             sap_str = "sapient" if sp.sapient else "non-sapient"
             xp_str  = "  [transplanted]" if sp.transplanted else ""
-            sp_vis  = f"  [vis:{sp.visibility:.2f}]" if not sp.pinned else ""
+            sp_vis  = f"  [vis:{sp.visibility:.0%}]" if not sp.pinned else ""
             lines.append(
                 f"{spm}  {sp.name:16s} [{sap_str}]{sp_vis}  origin:{origin}  "
                 f"lifespan:{sp.lifespan_min:.0f}–{sp.lifespan_max:.0f}  [{sp.condition.value}]{xp_str}"
@@ -708,13 +814,13 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         if c_obj:
             loc += f" · {c_obj.name}"
         role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-        age_str  = f"age:{mortal.chrono_age:.0f}"
+        age_str  = f"age:{mortal.chrono_age:,.0f}"
         if mortal.bio_age != mortal.chrono_age:
-            age_str += f"(bio:{mortal.bio_age:.0f})"
+            age_str += f"(bio:{mortal.bio_age:,.0f})"
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
         sp_note  = f"  [{sp_obj.name}]" if sp_obj else ""
         prom_str = _prominence_label(mortal)
-        vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+        vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
         lines.append(
             f"{mm}  {mortal.name:16s} [{role_str:7s}]  align:{mortal.alignment:.2f}  "
             f"{age_str}{sp_note}{vis_note}   {loc}"

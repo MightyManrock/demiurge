@@ -18,19 +18,21 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape as _e
 from rich.text import Text
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, ListView, RichLog, Static
+from textual.widgets import Button, Checkbox, ListView, RichLog, Static
 
+from core.action_core import ActionCategory, CATEGORY_BASE_COOLDOWNS
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
-from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
+from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR, PauseConfig, PauseEventType
 
 from ui import display
 from ui.display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
-    _name_for_id, _short_tag, _trait_color, _pop_stratum_label,
+    _name_for_id, _name_link_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,
     display_briefing, _lines_to_text,
 )
@@ -373,7 +375,7 @@ def _committed_essence(state: "SimulationState", loop) -> float:
         defn = library.get(key) if key else None
         if defn and defn.essence_cost > 0:
             total += defn.essence_cost
-    for oa in state.ongoing_actions.values():
+    for oa in state.pending_actions.values():
         defn = library.get(oa.action_key)
         if defn and defn.essence_cost > 0:
             total += defn.essence_cost
@@ -387,7 +389,7 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
 
     a(f"[bold #4a80b0]━━ STATUS ━━[/]")
     a(f"[#3a6090]{_e(state.universe.name)}[/]")
-    a(f"[#2a4a6a]Age {state.universe.current_age:.1f}  ·  Tick {state.tick_number}[/]")
+    a(f"[#2a4a6a]{state.universe.current_age.display()}  ·  Tick {state.tick_number}[/]")
     a("")
 
     # Essence
@@ -402,24 +404,29 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
         free = max(0.0, es.actual - committed)
         a(f"  committed [#c09030]{committed:.2f}[/]  free [bold]{free:.2f}[/]")
     a(f"  concealment [{ci_col}]{ci:.2f}[/]")
+    harvest_fresh = (
+        state.last_harvest_tick > 0
+        and (state.tick_number - state.last_harvest_tick) <= 30
+    )
+    if harvest_fresh:
+        a(f"  last harvest [#c09030]+{state.last_harvest_amount:.2f}[/] "
+          f"[dim](t{state.last_harvest_tick})[/]")
     a("")
 
     # Affiliated domains
     aff = state.demiurge.affiliated_domains
     if aff:
-        a("[bold #4a80b0]AFFINITIES[/]")
-        show_essence = state.tick_number > 0
-        last_tick = state.last_tick_essence_by_domain if show_essence else {}
+        capture_tick = state.last_essence_capture_tick
+        tick_note = f" [dim](t{capture_tick})[/]" if capture_tick > 0 else ""
+        a(f"[bold #4a80b0]AFFINITIES[/]{tick_note}")
+        snapshot = state.last_essence_capture_by_domain
         for t in aff:
             label = _short_tag(t)
             name = f"[@click=screen.open_divine_wisdom('{t}')][#a0c0e0]{_e(label)}[/][/]"
-            if show_essence:
-                v = last_tick.get(t, 0.0)
-                essence = f"[#c09030]+{v:.2f}[/]" if v > 0.0 else "[dim]—[/]"
-                pad = " " * max(1, 14 - len(label))
-                a(f"  {name}{pad}{essence}")
-            else:
-                a(f"  {name}")
+            v = snapshot.get(t, 0.0)
+            essence = f"[#c09030]+{v:.2f}[/]" if v > 0.0 else "[dim]—[/]"
+            pad = " " * max(1, 14 - len(label))
+            a(f"  {name}{pad}{essence}")
         a("")
 
     # Puissance
@@ -451,10 +458,10 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     a("")
 
     # At-a-glance reminder; full list lives on the Actions tab.
-    q_count = len(state.action_queue)
-    o_count = len(state.ongoing_actions)
+    q_count = len(state.action_queue) + sum(1 for oa in state.pending_actions.values() if not oa.repeating)
+    o_count = sum(1 for oa in state.pending_actions.values() if oa.repeating)
     if q_count or o_count:
-        a(f"[#5a7090]queue:[/] [#c09030]{q_count}[/]"
+        a(f"[#5a7090]queued:[/] [#c09030]{q_count}[/]"
           f"  [#5a7090]ongoing:[/] [#60a070]{o_count}[/]")
 
     return Text.from_markup("\n".join(lines))
@@ -639,13 +646,16 @@ class ActionsTab(ContentTab):
         key_by_id = loop._action_key_by_id if loop else {}
         lines: list[str] = []
         a = lines.append
-        a("[bold #4a80b0]━━ QUEUED THIS TICK ━━[/]")
+        one_shots = {k: v for k, v in state.pending_actions.items() if not v.repeating}
+        standing  = {k: v for k, v in state.pending_actions.items() if v.repeating}
+        a("[bold #4a80b0]━━ QUEUED ━━[/]")
         a("")
+        has_queued = bool(state.action_queue or one_shots)
         if state.action_queue:
             for ai in state.action_queue:
                 tgt = ""
                 if ai.target_id:
-                    tgt = f"  → [#3a6a8a]{_e(_name_for_id(ai.target_id, state))}[/]"
+                    tgt = f"  → {_name_link_for_id(ai.target_id, state)}"
                 key = key_by_id.get(str(ai.action_definition_id))
                 defn = library.get(key) if key else None
                 if defn:
@@ -653,13 +663,20 @@ class ActionsTab(ContentTab):
                 else:
                     label = key.replace("_", " ").title() if key else "Action"
                 a(f"  • [#a0d080]{_e(label)}[/]{tgt}")
-        else:
+        for cat_val, oa in one_shots.items():
+            cat = cat_val.replace("_", " ").title()
+            defn = library.get(oa.action_key)
+            label = (defn.short_name or defn.name) if defn else oa.action_key.replace("_", " ").title()
+            tgt = f"  → {_name_link_for_id(oa.target_id, state)}" if oa.target_id else ""
+            a(f"  [#5a7090]({_e(cat)})[/]")
+            a(f"    [#a0d080]{_e(label)}[/]{tgt}")
+        if not has_queued:
             a("[#5a7090]  (none queued)[/]")
         a("")
         a("[bold #4a80b0]━━ ONGOING ━━[/]")
         a("")
-        if state.ongoing_actions:
-            for cat_val, oa in state.ongoing_actions.items():
+        if standing:
+            for cat_val, oa in standing.items():
                 cat = cat_val.replace("_", " ").title()
                 defn = library.get(oa.action_key)
                 if defn:
@@ -668,10 +685,10 @@ class ActionsTab(ContentTab):
                     label = oa.action_key.replace("_", " ").title()
                 tgt = ""
                 if oa.target_id:
-                    tgt = f"  → [#3a6a8a]{_e(_name_for_id(oa.target_id, state))}[/]"
+                    tgt = f"  → {_name_link_for_id(oa.target_id, state)}"
                 a(f"  [#5a7090]({_e(cat)})[/]")
                 a(f"    [#60a070]{_e(label)}[/]{tgt}  "
-                  f"[#2a4060]{oa.executed_ticks}/{oa.ticks_active} ticks[/]")
+                  f"[#2a4060]{oa.successful_ticks}/{oa.executed_ticks} success[/]")
         else:
             a("[#5a7090]  (none)[/]")
         return Text.from_markup("\n".join(lines))
@@ -697,16 +714,16 @@ def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -
     a = lines.append
 
     role_str = mortal.role.value.upper() if mortal.role != MortalRole.OTHER else "mortal"
-    age_str = f"age:{mortal.chrono_age:.0f}"
+    age_str = f"age:{mortal.chrono_age:,.0f}"
     if mortal.bio_age != mortal.chrono_age:
-        age_str += f"(bio:{mortal.bio_age:.0f})"
+        age_str += f"(bio:{mortal.bio_age:,.0f})"
     sp_obj = state.species.get(str(mortal.species_id)) if mortal.species_id else None
     if sp_obj:
         sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
         sp_str = f"  \\[{sp_md}]"
     else:
         sp_str = ""
-    vis_note = f"  vis:{mortal.visibility:.2f}" if not mortal.pinned else ""
+    vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
     mortal_link = _click_link("mortal", str(mortal.id), f"[bold]{_e(mortal.name)}[/]")
     a(f"{mm}● {mortal_link} \\[{role_str}]  "
       f"align:{mortal.alignment:.2f}  {age_str}{vis_note}{sp_str}{me}")
@@ -816,7 +833,7 @@ class UniverseTab(ContentTab):
                     any_oow_above = g_oow or s_oow or w_oow
                     wm = "[dim]" if any_oow_above else ""
                     we = "[/]" if any_oow_above else ""
-                    vis_note = f"  \\[vis:{world.visibility:.2f}]" if not world.pinned else ""
+                    vis_note = f"  \\[vis:{world.visibility:.0%}]" if not world.pinned else ""
                     domain_str = _format_beliefs_markup(world.domain_expression, top_n=4) or "[#5a7090]none[/]"
                     world_link = _click_link("world", wid, f"[bold]{_e(world.name)}[/]")
                     a(f"{wm}{IDX}● {world_link}  "
@@ -857,7 +874,7 @@ class UniverseTab(ContentTab):
                             _format_beliefs_markup(pop.dominant_beliefs, top_n=4)
                             or "[#5a7090]none[/]"
                         )
-                        vn = f"  \\[vis:{pop.visibility:.2f}]" if not pop.pinned else ""
+                        vn = f"  \\[vis:{pop.visibility:.0%}]" if not pop.pinned else ""
                         a(f"{pm}{indent}{prefix}{pop_label}  sz:{pop.size_magnitude}  "
                           f"{belief_str}{vn}{pe}")
 
@@ -879,7 +896,7 @@ class UniverseTab(ContentTab):
                         cm = "[dim]" if (w_oow or c_oow) else ""
                         ce = "[/]" if (w_oow or c_oow) else ""
                         h = civ.health
-                        civ_vis = f"  \\[vis:{civ.visibility:.2f}]" if not civ.pinned else ""
+                        civ_vis = f"  \\[vis:{civ.visibility:.0%}]" if not civ.pinned else ""
                         civ_link = _click_link("civ", str(cid_iter), f"[bold]{_e(civ.name)}[/]")
                         a(f"{cm}{IDX}    └─ {civ_link} "
                           f"\\[{_e(civ.scale.value)}]{civ_vis}  "
@@ -1267,6 +1284,25 @@ class DivineWisdomTab(ContentTab):
 
 
 # ─────────────────────────────────────────
+# Log tab: RTwP speed constants and pause-checkbox map
+# ─────────────────────────────────────────
+
+_SPEED_SLOW   = 0.5
+_SPEED_NORMAL = 0.2
+_SPEED_FAST   = 0.05
+
+_PAUSE_CHECKBOX_MAP: dict[str, PauseEventType] = {
+    "pause-eval":    PauseEventType.EVALUATION_COMPLETE,
+    "pause-rev":     PauseEventType.REVELATION_THRESHOLD,
+    "pause-action":  PauseEventType.QUEUED_ACTION_COMPLETE,
+    "pause-mortal":  PauseEventType.PINNED_MORTAL_DIED,
+    "pause-splint":  PauseEventType.POP_SPLINT,
+    "pause-domain":  PauseEventType.DOMAIN_THRESHOLD,
+    "pause-travel":  PauseEventType.TRAVEL_COMPLETE,
+    "pause-agent":   PauseEventType.MINOR_AGENT_UPDATE,
+}
+
+
 # Log tab: chip filter row + filtered RichLog
 # ─────────────────────────────────────────
 
@@ -1305,24 +1341,46 @@ class LogChip(Static):
 
 
 class LogTab(Vertical):
-    """Composite tab body: chip row on top, filtered RichLog beneath.
+    """Composite tab body: chip row on top, filtered RichLog, RTwP controls at bottom.
 
     Tick-result lines (and ad-hoc status messages) come in via `append(category, markup)`.
     The full history is retained; chip toggles re-render the visible portion.
     """
 
+    class NewContent(Message):
+        """Fired once when unseen tick entries arrive while the Log tab is not active."""
+
     CATEGORIES = ("actions", "proxius", "luminary", "system", "other")
 
-    def __init__(self) -> None:
+    def __init__(self, pause_config: PauseConfig) -> None:
         super().__init__()
+        self._pause_config = pause_config
         self._active: set[str] = set(self.CATEGORIES)
         self._entries: list[tuple[str, str]] = []
+        self._has_unseen: bool = False
+
+    def _paused_by(self, event_type: PauseEventType, default: bool) -> bool:
+        return self._pause_config.overrides.get(event_type, default)
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="log-chips"):
             for cat in self.CATEGORIES:
                 yield LogChip(cat, active=True)
         yield RichLog(id="main-feed", markup=True, highlight=False, wrap=True)
+        with Vertical(id="log-rtwp"):
+            yield Static("Auto-pause when…", classes="rtwp-header")
+            with Horizontal(id="log-pause-columns"):
+                with Vertical(id="log-pause-left"):
+                    yield Checkbox("Evaluation completes",    value=self._paused_by(PauseEventType.EVALUATION_COMPLETE,  True),  id="pause-eval")
+                    yield Checkbox("Revelation threshold reached", value=self._paused_by(PauseEventType.REVELATION_THRESHOLD,  True),  id="pause-rev")
+                    yield Checkbox("Queued action completes", value=self._paused_by(PauseEventType.QUEUED_ACTION_COMPLETE, True),  id="pause-action")
+                    yield Checkbox("Pinned mortal dies",      value=self._paused_by(PauseEventType.PINNED_MORTAL_DIED,    True),  id="pause-mortal")
+                with Vertical(id="log-pause-right"):
+                    yield Checkbox("Pop splints",             value=self._paused_by(PauseEventType.POP_SPLINT,            False), id="pause-splint")
+                    yield Checkbox("Domain threshold reached", value=self._paused_by(PauseEventType.DOMAIN_THRESHOLD,      False), id="pause-domain")
+                    yield Checkbox("Travel completes",        value=self._paused_by(PauseEventType.TRAVEL_COMPLETE,       False), id="pause-travel")
+                    yield Checkbox("Minor agent update",      value=self._paused_by(PauseEventType.MINOR_AGENT_UPDATE,    False), id="pause-agent")
+            yield Checkbox("Pause when Log opens", id="pause-on-log-open", value=False)
 
     def append(self, category: str, markup: str) -> None:
         """Record an entry and write it to the log if its category is active."""
@@ -1331,6 +1389,9 @@ class LogTab(Vertical):
         self._entries.append((category, markup))
         if category in self._active:
             self.query_one("#main-feed", RichLog).write(Text.from_markup(markup))
+        if not self._has_unseen:
+            self._has_unseen = True
+            self.post_message(self.NewContent())
 
     def clear(self) -> None:
         self._entries.clear()
@@ -1343,9 +1404,181 @@ class LogTab(Vertical):
             if cat in self._active:
                 log.write(Text.from_markup(mk))
 
+    def mark_seen(self) -> None:
+        """Clear the unseen flag (called by GameScreen when Log tab is opened)."""
+        self._has_unseen = False
+
     def on_log_chip_toggled(self, event: LogChip.Toggled) -> None:
         if event.active:
             self._active.add(event.category)
         else:
             self._active.discard(event.category)
         self._rerender()
+
+    @on(Checkbox.Changed)
+    def _on_checkbox(self, event: Checkbox.Changed) -> None:
+        event_type = _PAUSE_CHECKBOX_MAP.get(event.checkbox.id or "")
+        if event_type is not None:
+            self._pause_config.overrides[event_type] = event.value
+        # pause-on-log-open handled by GameScreen via _on_tab_activated
+
+
+# Category symbols in ActionCategory enum order.
+_CATEGORY_SYMBOLS: dict[ActionCategory, str] = {
+    ActionCategory.DIRECT_CREATION:    "✦",
+    ActionCategory.OVERT_MIRACLE:      "✺",
+    ActionCategory.SUBTLE_INFLUENCE:   "≃",
+    ActionCategory.PROXIUS_DIRECTION:  "▻",
+    ActionCategory.OBSERVATION:        "⊚",
+    ActionCategory.HERALD_INTERACTION: "⚜",
+    ActionCategory.LUMINARY_RELATIONS: "↑",
+    ActionCategory.UNDERREAL:          "∇",
+    ActionCategory.SELF_REFINEMENT:    "⟡",
+}
+
+_CATEGORY_LABELS: dict[ActionCategory, str] = {
+    ActionCategory.DIRECT_CREATION:    "Create",
+    ActionCategory.OVERT_MIRACLE:      "Miracle",
+    ActionCategory.SUBTLE_INFLUENCE:   "Influence",
+    ActionCategory.PROXIUS_DIRECTION:  "Proxius",
+    ActionCategory.OBSERVATION:        "Observe",
+    ActionCategory.HERALD_INTERACTION: "Herald",
+    ActionCategory.LUMINARY_RELATIONS: "Luminary",
+    ActionCategory.UNDERREAL:          "Underreal",
+    ActionCategory.SELF_REFINEMENT:    "Refine",
+}
+
+_BAR_CELLS  = 12
+_BAR_CHAR   = "▬"
+_BAR_EMPTY  = "#3a5070"
+_BAR_FILL   = "#4a80b0"
+_BAR_READY  = "#50b870"
+
+_ESS_ACTIVE = "#c09030"
+_ESS_FILL   = "#7a5818"
+_ESS_EMPTY  = "#2e2008"
+
+def _render_cat_bar(counter: int, base: int) -> str:
+    if counter == 0:
+        return f"[bold {_BAR_READY}]{_BAR_CHAR * _BAR_CELLS}[/]"
+    filled = min(round((base - counter) / base * _BAR_CELLS), _BAR_CELLS - 1)
+    filled = max(0, filled)
+    return (
+        f"[bold {_BAR_FILL}]{_BAR_CHAR * filled}[/]"
+        f"[bold {_BAR_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
+    )
+
+
+def _render_essence_bar(current: float, required: float) -> str:
+    if current >= required:
+        return f"[bold {_ESS_ACTIVE}]{_BAR_CHAR * _BAR_CELLS}[/]"
+    filled = max(0, round(current / required * _BAR_CELLS))
+    filled = min(filled, _BAR_CELLS - 1)
+    return (
+        f"[bold {_ESS_FILL}]{_BAR_CHAR * filled}[/]"
+        f"[bold {_ESS_EMPTY}]{_BAR_CHAR * (_BAR_CELLS - filled)}[/]"
+    )
+
+
+class CategoryRow(Widget):
+    """One row in the category panel: symbol label + cooldown progress bar."""
+
+    DEFAULT_CSS = ""
+
+    def __init__(self, category: ActionCategory) -> None:
+        super().__init__(id=f"cat-row-{category.value}", classes="category-row")
+        self._category = category
+        self._counter: int = 0
+        self._indicator: str = ""
+
+    def compose(self) -> ComposeResult:
+        symbol = _CATEGORY_SYMBOLS[self._category]
+        label  = _CATEGORY_LABELS[self._category]
+        yield Static(f"{symbol}  {label}", classes="cat-label", id=f"cat-label-{self._category.value}")
+        yield Static("", classes="cat-bar", id=f"cat-bar-{self._category.value}", markup=True)
+        yield Static("", classes="ess-bar", id=f"ess-bar-{self._category.value}", markup=True)
+
+    def set_indicator(self, indicator: str) -> None:
+        if indicator == self._indicator:
+            return
+        self._indicator = indicator
+        symbol = _CATEGORY_SYMBOLS[self._category]
+        label  = _CATEGORY_LABELS[self._category]
+        self.query_one(f"#cat-label-{self._category.value}", Static).update(f"{symbol}  {label}{indicator}")
+
+    def set_cooldown(self, counter: int) -> None:
+        self._counter = counter
+        base = CATEGORY_BASE_COOLDOWNS[self._category]
+        self.query_one(f"#cat-bar-{self._category.value}", Static).update(
+            _render_cat_bar(counter, base)
+        )
+        if counter == 0:
+            self.remove_class("cooling")
+        else:
+            self.add_class("cooling")
+
+    def set_essence_bar(self, current: float, required: float) -> None:
+        bar = self.query_one(f"#ess-bar-{self._category.value}", Static)
+        if required <= 0.0:
+            bar.remove_class("ess-bar-visible")
+            bar.update("")
+        else:
+            bar.update(_render_essence_bar(current, required))
+            bar.add_class("ess-bar-visible")
+
+    class CategoryClicked(Message):
+        def __init__(self, category: ActionCategory, is_cooling: bool) -> None:
+            super().__init__()
+            self.category   = category
+            self.is_cooling = is_cooling
+
+    def on_click(self) -> None:
+        self.post_message(CategoryRow.CategoryClicked(self._category, self._counter > 0))
+
+
+class CategoryPanel(Vertical):
+    """Narrow vertical panel on the far right showing per-category cooldown bars."""
+
+    # Alias so external handlers can reference CategoryPanel.CategoryClicked
+    CategoryClicked = CategoryRow.CategoryClicked
+
+    def compose(self) -> ComposeResult:
+        for cat in ActionCategory:
+            yield CategoryRow(cat)
+        yield Static("", id="cat-speed-label")
+        with Horizontal(id="cat-controls"):
+            yield Button("«", id="cat-slow")
+            yield Button("▶", id="cat-play")
+            yield Button("⁺1", id="cat-step")
+            yield Button("»", id="cat-fast")
+
+    def refresh_play_button(self, is_playing: bool) -> None:
+        try:
+            self.query_one("#cat-play", Button).label = "⏸" if is_playing else "▶"
+        except Exception:
+            pass
+
+    def refresh_speed_label(self, delay_s: float) -> None:
+        try:
+            self.query_one("#cat-speed-label", Static).update(f"{delay_s:.2f}s")
+        except Exception:
+            pass
+
+    def refresh_state(self, state: "SimulationState", library: "dict | None" = None) -> None:
+        counters = state.category_cooldowns.counters
+        pending  = state.pending_actions
+        current_essence = state.essence.actual
+        for cat in ActionCategory:
+            counter = counters.get(cat, 0)
+            row = self.query_one(f"#cat-row-{cat.value}", CategoryRow)
+            row.set_cooldown(counter)
+            oa = pending.get(cat.value)
+            if oa is None:
+                indicator = ""
+                essence_required = 0.0
+            else:
+                indicator = " [#6090a8]o[/]" if oa.repeating else " [#6090a8]q[/]"
+                defn = (library or {}).get(oa.action_key)
+                essence_required = defn.essence_cost if defn else 0.0
+            row.set_indicator(indicator)
+            row.set_essence_bar(current_essence, essence_required)
