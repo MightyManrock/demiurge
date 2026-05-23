@@ -682,7 +682,7 @@ class GameScreen(Screen):
 
     def _auto_advance_step(self) -> None:
         if self._auto_advance:
-            self._advance_tick_work()
+            self._advance_tick_work(show_message=False)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.name == "tick_worker" and event.state == WorkerState.SUCCESS:
@@ -690,11 +690,12 @@ class GameScreen(Screen):
                 self.set_timer(self._auto_advance_delay_s, self._auto_advance_step)
 
     @work(thread=True, name="tick_worker")
-    def _advance_tick_work(self) -> None:
+    def _advance_tick_work(self, show_message: bool = True) -> None:
         state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
         before_ids = self._current_window_ids()
-        self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]", "other")
+        if show_message:
+            self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]", "other")
         new_state, result = loop.advance(state)
         self._state = new_state
         self._last_result = result

@@ -816,6 +816,9 @@ class TickResult(BaseModel):
     agent_narratives:   list[str] = Field(default_factory=list)
     # Proxius REPORT_TO_DEMIURGE entries surfaced this tick
 
+    mortal_narratives:  list[str] = Field(default_factory=list)
+    # Travel/activity reports for pinned notable mortals
+
     dialogue_triggers:  list["DialogueTrigger"] = Field(default_factory=list)
     # Unsuppressed triggers only — these go to the player
 
@@ -1210,7 +1213,7 @@ class TickLoop:
         # ── Phase 2.6: Mortal Travel ────────────────────
         travel_decisions = self._resolve_mortal_travel_decisions(state)
         travel_arrivals  = self._process_mortal_travel(state)
-        result.agent_narratives.extend(travel_decisions + travel_arrivals)
+        result.mortal_narratives.extend(travel_decisions + travel_arrivals)
 
         # ── Pop aggregate recomputation ────────────────
         # Recompute Civilization.dominant_beliefs and culture_tags as size-weighted

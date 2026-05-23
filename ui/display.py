@@ -592,6 +592,12 @@ def display_tick_result_categorized(
             out.append(("proxius", f"  • {_linkify(n, _nl)}"))
         out.append(("proxius", ""))
 
+    if result.mortal_narratives:
+        out.append(("mortal", "PINNED MORTALS"))
+        for n in result.mortal_narratives:
+            out.append(("mortal", f"  • {_linkify(n, _nl)}"))
+        out.append(("mortal", ""))
+
     if result.essence_claimed_by_domain:
         total = sum(result.essence_claimed_by_domain.values())
         parts = "  ".join(

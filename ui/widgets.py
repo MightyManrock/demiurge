@@ -1350,7 +1350,7 @@ class LogTab(Vertical):
     class NewContent(Message):
         """Fired once when unseen tick entries arrive while the Log tab is not active."""
 
-    CATEGORIES = ("actions", "proxius", "luminary", "system", "other")
+    CATEGORIES = ("actions", "proxius", "mortal", "luminary", "system", "other")
 
     def __init__(self, pause_config: PauseConfig) -> None:
         super().__init__()
