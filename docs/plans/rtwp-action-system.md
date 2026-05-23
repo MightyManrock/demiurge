@@ -110,6 +110,8 @@ Full design is in [`docs/Brainstorming/rtwp_action_system.md`](../Brainstorming/
 **6b — Age representation**
 - Change `Universe` age storage to `(billions, millions, thousands, years, months, days)`
 - Update top-bar display: `"Day 13 of Month 5, Year 13,675,482,090"`
+- Add `birthday` (month, day) to `NotableMortal`; derive from current age in-game. Add `founding_date` (year, month, day) to `Civilization`; assign a realistic historical value (hundreds to tens of thousands of years, context-dependent), with arbitrary month/day. Calendar: 12 months × 30 days.
+- Replace unconditional per-tick age increment for mortals and civilizations with a birthday/founding-date check: age increments only on the matching (month, day) each year.
 
 **6c — Recalibrate Essence + Revelation**
 - Adjust per-tick rates to suit tick = 1 day; drop per-tick minimums; rely on fractional accumulation

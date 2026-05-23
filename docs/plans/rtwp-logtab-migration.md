@@ -1,4 +1,4 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** RTwP → Log Tab migration
 > **Last updated:** 2026-05-23 (rev 3)
 
