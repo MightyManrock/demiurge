@@ -817,32 +817,6 @@ class GameScreen(Screen):
                 return
             action_key, defn = picked
 
-            # Essence affordability check — before submenus
-            if defn.essence_cost > 0:
-                key_by_id = app.loop._action_key_by_id  # type: ignore[attr-defined]
-                committed = sum(
-                    library[key].essence_cost
-                    for ai in state.action_queue
-                    if (key := key_by_id.get(str(ai.action_definition_id)))
-                    and library.get(key) is not None
-                    and library[key].essence_cost > 0
-                ) + sum(
-                    library[oa.action_key].essence_cost
-                    for oa in state.pending_actions.values()
-                    if library.get(oa.action_key) is not None
-                    and library[oa.action_key].essence_cost > 0
-                )
-                available = state.essence.actual - committed
-                if defn.essence_cost > available:
-                    committed_str = f" − {committed:.2f} committed" if committed > 0 else ""
-                    await app.push_screen_wait(ToastModal(
-                        f"Insufficient Essence.\n\n"
-                        f"  Cost:      {defn.essence_cost:g}\n"
-                        f"  Available: {available:.2f}\n"
-                        f"  (stockpile {state.essence.actual:.2f}{committed_str})"
-                    ))
-                    continue
-
             # Build intent; BACK means "re-show action browser"
             instance = await self._build_intent(action_key, defn)
             if instance is None:
@@ -852,36 +826,33 @@ class GameScreen(Screen):
                 continue
             break
 
-        # Offer persistence for eligible actions
-        if "can_persist" in defn.tags:
-            make_persistent = await app.push_screen_wait(
-                YesNoModal(
-                    f"Make '{defn.name}' persistent?",
-                    "It will auto-execute each tick until you stop it.",
-                )
+        # Ask once vs repeat
+        make_repeating = await app.push_screen_wait(
+            YesNoModal(
+                f"Queue '{defn.name}'",
+                "Fire once and clear, or repeat each tick until stopped?",
+                yes_label="Repeat",
+                no_label="Once",
             )
-            if make_persistent:
-                state.pending_actions[defn.category.value] = OngoingAction(
-                    action_key=action_key,
-                    action_definition_id=defn.id,
-                    target_type=instance.target_type,
-                    target_id=instance.target_id,
-                    proxius_id=instance.proxius_id,
-                    intent=instance.intent,
-                    ticks_active=0,
-                    started_at_tick=state.tick_number,
-                )
-                self._log.write_action(f"[ONGOING SET] {defn.name}")
-                self._feed_markup(f"[#60a870][ONGOING SET][/] {defn.name}", "actions")
-                self._refresh_status()
-                self._focus_actions_tab()
-                return
+        )
 
-        state.action_queue.append(instance)
+        state.pending_actions[defn.category.value] = OngoingAction(
+            action_key=action_key,
+            action_definition_id=defn.id,
+            target_type=instance.target_type,
+            target_id=instance.target_id,
+            proxius_id=instance.proxius_id,
+            intent=instance.intent,
+            repeating=bool(make_repeating),
+            ticks_active=0,
+            started_at_tick=state.tick_number,
+        )
+        label = "[REPEATING]" if make_repeating else "[QUEUED]"
+        color = "#60a870" if make_repeating else "#a0d080"
         plain_target = f" → {_name_for_id(instance.target_id, state)}" if instance.target_id else ""
         link_target  = f" → {_name_link_for_id(instance.target_id, state)}" if instance.target_id else ""
-        self._log.write_action(defn.name + plain_target)
-        self._feed_markup(f"[#a0d080]Queued:[/] {_e(defn.name)}{link_target}", "actions")
+        self._log.write_action(f"{label} {defn.name}{plain_target}")
+        self._feed_markup(f"[{color}]{label}[/] {_e(defn.name)}{link_target}", "actions")
         self._refresh_status()
         self._focus_actions_tab()
 
@@ -939,10 +910,10 @@ class GameScreen(Screen):
         # ── preach_imago: multi-step (proxius → domain/imago → pop) ──
         if action_key == "preach_imago":
             already_directed = {
-                str(ai.proxius_id)
-                for ai in state.action_queue
-                if isinstance(ai.intent, ProxiusDirectiveIntent)
-                and ai.proxius_id is not None
+                str(pa.proxius_id)
+                for pa in state.pending_actions.values()
+                if isinstance(pa.intent, ProxiusDirectiveIntent)
+                and pa.proxius_id is not None
             }
             step = 0
             pid = None

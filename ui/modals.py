@@ -231,10 +231,13 @@ class PopLatitudePickerModal(ModalScreen):
 class YesNoModal(ModalScreen):
     BINDINGS = [("escape", "no", "No")]
 
-    def __init__(self, question: str, detail: str = ""):
+    def __init__(self, question: str, detail: str = "",
+                 yes_label: str = "Yes", no_label: str = "No"):
         super().__init__()
-        self._question = question
-        self._detail   = detail
+        self._question  = question
+        self._detail    = detail
+        self._yes_label = yes_label
+        self._no_label  = no_label
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
@@ -242,8 +245,8 @@ class YesNoModal(ModalScreen):
             if self._detail:
                 yield Label(self._detail, classes="modal-desc")
             with Horizontal(classes="btn-row"):
-                yield Button("Yes", id="yes-btn", classes="-primary")
-                yield Button("No",  id="no-btn",  classes="-danger")
+                yield Button(self._yes_label, id="yes-btn", classes="-primary")
+                yield Button(self._no_label,  id="no-btn",  classes="-danger")
 
     @on(Button.Pressed, "#yes-btn")
     def _yes(self, _: Button.Pressed) -> None:

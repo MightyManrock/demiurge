@@ -388,7 +388,7 @@ python main.py --autoplay ledger_and_ash
 
 ### Phase 3: UI action queuing flow
 
-**3a — Remove essence hard-block; replace "make persistent?" with "make repeating?"; all actions write to `pending_actions`**
+**3a — Remove essence hard-block; replace "make persistent?" with "make repeating?"; all actions write to `pending_actions`** ✓ complete
 
 Files: `ui/ui.py`
 
