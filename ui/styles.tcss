@@ -118,6 +118,7 @@ ContentTab {
 #main-feed {
     background: $bg-feed;
     padding: 0 1 0 1;
+    overflow-y: scroll;
 }
 
 /* ── Log tab: chip filter row ───────────── */
