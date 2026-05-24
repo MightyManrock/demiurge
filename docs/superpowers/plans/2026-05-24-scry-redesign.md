@@ -303,7 +303,7 @@ git commit -m "feat: asymptotic scry momentum accumulation with decay and dynami
 
 Apply `_new_momentum * 0.25` as an additive bonus to `base` for all entity types (except pops, which use a multiplicative adjustment to `world_scry_base`).
 
-- [ ] **Step 1: Location discovery momentum bonus**
+- [x] **Step 1: Location discovery momentum bonus**
 
 In the location discovery loop (around line 3131), change:
 
@@ -321,7 +321,7 @@ to:
 
 Actually: the uncharted check sets `base = min(0.95, base + 0.25)` *after* the `sf = ...` line, not after our new `base` line. So the order is fine — uncharted overrides whatever base we computed.
 
-- [ ] **Step 2: Civilization discovery momentum bonus**
+- [x] **Step 2: Civilization discovery momentum bonus**
 
 In the civ discovery loop (around line 3172), change:
 
@@ -335,7 +335,7 @@ to:
                 base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
 ```
 
-- [ ] **Step 3: Species discovery momentum bonus**
+- [x] **Step 3: Species discovery momentum bonus**
 
 In the species loop (around line 3205), change:
 
@@ -349,7 +349,7 @@ to:
                 base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
 ```
 
-- [ ] **Step 4: Mortal discovery momentum bonus**
+- [x] **Step 4: Mortal discovery momentum bonus**
 
 In the mortal loop (around line 3233), change:
 
@@ -363,7 +363,7 @@ to:
                 base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
 ```
 
-- [ ] **Step 5: Pop discovery momentum bonus**
+- [x] **Step 5: Pop discovery momentum bonus**
 
 In the pop discovery loop (around line 3276), change:
 
@@ -377,7 +377,7 @@ to:
                 world_scry_base = start_vis * 0.5 * (1.0 + _new_momentum * 0.35)
 ```
 
-- [ ] **Step 6: Regression**
+- [x] **Step 6: Regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
@@ -385,7 +385,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes without error.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add logic/tick_logic.py

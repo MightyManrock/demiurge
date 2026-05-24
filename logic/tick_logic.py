@@ -3153,7 +3153,7 @@ class TickLoop:
                     if depth > 1 and (loc.parent_id is None or str(loc.parent_id) not in eligible_locs):
                         continue
                     delta = abs(depth - anchor)
-                    base = _depth_chance(delta)
+                    base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
                     sf = _spatial_factor(lid)
                     # Uncharted-galaxy carve-out: systems inside the targeted
                     # galaxy ignore the spatial falloff and get a bonus.
@@ -3194,7 +3194,7 @@ class TickLoop:
                 if anchor_id is not None and anchor_id not in eligible_locs:
                     continue
                 delta = abs(depth - anchor)
-                base = _depth_chance(delta)
+                base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
                 sf = _spatial_factor(anchor_id) if anchor_id else 1.0
                 # Extra bonus if homeworld is already known, even for high-scale civs
                 origin_prox = 0.0
@@ -3227,7 +3227,7 @@ class TickLoop:
                 if origin_id is not None and origin_id not in eligible_locs:
                     continue
                 delta = abs(4 - anchor)
-                base = _depth_chance(delta)
+                base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
                 sf = _spatial_factor(origin_id) if origin_id else 1.0
                 p = max(0.0, min(1.0, (base + _domain_bonus(sp.domain_tags, base)) * sf))
                 if rng.random() < p:
@@ -3255,7 +3255,7 @@ class TickLoop:
                 m_loc = state.locations.get(str(mortal.current_location))
                 m_dist = m_loc.distance_from_core if isinstance(m_loc, PopLocation) else 0
                 delta = abs(5 - anchor) + m_dist
-                base = _depth_chance(delta)
+                base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
                 sf = _spatial_factor(str(mortal.current_location))
                 p = max(0.0, min(1.0,
                     (base + _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags, base)) * sf
@@ -3298,7 +3298,7 @@ class TickLoop:
                     continue
                 size_factor = min(1.0, pop.size_fractional / 9.0)
                 stratum_factor = 1.3 if (pop.social_class and pop.social_class.value in _PROMINENT_CLASSES) else 1.0
-                world_scry_base = start_vis * 0.5  # Pops revealed at half start_vis
+                world_scry_base = start_vis * 0.5 * (1.0 + _new_momentum * 0.35)
                 # PopLocations distant from the world core are harder to scry.
                 dist = pop_loc.distance_from_core if isinstance(pop_loc, PopLocation) else 0
                 distance_factor = 0.7 ** dist
