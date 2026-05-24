@@ -1,4 +1,4 @@
-> **Status:** active
+> **Status:** complete
 > **TO-DO ref:** —
 > **Last updated:** 2026-05-24
 
@@ -168,7 +168,7 @@ if stall_remaining < 30:
 - The freeze rule in decay phase then holds for all future ticks
 - Run `--autoplay` regression
 
-**5g — DB migration**
+**5g — DB migration** ✓
 - Both scenario DBs: set `visibility_stall_remaining = 360` on all entities where `visibility >= 1.0`
 - Apply via SQL patch directly to `scenarios/wardens_compact.db` and `scenarios/ledger_and_ash.db`
 - Run `--rebuild --scenario` to migrate any saves
