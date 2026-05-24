@@ -61,7 +61,7 @@ Improve the visibility system with several targeted changes:
 
 ### Phase 3: Whisper / Shape Dream visibility splash
 
-**3a — Visibility splash helper**
+**3a — Visibility splash helper** ✓
 - `logic/tick_logic.py`: Add `_emit_influence_visibility_splash(mutations, state, mortal, world_id)`:
   - Find the mortal's `PopLocation` (their `current_location`)
   - Boost own Pop's visibility by `+0.8`, capped at `1.0` — **no floor guard** (sub-floor allowed); if the pop was at `0.0` and is brought above the floor, record it as a discovery

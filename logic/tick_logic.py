@@ -6002,6 +6002,57 @@ class TickLoop:
 
         return boosted_pop_ids, boosted_mortal_ids
 
+    def _emit_influence_visibility_splash(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        mortal,
+    ) -> tuple[set, set, set]:
+        """Boost pop visibility from a Whisper / Shape Dream action.
+
+        Own Pop receives +0.8; all other Pops on the world receive
+        0.6 / (distance_from_core + 1). No floor guard — sub-floor Pops
+        can be reached via the mortal vector (discovery by contact).
+
+        Returns (boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids).
+        boosted_mortal_ids includes the target mortal for Phase 4 upward splash.
+        discovered_pop_ids: pops that were at 0.0 and crossed above floor.
+        """
+        boosted_pop_ids: set = set()
+        boosted_mortal_ids: set = set()
+        discovered_pop_ids: set = set()
+
+        if not mortal:
+            return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
+
+        world_id = _resolve_world_id_for(state, mortal.current_location)
+        if not world_id:
+            return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
+
+        boosted_mortal_ids.add(str(mortal.id))
+        own_pop_id = str(mortal.pop_id) if mortal.pop_id else None
+
+        for pop in self._pops_on_world(world_id, state):
+            pid = str(pop.id)
+            ploc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+            if not isinstance(ploc, PopLocation):
+                continue
+            boost = 0.8 if pid == own_pop_id else min(1.0, 0.6 / (ploc.distance_from_core + 1))
+            was_zero = pop.visibility == 0.0
+            new_vis = min(1.0, pop.visibility + boost)
+            mutations.append(StateMutation(
+                mutation_type=MutationType.POP_VISIBILITY,
+                target_id=pop.id,
+                field="visibility",
+                new_value=new_vis,
+                note="Influence visibility splash",
+            ))
+            boosted_pop_ids.add(pid)
+            if was_zero and new_vis >= ENTITY_VISIBILITY_FLOOR:
+                discovered_pop_ids.add(pid)
+
+        return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
+
     def _emit_whisper_splash(
         self,
         mutations: list,
