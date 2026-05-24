@@ -61,7 +61,7 @@ from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 # VISIBILITY CONSTANTS
 # ─────────────────────────────────────────
 
-ENTITY_VISIBILITY_FLOOR = 0.05
+ENTITY_VISIBILITY_FLOOR = 0.005
 # Below this, any entity (location, civilization, species, mortal) is out of the Window.
 
 # ─────────────────────────────────────────
