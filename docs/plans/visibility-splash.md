@@ -29,7 +29,7 @@ Improve the visibility system with several targeted changes:
 - `logic/tick_logic.py`: Change `visibility=max(0.0, pop.visibility * 0.5)` → `× 0.75` at both splinter-creation sites (Pop splinter and Imago goal-pop)
 - Run `--autoplay` regression
 
-**1c — Snap below-floor to zero**
+**1c — Snap below-floor to zero** ✓
 - `logic/tick_logic.py`, in the decay phase for all five entity types: after applying decay, if `entity.visibility < ENTITY_VISIBILITY_FLOOR`, set `entity.visibility = 0.0`
 - This fires on the *new* value after decay (not the old value before)
 - Run `--autoplay` regression

@@ -1690,6 +1690,8 @@ class TickLoop:
                 continue
             effective_rate = cfg.mortal_visibility_decay_rate * (1.0 - mortal.prominence)
             new_vis = max(0.0, mortal.visibility - effective_rate)
+            if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
+                new_vis = 0.0
             if mortal.visibility - new_vis > 0.0001:
                 result.mortal_mutations.append(StateMutation(
                     mutation_type=MutationType.MORTAL_VISIBILITY,
@@ -1704,6 +1706,8 @@ class TickLoop:
             if getattr(loc, "pinned", False) or loc.visibility <= 0.0:
                 continue
             new_vis = max(0.0, loc.visibility - cfg.location_visibility_decay_rate)
+            if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
+                new_vis = 0.0
             if loc.visibility - new_vis > 0.0001:
                 result.entity_mutations.append(StateMutation(
                     mutation_type=MutationType.ENTITY_VISIBILITY,
@@ -1718,6 +1722,8 @@ class TickLoop:
             if civ.pinned or civ.visibility <= 0.0:
                 continue
             new_vis = max(0.0, civ.visibility - cfg.civ_visibility_decay_rate)
+            if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
+                new_vis = 0.0
             if civ.visibility - new_vis > 0.0001:
                 result.entity_mutations.append(StateMutation(
                     mutation_type=MutationType.ENTITY_VISIBILITY,
@@ -1732,6 +1738,8 @@ class TickLoop:
             if sp.pinned or sp.visibility <= 0.0:
                 continue
             new_vis = max(0.0, sp.visibility - cfg.species_visibility_decay_rate)
+            if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
+                new_vis = 0.0
             if sp.visibility - new_vis > 0.0001:
                 result.entity_mutations.append(StateMutation(
                     mutation_type=MutationType.ENTITY_VISIBILITY,
@@ -1761,6 +1769,10 @@ class TickLoop:
             world_vis = world_obj.visibility if world_obj else 0.0
             baseline = min(civ_vis, world_vis)
             delta = (baseline - pop.visibility) * cfg.pop_visibility_drift_rate
+            if delta < 0:
+                new_pop_vis = pop.visibility + delta
+                if 0.0 < new_pop_vis < ENTITY_VISIBILITY_FLOOR:
+                    delta = -pop.visibility
             if abs(delta) > 0.0001:
                 result.entity_mutations.append(StateMutation(
                     mutation_type=MutationType.POP_VISIBILITY,
