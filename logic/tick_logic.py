@@ -512,7 +512,7 @@ class TickConfig(BaseModel):
     footprint_decay_multipliers: dict[str, float] = Field(
         default_factory=lambda: {
             "overt_miracles":  1.0,
-            "subtle_influence": 1.8,  # Fades faster — it's deniable by design
+            "subtle_influence": 0.8,
             "proxius_activity": 0.8,
             "direct_creation":  0.4,  # Reshaping a world doesn't unhappen quickly
         }
