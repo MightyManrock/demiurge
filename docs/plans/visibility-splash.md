@@ -154,7 +154,7 @@ if stall_remaining < 30:
 - `utilities/scenario_loader.py`: load via `row.get("visibility_stall_remaining", 0)` for each entity type
 - `utilities/scenario_exporter.py`: include `visibility_stall_remaining` in INSERT for each entity type
 
-**5d — Decay logic**
+**5d — Decay logic** ✓
 - `logic/tick_logic.py`: integrate stall counter into decay phase for all five entity types, following the decay phase rules above
 - Add constants: `VISIBILITY_STALL_ON_CAP = 30` and `VISIBILITY_STALL_SCENARIO_START = 360`
 - Run `--autoplay` regression

@@ -64,6 +64,9 @@ from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 ENTITY_VISIBILITY_FLOOR = 0.005
 # Below this, any entity (location, civilization, species, mortal) is out of the Window.
 
+VISIBILITY_STALL_ON_CAP = 30        # ticks of stall granted when visibility reaches 1.0
+VISIBILITY_STALL_SCENARIO_START = 360  # ticks of stall set during scenario-start migration
+
 # ─────────────────────────────────────────
 # PROXIUS POLICY CONSTANTS
 # ─────────────────────────────────────────
@@ -1684,9 +1687,12 @@ class TickLoop:
         for mid, mortal in state.mortals.items():
             if mortal.status == MortalStatus.DECEASED:
                 continue
-            if mortal.pinned:
-                continue
             if mortal.visibility <= 0.0:
+                continue
+            if mortal.pinned and mortal.visibility_stall_remaining <= VISIBILITY_STALL_ON_CAP:
+                continue
+            if mortal.visibility_stall_remaining > 0:
+                mortal.visibility_stall_remaining -= 1
                 continue
             effective_rate = cfg.mortal_visibility_decay_rate * (1.0 - mortal.prominence)
             new_vis = max(0.0, mortal.visibility - effective_rate)
@@ -1703,7 +1709,13 @@ class TickLoop:
 
         # ── Location visibility decay ──────────────────
         for lid, loc in state.locations.items():
-            if getattr(loc, "pinned", False) or loc.visibility <= 0.0:
+            if loc.visibility <= 0.0:
+                continue
+            loc_stall = getattr(loc, "visibility_stall_remaining", 0)
+            if getattr(loc, "pinned", False) and loc_stall <= VISIBILITY_STALL_ON_CAP:
+                continue
+            if loc_stall > 0:
+                loc.visibility_stall_remaining = loc_stall - 1
                 continue
             new_vis = max(0.0, loc.visibility - cfg.location_visibility_decay_rate)
             if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
@@ -1719,7 +1731,12 @@ class TickLoop:
 
         # ── Civilization visibility decay ──────────────
         for cid, civ in state.civilizations.items():
-            if civ.pinned or civ.visibility <= 0.0:
+            if civ.visibility <= 0.0:
+                continue
+            if civ.pinned and civ.visibility_stall_remaining <= VISIBILITY_STALL_ON_CAP:
+                continue
+            if civ.visibility_stall_remaining > 0:
+                civ.visibility_stall_remaining -= 1
                 continue
             new_vis = max(0.0, civ.visibility - cfg.civ_visibility_decay_rate)
             if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
@@ -1735,7 +1752,12 @@ class TickLoop:
 
         # ── Species visibility decay ───────────────────
         for sid, sp in state.species.items():
-            if sp.pinned or sp.visibility <= 0.0:
+            if sp.visibility <= 0.0:
+                continue
+            if sp.pinned and sp.visibility_stall_remaining <= VISIBILITY_STALL_ON_CAP:
+                continue
+            if sp.visibility_stall_remaining > 0:
+                sp.visibility_stall_remaining -= 1
                 continue
             new_vis = max(0.0, sp.visibility - cfg.species_visibility_decay_rate)
             if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
@@ -1760,9 +1782,12 @@ class TickLoop:
                     _pop_loc_to_world[str(cid)] = wid
 
         for pid, pop in state.pops.items():
-            if pop.pinned:
-                continue
             if pop.visibility <= 0.0:
+                continue
+            if pop.pinned and pop.visibility_stall_remaining <= VISIBILITY_STALL_ON_CAP:
+                continue
+            if pop.visibility_stall_remaining > 0:
+                pop.visibility_stall_remaining -= 1
                 continue
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
             civ_vis = civ.visibility if civ else 0.0
