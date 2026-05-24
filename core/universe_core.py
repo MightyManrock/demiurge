@@ -143,6 +143,7 @@ class Location(BaseModel):
     coordinates: CosmicCoordinates = Field(default_factory=CosmicCoordinates)
     visibility: float = 0.0   # 0.0 = unknown; 1.0 = fully in-window
     pinned: bool = False       # True = never decays (all starting-scenario locations)
+    visibility_stall_remaining: int = 0
 
 
 class StarType(str, Enum):
@@ -244,6 +245,7 @@ class Species(BaseModel):
     condition: SpeciesCondition = SpeciesCondition.STABLE
     visibility: float = 0.0
     pinned: bool = False
+    visibility_stall_remaining: int = 0
 
 
 # ─────────────────────────────────────────
@@ -348,6 +350,7 @@ class Pop(BaseModel):
 
     visibility: float = 0.0
     pinned: bool = False
+    visibility_stall_remaining: int = 0
 
 
 # ─────────────────────────────────────────
@@ -456,6 +459,7 @@ class Civilization(BaseModel):
     founding_date: tuple[int, int, int, int, int, int] = (0, 0, 0, 0, 1, 1)  # (billions, millions, thousands, years, month, day)
     visibility: float = 0.0
     pinned: bool = False
+    visibility_stall_remaining: int = 0
 
 
 # ─────────────────────────────────────────
@@ -542,6 +546,7 @@ class NotableMortal(BaseModel):
     # True while the Demiurge has this mortal actively in focus (prevents decay).
     # Starting-scenario mortals are pinned for the first 10 ticks, then released.
     pinned: bool = False
+    visibility_stall_remaining: int = 0
 
     # How faithfully they're currently pursuing their
     # patron's agenda vs. their own. 1.0 = fully aligned.

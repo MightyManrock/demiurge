@@ -144,7 +144,7 @@ if stall_remaining < 30:
 # freeze rule above then holds for all future ticks
 ```
 
-**5a — Data model changes**
+**5a — Data model changes** ✓
 - `core/universe_core.py`: add `visibility_stall_remaining: int = 0` to `Location` (and subclasses), `Civilization`, `Species`, `NotableMortal`, `Pop`
 
 **5b — Schema changes**
