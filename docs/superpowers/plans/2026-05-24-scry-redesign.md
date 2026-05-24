@@ -160,7 +160,7 @@ Add immediately after:
                     state.demiurge.scry_momentum[m.field] = float(m.new_value)
 ```
 
-- [ ] **Step 3: Regression**
+- [x] **Step 3: Regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
