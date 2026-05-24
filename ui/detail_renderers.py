@@ -18,6 +18,7 @@ from ui.display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
     _short_tag, _trait_color, _format_beliefs_markup, _format_culture_markup,
     _color_short_tag, _pop_stratum_label,
+    _build_name_index, _process_narrative,
 )
 from ui.widgets import _click_link, _maybe_gold
 
@@ -769,8 +770,10 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             a("")
             a("[bold #4a80b0]LAST REPORT[/]")
             last = m.active_goal.report_log[-1]
+            _nl = _build_name_index(state)
+            _nl.pop(m.name, None)  # no recursive self-link on own detail page
             for raw_line in str(last).splitlines():
-                a(f"  [#7090b0]{_e(raw_line)}[/]")
+                a(f"  [#7090b0]{_process_narrative(raw_line, _nl)}[/]")
 
         # Last audit text (from Audit Proxius action).
         if m.last_audit_text:
