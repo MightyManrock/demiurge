@@ -5446,7 +5446,7 @@ class TickLoop:
                             },
                             parent_pop_id=pop_a.id,
                             preaching_imago_id=goal.imago_node_id,
-                            pinned=True,
+                            pinned=False,
                             visibility=pop_a.visibility * 0.75,
                         )
                         # Wire goal_pop_id now so next tick uses the ongoing path.
