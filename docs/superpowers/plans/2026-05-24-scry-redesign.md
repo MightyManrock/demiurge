@@ -110,7 +110,7 @@ cd /root/demiurge && python3 main.py --rebuild --scenario
 
 Expected: no errors, all `.db` files migrate cleanly (new column gets `'{}'` default).
 
-- [ ] **Step 6: Regression — autoplay**
+- [x] **Step 6: Regression — autoplay**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
