@@ -2323,12 +2323,22 @@ class TickLoop:
         )
         mutations.extend(intent_mutations)
 
-        # ── Visibility refresh for mortal-targeted actions ─
+        # ── Visibility refresh for mortal- and world-targeted actions ─
         if instance.target_type == TargetType.MORTAL and instance.target_id:
             mortal = state.mortals.get(str(instance.target_id))
             if mortal and not mortal.pinned:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.MORTAL_VISIBILITY,
+                    target_id=instance.target_id,
+                    field="visibility",
+                    new_value=1.0,
+                    note=f"Visibility refreshed by {defn.name}",
+                ))
+        elif instance.target_type == TargetType.WORLD and instance.target_id:
+            loc = state.locations.get(str(instance.target_id))
+            if loc and not getattr(loc, "pinned", False):
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.ENTITY_VISIBILITY,
                     target_id=instance.target_id,
                     field="visibility",
                     new_value=1.0,

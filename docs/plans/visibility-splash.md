@@ -42,7 +42,7 @@ Improve the visibility system with several targeted changes:
 
 ### Phase 2: Omen visibility splash
 
-**2a — World visibility refresh on Omen**
+**2a — World visibility refresh on Omen** ✓
 - `logic/tick_logic.py`, near the generic visibility-refresh block (line ~2313): Add a parallel branch for `instance.target_type == TargetType.LOCATION` that emits a `MORTAL_VISIBILITY` (or equivalent entity visibility) mutation setting the target location's visibility to `1.0`.
 - Currently this block is mortal-only; Omen targets `SignificantLocation` and gets nothing.
 
