@@ -34,7 +34,7 @@ Improve the visibility system with several targeted changes:
 - This fires on the *new* value after decay (not the old value before)
 - Run `--autoplay` regression
 
-**1d — Skip decay on zero-visibility entities**
+**1d — Skip decay on zero-visibility entities** ✓
 - `logic/tick_logic.py`, in the decay phase for all five entity types: if `entity.visibility == 0.0` and the entity is not receiving a visibility boost this tick, skip decay entirely
 - Run `--autoplay` regression
 

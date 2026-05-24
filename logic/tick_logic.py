@@ -1762,6 +1762,8 @@ class TickLoop:
         for pid, pop in state.pops.items():
             if pop.pinned:
                 continue
+            if pop.visibility <= 0.0:
+                continue
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
             civ_vis = civ.visibility if civ else 0.0
             wid = _pop_loc_to_world.get(str(pop.current_location), str(pop.current_location))
