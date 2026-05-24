@@ -30,7 +30,7 @@ When a sub-plan is fully implemented, mark it `complete` here and in its own fil
 
 | Action(s) | Sub-plan file | Status | Notes |
 |---|---|---|---|
-| *(none yet — filling in as we go)* | | | |
+| `whisper` | [actions/whisper-to-mortal.md](actions/whisper-to-mortal.md) | `active` | UI only — unified config modal replaces 3-step wizard |
 
 ---
 
