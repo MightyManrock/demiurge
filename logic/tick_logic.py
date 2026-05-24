@@ -6119,6 +6119,7 @@ class TickLoop:
             if was_zero and new_vis >= ENTITY_VISIBILITY_FLOOR:
                 discovered_pop_ids.add(pid)
 
+        self._emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)
         return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
 
     def _emit_whisper_splash(

@@ -112,7 +112,7 @@ When any Pop or mortal receives a visibility boost from the action-based splashe
 - Call `_emit_upward_visibility_splash` from the tail of `_emit_omen_visibility_splash`, passing the sets of boosted pop and mortal IDs returned by that helper
 - Run `--autoplay` regression
 
-**4c — Wire into Whisper/Shape Dream splash**
+**4c — Wire into Whisper/Shape Dream splash** ✓
 - Call `_emit_upward_visibility_splash` from the tail of `_emit_influence_visibility_splash`, passing the sets of boosted pop and mortal IDs returned by that helper
 - Run `--autoplay` regression
 
