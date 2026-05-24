@@ -29,3 +29,4 @@ Read /root/demiurge/docs/TO-DO.md and /root/demiurge/docs/plans/PLANS.md. For ea
 | [rtwp-action-system.md](rtwp-action-system.md) | `complete` | RTwP refactor: continuous auto-advance, per-category cooldowns, auto-pause, category panel, control modal, tick scale to days |
 | [soft-queue-action-system.md](soft-queue-action-system.md) | `complete` | Unify action_queue + ongoing_actions into pending_actions; repeating flag; per-category pending modal |
 | [visibility-splash.md](visibility-splash.md) | `complete` | Lower visibility floor; splinter inheritance 0.75×; Omen + Whisper/ShapeDream visibility splash |
+| [actions-redesign-master-plan.md](actions-redesign-master-plan.md) | `active` | Systematic mechanic + UI + DB-prep pass over every action; lands on `action-redesign` branch |
