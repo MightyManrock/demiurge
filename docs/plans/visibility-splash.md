@@ -80,7 +80,7 @@ Improve the visibility system with several targeted changes:
 - The existing `_emit_whisper_splash` is for belief/culture; this is a separate visibility-only helper
 - Run `--autoplay` regression
 
-**3c — Discovery log messages**
+**3c — Discovery log messages** ✓
 - For each discovered pop ID returned by `_emit_influence_visibility_splash`, emit a log message as part of the Whisper/Shape Dream result narrative
 - Message form: "Through [mortal.name], your attention finds [pop.name] — a community you had not noticed before."
 - Append after the main result message, one line per discovered pop

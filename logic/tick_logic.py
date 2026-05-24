@@ -3516,7 +3516,14 @@ class TickLoop:
                 per_unit_delta=effectiveness * 0.1,
                 note_prefix="Whisper",
             )
-            self._emit_influence_visibility_splash(mutations, state, mortal)
+            _, _, discovered_pop_ids = self._emit_influence_visibility_splash(mutations, state, mortal)
+            for pid in discovered_pop_ids:
+                pop = state.pops.get(pid)
+                if pop:
+                    narrative += (
+                        f" Through {mortal.name}, your attention finds {pop.name} —"
+                        f" a community you had not noticed before."
+                    )
 
         # ── Shape Dream ───────────────────────────────
         elif isinstance(intent, ShapeDreamIntent):
@@ -3596,7 +3603,7 @@ class TickLoop:
                 per_unit_delta=effectiveness * 0.1,
                 note_prefix="Shape Dream",
             )
-            self._emit_influence_visibility_splash(mutations, state, mortal)
+            _, _, discovered_pop_ids = self._emit_influence_visibility_splash(mutations, state, mortal)
 
             ireg = get_imago_registry()
             dom_node = ireg.get_node(dominant_id)
@@ -3608,6 +3615,13 @@ class TickLoop:
                 f"In sleep, {dom_name} took stronger root than {sup_name}. "
                 f"Effectiveness: {effectiveness:.0%}."
             )
+            for pid in discovered_pop_ids:
+                pop = state.pops.get(pid)
+                if pop:
+                    narrative += (
+                        f" Through {mortal.name}, your attention finds {pop.name} —"
+                        f" a community you had not noticed before."
+                    )
 
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
