@@ -3082,7 +3082,7 @@ class TickLoop:
             discovered_civs:  list[str] = []
             discovered_sp:    list[str] = []
             discovered_mort:  list[str] = []
-            discovered_pops:  list[str] = []
+            discovered_pops:  list = []  # list[tuple[str, Pop, Civilization | None]]
             refreshed_locs:   list[str] = []
             refreshed_civs:   list[str] = []
             refreshed_sp:     list[str] = []
@@ -3289,10 +3289,7 @@ class TickLoop:
                         note=f"Scry ({scope.value}): Pop of {civ.name} sighted",
                     ))
                     if not was_visible:
-                        class_label = pop.stratum.title() if pop.stratum else "Pop"
-                        discovered_pops.append(
-                            f"{civ.name} §pop§{pid}§{class_label} Pop§ (sz {pop.size_magnitude})"
-                        )
+                        discovered_pops.append((pid, pop, civ))
 
             parts = [f"You scryed at {scope.value} scope."]
             all_discovered = discovered_locs + discovered_civs + discovered_sp + discovered_mort
@@ -3306,7 +3303,8 @@ class TickLoop:
             if discovered_mort:
                 parts.append(f"Mortals sighted: {', '.join(discovered_mort)}.")
             if discovered_pops:
-                parts.append(f"Pops sighted: {', '.join(discovered_pops)}.")
+                formatted = self._format_pop_entries_with_links(discovered_pops)
+                parts.append(f"Pops sighted: {', '.join(formatted)}.")
             if all_refreshed and not all_discovered and not discovered_pops:
                 parts.append(f"Sight maintained on: {', '.join(all_refreshed)}.")
             elif all_refreshed:
@@ -6136,38 +6134,51 @@ class TickLoop:
         return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
 
     @staticmethod
-    def _format_pop_discovery_line(mortal_name: str, discovered_pop_ids: set, state: "SimulationState") -> str:
-        """Build a single discovery sentence, grouping Pops by civilization.
+    def _format_pop_entries_with_links(
+        pop_items: "list[tuple[str, Pop, Civilization | None]]",
+    ) -> "list[str]":
+        """Return sentinel-embedded formatted strings for a list of (pid, pop, civ) tuples.
 
-        Format: "Through X, you have discovered: CivA Common Pop (sz 6), Artisan Pop (sz 5), CivB Warrior Pop (sz 4)."
-        Civ name appears only on the first Pop of each civ group.
+        Groups by civ_id; §civ§ link appears only on the first Pop per civ group.
+        Pop label is emitted as §pop§pid§label§ so display.py can resolve it to a clickable link.
         """
-        if not discovered_pop_ids:
-            return ""
-
         civ_groups: dict[str, list] = {}
         civ_order: list[str] = []
+        for pid, pop, civ in pop_items:
+            civ_key = str(civ.id) if civ else ""
+            if civ_key not in civ_groups:
+                civ_groups[civ_key] = []
+                civ_order.append(civ_key)
+            civ_groups[civ_key].append((pid, pop, civ))
+
+        entries: list[str] = []
+        for civ_key in civ_order:
+            for i, (pid, pop, civ) in enumerate(civ_groups[civ_key]):
+                label = pop.name if pop.name else (
+                    f"{pop.stratum.title()} Pop" if pop.stratum else "Pop"
+                )
+                pop_sentinel = f"§pop§{pid}§{label}§"
+                entry = f"{pop_sentinel} (sz {pop.size_magnitude})"
+                if i == 0 and civ:
+                    entry = f"§civ§{civ.id}§{civ.name}§ {entry}"
+                entries.append(entry)
+        return entries
+
+    @staticmethod
+    def _format_pop_discovery_line(mortal_name: str, discovered_pop_ids: set, state: "SimulationState") -> str:
+        """Build a single discovery sentence, grouping Pops by civilization with clickable links."""
+        if not discovered_pop_ids:
+            return ""
+        pop_items = []
         for pid in sorted(discovered_pop_ids):
             pop = state.pops.get(pid)
             if not pop:
                 continue
-            civ_key = str(pop.civilization_id) if pop.civilization_id else ""
-            if civ_key not in civ_groups:
-                civ_groups[civ_key] = []
-                civ_order.append(civ_key)
-            civ_groups[civ_key].append(pop)
-
-        entries: list[str] = []
-        for civ_key in civ_order:
-            civ = state.civilizations.get(civ_key) if civ_key else None
-            civ_name = civ.name if civ else None
-            for i, pop in enumerate(civ_groups[civ_key]):
-                label = pop.name if pop.name else f"{pop.stratum.title()} Pop"
-                entry = f"{label} (sz {pop.size_magnitude})"
-                if i == 0 and civ_name:
-                    entry = f"{civ_name} {entry}"
-                entries.append(entry)
-
+            civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+            pop_items.append((pid, pop, civ))
+        if not pop_items:
+            return ""
+        entries = TickLoop._format_pop_entries_with_links(pop_items)
         if not entries:
             return ""
         return f" Through {mortal_name}, you have discovered: {', '.join(entries)}."
@@ -6669,6 +6680,10 @@ class TickLoop:
                 tag = str(m.new_value) if m.new_value else None
                 if tag and tag not in state.demiurge.unlocked_domain_tags:
                     state.demiurge.unlocked_domain_tags.append(tag)
+
+            elif m.mutation_type == MutationType.DEMIURGE_SCRY_MOMENTUM_UPDATE:
+                if m.field and m.new_value is not None:
+                    state.demiurge.scry_momentum[m.field] = float(m.new_value)
 
             elif m.mutation_type == MutationType.AFFILIATED_DOMAIN_CHANGE:
                 val = str(m.new_value) if m.new_value else ""

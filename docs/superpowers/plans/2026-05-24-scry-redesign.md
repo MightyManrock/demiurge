@@ -141,7 +141,7 @@ In `core/action_core.py`, after `MORTAL_POP_AGED_OUT` (line 748), add:
     DEMIURGE_SCRY_MOMENTUM_UPDATE = "demiurge_scry_momentum_update"  # field=key, new_value=float
 ```
 
-- [ ] **Step 2: Add handler in _apply_mutations**
+- [x] **Step 2: Add handler in _apply_mutations**
 
 In `logic/tick_logic.py`, find the `DEMIURGE_UNLOCK` handler (around line 6679):
 
