@@ -155,6 +155,8 @@ def _click_link(kind: str, eid: str, label_markup: str) -> str:
     # Otherwise: nav-in-place if rendered inside a detail tab; else open new.
     if kind == "luminary":
         action = f"screen.open_luminary('{eid}')"
+    elif kind == "imago":
+        action = f"screen.open_imago_node('{eid}')"
     elif _in_detail_render:
         action = f"screen.navigate_detail_by_id('{kind}','{eid}')"
     else:
@@ -605,21 +607,31 @@ class EntitiesTab(ContentTab):
             loc = w_obj.name if w_obj else "?"
             tag = " \\[DORMANT]" if m.status == MortalStatus.DORMANT else ""
             if m.active_goal is None:
-                goal = "idle"
+                goal_markup = "idle"
             elif dev and m.active_goal.last_action is not None:
-                # Dev mode: surface the concrete internal action choice.
-                goal = m.active_goal.last_action.value.replace("_", " ")
-            elif m.active_goal.label:
-                goal = m.active_goal.label
+                goal_markup = _e(m.active_goal.last_action.value.replace("_", " "))
             elif m.active_goal.imago_node_id:
-                goal = "preaching"
+                from utilities.imago_registry import get_registry as get_imago_registry
+                _ig = m.active_goal
+                _ireg = get_imago_registry()
+                _inode = _ireg.get_node(_ig.imago_node_id)
+                _iname = _inode.name if _inode else _ig.imago_node_id
+                _ilink = _click_link("imago", _ig.imago_node_id, _e(_iname))
+                _tloc = state.locations.get(str(_ig.target_location_id)) if _ig.target_location_id else None
+                if _tloc:
+                    _llink = _location_link(state, _ig.target_location_id, _e(_tloc.name))
+                    goal_markup = f"Preaching {_ilink} in {_llink}"
+                else:
+                    goal_markup = f"Preaching {_ilink}"
+            elif m.active_goal.label:
+                goal_markup = _e(m.active_goal.label)
             elif m.active_goal.research_domain:
-                goal = "researching"
+                goal_markup = _e(f"researching {_short_tag(m.active_goal.research_domain)}")
             else:
-                goal = "on assignment"
+                goal_markup = "on assignment"
             m_link = _click_link("mortal", str(mid), f"[bold]{_e(m.name)}[/]")
             a(f"● {m_link}{tag}")
-            a(f"    {_e(loc)}  [#5a7090]{_e(goal)}[/]  "
+            a(f"    {_e(loc)}  [#5a7090]{goal_markup}[/]  "
               f"align:[#a0d080]{m.alignment:.2f}[/]")
         if not any_pr:
             a("[#5a7090](no Proxiī appointed)[/]")
@@ -771,15 +783,24 @@ def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -
 
     if mortal.role == MortalRole.PROXIUS and mortal.active_goal:
         g = mortal.active_goal
-        if g.label:
-            dlabel = g.label
-        elif g.imago_node_id:
-            dlabel = f"preaching [{g.imago_node_id.split(':')[-1]}]"
+        if g.imago_node_id:
+            from utilities.imago_registry import get_registry as get_imago_registry
+            _inode2 = get_imago_registry().get_node(g.imago_node_id)
+            _iname2 = _inode2.name if _inode2 else g.imago_node_id
+            _ilink2 = _click_link("imago", g.imago_node_id, _e(_iname2))
+            _tloc2 = state.locations.get(str(g.target_location_id)) if g.target_location_id else None
+            if _tloc2:
+                _llink2 = _location_link(state, g.target_location_id, _e(_tloc2.name))
+                directive_markup = f"Preaching {_ilink2} in {_llink2}"
+            else:
+                directive_markup = f"Preaching {_ilink2}"
+        elif g.label:
+            directive_markup = _e(g.label)
         elif g.research_domain:
-            dlabel = f"researching {_short_tag(g.research_domain)}"
+            directive_markup = _e(f"researching {_short_tag(g.research_domain)}")
         else:
-            dlabel = "on assignment"
-        a(f"{mm}    [#c09030]directive:[/] {_e(dlabel)}{me}")
+            directive_markup = "on assignment"
+        a(f"{mm}    [#c09030]directive:[/] {directive_markup}{me}")
     return lines
 
 

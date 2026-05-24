@@ -735,24 +735,30 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                     a(f"  [#c09030]petition pending ({g.petition_pending_ticks}/5 ticks)[/]")
             else:
                 # ── Compact player view. ──
-                if g.label:
-                    a(f"  directive: {_e(g.label)}")
-                elif g.imago_node_id:
+                if g.imago_node_id:
                     from utilities.imago_registry import get_registry as get_imago_registry
-                    ireg = get_imago_registry()
-                    node = ireg.get_node(g.imago_node_id)
-                    imago_label = node.name if node else g.imago_node_id
-                    a(f"  directive: preaching [#a0b8d0]{_e(imago_label)}[/]")
+                    _inode = get_imago_registry().get_node(g.imago_node_id)
+                    _iname = _inode.name if _inode else g.imago_node_id
+                    _ilink = _click_link("imago", g.imago_node_id, _e(_iname))
+                    a(f"  directive: preaching {_ilink}")
+                elif g.label:
+                    a(f"  directive: {_e(g.label)}")
                 elif g.research_domain:
                     a(f"  directive: researching {_e(_short_tag(g.research_domain))}")
-                if g.target_civilization_id:
+                if g.source_pop_id:
+                    src = state.pops.get(str(g.source_pop_id))
+                    if src:
+                        slabel = src.name if src.name else _pop_stratum_label(src)
+                        a(f"  source: {_click_link('pop', str(g.source_pop_id), _e(slabel))}")
+                if g.goal_pop_id:
+                    gp = state.pops.get(str(g.goal_pop_id))
+                    if gp:
+                        glabel = gp.name if gp.name else _pop_stratum_label(gp)
+                        a(f"  target: {_click_link('pop', str(g.goal_pop_id), _e(glabel))}")
+                elif not g.source_pop_id and g.target_civilization_id:
                     civ = state.civilizations.get(str(g.target_civilization_id))
                     if civ:
-                        civ_link = _click_link(
-                            "civ", str(g.target_civilization_id),
-                            f"{_e(civ.name)}",
-                        )
-                        a(f"  target: {civ_link}")
+                        a(f"  target: {_click_link('civ', str(g.target_civilization_id), _e(civ.name))}")
                 if g.target_location_id:
                     loc = state.locations.get(str(g.target_location_id))
                     if loc:
