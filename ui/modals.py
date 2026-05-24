@@ -1328,32 +1328,29 @@ class CategoryPendingModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         mode_label = "[REPEATING]" if self._pending.repeating else "[ONE-SHOT]"
-        cooldown_line = ""
+        stats = (
+            f"{self._action_name}  {mode_label}"
+            f"\nQueued at tick {self._pending.started_at_tick}"
+            f"  ·  Active {self._pending.ticks_active} tick(s)"
+        )
         if self._cooldown_remaining > 0:
-            cooldown_line = f"\nCooldown: {self._cooldown_remaining} tick(s) remaining"
+            stats += f"\nCooldown: {self._cooldown_remaining} tick(s) remaining"
 
-        with Vertical(id="category-pending-modal"):
+        with Vertical(classes="modal-box"):
             yield Label(
                 f"[bold]{self._category.value}[/bold] slot occupied",
-                id="modal-title",
+                classes="modal-title",
             )
-            yield Static(
-                f"{self._action_name}  {mode_label}"
-                f"\nQueued at tick {self._pending.started_at_tick}"
-                f"  ·  Active {self._pending.ticks_active} tick(s)"
-                + cooldown_line,
-                id="pending-info",
+            yield Static(stats, classes="modal-desc")
+            yield Button("1  Keep current", id="keep-btn", variant="default")
+            yield Button(
+                "2  Override once, then resume",
+                id="override-btn",
+                variant="primary",
+                disabled=not self._pending.repeating,
             )
-            with Vertical(id="modal-buttons"):
-                yield Button("1  Keep current", id="keep-btn", variant="default")
-                yield Button(
-                    "2  Override once, then resume",
-                    id="override-btn",
-                    variant="primary",
-                    disabled=not self._pending.repeating,
-                )
-                yield Button("3  Replace with new action", id="replace-btn", variant="warning")
-                yield Button("4  Cancel pending action", id="cancel-pending-btn", variant="error")
+            yield Button("3  Replace with new action", id="replace-btn", variant="warning")
+            yield Button("4  Cancel pending action", id="cancel-pending-btn", variant="error")
 
     @on(Button.Pressed, "#keep-btn")
     def _keep(self, _: Button.Pressed) -> None:
