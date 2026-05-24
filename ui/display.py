@@ -593,9 +593,10 @@ def display_tick_result_categorized(
                 out.append(("system", f"  • {text}"))
         out.append(("system", ""))
 
-    if result.action_result.entries:
+    visible_action_entries = [e for e in result.action_result.entries if e.narrative]
+    if visible_action_entries:
         out.append(("actions", "YOUR ACTIONS"))
-        for entry in result.action_result.entries:
+        for entry in visible_action_entries:
             out.append((
                 "actions",
                 f"  \\[{entry.outcome.value.upper()}] {_process_narrative(entry.narrative, _nl)}",

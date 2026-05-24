@@ -3340,7 +3340,7 @@ class TickLoop:
                 formatted = self._format_pop_entries_with_links(discovered_pops)
                 parts.append(f"Pops sighted: {', '.join(formatted)}.")
             if not all_discovered and not discovered_pops:
-                parts.append("Nothing new came into view.")
+                return mutations, ""
             return mutations, " ".join(parts)
 
         # ── Change Affiliated Domain ──────────────────
