@@ -220,7 +220,7 @@ git commit -m "feat: lower scry world-scope base footprint from 0.05 to 0.01"
 
 This task wires in all momentum mechanics: growth when scry fires, dynamic footprint based on momentum, and per-tick decay.
 
-- [ ] **Step 1: Add momentum computation at top of _process_scry**
+- [x] **Step 1: Add momentum computation at top of _process_scry**
 
 In `logic/tick_logic.py`, inside the `if isinstance(intent, ScryIntent):` block, right after `scope = intent.scope` (line 2917), insert:
 
@@ -240,7 +240,7 @@ In `logic/tick_logic.py`, inside the `if isinstance(intent, ScryIntent):` block,
             ))
 ```
 
-- [ ] **Step 2: Update scope_fp dict and fp_delta to use momentum**
+- [x] **Step 2: Update scope_fp dict and fp_delta to use momentum**
 
 Replace the existing `scope_fp` dict and `fp_delta` block (lines 2919-2933) with:
 
@@ -264,7 +264,7 @@ Replace the existing `scope_fp` dict and `fp_delta` block (lines 2919-2933) with
                 ))
 ```
 
-- [ ] **Step 3: Add per-tick momentum decay to advance()**
+- [x] **Step 3: Add per-tick momentum decay to advance()**
 
 In `logic/tick_logic.py`, in `TickLoop.advance()`, directly before the `# ── Phase 2: Pending action fire` comment (around line 1091), insert:
 
@@ -279,7 +279,7 @@ In `logic/tick_logic.py`, in `TickLoop.advance()`, directly before the `# ──
 
 ```
 
-- [ ] **Step 4: Regression**
+- [x] **Step 4: Regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
@@ -287,7 +287,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes without error. World-scope scry now emits a momentum mutation each tick it fires, and footprint scales with momentum (starting at 0.01, growing toward 0.10).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add logic/tick_logic.py

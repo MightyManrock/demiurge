@@ -1088,6 +1088,14 @@ class TickLoop:
             state.last_essence_capture_by_domain = dict(essence_by_domain)
             state.last_essence_capture_tick = state.tick_number
 
+        # ── Scry momentum decay ──────────────────────────────────────────────
+        # Runs before Phase 2 so growth in _process_scry reads the decayed value.
+        _scry_m = state.demiurge.scry_momentum
+        for _mk in list(_scry_m):
+            _scry_m[_mk] *= 0.95
+            if _scry_m[_mk] < 0.001:
+                del _scry_m[_mk]
+
         # ── Phase 2: Pending action fire (priority order) ─────────────────
         # Validate pending targets; cancel stale slots before attempting to fire.
         stale_cats = [
@@ -2916,13 +2924,30 @@ class TickLoop:
         if isinstance(intent, ScryIntent):
             scope = intent.scope
 
+            # Momentum: asymptotically accumulating per-scope-target bonus.
+            # Decay runs in advance() before Phase 2; growth is applied here.
+            _momentum_key = (
+                f"{scope.value}:{str(instance.target_id) if instance.target_id else 'None'}"
+            )
+            _old_momentum = state.demiurge.scry_momentum.get(_momentum_key, 0.0)
+            _new_momentum = _old_momentum + (1.0 - _old_momentum) * 0.15
+            mutations.append(StateMutation(
+                mutation_type=MutationType.DEMIURGE_SCRY_MOMENTUM_UPDATE,
+                target_id=state.demiurge.id,
+                field=_momentum_key,
+                new_value=_new_momentum,
+                note=f"Scry momentum: {_old_momentum:.3f} → {_new_momentum:.3f}",
+            ))
+
             scope_fp: dict[ScryScope, float] = {
-                ScryScope.WORLD:    0.05,
+                ScryScope.WORLD:    0.01,   # base; momentum adds up to 0.09 on top
                 ScryScope.SYSTEM:   0.10,
                 ScryScope.GALAXY:   0.20,
                 ScryScope.UNIVERSE: 0.35,
             }
-            fp_delta = scope_fp[scope] - 0.05  # definition already adds 0.05
+            fp_delta = scope_fp[scope] - 0.01  # registry base is now 0.01
+            if scope == ScryScope.WORLD:
+                fp_delta += _new_momentum * 0.09
             if fp_delta > 0.0:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.FOOTPRINT_CHANGE,
