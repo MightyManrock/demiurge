@@ -8,7 +8,7 @@ Improve the visibility system with four targeted changes:
 
 1. Lower the "in Window" floor from `0.05` to `0.005` to retain more visibility across the longer tick cadence.
 2. Splinter Pops inherit `parent.visibility × 0.75` instead of `× 0.5`.
-3. **Omen visibility splash** — a successful Manifest Omen sets the target world's visibility to `1.0` and boosts all above-floor mortals and Pops on that world by `0.6 × (pop_location.distance_from_core + 1)`, capped at `1.0`.
+3. **Omen visibility splash** — a successful Manifest Omen sets the target world's visibility to `1.0` and boosts all above-floor mortals and Pops on that world by `0.6 / (pop_location.distance_from_core + 1)`, capped at `1.0`.
 4. **Whisper / Shape Dream visibility splash** — in addition to the existing belief splash, these actions boost the target mortal's own Pop's visibility by `+0.8` and all other Pops in the same `SignificantLocation` by `0.6 / (pop_location.distance_from_core + 1)`, capped at `1.0`. Only Pops already above the visibility floor are affected.
 
 ---
@@ -67,8 +67,6 @@ Improve the visibility system with four targeted changes:
 
 ---
 
----
-
 ### Phase 4: Upward visibility splash
 
 When any Pop or mortal receives a visibility boost from the action-based splashes above (Phases 2–3), their ancestor entities also receive a flat `+0.003` visibility boost (10× the location/civ/species decay rate). Each ancestor is boosted at most once per event regardless of how many boosted Pops/mortals belong to it.
@@ -79,7 +77,7 @@ When any Pop or mortal receives a visibility boost from the action-based splashe
 - `pop.current_location` (PopLocation) → parent SignificantLocation → parent System → parent Galaxy
 
 **Ancestors walked per boosted mortal:**
-- Civilization via `mortal.pop_id → pop.civilization_id` (or `mortal.civilization_id` directly)
+- Civilization via `mortal.civilization_id`
 - Species via `mortal.species_id`
 - Location chain: `mortal.current_location` (PopLocation) → SignificantLocation → System → Galaxy
 
