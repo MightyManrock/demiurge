@@ -133,7 +133,7 @@ git commit -m "feat: add scry_momentum field to Demiurge model with full persist
 - Modify: `core/action_core.py:748`
 - Modify: `logic/tick_logic.py` (`_apply_mutations`, ~line 6679)
 
-- [ ] **Step 1: Add MutationType enum value**
+- [x] **Step 1: Add MutationType enum value**
 
 In `core/action_core.py`, after `MORTAL_POP_AGED_OUT` (line 748), add:
 

@@ -745,6 +745,7 @@ class MutationType(str, Enum):
     POP_ABSORBED           = "pop_absorbed"        # target_id=Pop A UUID, new_value=Pop B UUID; full cleanup
     POP_CULTURE_SHIFT      = "pop_culture_shift"   # field=culture_tag, delta on Pop.culture_tags; clamp 0–1, prune below BELIEF_FLOOR
     MORTAL_POP_AGED_OUT    = "mortal_pop_aged_out" # target_id=mortal UUID; clears pop_id
+    DEMIURGE_SCRY_MOMENTUM_UPDATE = "demiurge_scry_momentum_update"  # field=key, new_value=float
 
 
 class StateMutation(BaseModel):
