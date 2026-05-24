@@ -159,7 +159,7 @@ if stall_remaining < 30:
 - Add constants: `VISIBILITY_STALL_ON_CAP = 30` and `VISIBILITY_STALL_SCENARIO_START = 360`
 - Run `--autoplay` regression
 
-**5e — On-cap logic**
+**5e — On-cap logic** ✓
 - `logic/tick_logic.py`: wherever visibility is set to `1.0` by mutation or clamped to `1.0` by a boost, apply `entity.visibility_stall_remaining = max(entity.visibility_stall_remaining, VISIBILITY_STALL_ON_CAP)`
 - Run `--autoplay` regression
 

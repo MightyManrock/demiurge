@@ -6539,11 +6539,15 @@ class TickLoop:
 
             elif m.mutation_type == MutationType.MORTAL_VISIBILITY:
                 if tid in state.mortals:
+                    mortal_ref = state.mortals[tid]
                     if m.new_value is not None:
-                        state.mortals[tid].visibility = max(0.0, min(1.0, float(m.new_value)))
+                        mortal_ref.visibility = max(0.0, min(1.0, float(m.new_value)))
                     elif m.delta is not None:
-                        current = state.mortals[tid].visibility
-                        state.mortals[tid].visibility = max(0.0, min(1.0, current + m.delta))
+                        mortal_ref.visibility = max(0.0, min(1.0, mortal_ref.visibility + m.delta))
+                    if mortal_ref.visibility >= 1.0:
+                        mortal_ref.visibility_stall_remaining = max(
+                            mortal_ref.visibility_stall_remaining, VISIBILITY_STALL_ON_CAP
+                        )
 
             elif m.mutation_type == MutationType.ENTITY_VISIBILITY:
                 entity = (
@@ -6556,6 +6560,10 @@ class TickLoop:
                         entity.visibility = max(0.0, min(1.0, float(m.new_value)))
                     elif m.delta is not None:
                         entity.visibility = max(0.0, min(1.0, entity.visibility + m.delta))
+                    if entity.visibility >= 1.0 and hasattr(entity, "visibility_stall_remaining"):
+                        entity.visibility_stall_remaining = max(
+                            entity.visibility_stall_remaining, VISIBILITY_STALL_ON_CAP
+                        )
 
             elif m.mutation_type == MutationType.WORLD_CONDITION:
                 if tid in state.locations and m.new_value:
@@ -6766,6 +6774,10 @@ class TickLoop:
                         pop.visibility = max(0.0, min(1.0, float(m.new_value)))
                     elif m.delta is not None:
                         pop.visibility = max(0.0, min(1.0, pop.visibility + m.delta))
+                    if pop.visibility >= 1.0:
+                        pop.visibility_stall_remaining = max(
+                            pop.visibility_stall_remaining, VISIBILITY_STALL_ON_CAP
+                        )
 
             elif m.mutation_type == MutationType.CIV_ESTABLISHED_SHIFT:
                 tag = str(m.new_value) if m.new_value else m.field
