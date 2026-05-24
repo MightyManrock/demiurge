@@ -34,7 +34,7 @@ from core.action_core import (
     compute_cooldown,
 )
 from core.universe_core import (
-    MortalRole, MortalStatus, MortalProminence, PopLocation, UniverseAge,
+    MortalRole, MortalStatus, MortalProminence, PopLocation,
 )
 from logic.tick_logic import (
     SimulationState, TickLoop, is_in_window, ENTITY_VISIBILITY_FLOOR,
@@ -157,44 +157,6 @@ class LoadScreen(Screen):
         self.app.exit()
 
 
-_DATE_FLASH_GOLD     = "#c09030"
-_DATE_FLASH_DURATION = 0.4
-
-
-def _diff_year_markup(old_year: int, new_year: int) -> str:
-    old_s = f"{old_year:,}"
-    new_s = f"{new_year:,}"
-    if old_year == new_year:
-        return new_s
-    old_d = old_s.replace(",", "")
-    new_d = new_s.replace(",", "")
-    max_len = max(len(old_d), len(new_d))
-    old_d = old_d.zfill(max_len)
-    new_d = new_d.zfill(max_len)
-    changed = [o != n for o, n in zip(old_d, new_d)]
-    result: list[str] = []
-    d_pos = 0
-    offset = max_len - len(new_s.replace(",", ""))
-    for char in new_s:
-        if char == ",":
-            result.append(",")
-        else:
-            if changed[offset + d_pos]:
-                result.append(f"[{_DATE_FLASH_GOLD}]{char}[/]")
-            else:
-                result.append(char)
-            d_pos += 1
-    return "".join(result)
-
-
-def _build_date_flash_markup(old_age: "UniverseAge", new_age: "UniverseAge") -> str:
-    g = _DATE_FLASH_GOLD
-    day_str   = f"[{g}]{new_age.day}[/]"
-    month_str = f"[{g}]{new_age.month}[/]" if new_age.month != old_age.month else str(new_age.month)
-    year_str  = _diff_year_markup(old_age.full_year(), new_age.full_year())
-    return f"Day {day_str} of Month {month_str}, Year {year_str}"
-
-
 # ─────────────────────────────────────────
 # GAME SCREEN
 # ─────────────────────────────────────────
@@ -245,7 +207,6 @@ class GameScreen(Screen):
         self._pending_clear: set[str] = set()
         self._auto_advance: bool = False
         self._auto_advance_delay_s: float = 0.2
-        self._flash_seq: int = 0
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -314,23 +275,6 @@ class GameScreen(Screen):
     def _refresh_status(self) -> None:
         """Compat alias — refreshes every tab and the subtitle."""
         self._refresh_all()
-
-    def _flash_date(self, new_state: "SimulationState", old_age: "UniverseAge") -> None:
-        self._flash_seq += 1
-        seq = self._flash_seq
-        date_markup = _build_date_flash_markup(old_age, new_state.universe.current_age)
-        self.app.sub_title = (
-            f"{new_state.universe.name}  ·  {date_markup}  ·  Tick {new_state.tick_number}"
-        )
-        self.set_timer(_DATE_FLASH_DURATION, lambda: self._restore_sub_title(new_state, seq))
-
-    def _restore_sub_title(self, state: "SimulationState", seq: int) -> None:
-        if seq != self._flash_seq:
-            return
-        self.app.sub_title = (
-            f"{state.universe.name}  ·  {state.universe.current_age.display()}"
-            f"  ·  Tick {state.tick_number}"
-        )
 
     def _refresh_all(self) -> None:
         """Re-render every mounted tab body from the current state."""
@@ -749,7 +693,6 @@ class GameScreen(Screen):
     def _advance_tick_work(self, show_message: bool = True) -> None:
         state = self._state
         loop  = self.app.loop   # type: ignore[attr-defined]
-        old_age = state.universe.current_age
         before_ids = self._current_window_ids()
         if show_message:
             self.app.call_from_thread(self._feed_markup, "[#3a6090]Advancing time...[/]", "other")
@@ -762,7 +705,6 @@ class GameScreen(Screen):
         self._rich_log.append_tick(result.tick_number, categorized)
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
-        self.app.call_from_thread(self._flash_date, new_state, old_age)
         if self._auto_advance and any(
             new_state.pause_config.should_pause(e) for e in result.pause_events
         ):
