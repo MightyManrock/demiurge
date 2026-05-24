@@ -477,6 +477,8 @@ _LOG_LINK_COLORS: dict[str, str] = {
 
 
 def _entity_link(kind: str, eid: str, name: str) -> str:
+    if kind == "imago":
+        return f"[@click=screen.open_imago_node('{eid}')][#c0ccdc]{_e(name)}[/][/]"
     color = _LOG_LINK_COLORS.get(kind, "#c0ccdc")
     return (
         f"[@click=screen.open_detail_by_id('{kind}','{eid}')]"
@@ -526,7 +528,7 @@ def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
     return "".join(parts)
 
 
-_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ)§([^§]+)§([^§]+)§")
+_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ|imago)§([^§]+)§([^§]+)§")
 
 
 def _process_narrative(text: str, name_index: dict[str, tuple[str, str]]) -> str:
@@ -606,7 +608,7 @@ def display_tick_result_categorized(
     if result.agent_narratives:
         out.append(("proxius", "PROXIUS REPORTS"))
         for n in result.agent_narratives:
-            out.append(("proxius", f"  • {_linkify(n, _nl)}"))
+            out.append(("proxius", f"  • {_process_narrative(n, _nl)}"))
         out.append(("proxius", ""))
 
     if result.mortal_narratives:

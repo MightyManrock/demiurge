@@ -3777,11 +3777,12 @@ class TickLoop:
                 if intent.imago_node_id:
                     ireg = get_imago_registry()
                     node = ireg.get_node(intent.imago_node_id)
-                    imago_label = f" preach {node.name}" if node else ""
+                    node_label = node.name if node else intent.imago_node_id
+                    imago_label = f" to preach §imago§{intent.imago_node_id}§{node_label}§"
                 else:
                     imago_label = ""
                 narrative = (
-                    f"Proxius {proxius.name} has been sent to {imago_label}. "
+                    f"Proxius {proxius.name} has been sent{imago_label}. "
                     f"They will pursue it {dedication_note}."
                 )
 
@@ -5535,10 +5536,17 @@ class TickLoop:
                             new_value=pop_b,
                             note=f"Directed Preach Imāgō splinter by {mortal.name}",
                         ))
+                        if goal.imago_node_id:
+                            _ireg = get_imago_registry()
+                            _inode = _ireg.get_node(goal.imago_node_id)
+                            _imago_ref = f"§imago§{goal.imago_node_id}§{_inode.name if _inode else goal.imago_node_id}§"
+                        else:
+                            _imago_ref = "their directive"
                         agent_narratives.append(
                             f"[Tick {state.tick_number + 1}] {mortal.name}'s preaching of "
-                            f"[{goal.imago_node_id if goal.imago_node_id else 'directive'}] has drawn a new group "
-                            f"apart from their parent community."
+                            f"{_imago_ref} has drawn "
+                            f"§pop§{str(pop_b.id)}§a new group§ "
+                            f"apart from §pop§{str(pop_a.id)}§their parent community§."
                         )
                     else:
                         # ── Ongoing: drain Pop A into Pop B (beliefs unchanged here;
@@ -6191,7 +6199,8 @@ class TickLoop:
                 pop_sentinel = f"§pop§{pid}§{label}§"
                 entry = f"{pop_sentinel} (sz {pop.size_magnitude})"
                 if i == 0 and civ:
-                    entry = f"§civ§{civ.id}§{civ.name}§ {entry}"
+                    civ_label = civ.name.removeprefix("The ")
+                    entry = f"§civ§{civ.id}§{civ_label}§ {entry}"
                 entries.append(entry)
         return entries
 
