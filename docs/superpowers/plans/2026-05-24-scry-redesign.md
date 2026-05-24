@@ -168,7 +168,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes without error (no scry momentum emitted yet, but enum and handler exist).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/action_core.py logic/tick_logic.py
