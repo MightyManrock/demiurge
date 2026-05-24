@@ -73,7 +73,7 @@ Improve the visibility system with several targeted changes:
     - Emit visibility delta mutation clamped to `[0.0, 1.0]`
   - Return sets of boosted pop IDs, boosted mortal IDs, and discovered pop IDs (for Phase 4)
 
-**3b — Wire into Whisper and Shape Dream**
+**3b — Wire into Whisper and Shape Dream** ✓
 - `logic/tick_logic.py`, inside `_resolve_intent_mutations` at the Whisper branch (line ~3421) and Shape Dream branch (line ~3497):
   - After the existing belief/culture mutations are appended, call `_emit_influence_visibility_splash(...)`
   - Only fire on non-FAILURE outcomes (consistent with belief splash guard)

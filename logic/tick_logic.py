@@ -3516,6 +3516,7 @@ class TickLoop:
                 per_unit_delta=effectiveness * 0.1,
                 note_prefix="Whisper",
             )
+            self._emit_influence_visibility_splash(mutations, state, mortal)
 
         # ── Shape Dream ───────────────────────────────
         elif isinstance(intent, ShapeDreamIntent):
@@ -3595,6 +3596,7 @@ class TickLoop:
                 per_unit_delta=effectiveness * 0.1,
                 note_prefix="Shape Dream",
             )
+            self._emit_influence_visibility_splash(mutations, state, mortal)
 
             ireg = get_imago_registry()
             dom_node = ireg.get_node(dominant_id)
