@@ -22,7 +22,7 @@ from core.action_core import (
     LuminaryPetitionIntent, EssenceHarvestIntent, SalvageIntent,
     SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent,
-    ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope,
+    ChangeAffiliatedDomainsIntent, ScryIntent, ScryScope, RescindDirectiveIntent,
     TargetType, CategoryCooldowns, CATEGORY_BASE_COOLDOWNS, compute_cooldown,
 )
 from core.eval_core import (
@@ -2698,30 +2698,6 @@ class TickLoop:
                     f"Issue a directive to reactivate them."
                 )
 
-            elif defn.name == "Rescind Directive":
-                mortal = state.mortals.get(str(instance.target_id)) if instance.target_id else None
-                if not mortal or mortal.role != MortalRole.PROXIUS:
-                    return mutations, "No Proxius found to rescind."
-                if not mortal.active_goal:
-                    return mutations, f"{mortal.name} has no active directive to rescind."
-                mutations.append(StateMutation(
-                    mutation_type=MutationType.PROXIUS_GOAL_CLEARED,
-                    target_id=mortal.id,
-                    field="active_goal",
-                    note=f"{mortal.name}'s directive has been rescinded",
-                ))
-                mutations.append(StateMutation(
-                    mutation_type=MutationType.MORTAL_ALIGNMENT,
-                    target_id=mortal.id,
-                    field="alignment",
-                    delta=0.02,
-                    note=f"{mortal.name} takes stock",
-                ))
-                narrative = (
-                    f"{mortal.name}'s active directive has been rescinded. "
-                    f"They stand idle, awaiting your next instruction."
-                )
-
             elif defn.name == "Audit Proxius":
                 mortal = state.mortals.get(str(instance.target_id)) if instance.target_id else None
                 if not mortal or mortal.role != MortalRole.PROXIUS:
@@ -4380,6 +4356,30 @@ class TickLoop:
             )
             if outcome == ActionOutcome.PARTIAL:
                 narrative += " The transition is incomplete — they are fragile."
+
+        elif isinstance(intent, RescindDirectiveIntent):
+            mortal = state.mortals.get(str(intent.proxius_id))
+            if not mortal or mortal.role != MortalRole.PROXIUS:
+                return mutations, "No Proxius found to rescind."
+            if not mortal.active_goal:
+                return mutations, f"{mortal.name} has no active directive to rescind."
+            mutations.append(StateMutation(
+                mutation_type=MutationType.PROXIUS_GOAL_CLEARED,
+                target_id=mortal.id,
+                field="active_goal",
+                note=f"{mortal.name}'s directive has been rescinded",
+            ))
+            mutations.append(StateMutation(
+                mutation_type=MutationType.MORTAL_ALIGNMENT,
+                target_id=mortal.id,
+                field="alignment",
+                delta=0.02,
+                note=f"{mortal.name} takes stock",
+            ))
+            narrative = (
+                f"{mortal.name}'s active directive has been rescinded. "
+                f"They stand idle, awaiting your next instruction."
+            )
 
         return mutations, narrative
 
