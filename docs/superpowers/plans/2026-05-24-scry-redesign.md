@@ -118,7 +118,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes 50 ticks without error.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add core/onto_core.py core/scenario_schema.sql utilities/scenario_loader.py utilities/scenario_exporter.py
