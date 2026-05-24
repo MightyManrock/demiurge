@@ -399,7 +399,7 @@ git commit -m "feat: momentum discovery bonus for all entity types in scry"
 **Files:**
 - Modify: `logic/tick_logic.py` (mortal discovery section, ~line 3232)
 
-- [ ] **Step 1: Cap m_dist at +2 for WORLD scope**
+- [x] **Step 1: Cap m_dist at +2 for WORLD scope**
 
 In the mortal discovery loop (around line 3232), change:
 
@@ -414,7 +414,7 @@ to:
                 delta = abs(5 - anchor) + m_dist_eff
 ```
 
-- [ ] **Step 2: Regression**
+- [x] **Step 2: Regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
@@ -422,7 +422,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes without error. Mortals at PopLocation dist≥3 in a WORLD-scope scry are no longer penalized beyond delta+2 (base ≥ 0.06 before momentum/cascade).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add logic/tick_logic.py

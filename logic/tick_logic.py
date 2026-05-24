@@ -3254,7 +3254,8 @@ class TickLoop:
                 # PopLocations distant from the world core are harder to scry.
                 m_loc = state.locations.get(str(mortal.current_location))
                 m_dist = m_loc.distance_from_core if isinstance(m_loc, PopLocation) else 0
-                delta = abs(5 - anchor) + m_dist
+                m_dist_eff = min(m_dist, 2) if scope == ScryScope.WORLD else m_dist
+                delta = abs(5 - anchor) + m_dist_eff
                 base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
                 sf = _spatial_factor(str(mortal.current_location))
                 p = max(0.0, min(1.0,
