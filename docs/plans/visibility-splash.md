@@ -46,7 +46,7 @@ Improve the visibility system with several targeted changes:
 - `logic/tick_logic.py`, near the generic visibility-refresh block (line ~2313): Add a parallel branch for `instance.target_type == TargetType.LOCATION` that emits a `MORTAL_VISIBILITY` (or equivalent entity visibility) mutation setting the target location's visibility to `1.0`.
 - Currently this block is mortal-only; Omen targets `SignificantLocation` and gets nothing.
 
-**2b — Omen pop/mortal splash**
+**2b — Omen pop/mortal splash** ✓
 - `logic/tick_logic.py`, inside the `OmenIntent` resolution (line ~3746), after the existing pop loop on success:
   - Add a new helper `_emit_omen_visibility_splash(mutations, state, world_id)`:
     - Iterate every `PopLocation` on the world

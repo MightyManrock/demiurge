@@ -3833,6 +3833,9 @@ class TickLoop:
                         note=f"Omen raises divine awareness in {civ_obj.name}",
                     ))
 
+            if omen_world_id:
+                self._emit_omen_visibility_splash(mutations, state, str(omen_world_id))
+
             scope_desc = (
                 state.civilizations[scope_civ_id].name
                 if scope_civ_id and scope_civ_id in state.civilizations
@@ -5943,6 +5946,61 @@ class TickLoop:
                     delta=delta,
                     note=f"Omen interpretation ({kind})",
                 ))
+
+    def _emit_omen_visibility_splash(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        world_id: str,
+    ) -> tuple[set, set]:
+        """Boost visibility of above-floor pops and mortals on world_id.
+
+        Attenuation: 0.6 / (distance_from_core + 1).
+        Returns (boosted_pop_ids, boosted_mortal_ids) for upward splash (Phase 4).
+        """
+        boosted_pop_ids: set = set()
+        boosted_mortal_ids: set = set()
+
+        pop_locs = {
+            lid: loc for lid, loc in state.locations.items()
+            if isinstance(loc, PopLocation) and str(loc.parent_id) == world_id
+        }
+
+        for lid, ploc in pop_locs.items():
+            boost = min(1.0, 0.6 / (ploc.distance_from_core + 1))
+            for pop in state.pops.values():
+                if str(pop.current_location) != lid:
+                    continue
+                if pop.visibility <= ENTITY_VISIBILITY_FLOOR:
+                    continue
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_VISIBILITY,
+                    target_id=pop.id,
+                    field="visibility",
+                    new_value=min(1.0, pop.visibility + boost),
+                    note="Omen visibility splash",
+                ))
+                boosted_pop_ids.add(str(pop.id))
+
+        for mortal in state.mortals.values():
+            if mortal.status != MortalStatus.ACTIVE:
+                continue
+            ploc_id = str(mortal.current_location) if mortal.current_location else None
+            if ploc_id not in pop_locs:
+                continue
+            if mortal.visibility <= ENTITY_VISIBILITY_FLOOR:
+                continue
+            boost = min(1.0, 0.6 / (pop_locs[ploc_id].distance_from_core + 1))
+            mutations.append(StateMutation(
+                mutation_type=MutationType.MORTAL_VISIBILITY,
+                target_id=mortal.id,
+                field="visibility",
+                new_value=min(1.0, mortal.visibility + boost),
+                note="Omen visibility splash",
+            ))
+            boosted_mortal_ids.add(str(mortal.id))
+
+        return boosted_pop_ids, boosted_mortal_ids
 
     def _emit_whisper_splash(
         self,
