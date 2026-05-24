@@ -1164,10 +1164,11 @@ class TickLoop:
             if defn:
                 _assign_category_cooldown(state, defn.category)
             if not pending.repeating:
-                del state.pending_actions[cat_val]
-                resume = state.pending_resume.pop(cat_val, None)
-                if resume is not None:
-                    state.pending_actions[cat_val] = resume
+                if outcome_by_id.get(str(instance.id)) != ActionOutcome.FAILURE:
+                    del state.pending_actions[cat_val]
+                    resume = state.pending_resume.pop(cat_val, None)
+                    if resume is not None:
+                        state.pending_actions[cat_val] = resume
 
         # ── Deferred death check ───────────────────────
         # Applied after Phase 2 so a same-tick appoint_proxius saves the mortal.

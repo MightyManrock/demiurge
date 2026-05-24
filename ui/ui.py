@@ -989,12 +989,15 @@ class GameScreen(Screen):
                     ]
 
                     if not eligible_pops:
-                        self._feed_markup(
-                            "[#5a7090]No visible, targetable Pops at this location. "
-                            "Scry the world to reveal Pops first.[/]",
-                            "actions",
+                        msg = (
+                            "This Proxius is in transit between worlds and has no nearby "
+                            "communities to preach to. Choose a different Proxius."
+                            if not all_world_pops else
+                            "No visible, targetable communities at this location. "
+                            "Scry the world to reveal Pops first."
                         )
-                        step = 1; continue
+                        await app.push_screen_wait(ErrorModal(msg))
+                        step = 0; continue
 
                     proxius_civ_id = (
                         str(state.pops[origin_pop_id].civilization_id)
