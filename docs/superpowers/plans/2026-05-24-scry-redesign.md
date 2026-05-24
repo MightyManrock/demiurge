@@ -196,7 +196,7 @@ Change to:
         "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.01,
 ```
 
-- [ ] **Step 2: Regression**
+- [x] **Step 2: Regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
@@ -204,7 +204,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes without error; world-scope scry now only charges 0.01 base fp (lower than before).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add utilities/action_registry.py
