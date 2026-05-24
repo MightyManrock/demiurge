@@ -422,6 +422,7 @@ def _load_locations(conn) -> dict[str, Location]:
         description = row.get("description", "")
         visibility = float(row.get("visibility", 0.0))
         pinned = bool(row.get("pinned", 0))
+        visibility_stall_remaining = int(row.get("visibility_stall_remaining", 0))
         coordinates = CosmicCoordinates(
             x=row.get("coordinates_x", 0.0),
             y=row.get("coordinates_y", 0.0),
@@ -441,6 +442,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
+                visibility_stall_remaining=visibility_stall_remaining,
                 star_type=StarType(row.get("star_type", "main_sequence")),
             )
         elif subclass == "significant_location":
@@ -456,6 +458,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
+                visibility_stall_remaining=visibility_stall_remaining,
                 domain_expression=_jd(row.get("domain_expression", "{}")),
                 local_footprint=LocFootprint(
                     overt_miracles=row.get("lf_overt_miracles", 0.0),
@@ -484,6 +487,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
+                visibility_stall_remaining=visibility_stall_remaining,
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
                 distance_from_core=int(row.get("distance_from_core", 0) or 0),
                 travel_network_ids=[UUID(x) for x in _j(row.get("travel_network_ids", "[]"))],
@@ -502,6 +506,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
+                visibility_stall_remaining=visibility_stall_remaining,
                 legs=_jd(row.get("legs", "{}")),
                 current_waypoint=row.get("travel_current_wp", ""),
                 ticks_remaining=int(row.get("travel_ticks_rem", 0) or 0),
@@ -521,6 +526,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 coordinates=coordinates,
                 visibility=visibility,
                 pinned=pinned,
+                visibility_stall_remaining=visibility_stall_remaining,
             )
 
         out[str(loc.id)] = loc
@@ -564,6 +570,7 @@ def _load_species(conn) -> dict[str, Species]:
             condition=SpeciesCondition(row["condition"]),
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
+            visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
         )
         out[str(sp.id)] = sp
     return out
@@ -612,6 +619,7 @@ def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilizati
             ),
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
+            visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
         )
         # Re-attach mortal IDs
         for mrow in conn.execute(
@@ -650,6 +658,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             child_pop_ids=[UUID(x) for x in _j(row.get("child_pop_ids", "[]"))],
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
+            visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
             preaching_imago_id=row.get("preaching_imago_id"),
             preaching_goal_cooldown_until=int(row.get("preaching_goal_cooldown_until") or 0),
         )
@@ -685,6 +694,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             home_location=UUID(row["home_location"]),
             current_location=UUID(row["current_location"]),
             pinned=bool(row.get("pinned", 0)),
+            visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
             active_goal=_load_proxius_goal(row.get("active_goal_json")),
             travel_intent=_load_travel_intent(row.get("travel_intent_json")),
             pop_id=_uuid(row.get("pop_id")),

@@ -150,7 +150,7 @@ if stall_remaining < 30:
 **5b — Schema changes** ✓
 - `core/scenario_schema.sql`: add `visibility_stall_remaining INTEGER DEFAULT 0` to all five tables (locations, civilizations, species, mortals, pops)
 
-**5c — Loader / exporter**
+**5c — Loader / exporter** ✓
 - `utilities/scenario_loader.py`: load via `row.get("visibility_stall_remaining", 0)` for each entity type
 - `utilities/scenario_exporter.py`: include `visibility_stall_remaining` in INSERT for each entity type
 

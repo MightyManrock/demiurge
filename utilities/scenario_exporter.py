@@ -340,7 +340,7 @@ def _write_locations(conn, state: SimulationState):
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids,
-                visibility, pinned)
+                visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
                        ?,
@@ -349,7 +349,7 @@ def _write_locations(conn, state: SimulationState):
                        ?, ?, ?,
                        ?, ?,
                        ?, ?, ?, ?, ?,
-                       ?, ?)""",
+                       ?, ?, ?)""",
             (
                 str(loc.id),
                 loc.name,
@@ -368,7 +368,7 @@ def _write_locations(conn, state: SimulationState):
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids_val,
-                loc.visibility, int(loc.pinned),
+                loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),
         )
 
@@ -379,8 +379,8 @@ def _write_species(conn, state: SimulationState):
             """INSERT INTO species
                (id, name, description, origin_world_id, sapient, transplanted,
                 lifespan_min, lifespan_max, domain_tags, bio_tags, condition,
-                visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                visibility, pinned, visibility_stall_remaining)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(sp.id),
                 sp.name,
@@ -395,6 +395,7 @@ def _write_species(conn, state: SimulationState):
                 sp.condition.value,
                 sp.visibility,
                 int(sp.pinned),
+                sp.visibility_stall_remaining,
             ),
         )
 
@@ -414,8 +415,8 @@ def _write_civilizations(conn, state: SimulationState):
                 theistic, divine_awareness, core_locs, age,
                 founding_billions, founding_millions, founding_thousands,
                 founding_year, founding_month, founding_day,
-                visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                visibility, pinned, visibility_stall_remaining)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -443,6 +444,7 @@ def _write_civilizations(conn, state: SimulationState):
                 c.founding_date[5],
                 c.visibility,
                 int(c.pinned),
+                c.visibility_stall_remaining,
             ),
         )
 
@@ -456,9 +458,9 @@ def _write_pops(conn, state: SimulationState):
                 current_location, size_fractional,
                 dominant_beliefs, culture_tags, rider_traits,
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
-                visibility, pinned,
+                visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -477,6 +479,7 @@ def _write_pops(conn, state: SimulationState):
                 _j(p.child_pop_ids),
                 p.visibility,
                 int(p.pinned),
+                p.visibility_stall_remaining,
                 p.preaching_imago_id,
                 p.preaching_goal_cooldown_until,
             ),
@@ -494,12 +497,12 @@ def _write_mortals(conn, state: SimulationState):
                 birthday_billions, birthday_millions, birthday_thousands, birthday_years,
                 birthday_month, birthday_day,
                 appointed_by_demiurge, appointed_by_luminary,
-                home_location, current_location, pinned,
+                home_location, current_location, pinned, visibility_stall_remaining,
                 active_goal_json,
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -529,6 +532,7 @@ def _write_mortals(conn, state: SimulationState):
                 str(m.home_location),
                 str(m.current_location),
                 int(m.pinned),
+                m.visibility_stall_remaining,
                 m.active_goal.model_dump_json() if m.active_goal else None,
                 str(m.pop_id) if m.pop_id else None,
                 m.proxius_appointed_tick,
