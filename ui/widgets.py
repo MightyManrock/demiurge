@@ -1408,6 +1408,9 @@ class LogTab(Vertical):
         """Clear the unseen flag (called by GameScreen when Log tab is opened)."""
         self._has_unseen = False
 
+    def on_show(self) -> None:
+        self.call_after_refresh(self._rerender)
+
     def on_log_chip_toggled(self, event: LogChip.Toggled) -> None:
         if event.active:
             self._active.add(event.category)
