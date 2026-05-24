@@ -102,7 +102,7 @@ When any Pop or mortal receives a visibility boost from the action-based splashe
 - Species via `mortal.species_id`
 - Location chain: `mortal.current_location` (PopLocation) → SignificantLocation → System → Galaxy
 
-**4a — Upward splash helper**
+**4a — Upward splash helper** ✓
 - Add `_emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)` to `logic/tick_logic.py`:
   - Collect all ancestor entity IDs into a `set` (deduplication is automatic)
   - For each unique ancestor: emit a `+0.003` visibility delta mutation, clamped to `[0.0, 1.0]`

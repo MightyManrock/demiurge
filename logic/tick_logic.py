@@ -5963,6 +5963,57 @@ class TickLoop:
                     note=f"Omen interpretation ({kind})",
                 ))
 
+    def _emit_upward_visibility_splash(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        boosted_pop_ids: set,
+        boosted_mortal_ids: set,
+    ) -> None:
+        """Emit +0.003 visibility to all ancestor entities of boosted pops/mortals.
+
+        Ancestors: civ, species, and each location up the parent chain
+        (SignificantLocation → System → Galaxy). Deduplicated — each
+        ancestor boosted at most once regardless of how many pops/mortals
+        share it.
+        """
+        ancestor_ids: set = set()
+
+        def _walk_loc_chain(loc_id_str: str) -> None:
+            loc = state.locations.get(loc_id_str)
+            while loc is not None and loc.parent_id is not None:
+                ancestor_ids.add(loc.parent_id)
+                loc = state.locations.get(str(loc.parent_id))
+
+        for pid in boosted_pop_ids:
+            pop = state.pops.get(pid)
+            if not pop:
+                continue
+            if pop.civilization_id:
+                ancestor_ids.add(pop.civilization_id)
+            if pop.species_id:
+                ancestor_ids.add(pop.species_id)
+            _walk_loc_chain(str(pop.current_location))
+
+        for mid in boosted_mortal_ids:
+            mortal = state.mortals.get(mid)
+            if not mortal:
+                continue
+            if mortal.civilization_id:
+                ancestor_ids.add(mortal.civilization_id)
+            if mortal.species_id:
+                ancestor_ids.add(mortal.species_id)
+            _walk_loc_chain(str(mortal.current_location))
+
+        for uid in ancestor_ids:
+            mutations.append(StateMutation(
+                mutation_type=MutationType.ENTITY_VISIBILITY,
+                target_id=uid,
+                field="visibility",
+                delta=0.003,
+                note="Upward visibility splash",
+            ))
+
     def _emit_omen_visibility_splash(
         self,
         mutations: list,
