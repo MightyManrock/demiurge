@@ -89,8 +89,8 @@ class ToastModal(ModalScreen):
 
 class PickerModal(ModalScreen):
     BINDINGS = [
-        ("escape",     "go_back",       "Back"),
-        ("ctrl+escape","force_cancel",  "Cancel"),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
     ]
 
     def __init__(
@@ -151,8 +151,8 @@ class PickerModal(ModalScreen):
 
 class PopLatitudePickerModal(ModalScreen):
     BINDINGS = [
-        ("escape",      "go_back",      "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
     ]
     DEFAULT_CSS = """
     PopLatitudePickerModal .latitude-section {
@@ -304,9 +304,9 @@ class QuitConfirmModal(ModalScreen):
 
 class TextFormModal(ModalScreen):
     BINDINGS = [
-        ("escape",      "go_back",      "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
-        ("ctrl+enter",  "confirm",      "Confirm"),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+        ("ctrl+enter","confirm",      "Confirm"),
     ]
 
     def __init__(
@@ -373,12 +373,12 @@ class DomainPickerModal(ModalScreen):
     """4×4 domain grid picker with affiliated domain coloring."""
 
     BINDINGS = [
-        ("escape",      "go_back",      "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
-        ("up",          "nav('up')",    ""),
-        ("down",        "nav('down')",  ""),
-        ("left",        "nav('left')",  ""),
-        ("right",       "nav('right')", ""),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+        ("up",        "nav('up')",    ""),
+        ("down",      "nav('down')",  ""),
+        ("left",      "nav('left')",  ""),
+        ("right",     "nav('right')", ""),
     ]
 
     def __init__(
@@ -510,12 +510,12 @@ class ImagoTreeModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",      "cancel",       "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
-        ("up",          "nav('up')",    ""),
-        ("down",        "nav('down')",  ""),
-        ("left",        "nav('left')",  ""),
-        ("right",       "nav('right')", ""),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "cancel",       "Back"),
+        ("up",        "nav('up')",    ""),
+        ("down",      "nav('down')",  ""),
+        ("left",      "nav('left')",  ""),
+        ("right",     "nav('right')", ""),
     ]
 
     # Cell positions in DOM order → (grid_row, grid_col)
@@ -661,8 +661,8 @@ class ImagoDetailModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",      "back",         "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "back",         "Back"),
     ]
 
     def __init__(self, node: ImagoNode, state: SimulationState) -> None:
@@ -764,12 +764,12 @@ class ImagoRevealModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",      "go_back",      "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
-        ("up",          "nav('up')",    ""),
-        ("down",        "nav('down')",  ""),
-        ("left",        "nav('left')",  ""),
-        ("right",       "nav('right')", ""),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+        ("up",        "nav('up')",    ""),
+        ("down",      "nav('down')",  ""),
+        ("left",      "nav('left')",  ""),
+        ("right",     "nav('right')", ""),
     ]
 
     _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
@@ -871,8 +871,8 @@ class ImagoRevealDetailModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",      "go_back",      "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
     ]
 
     def __init__(
@@ -992,8 +992,8 @@ class ImagoRevealDetailModal(ModalScreen):
 
 class MortalDetailModal(ModalScreen):
     BINDINGS = [
-        ("escape",      "go_back",      "Back"),
-        ("ctrl+escape", "force_cancel", "Cancel"),
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
     ]
 
     def __init__(self, mortal: "NotableMortal", state: "SimulationState") -> None:
@@ -1113,8 +1113,7 @@ class MortalDetailModal(ModalScreen):
 
 class ActionBrowserModal(ModalScreen):
     BINDINGS = [
-        ("escape",      "cancel",       "Cancel"),
-        ("ctrl+escape", "cancel",       ""),
+        ("escape", "cancel", "Cancel"),
     ]
 
     def __init__(self, state: SimulationState, library: dict,
