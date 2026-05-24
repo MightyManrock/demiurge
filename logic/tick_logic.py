@@ -2284,7 +2284,8 @@ class TickLoop:
         else:
             outcome = self._roll_reliability(defn.reliability, rng, state.demiurge.puissance)
         if outcome == ActionOutcome.FAILURE:
-            return outcome, [], f"{defn.name} failed to produce any effect."
+            narrative = "" if isinstance(instance.intent, ScryIntent) else f"{defn.name} failed to produce any effect."
+            return outcome, [], narrative
 
         partial = (outcome == ActionOutcome.PARTIAL)
 
