@@ -3257,6 +3257,10 @@ class TickLoop:
                 m_dist_eff = min(m_dist, 2) if scope == ScryScope.WORLD else m_dist
                 delta = abs(5 - anchor) + m_dist_eff
                 base = min(0.95, _depth_chance(delta) + _new_momentum * 0.25)
+                if mortal.pop_id:
+                    _parent_pop = state.pops.get(str(mortal.pop_id))
+                    if _parent_pop is not None:
+                        base = min(0.95, base + _parent_pop.visibility * 0.25)
                 sf = _spatial_factor(str(mortal.current_location))
                 p = max(0.0, min(1.0,
                     (base + _domain_bonus(list(mortal.belief_tags.keys()) + mortal.personal_tags, base)) * sf
@@ -3300,6 +3304,10 @@ class TickLoop:
                 size_factor = min(1.0, pop.size_fractional / 9.0)
                 stratum_factor = 1.3 if (pop.social_class and pop.social_class.value in _PROMINENT_CLASSES) else 1.0
                 world_scry_base = start_vis * 0.5 * (1.0 + _new_momentum * 0.35)
+                if pop.civilization_id:
+                    _parent_civ = state.civilizations.get(str(pop.civilization_id))
+                    if _parent_civ is not None:
+                        world_scry_base = min(start_vis, world_scry_base * (1.0 + _parent_civ.visibility * 0.30))
                 # PopLocations distant from the world core are harder to scry.
                 dist = pop_loc.distance_from_core if isinstance(pop_loc, PopLocation) else 0
                 distance_factor = 0.7 ** dist
