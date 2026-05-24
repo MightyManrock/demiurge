@@ -6067,6 +6067,7 @@ class TickLoop:
             ))
             boosted_mortal_ids.add(str(mortal.id))
 
+        self._emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)
         return boosted_pop_ids, boosted_mortal_ids
 
     def _emit_influence_visibility_splash(

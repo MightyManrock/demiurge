@@ -108,7 +108,7 @@ When any Pop or mortal receives a visibility boost from the action-based splashe
   - For each unique ancestor: emit a `+0.003` visibility delta mutation, clamped to `[0.0, 1.0]`
 - **Scry is explicitly excluded** — this mechanic applies only to action-based boosts. Scry has its own visibility logic and will be reworked separately.
 
-**4b — Wire into Omen splash**
+**4b — Wire into Omen splash** ✓
 - Call `_emit_upward_visibility_splash` from the tail of `_emit_omen_visibility_splash`, passing the sets of boosted pop and mortal IDs returned by that helper
 - Run `--autoplay` regression
 
