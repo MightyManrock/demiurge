@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from rich.markup import escape as _e
 from rich.text import Text
 
-from core.universe_core import MortalRole, MortalStatus, MortalProminence, PopLocation
+from core.universe_core import MortalRole, MortalStatus, MortalProminence, PopLocation, UniverseAge
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from utilities.domain_registry import get_registry as get_domain_registry
 
@@ -555,6 +555,26 @@ _resolve_pop_sentinels = lambda text: _ENTITY_SENTINEL_RE.sub(
 )
 
 
+def _short_age_label(age: UniverseAge, tick_number: int) -> str:
+    """Return 'Day D of Month M, Year …NNN' with minimal year suffix.
+
+    Shows only the sub-thousands digits (0–999) by default, expanding to
+    include the thousands group (and beyond) only if those digits have rolled
+    over since the scenario's first tick.
+    """
+    elapsed = age.full_year() * 360 + (age.month - 1) * 30 + (age.day - 1)
+    start = UniverseAge.from_full_year(max(0, elapsed - tick_number) // 360)
+    if age.billions != start.billions:
+        year_str = f"{age.billions:,},{age.millions:03d},{age.thousands:03d},{age.years:03d}"
+    elif age.millions != start.millions:
+        year_str = f"…{age.millions:03d},{age.thousands:03d},{age.years:03d}"
+    elif age.thousands != start.thousands:
+        year_str = f"…{age.thousands:03d},{age.years:03d}"
+    else:
+        year_str = f"…{age.years:03d}"
+    return f"Day {age.day} of Month {age.month}, Year {year_str}"
+
+
 def display_tick_result_categorized(
     result: "TickResult", dev_mode: bool = False,
     state: "SimulationState | None" = None,
@@ -576,8 +596,8 @@ def display_tick_result_categorized(
     out.append(("other", ""))
     out.append((
         "other",
-        f"  TICK {result.tick_number} RESULT  "
-        f"({result.universe_age_before.display()} → {result.universe_age_after.display()})",
+        f"  TICK {result.tick_number}  "
+        f"{_short_age_label(result.universe_age_after, result.tick_number)}",
     ))
     out.append(("other", SEP))
 
