@@ -762,6 +762,7 @@ def _load_demiurge(conn) -> Demiurge:
         revelation_pools=_load_revelation_pools(row),
         revealed_imagines=int(row.get("revealed_imagines", 0) or 0),
         lifetime_revelation=float(row.get("lifetime_revelation", 0.0) or 0.0),
+        scry_momentum=_j(row.get("scry_momentum", "{}")),
     )
 
 

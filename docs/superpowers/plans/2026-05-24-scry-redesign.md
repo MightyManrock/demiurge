@@ -50,7 +50,7 @@ In `core/scenario_schema.sql`, in the `demiurge` table definition (after `lifeti
     scry_momentum         TEXT NOT NULL DEFAULT '{}'   -- JSON {"scope:target": float}
 ```
 
-- [ ] **Step 3: Load in scenario_loader.py**
+- [x] **Step 3: Load in scenario_loader.py**
 
 In `utilities/scenario_loader.py`, in `_load_demiurge` (line ~765), add `scry_momentum=` to the `Demiurge(...)` constructor, after `lifetime_revelation=`:
 
