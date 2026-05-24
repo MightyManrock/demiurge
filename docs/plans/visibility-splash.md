@@ -38,7 +38,7 @@ Improve the visibility system with four targeted changes:
 - `logic/tick_logic.py`, inside the `OmenIntent` resolution (line ~3746), after the existing pop loop on success:
   - Add a new helper `_emit_omen_visibility_splash(mutations, state, world_id)`:
     - Iterate every `PopLocation` on the world
-    - For each PopLocation, compute `boost = min(1.0, 0.6 * (loc.distance_from_core + 1))`
+    - For each PopLocation, compute `boost = min(1.0, 0.6 / (loc.distance_from_core + 1))`
     - For each Pop at that PopLocation whose `visibility > ENTITY_VISIBILITY_FLOOR`: emit a visibility delta mutation clamping to `[0.0, 1.0]`
     - For each mortal whose `current_location` resolves to that PopLocation and whose `visibility > ENTITY_VISIBILITY_FLOOR`: emit a mortal visibility delta mutation
   - Call this helper when `outcome != FAILURE` (matches the existing omen pass-check guard)
@@ -74,6 +74,6 @@ Improve the visibility system with four targeted changes:
 ## Notes
 
 - "Above floor" guard (`visibility > ENTITY_VISIBILITY_FLOOR`) intentionally excludes invisible entities — these splashes represent the Demiurge's *attention* rippling through already-observable space, not new discovery.
-- Omen splash boost formula `0.6 × (distance_from_core + 1)` means: distance 0 → +0.6, distance ≥ 1 → capped at 1.0 (full visibility). This reflects an omen manifesting world-wide with increasing force in peripheral regions.
+- Omen splash boost formula `0.6 / (distance_from_core + 1)` means: distance 0 → +0.6, distance 1 → +0.3, distance 2 → +0.2, etc. Same attenuation as Whisper/Shape Dream — closer communities are more affected.
 - Whisper/Shape Dream boost formula `0.6 / (distance_from_core + 1)` is inverse: nearby communities are more affected than distant ones.
 - No new mutation types needed — mortal visibility uses `MORTAL_VISIBILITY` with `new_value` or `delta`; entity (pop/location) visibility uses the existing delta-apply path.
