@@ -3542,13 +3542,7 @@ class TickLoop:
                 note_prefix="Whisper",
             )
             _, _, discovered_pop_ids = self._emit_influence_visibility_splash(mutations, state, mortal)
-            for pid in discovered_pop_ids:
-                pop = state.pops.get(pid)
-                if pop:
-                    narrative += (
-                        f" Through {mortal.name}, your attention finds {pop.name} —"
-                        f" a community you had not noticed before."
-                    )
+            narrative += self._format_pop_discovery_line(mortal.name, discovered_pop_ids, state)
 
         # ── Shape Dream ───────────────────────────────
         elif isinstance(intent, ShapeDreamIntent):
@@ -3640,13 +3634,7 @@ class TickLoop:
                 f"In sleep, {dom_name} took stronger root than {sup_name}. "
                 f"Effectiveness: {effectiveness:.0%}."
             )
-            for pid in discovered_pop_ids:
-                pop = state.pops.get(pid)
-                if pop:
-                    narrative += (
-                        f" Through {mortal.name}, your attention finds {pop.name} —"
-                        f" a community you had not noticed before."
-                    )
+            narrative += self._format_pop_discovery_line(mortal.name, discovered_pop_ids, state)
 
         # ── Probability Nudge ─────────────────────────
         elif isinstance(intent, ProbabilityNudgeIntent):
@@ -6146,6 +6134,43 @@ class TickLoop:
 
         self._emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)
         return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
+
+    @staticmethod
+    def _format_pop_discovery_line(mortal_name: str, discovered_pop_ids: set, state: "SimulationState") -> str:
+        """Build a single discovery sentence, grouping Pops by civilization.
+
+        Format: "Through X, you have discovered: CivA Common Pop (sz 6), Artisan Pop (sz 5), CivB Warrior Pop (sz 4)."
+        Civ name appears only on the first Pop of each civ group.
+        """
+        if not discovered_pop_ids:
+            return ""
+
+        civ_groups: dict[str, list] = {}
+        civ_order: list[str] = []
+        for pid in sorted(discovered_pop_ids):
+            pop = state.pops.get(pid)
+            if not pop:
+                continue
+            civ_key = str(pop.civilization_id) if pop.civilization_id else ""
+            if civ_key not in civ_groups:
+                civ_groups[civ_key] = []
+                civ_order.append(civ_key)
+            civ_groups[civ_key].append(pop)
+
+        entries: list[str] = []
+        for civ_key in civ_order:
+            civ = state.civilizations.get(civ_key) if civ_key else None
+            civ_name = civ.name if civ else None
+            for i, pop in enumerate(civ_groups[civ_key]):
+                label = pop.name if pop.name else f"{pop.stratum.title()} Pop"
+                entry = f"{label} (sz {pop.size_magnitude})"
+                if i == 0 and civ_name:
+                    entry = f"{civ_name} {entry}"
+                entries.append(entry)
+
+        if not entries:
+            return ""
+        return f" Through {mortal_name}, you have discovered: {', '.join(entries)}."
 
     def _emit_whisper_splash(
         self,
