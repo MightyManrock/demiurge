@@ -411,6 +411,14 @@ class ProxiusDirectiveIntent(BaseModel):
     # `ProxiusGoal.goal_pop_name`, which the splinter-creation path reads.
 
 
+class RescindDirectiveIntent(BaseModel):
+    """
+    For: rescind_directive
+    Removes the active goal from a Proxius, returning them to idle.
+    """
+    proxius_id: UUID
+
+
 class LuminaryPetitionIntent(BaseModel):
     """
     For: report_to_luminary, petition_constraint_relaxation,
@@ -594,6 +602,7 @@ ActionIntent = Union[
     CommissionInquiryIntent,
     ChangeAffiliatedDomainsIntent,
     ScryIntent,
+    RescindDirectiveIntent,
 ]
 
 

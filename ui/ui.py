@@ -31,6 +31,7 @@ from core.action_core import (
     SalvageIntent, SeedWorldIntent, UpliftSpeciesIntent, ExploreBeliefIntent,
     RevealImagoIntent, CommissionInquiryIntent, ChangeAffiliatedDomainsIntent,
     ScryIntent, ScryScope, DomainVector, CultureVector, Framing,
+    RescindDirectiveIntent,
     compute_cooldown,
 )
 from core.universe_core import (
@@ -931,6 +932,39 @@ class GameScreen(Screen):
                 demiurge_id=state.demiurge.id,
                 proxius_id=proxius_id,
                 intent=intent,
+            )
+
+        # ── rescind_directive: pick a proxius with an active goal ──
+        if action_key == "rescind_directive":
+            directed_proxii = [
+                (mid, m) for mid, m in state.mortals.items()
+                if m.role == MortalRole.PROXIUS
+                and mid in {str(pid) for pid in state.demiurge.proxius_ids}
+                and m.active_goal is not None
+                and m.status != MortalStatus.DECEASED
+            ]
+            if not directed_proxii:
+                self.app.notify("None of your Proxiī have directives.", severity="warning")
+                return BACK
+            items = []
+            for mid, m in directed_proxii:
+                w_obj   = state.locations.get(str(m.current_location))
+                loc     = w_obj.name if w_obj else "?"
+                goal    = m.active_goal.label if m.active_goal else ""
+                goal_short = goal[:32] + "…" if len(goal) > 32 else goal
+                items.append((mid, f"{m.name:<18}  {goal_short}  [{loc}]"))
+            result = await self.app.push_screen_wait(PickerModal("Rescind Directive", items, show_back=True))
+            if result is None: return None
+            if result == BACK: return BACK
+            proxius_id = UUID(result)
+            return ActionInstance(
+                action_definition_id=defn.id,
+                target_type=TargetType.MORTAL,
+                target_id=proxius_id,
+                timestamp=state.universe.current_age.to_float_years(),
+                demiurge_id=state.demiurge.id,
+                proxius_id=proxius_id,
+                intent=RescindDirectiveIntent(proxius_id=proxius_id),
             )
 
         # ── preach_imago: multi-step (proxius → domain/imago → pop) ──

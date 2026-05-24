@@ -303,6 +303,23 @@ _ACTION_SEED: list[dict] = [
         "requires_proxius": 1,
         "tags": ["proxii", "appointment", "footprint_management"],
     },
+    {
+        "action_key": "rescind_directive",
+        "short_name": "Rescind Directive",
+        "name": "Rescind Directive",
+        "category": "proxius_direction",
+        "description": (
+            "Recall an active directive from a Proxius, returning them to idle. "
+            "They retain their appointment and alignment but cease pursuing their current goal."
+        ),
+        "valid_targets": ["mortal"],
+        "reliability": "certain",
+        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.0,
+        "fp_proxius_activity": 0.02, "fp_direct_creation": 0.0,
+        "essence_cost": 0.0, "concealment_impact": 0.0,
+        "requires_proxius": 1,
+        "tags": ["proxii", "appointment"],
+    },
 
     # ── Observation ────────────────────────────────────────────────────────────
 

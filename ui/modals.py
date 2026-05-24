@@ -1257,6 +1257,11 @@ class ActionBrowserModal(ModalScreen):
             del self._queued_cats[cat.value]
 
         # Show action list
+        _has_directed_proxii = any(
+            m.active_goal is not None
+            for pid in self._state.demiurge.proxius_ids
+            if (m := self._state.mortals.get(str(pid)))
+        )
         items = []
         for key, defn in actions:
             fp_total    = defn.footprint_cost.total()
@@ -1266,8 +1271,9 @@ class ActionBrowserModal(ModalScreen):
                 essence_str = f"  Ess{verb}{abs(defn.essence_cost):g}"
             persist = "  [persist]" if "can_persist" in defn.tags else ""
             stub    = "  [stub]"    if key in _STUB_ACTIONS else ""
+            unavail = "  [unavailable]" if (key == "rescind_directive" and not _has_directed_proxii) else ""
             items.append(
-                (key, f"{defn.name:<34}  FP:{fp_total:.2f}{essence_str}{persist}{stub}")
+                (key, f"{defn.name:<34}  FP:{fp_total:.2f}{essence_str}{persist}{stub}{unavail}")
             )
         chosen_key = await self.app.push_screen_wait(
             PickerModal(cat.value.replace("_", " ").title(), items, show_back=True)
@@ -1283,6 +1289,13 @@ class ActionBrowserModal(ModalScreen):
                     f"{defn.name} — not yet implemented",
                     "This action requires systems that are planned but not yet built.",
                 )
+            )
+            self._reveal_cat_list()
+            return
+
+        if chosen_key == "rescind_directive" and not _has_directed_proxii:
+            await self.app.push_screen_wait(
+                ToastModal("None of your Proxiī have active directives.")
             )
             self._reveal_cat_list()
             return
