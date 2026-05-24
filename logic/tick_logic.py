@@ -2713,7 +2713,12 @@ class TickLoop:
                     g = mortal.active_goal
                     ticks_active = state.tick_number - g.started_at_tick
                     last_act = g.last_action.value.replace("_", " ") if g.last_action else "none yet"
-                    directive_desc = g.label if g.label else f"imago [{g.imago_node_id}]"
+                    if g.imago_node_id:
+                        _a_node = get_imago_registry().get_node(g.imago_node_id)
+                        _a_name = _a_node.name if _a_node else g.imago_node_id
+                        directive_desc = g.label if g.label else f"§imago§{g.imago_node_id}§{_a_name}§"
+                    else:
+                        directive_desc = g.label if g.label else "directive"
                     goal_section = (
                         f" Active directive: {directive_desc}, "
                         f"{ticks_active} tick(s) active, "
@@ -3533,9 +3538,15 @@ class TickLoop:
                     ),
                 ))
 
+            if intent.imago_node_id:
+                _w_ireg = get_imago_registry()
+                _w_node = _w_ireg.get_node(intent.imago_node_id)
+                _w_label = f"§imago§{intent.imago_node_id}§{_w_node.name if _w_node else intent.imago_node_id}§"
+            else:
+                _w_label = f"'{intent.concept}'"
             narrative = (
-                f"You whispered to {mortal.name}: '{intent.concept}'. "
-                f"Effectiveness: {effectiveness:.0%}."
+                f"You whispered to {mortal.name}, implying the concept of {_w_label}, "
+                f"with {effectiveness:.0%} effectiveness."
             )
 
             # Emit a RAMP_FADE event so the whisper builds then fades over 4 ticks
@@ -3658,10 +3669,12 @@ class TickLoop:
             sup_node = ireg.get_node(suppressed_id)
             dom_name = dom_node.name if dom_node else dominant_id
             sup_name = sup_node.name if sup_node else suppressed_id
+            dom_sent = f"§imago§{dominant_id}§{dom_name}§"
+            sup_sent = f"§imago§{suppressed_id}§{sup_name}§"
             narrative = (
-                f"You shaped {mortal.name}'s dreams around {dom_name} and {sup_name}. "
-                f"In sleep, {dom_name} took stronger root than {sup_name}. "
-                f"Effectiveness: {effectiveness:.0%}."
+                f"You shaped {mortal.name}'s dreams around {dom_sent} and {sup_sent}. "
+                f"In sleep, {dom_sent} took stronger root than {sup_sent}. "
+                f"Overall, this was {effectiveness:.0%} effective."
             )
             narrative += self._format_pop_discovery_line(mortal.name, discovered_pop_ids, state)
 
@@ -5227,7 +5240,12 @@ class TickLoop:
 
             _pop_a_ms = state.pops.get(str(goal.source_pop_id)) if goal.source_pop_id else None
             _pop_b_ms = state.pops.get(str(goal.goal_pop_id))   if goal.goal_pop_id   else None
-            _imago_short_ms = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
+            if goal.imago_node_id:
+                _ms_node = get_imago_registry().get_node(goal.imago_node_id)
+                _ms_name = _ms_node.name if _ms_node else goal.imago_node_id
+                _imago_ref_ms = f"§imago§{goal.imago_node_id}§{_ms_name}§"
+            else:
+                _imago_ref_ms = "their directive"
 
             # (A) Belief cap milestone
             if not goal.pop_b_belief_cap_reached and _pop_b_ms is not None and goal.domain_vectors:
@@ -5254,7 +5272,7 @@ class TickLoop:
                     agent_narratives.append(
                         f"[Tick {state.tick_number + 1}] {mortal.name}: "
                         f"The splinter community has fully embraced {domain_short} "
-                        f"under [{_imago_short_ms}]. Still growing their numbers. "
+                        f"under {_imago_ref_ms}. Still growing their numbers. "
                         f"Awaiting guidance."
                     )
 
@@ -5277,7 +5295,7 @@ class TickLoop:
                 ))
                 agent_narratives.append(
                     f"[Tick {state.tick_number + 1}] {mortal.name}: "
-                    f"The [{_imago_short_ms}] community has grown to a self-sustaining size. "
+                    f"The {_imago_ref_ms} community has grown to a self-sustaining size. "
                     f"Awaiting new orders."
                 )
 
@@ -5298,7 +5316,7 @@ class TickLoop:
                 ))
                 agent_narratives.append(
                     f"[Tick {state.tick_number + 1}] {mortal.name} reports: "
-                    f"The [{_imago_short_ms}] directive is fulfilled — "
+                    f"The {_imago_ref_ms} directive is fulfilled — "
                     f"the community is established and their convictions run deep. "
                     f"Standing by for a new purpose."
                 )
@@ -5725,15 +5743,20 @@ class TickLoop:
                 tick = state.tick_number + 1  # tick_number increments after Phase 2.5
                 streak = goal.consecutive_promote_count
                 ticks_active = state.tick_number + 1 - goal.started_at_tick
-                imago_short = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
-                if streak >= 3:
-                    progress = f"momentum is building — {streak} consecutive pushes of [{imago_short}]"
-                elif streak > 0:
-                    progress = f"work on [{imago_short}] is underway, {streak} push(es) this stretch"
-                elif goal.effectiveness_bonus > 0:
-                    progress = f"[{imago_short}] work has stalled momentarily; prior gains hold"
+                if goal.imago_node_id:
+                    _r_node = get_imago_registry().get_node(goal.imago_node_id)
+                    _r_name = _r_node.name if _r_node else goal.imago_node_id
+                    _r_ref = f"§imago§{goal.imago_node_id}§{_r_name}§"
                 else:
-                    progress = f"no meaningful progress on [{imago_short}] yet"
+                    _r_ref = "directive"
+                if streak >= 3:
+                    progress = f"momentum is building — {streak} consecutive pushes of {_r_ref}"
+                elif streak > 0:
+                    progress = f"work on {_r_ref} is underway, {streak} push(es) this stretch"
+                elif goal.effectiveness_bonus > 0:
+                    progress = f"{_r_ref} work has stalled momentarily; prior gains hold"
+                else:
+                    progress = f"no meaningful progress on {_r_ref} yet"
                 entry = (
                     f"[Tick {tick}] {mortal.name} reports after {ticks_active} tick(s): "
                     + progress
@@ -5751,14 +5774,19 @@ class TickLoop:
                 goal.stagnation_counter = 0  # fresh start after petition
                 tick = state.tick_number + 1
                 ticks_active = state.tick_number + 1 - goal.started_at_tick
-                imago_short = goal.imago_node_id.split(":")[-1] if goal.imago_node_id else "directive"
+                if goal.imago_node_id:
+                    _p_node = get_imago_registry().get_node(goal.imago_node_id)
+                    _p_name = _p_node.name if _p_node else goal.imago_node_id
+                    _p_ref = f"§imago§{goal.imago_node_id}§{_p_name}§"
+                else:
+                    _p_ref = "directive"
                 if goal.goal_pop_id is not None:
                     reason = "the splinter population has stalled — they may be losing ground."
                 else:
                     reason = "directive yields diminishing returns."
                 entry = (
                     f"[Tick {tick}] {mortal.name} petitions after {ticks_active} tick(s): "
-                    f"[{imago_short}] {reason} Requesting new orders."
+                    f"{_p_ref} — {reason} Requesting new orders."
                 )
                 goal.report_log = (goal.report_log + [entry])[-5:]
                 if not (goal.pop_b_belief_cap_reached or goal.pop_b_size_goal_reached):
