@@ -619,7 +619,9 @@ class EntitiesTab(ContentTab):
                 _ilink = _click_link("imago", _ig.imago_node_id, _e(_iname))
                 _tloc = state.locations.get(str(_ig.target_location_id)) if _ig.target_location_id else None
                 if _tloc:
-                    _llink = _location_link(state, _ig.target_location_id, _e(_tloc.name))
+                    _lid = str(_ig.target_location_id)
+                    _lkind = "world" if _lid in state.worlds else "system" if _lid in state.systems else "poploc"
+                    _llink = _click_link(_lkind, _lid, _e(_tloc.name))
                     goal_markup = f"Preaching {_ilink} in {_llink}"
                 else:
                     goal_markup = f"Preaching {_ilink}"
@@ -790,7 +792,9 @@ def _render_mortal_universe_block(state: "SimulationState", mortal, oow: bool) -
             _ilink2 = _click_link("imago", g.imago_node_id, _e(_iname2))
             _tloc2 = state.locations.get(str(g.target_location_id)) if g.target_location_id else None
             if _tloc2:
-                _llink2 = _location_link(state, g.target_location_id, _e(_tloc2.name))
+                _lid2 = str(g.target_location_id)
+                _lkind2 = "world" if _lid2 in state.worlds else "system" if _lid2 in state.systems else "poploc"
+                _llink2 = _click_link(_lkind2, _lid2, _e(_tloc2.name))
                 directive_markup = f"Preaching {_ilink2} in {_llink2}"
             else:
                 directive_markup = f"Preaching {_ilink2}"
