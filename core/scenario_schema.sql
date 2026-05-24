@@ -157,7 +157,8 @@ CREATE TABLE IF NOT EXISTS locations (
     travel_network_ids    TEXT    NOT NULL DEFAULT '[]',   -- JSON array of TravelNetwork UUIDs
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
-    pinned      INTEGER NOT NULL DEFAULT 0       -- bool; 1 = never decays (all starting locations)
+    pinned      INTEGER NOT NULL DEFAULT 0,      -- bool; 1 = never decays (all starting locations)
+    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS species (
@@ -173,7 +174,8 @@ CREATE TABLE IF NOT EXISTS species (
     bio_tags         TEXT NOT NULL DEFAULT '[]',   -- JSON array
     condition        TEXT NOT NULL DEFAULT 'stable',
     visibility       REAL    NOT NULL DEFAULT 0.0,
-    pinned           INTEGER NOT NULL DEFAULT 0
+    pinned           INTEGER NOT NULL DEFAULT 0,
+    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS civilizations (
@@ -203,7 +205,8 @@ CREATE TABLE IF NOT EXISTS civilizations (
     founding_month      INTEGER NOT NULL DEFAULT 1,
     founding_day        INTEGER NOT NULL DEFAULT 1,
     visibility          REAL    NOT NULL DEFAULT 0.0,
-    pinned              INTEGER NOT NULL DEFAULT 0
+    pinned              INTEGER NOT NULL DEFAULT 0,
+    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS pops (
@@ -224,6 +227,7 @@ CREATE TABLE IF NOT EXISTS pops (
     child_pop_ids    TEXT NOT NULL DEFAULT '[]',     -- JSON array of splinter Pop UUIDs
     visibility       REAL NOT NULL DEFAULT 0.0,
     pinned           INTEGER NOT NULL DEFAULT 0,
+    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
     preaching_imago_id            TEXT DEFAULT NULL,     -- imago_node_id if this Pop is an active preaching goal target
     preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0  -- tick before which Pop cannot be a source target
 );
@@ -257,6 +261,7 @@ CREATE TABLE IF NOT EXISTS mortals (
     home_location          TEXT NOT NULL,  -- UUID of home SignificantLocation (fixed at creation)
     current_location       TEXT NOT NULL,  -- UUID of current SignificantLocation (changes on movement)
     pinned                 INTEGER NOT NULL DEFAULT 0,  -- bool; mortal stays at max visibility
+    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
     active_goal_json       TEXT DEFAULT NULL,           -- JSON of ProxiusGoal, or NULL
     pop_id                 TEXT DEFAULT NULL,           -- UUID of origin Pop; cleared on age-out
     proxius_appointed_tick INTEGER DEFAULT NULL,        -- tick of first Proxius elevation (wall-clock)
