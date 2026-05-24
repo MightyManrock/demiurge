@@ -526,15 +526,31 @@ def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
     return "".join(parts)
 
 
-_POP_SENTINEL_RE = re.compile(r"§pop§([^§]+)§([^§]+)§")
+_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ)§([^§]+)§([^§]+)§")
 
 
-def _resolve_pop_sentinels(text: str) -> str:
-    """Replace §pop§uuid§label§ tokens (emitted by tick_logic) with entity links."""
-    return _POP_SENTINEL_RE.sub(
-        lambda m: _entity_link("pop", m.group(1), m.group(2)),
-        text,
-    )
+def _process_narrative(text: str, name_index: dict[str, tuple[str, str]]) -> str:
+    """Resolve §type§uuid§label§ sentinels, then linkify remaining plain text.
+
+    Must split on sentinels BEFORE linkifying: _linkify would otherwise match
+    entity names embedded inside sentinel tokens and corrupt the token format.
+    """
+    parts: list[str] = []
+    last = 0
+    for m in _ENTITY_SENTINEL_RE.finditer(text):
+        if m.start() > last:
+            parts.append(_linkify(text[last:m.start()], name_index))
+        parts.append(_entity_link(m.group(1), m.group(2), m.group(3)))
+        last = m.end()
+    if last < len(text):
+        parts.append(_linkify(text[last:], name_index))
+    return "".join(parts)
+
+
+# kept for any external callers; internally prefer _process_narrative
+_resolve_pop_sentinels = lambda text: _ENTITY_SENTINEL_RE.sub(
+    lambda m: _entity_link(m.group(1), m.group(2), m.group(3)), text
+)
 
 
 def display_tick_result_categorized(
@@ -582,7 +598,7 @@ def display_tick_result_categorized(
         for entry in result.action_result.entries:
             out.append((
                 "actions",
-                f"  \\[{entry.outcome.value.upper()}] {_resolve_pop_sentinels(_linkify(entry.narrative, _nl))}",
+                f"  \\[{entry.outcome.value.upper()}] {_process_narrative(entry.narrative, _nl)}",
             ))
         out.append(("actions", ""))
 

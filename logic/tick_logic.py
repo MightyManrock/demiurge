@@ -3339,11 +3339,7 @@ class TickLoop:
             if discovered_pops:
                 formatted = self._format_pop_entries_with_links(discovered_pops)
                 parts.append(f"Pops sighted: {', '.join(formatted)}.")
-            if all_refreshed and not all_discovered and not discovered_pops:
-                parts.append(f"Sight maintained on: {', '.join(all_refreshed)}.")
-            elif all_refreshed:
-                parts.append(f"Also maintained: {', '.join(all_refreshed)}.")
-            if not all_discovered and not all_refreshed and not discovered_pops:
+            if not all_discovered and not discovered_pops:
                 parts.append("Nothing new came into view.")
             return mutations, " ".join(parts)
 
