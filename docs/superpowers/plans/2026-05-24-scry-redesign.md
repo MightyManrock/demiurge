@@ -102,7 +102,7 @@ Wait — full replacement of the INSERT statement:
     )
 ```
 
-- [ ] **Step 5: Regression — migration**
+- [x] **Step 5: Regression — migration**
 
 ```bash
 cd /root/demiurge && python3 main.py --rebuild --scenario
