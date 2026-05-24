@@ -318,7 +318,7 @@ _ACTION_SEED: list[dict] = [
         ),
         "valid_targets": ["world", "system", "galaxy", "universe"],
         "reliability": "certain",
-        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.05,
+        "fp_overt_miracles": 0.0, "fp_subtle_influence": 0.01,
         "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
         "essence_cost": 0.0, "concealment_impact": 0.0,
         "requires_proxius": 0,

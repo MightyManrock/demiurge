@@ -182,7 +182,7 @@ git commit -m "feat: add DEMIURGE_SCRY_MOMENTUM_UPDATE mutation type and handler
 **Files:**
 - Modify: `utilities/action_registry.py:321`
 
-- [ ] **Step 1: Lower scry base footprint**
+- [x] **Step 1: Lower scry base footprint**
 
 In `utilities/action_registry.py`, find the scry entry (around line 321):
 
