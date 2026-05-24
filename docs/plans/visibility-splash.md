@@ -67,13 +67,38 @@ Improve the visibility system with four targeted changes:
 
 ---
 
+---
+
+### Phase 4: Upward visibility splash
+
+When any Pop or mortal receives a visibility boost from the action-based splashes above (Phases 2–3), their ancestor entities also receive a flat `+0.003` visibility boost (10× the location/civ/species decay rate). Each ancestor is boosted at most once per event regardless of how many boosted Pops/mortals belong to it.
+
+**Ancestors walked per boosted Pop:**
+- `pop.civilization_id` → Civilization
+- `pop.species_id` → Species (if set)
+- `pop.current_location` (PopLocation) → parent SignificantLocation → parent System → parent Galaxy
+
+**Ancestors walked per boosted mortal:**
+- Civilization via `mortal.pop_id → pop.civilization_id` (or `mortal.civilization_id` directly)
+- Species via `mortal.species_id`
+- Location chain: `mortal.current_location` (PopLocation) → SignificantLocation → System → Galaxy
+
+**Implementation:**
+- Add `_emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)` to `logic/tick_logic.py`:
+  - Collect all ancestor entity IDs into a `set` (deduplication is automatic)
+  - For each unique ancestor: emit a `+0.003` visibility delta mutation, clamped to `[0.0, 1.0]`
+- Call from the tail of `_emit_omen_visibility_splash` and `_emit_influence_visibility_splash`, passing the set of pop/mortal IDs that were actually boosted (i.e., were above floor)
+- **Scry is explicitly excluded** — this mechanic applies only to action-based boosts. Scry has its own visibility logic and will be reworked separately.
+
+---
+
 ## Files affected
 
-- `logic/tick_logic.py` — all changes; `ENTITY_VISIBILITY_FLOOR`, splinter sites, omen resolution, influence resolution, new helper(s)
+- `logic/tick_logic.py` — all changes; `ENTITY_VISIBILITY_FLOOR`, splinter sites, omen resolution, influence resolution, new helpers
 
 ## Notes
 
 - "Above floor" guard (`visibility > ENTITY_VISIBILITY_FLOOR`) intentionally excludes invisible entities — these splashes represent the Demiurge's *attention* rippling through already-observable space, not new discovery.
-- Omen splash boost formula `0.6 / (distance_from_core + 1)` means: distance 0 → +0.6, distance 1 → +0.3, distance 2 → +0.2, etc. Same attenuation as Whisper/Shape Dream — closer communities are more affected.
-- Whisper/Shape Dream boost formula `0.6 / (distance_from_core + 1)` is inverse: nearby communities are more affected than distant ones.
-- No new mutation types needed — mortal visibility uses `MORTAL_VISIBILITY` with `new_value` or `delta`; entity (pop/location) visibility uses the existing delta-apply path.
+- Both Omen and Whisper/Shape Dream use `0.6 / (distance_from_core + 1)` attenuation: distance 0 → +0.6, distance 1 → +0.3, distance 2 → +0.2, etc.
+- Upward splash flat boost `0.003 = 10 × location_visibility_decay_rate`. One tick of activity in an area fully offsets one tick of decay on every ancestor entity.
+- No new mutation types needed — mortal visibility uses `MORTAL_VISIBILITY` with delta; entity (pop/location/civ/species) visibility uses the existing delta-apply path.
