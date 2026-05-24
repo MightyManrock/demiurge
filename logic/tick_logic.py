@@ -6505,6 +6505,8 @@ class TickLoop:
                     mortal.role = MortalRole.PROXIUS
                     mortal.visibility = 1.0
                     mortal.pinned = True
+                    if mortal.visibility_stall_remaining < VISIBILITY_STALL_ON_CAP:
+                        mortal.visibility_stall_remaining = VISIBILITY_STALL_ON_CAP
                     if mortal.proxius_appointed_tick is None:
                         mortal.proxius_appointed_tick = state.tick_number
                     if mortal.id not in state.demiurge.proxius_ids:

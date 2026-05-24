@@ -163,7 +163,7 @@ if stall_remaining < 30:
 - `logic/tick_logic.py`: wherever visibility is set to `1.0` by mutation or clamped to `1.0` by a boost, apply `entity.visibility_stall_remaining = max(entity.visibility_stall_remaining, VISIBILITY_STALL_ON_CAP)`
 - Run `--autoplay` regression
 
-**5f — PROXIUS_APPOINTED**
+**5f — PROXIUS_APPOINTED** ✓
 - `logic/tick_logic.py`: on appointment, if `stall_remaining < 30`, set it to 30
 - The freeze rule in decay phase then holds for all future ticks
 - Run `--autoplay` regression
