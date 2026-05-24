@@ -25,7 +25,7 @@ Improve the visibility system with several targeted changes:
 - Verify `is_in_window()` usage is consistent (it uses this constant directly)
 - Run `--autoplay` regression
 
-**1b — Splinter pop inheritance**
+**1b — Splinter pop inheritance** ✓
 - `logic/tick_logic.py`: Change `visibility=max(0.0, pop.visibility * 0.5)` → `× 0.75` at both splinter-creation sites (Pop splinter and Imago goal-pop)
 - Run `--autoplay` regression
 
