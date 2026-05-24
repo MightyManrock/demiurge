@@ -58,7 +58,7 @@ In `utilities/scenario_loader.py`, in `_load_demiurge` (line ~765), add `scry_mo
         scry_momentum=_j(row.get("scry_momentum", "{}")),
 ```
 
-- [ ] **Step 4: Export in scenario_exporter.py**
+- [x] **Step 4: Export in scenario_exporter.py**
 
 In `utilities/scenario_exporter.py`, in `_write_demiurge` (lines 548-578), add `scry_momentum` to both the column list and values tuple.
 
