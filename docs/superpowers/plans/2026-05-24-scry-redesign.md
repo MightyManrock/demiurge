@@ -438,7 +438,7 @@ git commit -m "feat: cap PopLocation distance penalty at +2 for WORLD-scope mort
 
 When a mortal's parent pop is visible, discovery is easier. When a pop's parent civ is visible, pop discovery is easier.
 
-- [ ] **Step 1: Mortal → parent pop cascade**
+- [x] **Step 1: Mortal → parent pop cascade**
 
 In the mortal discovery section (around line 3233, after computing `base`), insert a parent-pop visibility bonus before the `p = ...` computation:
 
@@ -464,7 +464,7 @@ With:
                 ))
 ```
 
-- [ ] **Step 2: Pop → parent civ cascade**
+- [x] **Step 2: Pop → parent civ cascade**
 
 In the pop discovery section (around line 3276, near `world_scry_base`), after the momentum-adjusted `world_scry_base` line, insert a civ-visibility multiplier:
 
@@ -484,7 +484,7 @@ With:
 
 (Capped at `start_vis` so pops can't be auto-discovered; full civ visibility adds a 30% multiplier to world_scry_base.)
 
-- [ ] **Step 3: Regression**
+- [x] **Step 3: Regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay
@@ -492,7 +492,7 @@ cd /root/demiurge && python3 main.py --autoplay
 
 Expected: completes without error.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add logic/tick_logic.py
@@ -507,7 +507,7 @@ git commit -m "feat: parent-visibility cascade in scry — pop boosts mortal, ci
 - Run: regression tests
 - Modify: `docs/Mechanics/scry-action.md`
 
-- [ ] **Step 1: Full regression**
+- [x] **Step 1: Full regression**
 
 ```bash
 cd /root/demiurge && python3 main.py --autoplay && python3 main.py --autoplay whisper_demo
@@ -515,7 +515,7 @@ cd /root/demiurge && python3 main.py --autoplay && python3 main.py --autoplay wh
 
 Expected: both strategies complete 50 ticks without error or exception.
 
-- [ ] **Step 2: Update scry-action.md**
+- [x] **Step 2: Update scry-action.md**
 
 Rewrite `docs/Mechanics/scry-action.md` to reflect:
 
@@ -526,7 +526,7 @@ Rewrite `docs/Mechanics/scry-action.md` to reflect:
 5. **Uncharted-galaxy exception** — unchanged.
 6. **Probability tables** — update the mortal row at best scope (WORLD, dist=0) from 0.30 to "0.30 + momentum bonus + parent cascade" notation.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/Mechanics/scry-action.md
