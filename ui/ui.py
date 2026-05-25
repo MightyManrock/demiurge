@@ -1226,6 +1226,57 @@ class GameScreen(Screen):
                     ),
                 )
 
+        # ── shape_dream: unified config modal ──
+        if action_key == "shape_dream":
+            ireg = get_imago_registry()
+            while True:
+                result = await app.push_screen_wait(ShapeDreamConfigModal(state))
+                if result is None: return None
+                if result == BACK: return BACK
+                mortal_id_str, imago_node_id_a, imago_node_id_b = result
+                node_a = ireg.get_node(imago_node_id_a)
+                node_b = ireg.get_node(imago_node_id_b)
+                dvs_a = [
+                    DomainVector(domain_tag=t, direction=v)
+                    for t, v in node_a.mechanics.items()
+                    if t.startswith("domain:")
+                ]
+                cvs_a = [
+                    CultureVector(culture_tag=t, direction=v)
+                    for t, v in node_a.mechanics.items()
+                    if not t.startswith("domain:")
+                ]
+                dvs_b = [
+                    DomainVector(domain_tag=t, direction=v)
+                    for t, v in node_b.mechanics.items()
+                    if t.startswith("domain:")
+                ]
+                cvs_b = [
+                    CultureVector(culture_tag=t, direction=v)
+                    for t, v in node_b.mechanics.items()
+                    if not t.startswith("domain:")
+                ]
+                framing = await self._pick_framing()
+                if framing is None: return None
+                if framing == BACK: continue
+                return ActionInstance(
+                    action_definition_id=defn.id,
+                    target_type=TargetType.MORTAL,
+                    target_id=UUID(mortal_id_str),
+                    timestamp=state.universe.current_age.to_float_years(),
+                    demiurge_id=state.demiurge.id,
+                    proxius_id=None,
+                    intent=ShapeDreamIntent(
+                        imago_node_id_a=imago_node_id_a,
+                        imago_node_id_b=imago_node_id_b,
+                        domain_vectors_a=dvs_a,
+                        culture_vectors_a=cvs_a,
+                        domain_vectors_b=dvs_b,
+                        culture_vectors_b=cvs_b,
+                        framing=framing,
+                    ),
+                )
+
         # ── Target selection by type, with back-from-params loop ──
         _NO_PARAMS = (
             "appoint_proxius", "empower_proxius", "dismiss_proxius",
@@ -1494,56 +1545,6 @@ class GameScreen(Screen):
                     concept=concept, domain_vectors=dvs, culture_vectors=cvs,
                     framing=framing, imago_node_id=imago_id,
                 )
-
-            if action_key == "shape_dream":
-                ireg = get_imago_registry()
-                while True:
-                    result = await app.push_screen_wait(ShapeDreamConfigModal(state))
-                    if result is None: return None
-                    if result == BACK: return BACK
-                    mortal_id_str, imago_node_id_a, imago_node_id_b = result
-                    node_a = ireg.get_node(imago_node_id_a)
-                    node_b = ireg.get_node(imago_node_id_b)
-                    dvs_a = [
-                        DomainVector(domain_tag=t, direction=v)
-                        for t, v in node_a.mechanics.items()
-                        if t.startswith("domain:")
-                    ]
-                    cvs_a = [
-                        CultureVector(culture_tag=t, direction=v)
-                        for t, v in node_a.mechanics.items()
-                        if not t.startswith("domain:")
-                    ]
-                    dvs_b = [
-                        DomainVector(domain_tag=t, direction=v)
-                        for t, v in node_b.mechanics.items()
-                        if t.startswith("domain:")
-                    ]
-                    cvs_b = [
-                        CultureVector(culture_tag=t, direction=v)
-                        for t, v in node_b.mechanics.items()
-                        if not t.startswith("domain:")
-                    ]
-                    framing = await self._pick_framing()
-                    if framing is None: return None
-                    if framing == BACK: continue
-                    return ActionInstance(
-                        action_definition_id=defn.id,
-                        target_type=TargetType.MORTAL,
-                        target_id=UUID(mortal_id_str),
-                        timestamp=state.universe.current_age.to_float_years(),
-                        demiurge_id=state.demiurge.id,
-                        proxius_id=None,
-                        intent=ShapeDreamIntent(
-                            imago_node_id_a=imago_node_id_a,
-                            imago_node_id_b=imago_node_id_b,
-                            domain_vectors_a=dvs_a,
-                            culture_vectors_a=cvs_a,
-                            domain_vectors_b=dvs_b,
-                            culture_vectors_b=cvs_b,
-                            framing=framing,
-                        ),
-                    )
 
             if action_key == "nudge_probability":
                 step = 0; form_data = None
