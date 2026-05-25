@@ -1280,7 +1280,10 @@ class ActionBrowserModal(ModalScreen):
                         description=f"{ongoing.successful_ticks}/{ongoing.executed_ticks} successes, {ongoing.ticks_active} ticks old",
                     )
                 )
-                if choice == "leave" or choice is None:
+                if choice is None:
+                    self.dismiss(None)
+                    return
+                if choice == "leave":
                     self._reveal_cat_list()
                     return
                 if choice == "stop":
@@ -1300,7 +1303,10 @@ class ActionBrowserModal(ModalScreen):
                         ],
                     )
                 )
-                if choice == "keep" or choice is None:
+                if choice is None:
+                    self.dismiss(None)
+                    return
+                if choice == "keep":
                     self._reveal_cat_list()
                     return
                 del self._state.pending_actions[cat.value]
@@ -1355,8 +1361,11 @@ class ActionBrowserModal(ModalScreen):
         chosen_key = await self.app.push_screen_wait(
             PickerModal(cat.value.replace("_", " ").title(), items, show_back=True)
         )
-        if chosen_key is None or chosen_key == BACK:
+        if chosen_key == BACK:
             self._reveal_cat_list()
+            return
+        if chosen_key is None:
+            self.dismiss(None)
             return
 
         if chosen_key in _STUB_ACTIONS:
