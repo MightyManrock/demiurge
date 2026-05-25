@@ -712,6 +712,12 @@ class ExploreBeliefsModal(ModalScreen):
             if remaining < 2:
                 cb_both.value = False
 
+    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        tip  = (node.tooltip_blurb or f"Tier {node.tier} apex.") if node else ""
+        self.query_one("#imago-ref-tooltip", Static).update(tip)
+
     def on_imago_reveal_cell_focused(self, event: ImagoRevealCell.Focused) -> None:
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)

@@ -390,8 +390,11 @@ class ImagoTreeGrid(Widget):
 
     def _make_cell(self, node, rev_count: int):
         if self._readonly:
-            cost = _revelation_adjusted_cost(node.tier, rev_count)
-            cell = ImagoRevealCell(node, self._state, cost)
+            if node.node_id in self._unlocked:
+                cell = ImagoCell(node, True, self._approval_class(node))
+            else:
+                cost = _revelation_adjusted_cost(node.tier, rev_count)
+                cell = ImagoRevealCell(node, self._state, cost)
             cell.can_focus = False
         else:
             unlocked = node.node_id in self._unlocked
