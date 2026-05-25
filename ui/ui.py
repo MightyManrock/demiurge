@@ -1739,12 +1739,18 @@ class GameScreen(Screen):
                     if _compute_revelation_cap(state, tag) == 0.0
                     or state.demiurge.revelation_pools.get(tag, 0.0) >= _compute_revelation_cap(state, tag)
                 }
-                tag = await self.app.push_screen_wait(
+                result = await self.app.push_screen_wait(
                     ExploreBeliefsModal(state, capped_domains=capped)
                 )
-                if tag is None: return None
-                if tag == BACK: return BACK
-                return ExploreBeliefIntent(domain_tag=tag)
+                if result is None: return None
+                if result == BACK: return BACK
+                tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both = result
+                return ExploreBeliefIntent(
+                    domain_tag=tag,
+                    stop_on_t1_one=t1_one,   stop_on_t1_both=t1_both,
+                    stop_on_t2_one=t2_one,   stop_on_t2_both=t2_both,
+                    stop_on_t3_one=t3_one,   stop_on_t3_both=t3_both,
+                )
 
             if action_key == "reveal_imago":
                 return await self._build_reveal_imago_intent(state)
