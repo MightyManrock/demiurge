@@ -608,23 +608,27 @@ class ExploreBeliefsModal(ModalScreen):
         if event.key == "tab":
             focused_sq = next((sq for sq in self.query(DomainSquare) if sq.has_focus), None)
             if focused_sq is not None:
-                event.prevent_default()
+                event.prevent_default(); event.stop()
                 self._focus_first_checkbox()
                 return
             focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
             if focused_cb is not None:
-                event.prevent_default()
+                event.prevent_default(); event.stop()
                 self.query_one("#back-btn", Button).focus()
                 return
         elif event.key == "shift+tab":
+            focused_sq = next((sq for sq in self.query(DomainSquare) if sq.has_focus), None)
+            if focused_sq is not None:
+                event.prevent_default(); event.stop()
+                return
             focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
             if focused_cb is not None:
-                event.prevent_default()
+                event.prevent_default(); event.stop()
                 self._focus_selected_square()
                 return
             back_btn = self.query_one("#back-btn", Button)
             if back_btn.has_focus:
-                event.prevent_default()
+                event.prevent_default(); event.stop()
                 self._focus_first_checkbox()
                 return
 
