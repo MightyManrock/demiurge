@@ -425,23 +425,6 @@ class CultureRegistry:
 
     def _ensure_db(self) -> None:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Read-only fast path: if already seeded, touch nothing.
-        if self._db_path.exists():
-            try:
-                ro = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
-                try:
-                    if ro.execute(
-                        "SELECT COUNT(*) FROM culture_registry"
-                    ).fetchone()[0] > 0:
-                        return
-                except sqlite3.OperationalError:
-                    pass
-                finally:
-                    ro.close()
-            except sqlite3.OperationalError:
-                pass
-
         conn = sqlite3.connect(self._db_path)
         try:
             conn.executescript("""
