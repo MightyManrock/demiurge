@@ -1771,14 +1771,19 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 self._tab_select_domain(tag)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
-                self.query_one("#continue-btn", Button).focus()
+                self.query_one("#back-btn", Button).focus()
                 event.prevent_default(); event.stop()
-            elif isinstance(focused, Button):
+            elif isinstance(focused, Button) and focused.id == "continue-btn":
                 self.query_one("#mortal-list", ListView).focus()
                 event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
             if isinstance(focused, ListView):
                 self.query_one("#continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "back-btn":
+                cells = [c for c in self.query(ImagoCell) if c._unlocked]
+                if cells:
+                    cells[0].focus()
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
                 self._domain_tag    = None
@@ -2086,9 +2091,9 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                     if squares_b:
                         squares_b[0].focus()
                 else:
-                    self.query_one("#sd-continue-btn", Button).focus()
+                    self.query_one("#sd-back-btn", Button).focus()
                 event.prevent_default(); event.stop()
-            elif isinstance(focused, Button):
+            elif isinstance(focused, Button) and focused.id == "sd-continue-btn":
                 self.query_one("#sd-mortal-list", ListView).focus()
                 event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
@@ -2138,9 +2143,10 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                     if squares_b:
                         squares_b[0].focus()
                 event.prevent_default(); event.stop()
-            elif isinstance(focused, Button) and focused.id == "sd-continue-btn":
+            elif isinstance(focused, Button) and focused.id == "sd-back-btn":
                 cells_b = [c for c in self.query_one("#shape-dream-tree-container-b", ScrollableContainer).query(ImagoCell) if c._unlocked]
                 if cells_b:
+                    self.query_one("#sd-tabs", TabbedContent).active = "sd-tab-b"
                     cells_b[0].focus()
                 event.prevent_default(); event.stop()
 
