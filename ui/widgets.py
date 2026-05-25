@@ -27,7 +27,10 @@ from textual.widgets import Button, Checkbox, ListView, RichLog, Static
 
 from core.action_core import ActionCategory, CATEGORY_BASE_COOLDOWNS
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
-from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR, PauseConfig, PauseEventType
+from logic.tick_logic import (
+    is_in_window, ENTITY_VISIBILITY_FLOOR, PauseConfig, PauseEventType,
+    _revelation_adjusted_cost,
+)
 
 from ui import display
 from ui.display import (
@@ -365,30 +368,35 @@ class ImagoTreeGrid(Widget):
 
     def _build_cells(self) -> list:
         children = []
+        rev_count = self._state.demiurge.revealed_imagines if self._readonly else 0
         for tier in (4, 3, 2, 1):
             nodes = self._by_tier[tier]
             if tier == 4:
                 children.append(Static("", classes="imago-spacer"))
-                node     = nodes[0]
-                unlocked = node.node_id in self._unlocked
-                cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
-                if self._readonly:
-                    cell.can_focus = False
+                node = nodes[0]
+                cell = self._make_cell(node, rev_count)
                 children.append(cell)
                 children.append(Static("", classes="imago-spacer"))
             else:
                 left, right = nodes[0], nodes[1]
                 for node in (left, right):
-                    unlocked = node.node_id in self._unlocked
-                    cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
-                    if self._readonly:
-                        cell.can_focus = False
+                    cell = self._make_cell(node, rev_count)
                     if node is left:
                         children.append(cell)
                         children.append(Static("", classes="imago-spacer"))
                     else:
                         children.append(cell)
         return children
+
+    def _make_cell(self, node, rev_count: int):
+        if self._readonly:
+            cost = _revelation_adjusted_cost(node.tier, rev_count)
+            cell = ImagoRevealCell(node, self._state, cost)
+            cell.can_focus = False
+        else:
+            unlocked = node.node_id in self._unlocked
+            cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
+        return cell
 
     def compose(self) -> ComposeResult:
         with Grid(classes="imago-tree-inner-grid"):

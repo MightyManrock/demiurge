@@ -565,6 +565,7 @@ class ExploreBeliefsModal(ModalScreen):
                         yield Button("Confirm", id="confirm-btn", disabled=True)
                 with Vertical(id="explore-right"):
                     yield Label("— Imāgō reference —", classes="explore-ref-title")
+                    yield Static("", id="imago-ref-pool")
                     yield ImagoTreeGrid(self._state, self._initial_tree, readonly=True)
                     yield Static("", id="imago-ref-tooltip")
 
@@ -686,6 +687,12 @@ class ExploreBeliefsModal(ModalScreen):
         self.query_one("#lum-panel", Static).update("  ".join(parts))
         self._update_checkbox_states(tag)
         tree = tag.split(":", 1)[1] if ":" in tag else tag
+        pool  = self._state.demiurge.revelation_pools.get(tag, 0.0)
+        rcap  = _compute_revelation_cap(self._state, tag)
+        cap_s = f"{rcap:.0f}" if rcap > 0.0 else "∞"
+        self.query_one("#imago-ref-pool", Static).update(
+            f"Revelation: {pool:.0f} / {cap_s}"
+        )
         self.query_one(ImagoTreeGrid).load_tree(tree)
         self.query_one("#imago-ref-tooltip", Static).update("")
 
@@ -705,7 +712,7 @@ class ExploreBeliefsModal(ModalScreen):
             if remaining < 2:
                 cb_both.value = False
 
-    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+    def on_imago_reveal_cell_focused(self, event: ImagoRevealCell.Focused) -> None:
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)
         tip  = (node.tooltip_blurb or f"Tier {node.tier} apex.") if node else ""
