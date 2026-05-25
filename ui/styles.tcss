@@ -314,17 +314,17 @@ DomainSquare:focus {
 }
 
 DomainSquare.affiliated {
-    border: round #60d880;
-    color: #60d880;
+    border: round #A7CFB2;
+    color: #A7CFB2;
 }
 
 DomainSquare.affiliated:focus {
-    border: round #88f0a8;
+    border: round #6FED95;
 }
 
 DomainSquare.inactive {
-    border: round #3a4e60;
-    color: #3a4e60;
+    border: round $muted;
+    color: $muted;
 }
 
 DomainSquare.eligible-reveal {
