@@ -367,12 +367,12 @@ ImagoCell:focus {
 }
 
 ImagoCell.good {
-    border: round $good;
-    color: $good;
+    border: round #6aace0;
+    color: #6aace0;
 }
 
 ImagoCell.good:focus {
-    border: round #70d890;
+    border: round #90c8f0;
 }
 
 ImagoCell.danger {
