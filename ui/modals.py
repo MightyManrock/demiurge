@@ -21,6 +21,7 @@ from core.action_core import ActionCategory, ActionDefinition, OngoingAction, co
 from logic.tick_logic import (
     SimulationState,
     _compute_revelation_cap, _revelation_adjusted_cost,
+    ENTITY_VISIBILITY_FLOOR,
 )
 from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -30,6 +31,8 @@ from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag
 
 from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, ImagoTreeGrid, LoopingListView
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
+
+from core.universe_core import MortalRole, MortalStatus
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
@@ -1295,4 +1298,151 @@ class CategoryPendingModal(ModalScreen):
 
     def action_cancel_pending(self) -> None:
         self.dismiss("cancel")
+
+
+# ─────────────────────────────────────────
+# WHISPER CONFIG MODAL
+# Unified mortal + domain + imago picker for the Whisper action.
+# Replaces the 3-step wizard. Dismisses with (mortal_id_str, domain_tag,
+# imago_node_id) on Continue, BACK, or None on cancel.
+# ─────────────────────────────────────────
+
+class WhisperConfigModal(ModalScreen):
+    """
+    Single-screen Whisper configuration. Left panel: mortal list.
+    Right panel: 2×8 domain grid + dynamic imago tree.
+    Continue is gated until mortal, domain, and imago are all selected.
+    """
+
+    BINDINGS = [
+        ("escape",    "cancel", "Cancel"),
+        ("backspace", "back",   "Back"),
+    ]
+
+    def __init__(self, state: SimulationState) -> None:
+        super().__init__()
+        self._state         = state
+        self._mortal_id:    str | None = None
+        self._domain_tag:   str | None = None
+        self._imago_node_id: str | None = None
+
+        dreg = get_domain_registry()
+        _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
+        self._mortals = [
+            (mid, m) for mid, m in state.mortals.items()
+            if m.status != MortalStatus.DECEASED
+            and (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR)
+            and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
+            and mid not in _proxius_ids
+        ]
+        self._mortal_ids = [mid for mid, _ in self._mortals]
+        self._dreg       = dreg
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="whisper-config-modal"):
+            yield Label("Whisper to Mortal", classes="modal-title")
+            with Horizontal(classes="whisper-panels"):
+                with Vertical(classes="whisper-left"):
+                    yield Label("Mortal: —", id="mortal-label")
+                    with ListView(id="mortal-list"):
+                        for i, (mid, m) in enumerate(self._mortals):
+                            pop_obj  = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
+                            pop_name = pop_obj.name if pop_obj else "?"
+                            loc_obj  = self._state.locations.get(str(m.current_location))
+                            loc      = loc_obj.name if loc_obj else "?"
+                            yield ListItem(
+                                Label(f"{m.name:<18}  align:{m.alignment:.2f}  {pop_name:<14}  {loc}"),
+                                id=f"mortal-{i}",
+                            )
+                with Vertical(classes="whisper-right"):
+                    with Horizontal(classes="whisper-right-labels"):
+                        yield Label("Domain: —", id="domain-label")
+                        yield Label("Imāgō: —",  id="imago-label")
+                    with Grid(id="whisper-domain-grid"):
+                        for tag in _DOMAIN_GRID_ORDER:
+                            eligible = self._state.demiurge.revelation_pools.get(tag, 0.0) > 0
+                            yield DomainSquare(
+                                tag=tag,
+                                icon=self._dreg.icon(tag),
+                                name="",
+                                affiliated=tag in self._state.demiurge.affiliated_domains,
+                                accessible=eligible,
+                            )
+                    with ScrollableContainer(id="whisper-tree-container"):
+                        pass
+                    with Horizontal(classes="btn-row"):
+                        yield Button("← Back",     id="back-btn")
+                        yield Button("Cancel",     id="cancel-btn",   classes="-danger")
+                        yield Button("Continue →", id="continue-btn", disabled=True)
+
+    def on_mount(self) -> None:
+        if self._mortal_ids:
+            self._mortal_id = self._mortal_ids[0]
+            m = self._state.mortals.get(self._mortal_id)
+            if m:
+                self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
+        self._check_continue()
+
+    def _check_continue(self) -> None:
+        ready = bool(self._mortal_id and self._domain_tag and self._imago_node_id)
+        btn   = self.query_one("#continue-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    @on(ListView.Highlighted, "#mortal-list")
+    def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None:
+            return
+        idx = int(event.item.id.split("-", 1)[1])
+        self._mortal_id = self._mortal_ids[idx]
+        m = self._state.mortals.get(self._mortal_id)
+        if m:
+            self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
+        self._check_continue()
+
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        self._domain_tag    = event.tag
+        self._imago_node_id = None
+        name = event.tag.split(":", 1)[1].title()
+        self.query_one("#domain-label", Label).update(f"Domain: {name}")
+        self.query_one("#imago-label",  Label).update("Imāgō: —")
+        self._check_continue()
+        self._swap_tree(event.tag)
+
+    def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
+        self._imago_node_id = event.node_id
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        self._check_continue()
+
+    @work
+    async def _swap_tree(self, tag: str) -> None:
+        tree      = tag.split(":", 1)[1]
+        container = self.query_one("#whisper-tree-container", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
+
+    @on(Button.Pressed, "#continue-btn")
+    def _on_continue(self, _: Button.Pressed) -> None:
+        if self._mortal_id and self._domain_tag and self._imago_node_id:
+            self.dismiss((self._mortal_id, self._domain_tag, self._imago_node_id))
+
+    @on(Button.Pressed, "#back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(BACK)
 
