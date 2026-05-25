@@ -15,6 +15,7 @@ from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Input, Label, ListItem, ListView,
     RadioButton, RadioSet, RichLog, Static,
+    TabbedContent, Tab, TabPane,
 )
 
 from core.action_core import ActionCategory, ActionDefinition, OngoingAction, compute_cooldown
@@ -1444,6 +1445,234 @@ class WhisperConfigModal(ModalScreen):
         self.dismiss(BACK)
 
     @on(Button.Pressed, "#cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(BACK)
+
+
+class ShapeDreamConfigModal(ModalScreen):
+    """
+    Single-screen Shape Dream configuration. Left panel: mortal list.
+    Right panel: two tabs (one per Imāgō slot) each with a domain grid +
+    imago tree. Buttons live below the tabs. Dismisses with
+    (mortal_id, imago_node_id_a, imago_node_id_b).
+    """
+
+    BINDINGS = [
+        ("escape",    "cancel", "Cancel"),
+        ("backspace", "back",   "Back"),
+    ]
+
+    def __init__(self, state: SimulationState) -> None:
+        super().__init__()
+        self._state          = state
+        self._mortal_id:     str | None = None
+        self._imago_a:       str | None = None
+        self._imago_b:       str | None = None
+        self._domain_a:      str | None = None
+        self._domain_b:      str | None = None
+
+        dreg = get_domain_registry()
+        _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
+        self._mortals = [
+            (mid, m) for mid, m in state.mortals.items()
+            if m.status != MortalStatus.DECEASED
+            and (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR)
+            and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
+            and mid not in _proxius_ids
+        ]
+        self._mortal_ids  = [mid for mid, _ in self._mortals]
+        self._dreg        = dreg
+        ireg              = get_imago_registry()
+        unlocked_set      = set(state.demiurge.unlocked_imagines)
+        self._eligible_tags = {
+            tag for tag in _DOMAIN_GRID_ORDER
+            if any(n.node_id in unlocked_set for n in ireg.nodes_for_tree(tag.split(":", 1)[1]))
+        }
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="shape-dream-modal"):
+            yield Label("Shape Dream", classes="modal-title")
+            with Horizontal(classes="shape-dream-panels"):
+                with Vertical(classes="shape-dream-left"):
+                    yield Label("Mortal: —", id="sd-mortal-label")
+                    with ListView(id="sd-mortal-list"):
+                        for i, (mid, m) in enumerate(self._mortals):
+                            pop_obj  = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
+                            pop_name = _pop_stratum_label(pop_obj) if pop_obj else "?"
+                            loc_obj  = self._state.locations.get(str(m.current_location))
+                            loc      = (loc_obj.name or "?") if loc_obj else "?"
+                            name     = m.name or "?"
+                            align    = m.alignment if m.alignment is not None else 0.0
+                            yield ListItem(
+                                Label(f"{name:<18}  {align*100:>4.0f}%  {pop_name:<14}  {loc}"),
+                                id=f"sd-mortal-{i}",
+                            )
+                with Vertical(classes="shape-dream-right"):
+                    with TabbedContent(
+                        id="sd-tabs",
+                        classes="shape-dream-tabs",
+                        initial="sd-tab-a",
+                    ):
+                        with TabPane("Domain 1: Imāgō 1", id="sd-tab-a"):
+                            yield Label("Domain: —", id="sd-domain-label-a")
+                            with Grid(id="shape-dream-domain-grid-a"):
+                                for tag in _DOMAIN_GRID_ORDER:
+                                    eligible = tag in self._eligible_tags
+                                    yield DomainSquare(
+                                        tag=tag,
+                                        icon=self._dreg.icon(tag),
+                                        name="",
+                                        affiliated=tag in self._state.demiurge.affiliated_domains,
+                                        accessible=eligible,
+                                    )
+                            yield Label("Imāgō: —", id="sd-imago-label-a")
+                            with ScrollableContainer(id="shape-dream-tree-container-a"):
+                                pass
+                        with TabPane("Domain 2: Imāgō 2", id="sd-tab-b"):
+                            yield Label("Domain: —", id="sd-domain-label-b")
+                            with Grid(id="shape-dream-domain-grid-b"):
+                                for tag in _DOMAIN_GRID_ORDER:
+                                    eligible = tag in self._eligible_tags
+                                    yield DomainSquare(
+                                        tag=tag,
+                                        icon=self._dreg.icon(tag),
+                                        name="",
+                                        affiliated=tag in self._state.demiurge.affiliated_domains,
+                                        accessible=eligible,
+                                    )
+                            yield Label("Imāgō: —", id="sd-imago-label-b")
+                            with ScrollableContainer(id="shape-dream-tree-container-b"):
+                                pass
+                    with Horizontal(classes="btn-row"):
+                        yield Button("← Back",     id="sd-back-btn")
+                        yield Button("Cancel",     id="sd-cancel-btn",   classes="-danger")
+                        yield Button("Continue →", id="sd-continue-btn", disabled=True)
+
+    def on_mount(self) -> None:
+        if self._mortal_ids:
+            self._mortal_id = self._mortal_ids[0]
+            m = self._state.mortals.get(self._mortal_id)
+            if m:
+                self.query_one("#sd-mortal-label", Label).update(f"Mortal: {m.name}")
+        self._check_continue()
+
+    def _check_continue(self) -> None:
+        ready = bool(self._mortal_id and self._imago_a and self._imago_b)
+        btn   = self.query_one("#sd-continue-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    def _tab_label(self, slot: str, domain_tag: str | None, imago_node_id: str | None) -> str:
+        if domain_tag is None:
+            return f"Domain {slot}: Imāgō {slot}"
+        domain_name = domain_tag.split(":", 1)[1].title()
+        if imago_node_id is None:
+            return f"{domain_name}: Imāgō {slot}"
+        ireg = get_imago_registry()
+        node = ireg.get_node(imago_node_id)
+        raw_name = node.name if node else imago_node_id
+        imago_name = raw_name.removeprefix("The ")
+        return f"{domain_name}: {imago_name}"
+
+    def _set_domain_excluded(self, grid_id: str, excluded_tag: str | None, prev_excluded_tag: str | None) -> None:
+        grid = self.query_one(f"#{grid_id}", Grid)
+        for sq in grid.query(DomainSquare):
+            if sq._tag == excluded_tag:
+                sq.disabled = True
+                sq.add_class("inactive")
+            elif sq._tag == prev_excluded_tag and sq._tag in self._eligible_tags:
+                sq.disabled = False
+                sq.remove_class("inactive")
+
+    @on(ListView.Highlighted, "#sd-mortal-list")
+    def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None:
+            return
+        idx = int(event.item.id.split("-", 2)[2])
+        self._mortal_id = self._mortal_ids[idx]
+        m = self._state.mortals.get(self._mortal_id)
+        if m:
+            self.query_one("#sd-mortal-label", Label).update(f"Mortal: {m.name}")
+        self._check_continue()
+
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
+        in_tab_a = grid_a in event.control.ancestors_with_self
+
+        if in_tab_a:
+            prev = self._domain_a
+            self._domain_a = event.tag
+            self._imago_a  = None
+            self.query_one("#sd-domain-label-a", Label).update(
+                f"Domain: {event.tag.split(':', 1)[1].title()}"
+            )
+            self.query_one("#sd-imago-label-a", Label).update("Imāgō: —")
+            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
+                self._tab_label("1", self._domain_a, None)
+            self._set_domain_excluded("shape-dream-domain-grid-b", event.tag, prev)
+            self._swap_tree("shape-dream-tree-container-a", event.tag)
+        else:
+            prev = self._domain_b
+            self._domain_b = event.tag
+            self._imago_b  = None
+            self.query_one("#sd-domain-label-b", Label).update(
+                f"Domain: {event.tag.split(':', 1)[1].title()}"
+            )
+            self.query_one("#sd-imago-label-b", Label).update("Imāgō: —")
+            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
+                self._tab_label("2", self._domain_b, None)
+            self._set_domain_excluded("shape-dream-domain-grid-a", event.tag, prev)
+            self._swap_tree("shape-dream-tree-container-b", event.tag)
+
+        self._check_continue()
+
+    def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
+        container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+        in_tab_a = container_a in event.control.ancestors_with_self
+
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+
+        if in_tab_a:
+            self._imago_a = event.node_id
+            self.query_one("#sd-imago-label-a", Label).update(f"Imāgō: {name}")
+            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
+                self._tab_label("1", self._domain_a, self._imago_a)
+        else:
+            self._imago_b = event.node_id
+            self.query_one("#sd-imago-label-b", Label).update(f"Imāgō: {name}")
+            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
+                self._tab_label("2", self._domain_b, self._imago_b)
+
+        self._check_continue()
+
+    @work
+    async def _swap_tree(self, container_id: str, tag: str) -> None:
+        tree      = tag.split(":", 1)[1]
+        container = self.query_one(f"#{container_id}", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
+
+    @on(Button.Pressed, "#sd-continue-btn")
+    def _on_continue(self, _: Button.Pressed) -> None:
+        if self._mortal_id and self._imago_a and self._imago_b:
+            self.dismiss((self._mortal_id, self._imago_a, self._imago_b))
+
+    @on(Button.Pressed, "#sd-back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#sd-cancel-btn")
     def _on_cancel(self, _: Button.Pressed) -> None:
         self.dismiss(None)
 
