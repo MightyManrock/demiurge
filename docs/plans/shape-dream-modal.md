@@ -23,7 +23,7 @@
 
 ---
 
-## Task 1: Remove `concept` from `ShapeDreamIntent` and fix all references
+## ✅ Task 1: Remove `concept` from `ShapeDreamIntent` and fix all references
 
 **Files:**
 - Modify: `core/action_core.py:256` (remove `concept: str`)
