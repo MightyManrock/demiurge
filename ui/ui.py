@@ -40,6 +40,7 @@ from core.universe_core import (
 from logic.tick_logic import (
     SimulationState, TickLoop, is_in_window, ENTITY_VISIBILITY_FLOOR,
     _compute_revelation_cap, _revelation_adjusted_cost,
+    PauseEventType,
 )
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry
@@ -712,13 +713,25 @@ class GameScreen(Screen):
         self._rich_log.append_tick(result.tick_number, categorized)
         self.app.call_from_thread(self._feed_categorized, categorized)
         self.app.call_from_thread(self._refresh_status)
-        if self._auto_advance and any(
-            new_state.pause_config.should_pause(e) for e in result.pause_events
-        ):
+        _triggered = [e for e in result.pause_events if new_state.pause_config.should_pause(e)]
+        if self._auto_advance and _triggered:
             self._auto_advance = False
+            _PAUSE_LABELS = {
+                PauseEventType.LUMINARY_CONTACT:       "divine contact",
+                PauseEventType.LUMINARY_ULTIMATUM:     "divine contact — ultimatum",
+                PauseEventType.EVALUATION_COMPLETE:    "evaluation complete",
+                PauseEventType.REVELATION_THRESHOLD:   "revelation threshold reached",
+                PauseEventType.QUEUED_ACTION_COMPLETE: "queued action complete",
+                PauseEventType.PINNED_MORTAL_DIED:     "pinned mortal died",
+                PauseEventType.POP_SPLINT:             "pop splinted",
+                PauseEventType.DOMAIN_THRESHOLD:       "domain threshold reached",
+                PauseEventType.TRAVEL_COMPLETE:        "travel complete",
+                PauseEventType.MINOR_AGENT_UPDATE:     "agent update",
+            }
+            _reason = _PAUSE_LABELS.get(_triggered[0].event_type, "divine contact")
             self.app.call_from_thread(
                 self._feed_markup,
-                "[#c09030]Auto-advance paused: divine contact.[/]", "other",
+                f"[#c09030]Auto-advance paused: {_reason}.[/]", "other",
             )
             self.app.call_from_thread(self._refresh_rtwp_ui)
         if result.terminal.triggered:
