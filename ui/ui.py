@@ -70,7 +70,7 @@ from ui.modals import (
     QuitConfirmModal,
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
-    ActionBrowserModal, CategoryPendingModal,
+    ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
 )
 
 
@@ -1183,6 +1183,47 @@ class GameScreen(Screen):
                 proxius_id=None,
                 intent=ScryIntent(scope=chosen_scope),
             )
+
+        # ── whisper: unified config modal ──
+        if action_key == "whisper":
+            ireg = get_imago_registry()
+            while True:
+                result = await app.push_screen_wait(WhisperConfigModal(state))
+                if result is None: return None
+                if result == BACK: return BACK
+                mortal_id_str, domain_tag, imago_node_id = result
+                node      = ireg.get_node(imago_node_id)
+                confirmed = await app.push_screen_wait(ImagoDetailModal(node, state))
+                if confirmed is None: return None
+                if not confirmed:     continue
+                dvs = [
+                    DomainVector(domain_tag=t, direction=v)
+                    for t, v in node.mechanics.items()
+                    if t.startswith("domain:")
+                ]
+                cvs = [
+                    CultureVector(culture_tag=t, direction=v)
+                    for t, v in node.mechanics.items()
+                    if not t.startswith("domain:")
+                ]
+                framing = await self._pick_framing()
+                if framing is None: return None
+                if framing == BACK: continue
+                return ActionInstance(
+                    action_definition_id=defn.id,
+                    target_type=TargetType.MORTAL,
+                    target_id=UUID(mortal_id_str),
+                    timestamp=state.universe.current_age.to_float_years(),
+                    demiurge_id=state.demiurge.id,
+                    proxius_id=None,
+                    intent=WhisperIntent(
+                        concept=node.name,
+                        domain_vectors=dvs,
+                        culture_vectors=cvs,
+                        framing=framing,
+                        imago_node_id=imago_node_id,
+                    ),
+                )
 
         # ── Target selection by type, with back-from-params loop ──
         _NO_PARAMS = (
