@@ -347,7 +347,7 @@ DomainSquare.eligible-reveal:focus {
 
 /* ── Imago Tree Picker ───────────────── */
 
-#imago-grid {
+.imago-tree-inner-grid {
     grid-size: 3;
     height: auto;
     margin: 1 0;
@@ -564,5 +564,53 @@ LoadScreen {
     color: $muted;
     text-style: bold;
     padding: 1 0 0 0;
+}
+
+/* ── Whisper Config Modal ──────────────── */
+
+.whisper-config-modal {
+    background: $bg-modal;
+    border: solid $border;
+    width: 90%;
+    height: 85%;
+    padding: 1 2;
+}
+
+.whisper-panels {
+    height: 1fr;
+}
+
+.whisper-left {
+    width: 35%;
+    border-right: solid $border;
+    padding: 0 1 0 0;
+}
+
+.whisper-right {
+    width: 65%;
+    padding: 0 0 0 1;
+}
+
+.whisper-right-labels {
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#whisper-domain-grid {
+    grid-size: 8;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#whisper-tree-container {
+    height: 1fr;
+    border: solid $border;
+    padding: 0 1;
+}
+
+Button.continue-ready {
+    background: $good;
+    color: $bg;
+    text-style: bold;
 }
 

@@ -28,7 +28,7 @@ from utilities.imago_registry import get_registry as get_imago_registry, ImagoNo
 
 from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag
 
-from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, LoopingListView
+from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, ImagoTreeGrid, LoopingListView
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
 
 if TYPE_CHECKING:
@@ -504,125 +504,28 @@ class DomainPickerModal(ModalScreen):
 
 class ImagoTreeModal(ModalScreen):
     """
-    Tree-layout Imago picker. Grid is 3 columns × 4 rows (T4 top, T1 bottom).
-    T4 is centred; each other tier puts its lower-sort node in col 0, higher in col 2.
-    Dismisses with a node_id, BACK, or None.
+    Tree-layout Imago picker. Dismisses with a node_id, BACK, or None.
+    Rendering and keyboard nav are handled by the embedded ImagoTreeGrid widget.
     """
 
     BINDINGS = [
         ("escape",    "force_cancel", "Cancel"),
         ("backspace", "cancel",       "Back"),
-        ("up",        "nav('up')",    ""),
-        ("down",      "nav('down')",  ""),
-        ("left",      "nav('left')",  ""),
-        ("right",     "nav('right')", ""),
     ]
-
-    # Cell positions in DOM order → (grid_row, grid_col)
-    # Row 0=T4, 1=T3, 2=T2, 3=T1 ; Col 0=left, 1=center, 2=right
-    _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
 
     def __init__(self, state: SimulationState, tree: str) -> None:
         super().__init__()
         self._state = state
         self._tree  = tree
 
-        ireg         = get_imago_registry()
-        unlocked_set = set(state.demiurge.unlocked_imagines)
-        nodes        = ireg.nodes_for_tree(tree)  # sorted by (tier, sort_order)
-
-        by_tier: dict[int, list[ImagoNode]] = {1: [], 2: [], 3: [], 4: []}
-        for n in nodes:
-            by_tier[n.tier].append(n)
-
-        self._by_tier    = by_tier
-        self._unlocked   = unlocked_set
-        dreg             = get_domain_registry()
-        lum_info, fellow_tags, _ = _get_lum_domain_context(state)
-        self._dreg        = dreg
-        self._lum_info    = lum_info
-        self._fellow_tags = fellow_tags
-
-    def _imago_score(self, node: ImagoNode) -> float:
-        """Weighted sum of (luminary_approval × mechanic_direction) across all Luminaries."""
-        total, count = 0.0, 0
-        for lum, lum_tags in self._lum_info:
-            if not lum_tags:
-                continue
-            lid   = str(lum.id)
-            score = sum(
-                self._dreg.luminary_approval(
-                    tag, lum_tags,
-                    fellow_lum_tags=self._fellow_tags[lid],
-                    personality=self._dreg.compute_personality(lum.domains),
-                ) * direction
-                for tag, direction in node.mechanics.items()
-                if tag.startswith("domain:")
-            )
-            total += score
-            count += 1
-        return total / count if count else 0.0
-
-    def _approval_class(self, node: ImagoNode) -> str:
-        s = self._imago_score(node)
-        if s > 0.15:
-            return "good"
-        if s < -0.15:
-            return "danger"
-        return ""
-
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
             yield Label(f"{self._tree.title()} — Imāginēs", classes="modal-title")
-            with Grid(id="imago-grid"):
-                for tier in (4, 3, 2, 1):
-                    nodes = self._by_tier[tier]
-                    if tier == 4:
-                        yield Static("", classes="imago-spacer")
-                        node     = nodes[0]
-                        unlocked = node.node_id in self._unlocked
-                        yield ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
-                        yield Static("", classes="imago-spacer")
-                    else:
-                        left, right = nodes[0], nodes[1]
-                        for node in (left, right):
-                            unlocked = node.node_id in self._unlocked
-                            cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
-                            if node is left:
-                                yield cell
-                                yield Static("", classes="imago-spacer")
-                            else:
-                                yield cell
+            yield ImagoTreeGrid(self._state, self._tree)
             yield Static("", id="imago-tooltip")
             with Horizontal(classes="btn-row"):
                 yield Button("← Domain",  id="back-btn")
                 yield Button("Cancel",    id="cancel-btn",  classes="-danger")
-
-    def on_mount(self) -> None:
-        cells = list(self.query(ImagoCell))
-        target = next((c for c in cells if c._unlocked), cells[0] if cells else None)
-        if target:
-            target.focus()
-
-    def action_nav(self, direction: str) -> None:
-        cells   = list(self.query(ImagoCell))
-        pos_map = {p: i for i, p in enumerate(self._POSITIONS)}
-        focused = next((i for i, c in enumerate(cells) if c.has_focus), -1)
-        if focused == -1:
-            self.on_mount()
-            return
-        row, col = self._POSITIONS[focused]
-        new_pos  = None
-        if direction == "up" and row > 0:
-            new_pos = (row - 1, 1 if row - 1 == 0 else col)
-        elif direction == "down" and row < 3:
-            new_pos = (row + 1, 0 if col == 1 else col)
-        elif direction == "left" and col == 2:
-            new_pos = (row, 0)
-        elif direction == "right" and col == 0:
-            new_pos = (row, 2)
-        if new_pos and new_pos in pos_map:
-            cells[pos_map[new_pos]].focus()
 
     def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
         ireg = get_imago_registry()

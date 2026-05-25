@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape as _e
 from rich.text import Text
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, VerticalScroll, Vertical
+from textual.containers import Grid, Horizontal, VerticalScroll, Vertical
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, Checkbox, ListView, RichLog, Static
@@ -34,9 +34,10 @@ from ui.display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
     _name_for_id, _name_link_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,
-    display_briefing, _lines_to_text,
+    display_briefing, _lines_to_text, _get_lum_domain_context,
 )
 from utilities.imago_registry import get_registry as get_imago_registry
+from utilities.domain_registry import get_registry as get_domain_registry
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
@@ -292,6 +293,139 @@ class ImagoCell(Widget):
     def key_enter(self) -> None:
         if self._unlocked:
             self.post_message(self.Selected(self._node.node_id))
+
+
+# ─────────────────────────────────────────
+# Imago tree grid widget (reusable)
+# ─────────────────────────────────────────
+
+class ImagoTreeGrid(Widget):
+    """
+    Embeddable 3×4 imago tree grid for one domain's imagoes.
+    Arrow-key navigation built in. ImagoCell.Selected and ImagoCell.Focused
+    bubble up to the host screen.
+    Call load_tree(tag) to swap to a different domain at runtime.
+    """
+
+    BINDINGS = [
+        ("up",    "nav('up')",    ""),
+        ("down",  "nav('down')",  ""),
+        ("left",  "nav('left')",  ""),
+        ("right", "nav('right')", ""),
+    ]
+
+    _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
+
+    def __init__(self, state: "SimulationState", tree: str) -> None:
+        super().__init__()
+        self._state = state
+        self._tree  = tree
+        self._setup(tree)
+
+    def _setup(self, tree: str) -> None:
+        ireg         = get_imago_registry()
+        unlocked_set = set(self._state.demiurge.unlocked_imagines)
+        nodes        = ireg.nodes_for_tree(tree)
+        by_tier: dict[int, list] = {1: [], 2: [], 3: [], 4: []}
+        for n in nodes:
+            by_tier[n.tier].append(n)
+        self._by_tier  = by_tier
+        self._unlocked = unlocked_set
+        dreg           = get_domain_registry()
+        lum_info, fellow_tags, _ = _get_lum_domain_context(self._state)
+        self._dreg        = dreg
+        self._lum_info    = lum_info
+        self._fellow_tags = fellow_tags
+
+    def _imago_score(self, node: "ImagoNode") -> float:
+        total, count = 0.0, 0
+        for lum, lum_tags in self._lum_info:
+            if not lum_tags:
+                continue
+            lid   = str(lum.id)
+            score = sum(
+                self._dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=self._fellow_tags[lid],
+                    personality=self._dreg.compute_personality(lum.domains),
+                ) * direction
+                for tag, direction in node.mechanics.items()
+                if tag.startswith("domain:")
+            )
+            total += score
+            count += 1
+        return total / count if count else 0.0
+
+    def _approval_class(self, node: "ImagoNode") -> str:
+        s = self._imago_score(node)
+        if s > 0.15:  return "good"
+        if s < -0.15: return "danger"
+        return ""
+
+    def _build_cells(self) -> list:
+        children = []
+        for tier in (4, 3, 2, 1):
+            nodes = self._by_tier[tier]
+            if tier == 4:
+                children.append(Static("", classes="imago-spacer"))
+                node     = nodes[0]
+                unlocked = node.node_id in self._unlocked
+                children.append(ImagoCell(node, unlocked, self._approval_class(node) if unlocked else ""))
+                children.append(Static("", classes="imago-spacer"))
+            else:
+                left, right = nodes[0], nodes[1]
+                for node in (left, right):
+                    unlocked = node.node_id in self._unlocked
+                    cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
+                    if node is left:
+                        children.append(cell)
+                        children.append(Static("", classes="imago-spacer"))
+                    else:
+                        children.append(cell)
+        return children
+
+    def compose(self) -> ComposeResult:
+        with Grid(classes="imago-tree-inner-grid"):
+            yield from self._build_cells()
+
+    def _focus_first_unlocked(self) -> None:
+        cells  = list(self.query(ImagoCell))
+        target = next((c for c in cells if c._unlocked), cells[0] if cells else None)
+        if target:
+            target.focus()
+
+    def on_mount(self) -> None:
+        self._focus_first_unlocked()
+
+    @work
+    async def load_tree(self, tree: str) -> None:
+        """Swap to a different domain tree in place."""
+        self._tree = tree
+        self._setup(tree)
+        grid = self.query_one(Grid)
+        await grid.remove_children()
+        await grid.mount(*self._build_cells())
+        self._focus_first_unlocked()
+
+    def action_nav(self, direction: str) -> None:
+        cells   = list(self.query(ImagoCell))
+        pos_map = {p: i for i, p in enumerate(self._POSITIONS)}
+        focused = next((i for i, c in enumerate(cells) if c.has_focus), -1)
+        if focused == -1:
+            self.on_mount()
+            return
+        row, col = self._POSITIONS[focused]
+        new_pos  = None
+        if direction == "up" and row > 0:
+            new_pos = (row - 1, 1 if row - 1 == 0 else col)
+        elif direction == "down" and row < 3:
+            new_pos = (row + 1, 0 if col == 1 else col)
+        elif direction == "left" and col == 2:
+            new_pos = (row, 0)
+        elif direction == "right" and col == 0:
+            new_pos = (row, 2)
+        if new_pos and new_pos in pos_map:
+            cells[pos_map[new_pos]].focus()
 
 
 # ─────────────────────────────────────────
