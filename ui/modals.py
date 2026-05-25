@@ -419,21 +419,11 @@ class DomainPickerModal(ModalScreen):
         with Vertical(classes="modal-box"):
             yield Label(title, classes="modal-title")
             with Grid(id="domain-grid"):
-                for tag in _DOMAIN_GRID_ORDER:
-                    accessible = tag in self._accessible_set
-                    affiliated = tag in self._affiliated_set
-                    eligible_reveal = tag in self._eligible_reveal_set
-                    _dname = tag.split(":", 1)[1].title()
-                    if len(_dname) % 2 == 0:
-                        _dname = " " + _dname
-                    yield DomainSquare(
-                        tag=tag,
-                        icon=self._dreg.icon(tag),
-                        name=_dname,
-                        affiliated=affiliated,
-                        accessible=accessible,
-                        eligible_reveal=eligible_reveal,
-                    )
+                yield from _domain_grid_squares(
+                    self._state, self._dreg, self._accessible_set,
+                    show_names=True,
+                    eligible_reveal_tags=self._eligible_reveal_set or None,
+                )
             yield Static("", id="lum-panel")
             with Horizontal(classes="btn-row"):
                 yield Button("Skip Domain", id="skip-btn")
@@ -1456,15 +1446,24 @@ def _domain_grid_squares(
     state: SimulationState,
     dreg: "object",
     eligible_tags: "set[str]",
+    show_names: bool = False,
+    eligible_reveal_tags: "set[str] | None" = None,
 ) -> "Iterable[DomainSquare]":
     """Yield the 16 DomainSquare widgets for a domain picker grid."""
     for tag in _DOMAIN_GRID_ORDER:
+        if show_names:
+            name = tag.split(":", 1)[1].title()
+            if len(name) % 2 == 0:
+                name = " " + name
+        else:
+            name = ""
         yield DomainSquare(
             tag=tag,
             icon=dreg.icon(tag),
-            name="",
+            name=name,
             affiliated=tag in state.demiurge.affiliated_domains,
             accessible=tag in eligible_tags,
+            eligible_reveal=eligible_reveal_tags is not None and tag in eligible_reveal_tags,
         )
 
 
