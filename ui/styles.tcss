@@ -609,3 +609,46 @@ Button.continue-ready {
     text-style: bold;
 }
 
+/* ── Shape Dream Config Modal ──────────────── */
+
+.shape-dream-modal {
+    background: $bg-modal;
+    border: solid $border;
+    width: 95%;
+    height: 83%;
+    padding: 1 2;
+}
+
+.shape-dream-panels {
+    height: 1fr;
+}
+
+.shape-dream-left {
+    width: 40%;
+    border-right: solid $border;
+    padding: 0 1 0 0;
+}
+
+.shape-dream-right {
+    width: 60%;
+    padding: 0 0 0 1;
+}
+
+.shape-dream-tabs {
+    height: 1fr;
+}
+
+#shape-dream-domain-grid-a,
+#shape-dream-domain-grid-b {
+    grid-size: 8;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#shape-dream-tree-container-a,
+#shape-dream-tree-container-b {
+    height: 16;
+    border: solid $border;
+    padding: 0 1;
+}
+
