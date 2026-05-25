@@ -756,7 +756,7 @@ class ExploreBeliefsModal(ModalScreen):
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         self._selected_tag = event.tag
-        self._do_confirm()
+        self.query_one("#confirm-btn", Button).focus()
 
     def _do_confirm(self) -> None:
         if self._selected_tag:
