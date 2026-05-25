@@ -1359,7 +1359,7 @@ class WhisperConfigModal(ModalScreen):
                             name     = m.name or "?"
                             align    = m.alignment if m.alignment is not None else 0.0
                             yield ListItem(
-                                Label(f"{name:<18}  align:{align:.2f}  {pop_name:<14}  {loc}"),
+                                Label(f"{name:<18}  {align*100:>4.0f}%  {pop_name:<14}  {loc}"),
                                 id=f"mortal-{i}",
                             )
                 with Vertical(classes="whisper-right"):
