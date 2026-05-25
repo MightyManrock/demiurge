@@ -2076,9 +2076,13 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 else:
                     self.query_one("#sd-continue-btn", Button).focus()
                 event.prevent_default(); event.stop()
+            elif isinstance(focused, Button):
+                self.query_one("#sd-mortal-list", ListView).focus()
+                event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
             if isinstance(focused, ListView):
-                pass  # nothing before mortal list
+                self.query_one("#sd-continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
             elif isinstance(focused, DomainSquare):
                 grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
                 if grid_a in focused.ancestors_with_self:
@@ -2208,6 +2212,8 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 self._tab_label("2", self._domain_b, self._imago_b)
 
         self._check_continue()
+        if self._mortal_id and self._imago_a and self._imago_b:
+            self.dismiss((self._mortal_id, self._imago_a, self._imago_b))
 
     @on(Button.Pressed, "#sd-continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
