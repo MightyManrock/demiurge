@@ -71,7 +71,7 @@ from ui.modals import (
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
-    ShapeDreamConfigModal,
+    ShapeDreamConfigModal, ShapeDreamConfirmModal,
 )
 
 
@@ -1231,6 +1231,9 @@ class GameScreen(Screen):
                 mortal_id_str, imago_node_id_a, imago_node_id_b = result
                 node_a = ireg.get_node(imago_node_id_a)
                 node_b = ireg.get_node(imago_node_id_b)
+                confirmed = await app.push_screen_wait(ShapeDreamConfirmModal(node_a, node_b, state))
+                if confirmed is None: return None
+                if not confirmed:     continue
                 dvs_a = [
                     DomainVector(domain_tag=t, direction=v)
                     for t, v in node_a.mechanics.items()

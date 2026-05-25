@@ -560,6 +560,57 @@ class ImagoTreeModal(ModalScreen):
 # Confirmation screen for a chosen Imago node.
 # ─────────────────────────────────────────
 
+def _imago_panel_body(node: "ImagoNode", state: "SimulationState") -> Text:
+    """Shared body renderer for single-imago confirmation panels."""
+    dreg = get_domain_registry()
+    lum_info, fellow_tags, _ = _get_lum_domain_context(state)
+
+    lines: list[str] = []
+    lines.append(f"[bold #c0ccdc]{_e(node.name)}[/]")
+    lines.append(f"[#3a5a7a]Tier {node.tier}  ·  {node.tree.title()} tree[/]")
+    lines.append("")
+    lines.append(f"[#9090a8]{_e(node.description)}[/]")
+    lines.append("")
+
+    domain_fx  = [(t, v) for t, v in node.mechanics.items() if t.startswith("domain:")]
+    culture_fx = [(t, v) for t, v in node.mechanics.items() if is_culture_tag(t)]
+
+    if domain_fx:
+        lines.append("[bold #5a7090]DOMAIN EFFECTS[/]")
+        for tag, v in sorted(domain_fx, key=lambda x: -abs(x[1])):
+            short = tag.split(":", 1)[1]
+            col   = "#50b870" if v > 0 else "#b04050"
+            lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
+        lines.append("")
+
+    if culture_fx:
+        lines.append("[bold #5a7090]CULTURE EFFECTS[/]")
+        for tag, v in sorted(culture_fx, key=lambda x: -abs(x[1])):
+            short = tag.split(":", 1)[1]
+            col   = "#50b870" if v > 0 else "#b04050"
+            lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
+        lines.append("")
+
+    lines.append("[bold #5a7090]LUMINARY AFFINITIES[/]")
+    for lum, lum_tags in lum_info:
+        if not lum_tags:
+            continue
+        lid   = str(lum.id)
+        score = sum(
+            dreg.luminary_approval(
+                tag, lum_tags,
+                fellow_lum_tags=fellow_tags[lid],
+                personality=dreg.compute_personality(lum.domains),
+            ) * direction
+            for tag, direction in node.mechanics.items()
+            if tag.startswith("domain:")
+        )
+        col = "#50b870" if score > 0.1 else ("#b04050" if score < -0.1 else "#5a7090")
+        lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.0%}[/]")
+
+    return Text.from_markup("\n".join(lines))
+
+
 class ImagoDetailModal(ModalScreen):
     """
     Confirmation screen for a chosen Imago node.
@@ -578,60 +629,70 @@ class ImagoDetailModal(ModalScreen):
         self._state = state
 
     def _body(self) -> Text:
-        node = self._node
-        dreg = get_domain_registry()
-        lum_info, fellow_tags, _ = _get_lum_domain_context(self._state)
-
-        lines: list[str] = []
-        lines.append(f"[bold #c0ccdc]{_e(node.name)}[/]")
-        lines.append(f"[#3a5a7a]Tier {node.tier}  ·  {node.tree.title()} tree[/]")
-        lines.append("")
-        lines.append(f"[#9090a8]{_e(node.description)}[/]")
-        lines.append("")
-
-        domain_fx  = [(t, v) for t, v in node.mechanics.items() if t.startswith("domain:")]
-        culture_fx = [(t, v) for t, v in node.mechanics.items() if is_culture_tag(t)]
-
-        if domain_fx:
-            lines.append("[bold #5a7090]DOMAIN EFFECTS[/]")
-            for tag, v in sorted(domain_fx, key=lambda x: -abs(x[1])):
-                short = tag.split(":", 1)[1]
-                col   = "#50b870" if v > 0 else "#b04050"
-                lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
-            lines.append("")
-
-        if culture_fx:
-            lines.append("[bold #5a7090]CULTURE EFFECTS[/]")
-            for tag, v in sorted(culture_fx, key=lambda x: -abs(x[1])):
-                short = tag.split(":", 1)[1]
-                col   = "#50b870" if v > 0 else "#b04050"
-                lines.append(f"  [{col}]{short:<16}  {v:+.0%}[/]")
-            lines.append("")
-
-        lines.append("[bold #5a7090]LUMINARY AFFINITIES[/]")
-        for lum, lum_tags in lum_info:
-            if not lum_tags:
-                continue
-            lid   = str(lum.id)
-            score = sum(
-                dreg.luminary_approval(
-                    tag, lum_tags,
-                    fellow_lum_tags=fellow_tags[lid],
-                    personality=dreg.compute_personality(lum.domains),
-                ) * direction
-                for tag, direction in node.mechanics.items()
-                if tag.startswith("domain:")
-            )
-            col = "#50b870" if score > 0.1 else ("#b04050" if score < -0.1 else "#5a7090")
-            lines.append(f"  [{col}]{_e(lum.name):<16}  {score:+.0%}[/]")
-
-        return Text.from_markup("\n".join(lines))
+        return _imago_panel_body(self._node, self._state)
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box-tall"):
             yield Label("Imāgō — Confirm", classes="modal-title")
             with ScrollableContainer():
                 yield Static(self._body(), id="imago-detail-body")
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("Confirm", id="confirm-btn", classes="-primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-btn", Button).focus()
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel_btn(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
+# SHAPE DREAM CONFIRM MODAL
+# Double-wide confirmation screen for a chosen pair of Imago nodes.
+# ─────────────────────────────────────────
+
+class ShapeDreamConfirmModal(ModalScreen):
+    """
+    Confirmation screen for a Shape Dream — shows both Imāginēs side by side.
+    Dismisses with True (confirm), False (back to config), or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "back",         "Back"),
+    ]
+
+    def __init__(self, node_a: "ImagoNode", node_b: "ImagoNode", state: "SimulationState") -> None:
+        super().__init__()
+        self._node_a = node_a
+        self._node_b = node_b
+        self._state  = state
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="sd-confirm-modal"):
+            yield Label("Shape Dream — Confirm", classes="modal-title")
+            with Horizontal(classes="sd-confirm-panels"):
+                with ScrollableContainer(classes="sd-confirm-left"):
+                    yield Static(_imago_panel_body(self._node_a, self._state))
+                with ScrollableContainer(classes="sd-confirm-right"):
+                    yield Static(_imago_panel_body(self._node_b, self._state))
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",  id="back-btn")
                 yield Button("Cancel",  id="cancel-btn",  classes="-danger")
