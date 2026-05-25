@@ -1586,6 +1586,40 @@ def _domain_grid_squares(
         )
 
 
+def _nav_domain_grid(squares: list, direction: str, cols: int = 8) -> None:
+    """Move keyboard focus within a flat list of DomainSquares laid out in `cols` columns."""
+    focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
+    if focused_idx == -1:
+        return
+    num_rows = (len(squares) + cols - 1) // cols
+    row, col  = divmod(focused_idx, cols)
+    if direction in ("left", "right"):
+        dc = 1 if direction == "right" else -1
+        c  = col + dc
+        while 0 <= c < cols:
+            idx = row * cols + c
+            if idx < len(squares) and not squares[idx].disabled:
+                squares[idx].focus(); return
+            c += dc
+        row_range = range(row + 1, num_rows) if direction == "right" else range(row - 1, -1, -1)
+        for nr in row_range:
+            for sc in (range(cols) if direction == "right" else range(cols - 1, -1, -1)):
+                idx = nr * cols + sc
+                if idx < len(squares) and not squares[idx].disabled:
+                    squares[idx].focus(); return
+        enabled = [sq for sq in squares if not sq.disabled]
+        if enabled:
+            (enabled[0] if direction == "right" else enabled[-1]).focus()
+    else:
+        dr = 1 if direction == "down" else -1
+        r  = row + dr
+        while 0 <= r < num_rows:
+            idx = r * cols + col
+            if idx < len(squares) and not squares[idx].disabled:
+                squares[idx].focus(); return
+            r += dr
+
+
 class _ImagoSwapMixin:
     """Provides `_swap_imago_tree(container_id, tag)` as a @work method."""
 
@@ -1691,41 +1725,9 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             btn.remove_class("continue-ready")
 
     def action_nav_domain(self, direction: str) -> None:
-        cols = 8  # matches #whisper-domain-grid { grid-size: 8 }
         squares = list(self.query(DomainSquare))
-        if not any(sq.has_focus for sq in squares):
-            return
-        focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
-        num_rows = (len(squares) + cols - 1) // cols
-        row, col = divmod(focused_idx, cols)
-
-        if direction in ("left", "right"):
-            dc = 1 if direction == "right" else -1
-            c  = col + dc
-            while 0 <= c < cols:
-                idx = row * cols + c
-                if idx < len(squares) and not squares[idx].disabled:
-                    squares[idx].focus(); return
-                c += dc
-            row_range = range(row + 1, num_rows) if direction == "right" else range(row - 1, -1, -1)
-            for nr in row_range:
-                col_range = range(cols) if direction == "right" else range(cols - 1, -1, -1)
-                for sc in col_range:
-                    idx = nr * cols + sc
-                    if idx < len(squares) and not squares[idx].disabled:
-                        squares[idx].focus(); return
-            # wrap around to first/last enabled
-            enabled = [sq for sq in squares if not sq.disabled]
-            if enabled:
-                (enabled[0] if direction == "right" else enabled[-1]).focus()
-        else:
-            dr = 1 if direction == "down" else -1
-            r  = row + dr
-            while 0 <= r < num_rows:
-                idx = r * cols + col
-                if idx < len(squares) and not squares[idx].disabled:
-                    squares[idx].focus(); return
-                r += dr
+        if any(sq.has_focus for sq in squares):
+            _nav_domain_grid(squares, direction)
 
     @work
     async def _tab_select_domain(self, tag: str) -> None:
@@ -1849,23 +1851,40 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",    "cancel", "Cancel"),
-        ("backspace", "back",   "Back"),
+        ("escape",    "cancel",              "Cancel"),
+        ("backspace", "back",                "Back"),
+        ("up",        "nav_domain('up')",    ""),
+        ("down",      "nav_domain('down')",  ""),
+        ("left",      "nav_domain('left')",  ""),
+        ("right",     "nav_domain('right')", ""),
     ]
 
-    def __init__(self, state: SimulationState) -> None:
+    def __init__(
+        self,
+        state: SimulationState,
+        prefill: "tuple[str, str, str] | None" = None,
+    ) -> None:
         super().__init__()
-        self._state          = state
-        self._mortal_id:     str | None = None
-        self._imago_a:       str | None = None
-        self._imago_b:       str | None = None
-        self._domain_a:      str | None = None
-        self._domain_b:      str | None = None
-
+        self._state   = state
+        self._prefill = prefill
         self._dreg          = get_domain_registry()
         self._eligible_tags = _eligible_domain_tags(state)
         self._mortals       = _compose_entity_list(state, "mortal", "sd-mortal")
         self._mortal_ids    = [mid for mid, _ in self._mortals]
+
+        if prefill:
+            mortal_id, imago_a, imago_b = prefill
+            self._mortal_id: str | None = mortal_id
+            self._imago_a:   str | None = imago_a
+            self._imago_b:   str | None = imago_b
+            self._domain_a:  str | None = "domain:" + imago_a.split(":")[0]
+            self._domain_b:  str | None = "domain:" + imago_b.split(":")[0]
+        else:
+            self._mortal_id = None
+            self._imago_a   = None
+            self._imago_b   = None
+            self._domain_a  = None
+            self._domain_b  = None
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="shape-dream-modal"):
@@ -1902,7 +1921,38 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                         yield Button("Continue →", id="sd-continue-btn", disabled=True)
 
     def on_mount(self) -> None:
-        if self._mortal_ids:
+        if self._prefill:
+            mortal_id, _, _ = self._prefill
+            if mortal_id in self._mortal_ids:
+                self.query_one("#sd-mortal-list", ListView).index = self._mortal_ids.index(mortal_id)
+            m = self._state.mortals.get(mortal_id)
+            if m:
+                self.query_one("#sd-mortal-label", Label).update(f"Mortal: {m.name}")
+            ireg = get_imago_registry()
+            if self._domain_a:
+                self.query_one("#sd-domain-label-a", Label).update(
+                    f"Domain: {self._domain_a.split(':', 1)[1].title()}"
+                )
+                if self._imago_a:
+                    node = ireg.get_node(self._imago_a)
+                    self.query_one("#sd-imago-label-a", Label).update(
+                        f"Imāgō: {node.name if node else self._imago_a}"
+                    )
+                    self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
+                        self._tab_label("1", self._domain_a, self._imago_a)
+            if self._domain_b:
+                self.query_one("#sd-domain-label-b", Label).update(
+                    f"Domain: {self._domain_b.split(':', 1)[1].title()}"
+                )
+                if self._imago_b:
+                    node = ireg.get_node(self._imago_b)
+                    self.query_one("#sd-imago-label-b", Label).update(
+                        f"Imāgō: {node.name if node else self._imago_b}"
+                    )
+                    self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
+                        self._tab_label("2", self._domain_b, self._imago_b)
+            self._restore_prefill_trees()
+        elif self._mortal_ids:
             self._mortal_id = self._mortal_ids[0]
             m = self._state.mortals.get(self._mortal_id)
             if m:
@@ -1939,6 +1989,144 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             elif sq._tag == prev_excluded_tag and sq._tag in self._eligible_tags:
                 sq.disabled = False
                 sq.remove_class("inactive")
+
+    def action_nav_domain(self, direction: str) -> None:
+        for grid_id in ("shape-dream-domain-grid-a", "shape-dream-domain-grid-b"):
+            squares = list(self.query_one(f"#{grid_id}", Grid).query(DomainSquare))
+            if any(sq.has_focus for sq in squares):
+                _nav_domain_grid(squares, direction)
+                return
+
+    @work
+    async def _tab_select_domain_a(self, tag: str) -> None:
+        prev = self._domain_a
+        self._domain_a = tag
+        self._imago_a  = None
+        self.query_one("#sd-domain-label-a", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
+        self.query_one("#sd-imago-label-a",  Label).update("Imāgō: —")
+        self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
+            self._tab_label("1", tag, None)
+        self._set_domain_excluded("shape-dream-domain-grid-b", tag, prev)
+        self._check_continue()
+        tree = tag.split(":", 1)[1]
+        container = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
+        cells = [c for c in self.query_one("#shape-dream-tree-container-a", ScrollableContainer).query(ImagoCell) if c._unlocked]
+        if cells:
+            cells[0].focus()
+
+    @work
+    async def _tab_select_domain_b(self, tag: str) -> None:
+        prev = self._domain_b
+        self._domain_b = tag
+        self._imago_b  = None
+        self.query_one("#sd-domain-label-b", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
+        self.query_one("#sd-imago-label-b",  Label).update("Imāgō: —")
+        self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
+            self._tab_label("2", tag, None)
+        self._set_domain_excluded("shape-dream-domain-grid-a", tag, prev)
+        self._check_continue()
+        tree = tag.split(":", 1)[1]
+        container = self.query_one("#shape-dream-tree-container-b", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
+        cells = [c for c in self.query_one("#shape-dream-tree-container-b", ScrollableContainer).query(ImagoCell) if c._unlocked]
+        if cells:
+            cells[0].focus()
+
+    @work
+    async def _restore_prefill_trees(self) -> None:
+        if self._domain_a:
+            tree = self._domain_a.split(":", 1)[1]
+            container = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+            await container.remove_children()
+            await container.mount(ImagoTreeGrid(self._state, tree))
+        if self._domain_b:
+            tree = self._domain_b.split(":", 1)[1]
+            container = self.query_one("#shape-dream-tree-container-b", ScrollableContainer)
+            await container.remove_children()
+            await container.mount(ImagoTreeGrid(self._state, tree))
+        if self._domain_a and self._domain_b:
+            self._set_domain_excluded("shape-dream-domain-grid-b", self._domain_a, None)
+            self._set_domain_excluded("shape-dream-domain-grid-a", self._domain_b, None)
+
+    def on_key(self, event) -> None:
+        focused = self.focused
+        if event.key == "tab":
+            if isinstance(focused, ListView):
+                squares_a = [sq for sq in self.query_one("#shape-dream-domain-grid-a", Grid).query(DomainSquare) if not sq.disabled]
+                if squares_a:
+                    squares_a[0].focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, DomainSquare):
+                grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
+                if grid_a in focused.ancestors_with_self:
+                    self._tab_select_domain_a(focused._tag)
+                else:
+                    self._tab_select_domain_b(focused._tag)
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoCell):
+                container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+                if container_a in focused.ancestors_with_self:
+                    self.query_one("#sd-tabs", TabbedContent).active = "sd-tab-b"
+                    squares_b = [sq for sq in self.query_one("#shape-dream-domain-grid-b", Grid).query(DomainSquare) if not sq.disabled]
+                    if squares_b:
+                        squares_b[0].focus()
+                else:
+                    self.query_one("#sd-continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "shift+tab":
+            if isinstance(focused, ListView):
+                pass  # nothing before mortal list
+            elif isinstance(focused, DomainSquare):
+                grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
+                if grid_a in focused.ancestors_with_self:
+                    self.query_one("#sd-mortal-list", ListView).focus()
+                else:
+                    self.query_one("#sd-tabs", TabbedContent).active = "sd-tab-a"
+                    cells_a = [c for c in self.query_one("#shape-dream-tree-container-a", ScrollableContainer).query(ImagoCell) if c._unlocked]
+                    if cells_a:
+                        cells_a[0].focus()
+                    else:
+                        squares_a = [sq for sq in self.query_one("#shape-dream-domain-grid-a", Grid).query(DomainSquare) if not sq.disabled]
+                        if squares_a:
+                            squares_a[0].focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoCell):
+                container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+                if container_a in focused.ancestors_with_self:
+                    prev_a = self._domain_a
+                    self._domain_a = None
+                    self._imago_a  = None
+                    self.query_one("#sd-domain-label-a", Label).update("Domain: —")
+                    self.query_one("#sd-imago-label-a",  Label).update("Imāgō: —")
+                    self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
+                        self._tab_label("1", None, None)
+                    self._set_domain_excluded("shape-dream-domain-grid-b", None, prev_a)
+                    self._check_continue()
+                    squares_a = [sq for sq in self.query_one("#shape-dream-domain-grid-a", Grid).query(DomainSquare) if not sq.disabled]
+                    if squares_a:
+                        squares_a[0].focus()
+                else:
+                    prev_b = self._domain_b
+                    self._domain_b = None
+                    self._imago_b  = None
+                    self.query_one("#sd-domain-label-b", Label).update("Domain: —")
+                    self.query_one("#sd-imago-label-b",  Label).update("Imāgō: —")
+                    self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
+                        self._tab_label("2", None, None)
+                    self._set_domain_excluded("shape-dream-domain-grid-a", None, prev_b)
+                    self._check_continue()
+                    squares_b = [sq for sq in self.query_one("#shape-dream-domain-grid-b", Grid).query(DomainSquare) if not sq.disabled]
+                    if squares_b:
+                        squares_b[0].focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "sd-continue-btn":
+                cells_b = [c for c in self.query_one("#shape-dream-tree-container-b", ScrollableContainer).query(ImagoCell) if c._unlocked]
+                if cells_b:
+                    cells_b[0].focus()
+                event.prevent_default(); event.stop()
 
     @on(ListView.Highlighted, "#sd-mortal-list")
     def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
@@ -1980,6 +2168,24 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             self._set_domain_excluded("shape-dream-domain-grid-a", event.tag, prev)
             self._swap_imago_tree("shape-dream-tree-container-b", event.tag)
 
+        self._check_continue()
+
+    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+        container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+        in_tab_a = container_a in event._sender.ancestors_with_self
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        if in_tab_a:
+            self._imago_a = event.node_id
+            self.query_one("#sd-imago-label-a", Label).update(f"Imāgō: {name}")
+            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
+                self._tab_label("1", self._domain_a, self._imago_a)
+        else:
+            self._imago_b = event.node_id
+            self.query_one("#sd-imago-label-b", Label).update(f"Imāgō: {name}")
+            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
+                self._tab_label("2", self._domain_b, self._imago_b)
         self._check_continue()
 
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:

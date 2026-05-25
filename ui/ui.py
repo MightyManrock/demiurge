@@ -1232,8 +1232,9 @@ class GameScreen(Screen):
         # ── shape_dream: unified config modal ──
         if action_key == "shape_dream":
             ireg = get_imago_registry()
+            prefill = None
             while True:
-                result = await app.push_screen_wait(ShapeDreamConfigModal(state))
+                result = await app.push_screen_wait(ShapeDreamConfigModal(state, prefill=prefill))
                 if result is None: return None
                 if result == BACK: return BACK
                 mortal_id_str, imago_node_id_a, imago_node_id_b = result
@@ -1241,7 +1242,9 @@ class GameScreen(Screen):
                 node_b = ireg.get_node(imago_node_id_b)
                 confirmed = await app.push_screen_wait(ShapeDreamConfirmModal(node_a, node_b, state))
                 if confirmed is None: return None
-                if not confirmed:     continue
+                if not confirmed:
+                    prefill = result
+                    continue
                 dvs_a = [
                     DomainVector(domain_tag=t, direction=v)
                     for t, v in node_a.mechanics.items()
