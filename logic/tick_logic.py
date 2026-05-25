@@ -1199,23 +1199,50 @@ class TickLoop:
             state.ticks_without_essence_gain += 1
 
         # ── Explore Beliefs auto-stop ──────────────────
-        # If ongoing Explore Beliefs has filled the pool to cap, cancel it automatically.
+        # Fires after Phase 2 revelation gain. Cap check first; then per-tier
+        # one/both checks if any tier stop flags are set on the intent.
         from core.action_core import ActionCategory as _AC
         _sr_key = _AC.SELF_REFINEMENT.value
         if _sr_key in state.pending_actions:
             _oa = state.pending_actions[_sr_key]
             if _oa.action_key == "explore_beliefs" and isinstance(_oa.intent, ExploreBeliefIntent):
-                _tag = _oa.intent.domain_tag
-                _cap = _compute_revelation_cap(state, _tag)
-                _pool = state.demiurge.revelation_pools.get(_tag, 0.0)
+                _tag   = _oa.intent.domain_tag
+                _cap   = _compute_revelation_cap(state, _tag)
+                _pool  = state.demiurge.revelation_pools.get(_tag, 0.0)
+                _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
+
                 if _cap == 0.0 or _pool >= _cap:
                     del state.pending_actions[_sr_key]
                     _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
-                    _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
                     result.passive_result.narrative_events.append(
                         f"[Revelation] Explore Beliefs on {_short} stopped: pool full ({_pool:.2f} / {_cap:.2f}). "
                         f"Use Reveal Imago to internalize Imagines."
                     )
+                else:
+                    _intent = _oa.intent
+                    _tier_flags = [
+                        (1, _intent.stop_on_t1_one, _intent.stop_on_t1_both),
+                        (2, _intent.stop_on_t2_one, _intent.stop_on_t2_both),
+                        (3, _intent.stop_on_t3_one, _intent.stop_on_t3_both),
+                    ]
+                    if any(f for _, one, both in _tier_flags for f in (one, both)):
+                        _revealed  = state.demiurge.revealed_imagines
+                        for _tier, _flag_one, _flag_both in _tier_flags:
+                            if not (_flag_one or _flag_both):
+                                continue
+                            _cost_one  = _revelation_adjusted_cost(_tier, _revealed)
+                            _cost_both = _cost_one + _revelation_adjusted_cost(_tier, _revealed + 1)
+                            _threshold = _cost_both if _flag_both else _cost_one
+                            _label     = f"both Tier {_tier}s" if _flag_both else f"one Tier {_tier}"
+                            if _pool >= _threshold:
+                                del state.pending_actions[_sr_key]
+                                _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
+                                result.passive_result.narrative_events.append(
+                                    f"[Revelation] Explore Beliefs on {_short} paused: "
+                                    f"enough Revelation to reveal {_label} Imago "
+                                    f"({_pool:.2f} ≥ {_threshold})."
+                                )
+                                break
 
         # ── Phase 2.5: Proxius Agent Actions ───────────
         agent_mutations, agent_narratives = self._resolve_proxius_agents(state, phase_rng)
