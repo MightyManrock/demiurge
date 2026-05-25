@@ -3651,7 +3651,7 @@ class TickLoop:
                     domain_shift_rate=0.06,
                     attention_per_tick=0.01,
                     imago_node_id=dominant_id,  # dominant carries forward into echo
-                    concept=intent.concept,
+                    concept="",
                 ),
             ))
 

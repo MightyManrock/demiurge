@@ -75,7 +75,6 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
                      for t, v in node_b.mechanics.items() if not t.startswith("domain:")]
             q("shape_dream", TargetType.MORTAL, UUID(mid),
               ShapeDreamIntent(
-                  concept=f"{node_a.name} ⊗ {node_b.name}",
                   imago_node_id_a=IMAGO_A,
                   imago_node_id_b=IMAGO_B,
                   domain_vectors_a=dvs_a,

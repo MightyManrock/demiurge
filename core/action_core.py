@@ -253,11 +253,6 @@ class ShapeDreamIntent(BaseModel):
           - Mixed sign     → SUM  (they offset naturally).
       * Tags appearing in only one Imago contribute as-is (post-multiplier).
     """
-    concept: str
-    # Plain statement of the dream the player is shaping. The narrative line
-    # generated at resolution time will report which Imago turned out to be
-    # the dominant interpretation.
-
     imago_node_id_a: str
     imago_node_id_b: str
     # The two Imago node IDs (must be from different Domain trees).
