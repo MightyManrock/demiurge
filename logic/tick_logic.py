@@ -1220,6 +1220,12 @@ class TickLoop:
                             f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imago to internalize Imagines."
                         )
                     ))
+                    result.pause_events.append(PauseEvent(
+                        event_type=PauseEventType.REVELATION_THRESHOLD,
+                        description=f"Revelation pool full for {_short}",
+                        is_hard_pause=False,
+                        pauses_by_default=True,
+                    ))
                 else:
                     _intent = _oa.intent
                     _tier_flags = [
@@ -1245,6 +1251,12 @@ class TickLoop:
                                         f"enough Revelation to reveal {_label} Imago "
                                         f"({_pool:.2f} ≥ {_threshold})."
                                     )
+                                ))
+                                result.pause_events.append(PauseEvent(
+                                    event_type=PauseEventType.REVELATION_THRESHOLD,
+                                    description=f"Revelation threshold met for {_short} ({_label})",
+                                    is_hard_pause=False,
+                                    pauses_by_default=True,
                                 ))
                                 break
 
