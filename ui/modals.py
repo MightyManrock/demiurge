@@ -724,35 +724,20 @@ class ExploreBeliefsModal(ModalScreen):
         tip  = (node.tooltip_blurb or f"Tier {node.tier} apex.") if node else ""
         self.query_one("#imago-ref-tooltip", Static).update(tip)
 
-    @on(Checkbox.Changed, "#stop-t1-one")
-    def _t1_one_changed(self, event: Checkbox.Changed) -> None:
-        if event.value:
-            self.query_one("#stop-t1-both", Checkbox).value = False
+    _updating_checkboxes: bool = False
 
-    @on(Checkbox.Changed, "#stop-t1-both")
-    def _t1_both_changed(self, event: Checkbox.Changed) -> None:
-        if event.value:
-            self.query_one("#stop-t1-one", Checkbox).value = False
-
-    @on(Checkbox.Changed, "#stop-t2-one")
-    def _t2_one_changed(self, event: Checkbox.Changed) -> None:
-        if event.value:
-            self.query_one("#stop-t2-both", Checkbox).value = False
-
-    @on(Checkbox.Changed, "#stop-t2-both")
-    def _t2_both_changed(self, event: Checkbox.Changed) -> None:
-        if event.value:
-            self.query_one("#stop-t2-one", Checkbox).value = False
-
-    @on(Checkbox.Changed, "#stop-t3-one")
-    def _t3_one_changed(self, event: Checkbox.Changed) -> None:
-        if event.value:
-            self.query_one("#stop-t3-both", Checkbox).value = False
-
-    @on(Checkbox.Changed, "#stop-t3-both")
-    def _t3_both_changed(self, event: Checkbox.Changed) -> None:
-        if event.value:
-            self.query_one("#stop-t3-one", Checkbox).value = False
+    @on(Checkbox.Changed)
+    def _autostop_changed(self, event: Checkbox.Changed) -> None:
+        cb_ids = {e[0] for e in self._CB_GRID}
+        if event.checkbox.id not in cb_ids or self._updating_checkboxes or not event.value:
+            return
+        self._updating_checkboxes = True
+        try:
+            for cb_id, _, _ in self._CB_GRID:
+                if cb_id != event.checkbox.id:
+                    self.query_one(f"#{cb_id}", Checkbox).value = False
+        finally:
+            self._updating_checkboxes = False
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         self._selected_tag = event.tag
