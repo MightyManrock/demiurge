@@ -1214,10 +1214,12 @@ class TickLoop:
                 if _cap == 0.0 or _pool >= _cap:
                     del state.pending_actions[_sr_key]
                     _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
-                    result.passive_result.narrative_events.append(
-                        f"[Revelation] Explore Beliefs on {_short} stopped: pool full ({_pool:.2f} / {_cap:.2f}). "
-                        f"Use Reveal Imago to internalize Imagines."
-                    )
+                    result.passive_result.narrative_events.append(NarrativeEvent(
+                        text=(
+                            f"[Revelation] Explore Beliefs on {_short} stopped: pool full "
+                            f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imago to internalize Imagines."
+                        )
+                    ))
                 else:
                     _intent = _oa.intent
                     _tier_flags = [
@@ -1237,11 +1239,13 @@ class TickLoop:
                             if _pool >= _threshold:
                                 del state.pending_actions[_sr_key]
                                 _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
-                                result.passive_result.narrative_events.append(
-                                    f"[Revelation] Explore Beliefs on {_short} paused: "
-                                    f"enough Revelation to reveal {_label} Imago "
-                                    f"({_pool:.2f} ≥ {_threshold})."
-                                )
+                                result.passive_result.narrative_events.append(NarrativeEvent(
+                                    text=(
+                                        f"[Revelation] Explore Beliefs on {_short} paused: "
+                                        f"enough Revelation to reveal {_label} Imago "
+                                        f"({_pool:.2f} ≥ {_threshold})."
+                                    )
+                                ))
                                 break
 
         # ── Phase 2.5: Proxius Agent Actions ───────────
