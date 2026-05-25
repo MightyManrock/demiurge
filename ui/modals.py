@@ -1363,9 +1363,7 @@ class WhisperConfigModal(ModalScreen):
                                 id=f"mortal-{i}",
                             )
                 with Vertical(classes="whisper-right"):
-                    with Horizontal(classes="whisper-right-labels"):
-                        yield Label("Domain: —", id="domain-label")
-                        yield Label("Imāgō: —",  id="imago-label")
+                    yield Label("Domain: —", id="domain-label")
                     with Grid(id="whisper-domain-grid"):
                         for tag in _DOMAIN_GRID_ORDER:
                             eligible = tag in self._eligible_tags
@@ -1376,6 +1374,7 @@ class WhisperConfigModal(ModalScreen):
                                 affiliated=tag in self._state.demiurge.affiliated_domains,
                                 accessible=eligible,
                             )
+                    yield Label("Imāgō: —", id="imago-label")
                     with ScrollableContainer(id="whisper-tree-container"):
                         pass
                     with Horizontal(classes="btn-row"):

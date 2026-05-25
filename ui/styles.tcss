@@ -591,11 +591,6 @@ LoadScreen {
     padding: 0 0 0 1;
 }
 
-.whisper-right-labels {
-    height: auto;
-    padding: 0 0 1 0;
-}
-
 #whisper-domain-grid {
     grid-size: 8;
     height: auto;
@@ -603,7 +598,7 @@ LoadScreen {
 }
 
 #whisper-tree-container {
-    height: 1fr;
+    height: 16;
     border: solid $border;
     padding: 0 1;
 }
