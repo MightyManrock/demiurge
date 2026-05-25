@@ -1729,12 +1729,12 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
 
     @work
     async def _tab_select_domain(self, tag: str) -> None:
-        """Select a domain via Tab and advance focus to the first ImagoCell."""
+        """Select a domain via Tab and advance focus to the first unlocked ImagoCell."""
         tree      = tag.split(":", 1)[1]
         container = self.query_one("#whisper-tree-container", ScrollableContainer)
         await container.remove_children()
         await container.mount(ImagoTreeGrid(self._state, tree))
-        cells = [c for c in self.query(ImagoCell) if not c.disabled]
+        cells = [c for c in self.query(ImagoCell) if c._unlocked]
         if cells:
             cells[0].focus()
 
