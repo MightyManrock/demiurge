@@ -511,9 +511,7 @@ class ExploreBeliefsModal(ModalScreen):
     def __init__(
         self,
         state: SimulationState,
-        exclude_tags: set | None = None,
         capped_domains: set | None = None,
-        eligible_reveal_domains: set | None = None,
     ) -> None:
         super().__init__()
         self._state         = state
@@ -523,17 +521,13 @@ class ExploreBeliefsModal(ModalScreen):
         lum_info, fellow_tags, _ = _get_lum_domain_context(state)
 
         accessible_set = set(dreg.all_tags)
-        if exclude_tags:
-            accessible_set -= exclude_tags
         if capped_domains:
             accessible_set -= capped_domains
 
-        self._dreg                = dreg
-        self._lum_info            = lum_info
-        self._fellow_tags         = fellow_tags
-        self._accessible_set      = accessible_set
-        self._affiliated_set      = set(state.demiurge.affiliated_domains)
-        self._eligible_reveal_set = eligible_reveal_domains or set()
+        self._dreg           = dreg
+        self._lum_info       = lum_info
+        self._fellow_tags    = fellow_tags
+        self._accessible_set = accessible_set
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
@@ -542,7 +536,6 @@ class ExploreBeliefsModal(ModalScreen):
                 yield from _domain_grid_squares(
                     self._state, self._dreg, self._accessible_set,
                     show_names=True,
-                    eligible_reveal_tags=self._eligible_reveal_set or None,
                 )
             yield Static("", id="lum-panel")
             with Horizontal(classes="btn-row"):

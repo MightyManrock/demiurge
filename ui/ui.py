@@ -1729,7 +1729,6 @@ class GameScreen(Screen):
                 )
                 if tag is None: return None
                 if tag == BACK: return BACK
-                if not tag: return None
                 return ExploreBeliefIntent(domain_tag=tag)
 
             if action_key == "reveal_imago":
