@@ -323,8 +323,8 @@ DomainSquare.affiliated:focus {
 }
 
 DomainSquare.inactive {
-    border: round $muted;
-    color: $muted;
+    border: round #3a4e60;
+    color: #3a4e60;
 }
 
 DomainSquare.eligible-reveal {
