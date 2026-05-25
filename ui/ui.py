@@ -68,7 +68,7 @@ from ui.session_log import SessionLog, RichLogBuffer
 from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
     QuitConfirmModal,
-    TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
+    TextFormModal, DomainPickerModal, ExploreBeliefsModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
     ShapeDreamConfigModal, ShapeDreamConfirmModal,
@@ -1725,7 +1725,7 @@ class GameScreen(Screen):
                     or state.demiurge.revelation_pools.get(tag, 0.0) >= _compute_revelation_cap(state, tag)
                 }
                 tag = await self.app.push_screen_wait(
-                    DomainPickerModal(state, explore_mode=True, capped_domains=capped)
+                    ExploreBeliefsModal(state, capped_domains=capped)
                 )
                 if tag is None: return None
                 if tag == BACK: return BACK

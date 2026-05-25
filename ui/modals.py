@@ -490,6 +490,130 @@ class DomainPickerModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
+# EXPLORE BELIEFS MODAL
+# Dedicated domain picker for Explore Beliefs. Selection does not immediately
+# advance — a Confirm button must be pressed. No "Skip" option.
+# Dismisses with a domain tag str, BACK, or None on cancel.
+# ─────────────────────────────────────────
+
+class ExploreBeliefsModal(ModalScreen):
+    """Domain grid picker for Explore Beliefs. Requires explicit Confirm."""
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+        ("up",        "nav('up')",    ""),
+        ("down",      "nav('down')",  ""),
+        ("left",      "nav('left')",  ""),
+        ("right",     "nav('right')", ""),
+    ]
+
+    def __init__(
+        self,
+        state: SimulationState,
+        exclude_tags: set | None = None,
+        capped_domains: set | None = None,
+        eligible_reveal_domains: set | None = None,
+    ) -> None:
+        super().__init__()
+        self._state         = state
+        self._selected_tag: str | None = None
+
+        dreg = get_domain_registry()
+        lum_info, fellow_tags, _ = _get_lum_domain_context(state)
+
+        accessible_set = set(dreg.all_tags)
+        if exclude_tags:
+            accessible_set -= exclude_tags
+        if capped_domains:
+            accessible_set -= capped_domains
+
+        self._dreg                = dreg
+        self._lum_info            = lum_info
+        self._fellow_tags         = fellow_tags
+        self._accessible_set      = accessible_set
+        self._affiliated_set      = set(state.demiurge.affiliated_domains)
+        self._eligible_reveal_set = eligible_reveal_domains or set()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box"):
+            yield Label("Explore Domain", classes="modal-title")
+            with Grid(id="domain-grid"):
+                yield from _domain_grid_squares(
+                    self._state, self._dreg, self._accessible_set,
+                    show_names=True,
+                    eligible_reveal_tags=self._eligible_reveal_set or None,
+                )
+            yield Static("", id="lum-panel")
+            with Horizontal(classes="btn-row"):
+                yield Button("Confirm",  id="confirm-btn", disabled=True)
+                yield Button("← Back",   id="back-btn")
+                yield Button("Cancel",   id="cancel-btn", classes="-danger")
+
+    def on_mount(self) -> None:
+        for sq in self.query(DomainSquare):
+            if not sq.disabled:
+                sq.focus()
+                break
+
+    def action_nav(self, direction: str) -> None:
+        squares = list(self.query(DomainSquare))
+        focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
+        if focused_idx == -1:
+            self.on_mount()
+            return
+        row, col = divmod(focused_idx, 4)
+        dr, dc = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+        r, c = row + dr, col + dc
+        while 0 <= r < 4 and 0 <= c < 4:
+            candidate = squares[r * 4 + c]
+            if not candidate.disabled:
+                candidate.focus()
+                return
+            r, c = r + dr, c + dc
+
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
+        tag   = event.tag
+        parts = []
+        for lum, lum_tags in self._lum_info:
+            if lum_tags:
+                lid = str(lum.id)
+                v   = self._dreg.luminary_approval(
+                    tag, lum_tags,
+                    fellow_lum_tags=self._fellow_tags[lid],
+                    personality=self._dreg.compute_personality(lum.domains),
+                )
+                col = "#50b870" if v > 0.15 else ("#b04050" if v < -0.15 else "#5a7090")
+                parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.0%}[/]")
+        self.query_one("#lum-panel", Static).update("  ".join(parts))
+
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        self._selected_tag = event.tag
+        btn = self.query_one("#confirm-btn", Button)
+        btn.disabled = False
+        btn.add_class("continue-ready")
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        if self._selected_tag:
+            self.dismiss(self._selected_tag)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
 # IMAGO TREE PICKER
 # Shows all 7 nodes of one tree in a 3-column pyramid layout.
 # Dismisses with a node_id (str), BACK to return to domain picker,
