@@ -287,9 +287,13 @@ ModalScreen {
 
 #explore-right {
     width: 1fr;
-    height: auto;
+    height: 100%;
     padding-left: 2;
     border-left: solid $border;
+}
+
+#explore-right ImagoTreeGrid {
+    height: 1fr;
 }
 
 .explore-ref-title {
