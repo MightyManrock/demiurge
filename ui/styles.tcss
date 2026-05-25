@@ -314,8 +314,8 @@ DomainSquare:focus {
 }
 
 DomainSquare.affiliated {
-    border: round #A7CFB2;
-    color: #A7CFB2;
+    border: round #496950;
+    color: #496950;
 }
 
 DomainSquare.affiliated:focus {
