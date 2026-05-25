@@ -97,7 +97,7 @@ git commit -m "refactor: remove unused concept field from ShapeDreamIntent"
 
 ---
 
-## Task 2: Add CSS for `ShapeDreamConfigModal`
+## ✅ Task 2: Add CSS for `ShapeDreamConfigModal`
 
 **Files:**
 - Modify: `ui/styles.tcss` (append after the whisper-config-modal block, around line 611)
