@@ -1347,9 +1347,9 @@ class WhisperConfigModal(ModalScreen):
                     with ListView(id="mortal-list"):
                         for i, (mid, m) in enumerate(self._mortals):
                             pop_obj  = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
-                            pop_name = pop_obj.name if pop_obj else "?"
+                            pop_name = (pop_obj.name or "?") if pop_obj else "?"
                             loc_obj  = self._state.locations.get(str(m.current_location))
-                            loc      = loc_obj.name if loc_obj else "?"
+                            loc      = (loc_obj.name or "?") if loc_obj else "?"
                             name = m.name or "?"
                             align = m.alignment if m.alignment is not None else 0.0
                             yield ListItem(
