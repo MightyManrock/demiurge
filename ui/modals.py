@@ -1606,7 +1606,7 @@ class ShapeDreamConfigModal(ModalScreen):
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
-        in_tab_a = grid_a in event.control.ancestors_with_self
+        in_tab_a = grid_a in event._sender.ancestors_with_self
 
         if in_tab_a:
             prev = self._domain_a
@@ -1637,7 +1637,7 @@ class ShapeDreamConfigModal(ModalScreen):
 
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
         container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
-        in_tab_a = container_a in event.control.ancestors_with_self
+        in_tab_a = container_a in event._sender.ancestors_with_self
 
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)
