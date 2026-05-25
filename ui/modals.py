@@ -666,7 +666,7 @@ class ExploreBeliefsModal(ModalScreen):
         btn = self.query_one("#confirm-btn", Button)
         btn.disabled = False
         btn.add_class("continue-ready")
-        name  = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+        name  = _domain_display_name(tag)
         pool  = self._state.demiurge.revelation_pools.get(tag, 0.0)
         cap   = _compute_revelation_cap(self._state, tag)
         cap_s = f"{cap:.0f}" if cap > 0.0 else "∞"
@@ -1746,7 +1746,7 @@ def _domain_grid_squares(
     """Yield the 16 DomainSquare widgets for a domain picker grid."""
     for tag in _DOMAIN_GRID_ORDER:
         if show_names:
-            name = tag.split(":", 1)[1].title()
+            name = _domain_display_name(tag)
             if len(name) % 2 == 0:
                 name = " " + name
         else:
@@ -1795,15 +1795,26 @@ def _nav_domain_grid(squares: list, direction: str, cols: int = 8) -> None:
             r += dr
 
 
+def _domain_display_name(tag: str) -> str:
+    """Return the title-cased name portion of a domain tag (e.g. 'domain:fire' → 'Fire')."""
+    return tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+
+
 class _ImagoSwapMixin:
     """Provides `_swap_imago_tree(container_id, tag)` as a @work method."""
 
     @work
-    async def _swap_imago_tree(self, container_id: str, tag: str) -> None:
+    async def _swap_imago_tree(
+        self, container_id: str, tag: str, *, focus_first: bool = False
+    ) -> None:
         tree      = tag.split(":", 1)[1]
         container = self.query_one(f"#{container_id}", ScrollableContainer)
         await container.remove_children()
         await container.mount(ImagoTreeGrid(self._state, tree))
+        if focus_first:
+            cells = [c for c in container.query(ImagoCell) if c._unlocked]
+            if cells:
+                cells[0].focus()
 
 
 # ─────────────────────────────────────────
@@ -1875,14 +1886,14 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             if m:
                 self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
             self.query_one("#domain-label", Label).update(
-                f"Domain: {domain_tag.split(':', 1)[1].title()}"
+                f"Domain: {_domain_display_name(domain_tag)}"
             )
             ireg = get_imago_registry()
             node = ireg.get_node(imago_node_id)
             self.query_one("#imago-label", Label).update(
                 f"Imāgō: {node.name if node else imago_node_id}"
             )
-            self._restore_prefill_tree(domain_tag)
+            self._swap_imago_tree("whisper-tree-container", domain_tag)
         elif self._mortal_ids:
             self._mortal_id = self._mortal_ids[0]
             m = self._state.mortals.get(self._mortal_id)
@@ -1905,27 +1916,9 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             _nav_domain_grid(squares, direction)
 
     @work
-    async def _tab_select_domain(self, tag: str) -> None:
-        """Select a domain via Tab and advance focus to the first unlocked ImagoCell."""
-        tree      = tag.split(":", 1)[1]
-        container = self.query_one("#whisper-tree-container", ScrollableContainer)
-        await container.remove_children()
-        await container.mount(ImagoTreeGrid(self._state, tree))
-        cells = [c for c in self.query(ImagoCell) if c._unlocked]
-        if cells:
-            cells[0].focus()
-
-    @work
     async def _clear_domain_tree(self) -> None:
         container = self.query_one("#whisper-tree-container", ScrollableContainer)
         await container.remove_children()
-
-    @work
-    async def _restore_prefill_tree(self, domain_tag: str) -> None:
-        tree      = domain_tag.split(":", 1)[1]
-        container = self.query_one("#whisper-tree-container", ScrollableContainer)
-        await container.remove_children()
-        await container.mount(ImagoTreeGrid(self._state, tree))
 
     def on_key(self, event) -> None:
         focused = self.focused
@@ -1940,10 +1933,10 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 tag = focused._tag
                 self._domain_tag    = tag
                 self._imago_node_id = None
-                self.query_one("#domain-label", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
+                self.query_one("#domain-label", Label).update(f"Domain: {_domain_display_name(tag)}")
                 self.query_one("#imago-label",  Label).update("Imāgō: —")
                 self._check_continue()
-                self._tab_select_domain(tag)
+                self._swap_imago_tree("whisper-tree-container", tag, focus_first=True)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
                 self.query_one("#back-btn", Button).focus()
@@ -1985,13 +1978,13 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         self._check_continue()
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
-        self.query_one("#domain-label", Label).update(f"Domain: {event.tag.split(':', 1)[1].title()}")
+        self.query_one("#domain-label", Label).update(f"Domain: {_domain_display_name(event.tag)}")
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         tag = event.tag
         self._domain_tag    = tag
         self._imago_node_id = None
-        self.query_one("#domain-label", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
+        self.query_one("#domain-label", Label).update(f"Domain: {_domain_display_name(tag)}")
         self.query_one("#imago-label",  Label).update("Imāgō: —")
         self._check_continue()
         self._swap_imago_tree("whisper-tree-container", tag)
@@ -2123,7 +2116,7 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             ireg = get_imago_registry()
             if self._domain_a:
                 self.query_one("#sd-domain-label-a", Label).update(
-                    f"Domain: {self._domain_a.split(':', 1)[1].title()}"
+                    f"Domain: {_domain_display_name(self._domain_a)}"
                 )
                 if self._imago_a:
                     node = ireg.get_node(self._imago_a)
@@ -2134,7 +2127,7 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                         self._tab_label("1", self._domain_a, self._imago_a)
             if self._domain_b:
                 self.query_one("#sd-domain-label-b", Label).update(
-                    f"Domain: {self._domain_b.split(':', 1)[1].title()}"
+                    f"Domain: {_domain_display_name(self._domain_b)}"
                 )
                 if self._imago_b:
                     node = ireg.get_node(self._imago_b)
@@ -2163,7 +2156,7 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
     def _tab_label(self, slot: str, domain_tag: str | None, imago_node_id: str | None) -> str:
         if domain_tag is None:
             return f"Domain {slot}: Imāgō {slot}"
-        domain_name = domain_tag.split(":", 1)[1].title()
+        domain_name = _domain_display_name(domain_tag)
         if imago_node_id is None:
             return f"{domain_name}: Imāgō {slot}"
         ireg = get_imago_registry()
@@ -2190,40 +2183,25 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 return
 
     @work
-    async def _tab_select_domain_a(self, tag: str) -> None:
-        prev = self._domain_a
-        self._domain_a = tag
-        self._imago_a  = None
-        self.query_one("#sd-domain-label-a", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
-        self.query_one("#sd-imago-label-a",  Label).update("Imāgō: —")
-        self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
-            self._tab_label("1", tag, None)
-        self._set_domain_excluded("shape-dream-domain-grid-b", tag, prev)
+    async def _select_slot_domain(self, slot: str, tag: str) -> None:
+        """slot is 'a' or 'b'."""
+        other    = "b" if slot == "a" else "a"
+        slot_num = "1" if slot == "a" else "2"
+        prev = getattr(self, f"_domain_{slot}")
+        setattr(self, f"_domain_{slot}", tag)
+        setattr(self, f"_imago_{slot}", None)
+        self.query_one(f"#sd-domain-label-{slot}", Label).update(f"Domain: {_domain_display_name(tag)}")
+        self.query_one(f"#sd-imago-label-{slot}",  Label).update("Imāgō: —")
+        self.query_one("#sd-tabs", TabbedContent).get_tab(f"sd-tab-{slot}").label = \
+            self._tab_label(slot_num, tag, None)
+        self._set_domain_excluded(f"shape-dream-domain-grid-{other}", tag, prev)
         self._check_continue()
-        tree = tag.split(":", 1)[1]
-        container = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+        container_id = f"shape-dream-tree-container-{slot}"
+        tree      = tag.split(":", 1)[1]
+        container = self.query_one(f"#{container_id}", ScrollableContainer)
         await container.remove_children()
         await container.mount(ImagoTreeGrid(self._state, tree))
-        cells = [c for c in self.query_one("#shape-dream-tree-container-a", ScrollableContainer).query(ImagoCell) if c._unlocked]
-        if cells:
-            cells[0].focus()
-
-    @work
-    async def _tab_select_domain_b(self, tag: str) -> None:
-        prev = self._domain_b
-        self._domain_b = tag
-        self._imago_b  = None
-        self.query_one("#sd-domain-label-b", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
-        self.query_one("#sd-imago-label-b",  Label).update("Imāgō: —")
-        self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
-            self._tab_label("2", tag, None)
-        self._set_domain_excluded("shape-dream-domain-grid-a", tag, prev)
-        self._check_continue()
-        tree = tag.split(":", 1)[1]
-        container = self.query_one("#shape-dream-tree-container-b", ScrollableContainer)
-        await container.remove_children()
-        await container.mount(ImagoTreeGrid(self._state, tree))
-        cells = [c for c in self.query_one("#shape-dream-tree-container-b", ScrollableContainer).query(ImagoCell) if c._unlocked]
+        cells = [c for c in container.query(ImagoCell) if c._unlocked]
         if cells:
             cells[0].focus()
 
@@ -2253,10 +2231,8 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 event.prevent_default(); event.stop()
             elif isinstance(focused, DomainSquare):
                 grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
-                if grid_a in focused.ancestors_with_self:
-                    self._tab_select_domain_a(focused._tag)
-                else:
-                    self._tab_select_domain_b(focused._tag)
+                slot   = "a" if grid_a in focused.ancestors_with_self else "b"
+                self._select_slot_domain(slot, focused._tag)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
                 container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
@@ -2338,40 +2314,27 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
-        if grid_a in event._sender.ancestors_with_self:
-            self.query_one("#sd-domain-label-a", Label).update(f"Domain: {event.tag.split(':', 1)[1].title()}")
-        else:
-            self.query_one("#sd-domain-label-b", Label).update(f"Domain: {event.tag.split(':', 1)[1].title()}")
+        slot   = "a" if grid_a in event._sender.ancestors_with_self else "b"
+        self.query_one(f"#sd-domain-label-{slot}", Label).update(
+            f"Domain: {_domain_display_name(event.tag)}"
+        )
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
-        grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
-        in_tab_a = grid_a in event._sender.ancestors_with_self
-
-        if in_tab_a:
-            prev = self._domain_a
-            self._domain_a = event.tag
-            self._imago_a  = None
-            self.query_one("#sd-domain-label-a", Label).update(
-                f"Domain: {event.tag.split(':', 1)[1].title()}"
-            )
-            self.query_one("#sd-imago-label-a", Label).update("Imāgō: —")
-            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
-                self._tab_label("1", self._domain_a, None)
-            self._set_domain_excluded("shape-dream-domain-grid-b", event.tag, prev)
-            self._swap_imago_tree("shape-dream-tree-container-a", event.tag)
-        else:
-            prev = self._domain_b
-            self._domain_b = event.tag
-            self._imago_b  = None
-            self.query_one("#sd-domain-label-b", Label).update(
-                f"Domain: {event.tag.split(':', 1)[1].title()}"
-            )
-            self.query_one("#sd-imago-label-b", Label).update("Imāgō: —")
-            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
-                self._tab_label("2", self._domain_b, None)
-            self._set_domain_excluded("shape-dream-domain-grid-a", event.tag, prev)
-            self._swap_imago_tree("shape-dream-tree-container-b", event.tag)
-
+        grid_a   = self.query_one("#shape-dream-domain-grid-a", Grid)
+        slot     = "a" if grid_a in event._sender.ancestors_with_self else "b"
+        other    = "b" if slot == "a" else "a"
+        slot_num = "1" if slot == "a" else "2"
+        prev = getattr(self, f"_domain_{slot}")
+        setattr(self, f"_domain_{slot}", event.tag)
+        setattr(self, f"_imago_{slot}", None)
+        self.query_one(f"#sd-domain-label-{slot}", Label).update(
+            f"Domain: {_domain_display_name(event.tag)}"
+        )
+        self.query_one(f"#sd-imago-label-{slot}", Label).update("Imāgō: —")
+        self.query_one("#sd-tabs", TabbedContent).get_tab(f"sd-tab-{slot}").label = \
+            self._tab_label(slot_num, event.tag, None)
+        self._set_domain_excluded(f"shape-dream-domain-grid-{other}", event.tag, prev)
+        self._swap_imago_tree(f"shape-dream-tree-container-{slot}", event.tag)
         self._check_continue()
 
     def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
