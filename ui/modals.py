@@ -1612,8 +1612,12 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",    "cancel", "Cancel"),
-        ("backspace", "back",   "Back"),
+        ("escape",    "cancel",           "Cancel"),
+        ("backspace", "back",             "Back"),
+        ("up",        "nav_domain('up')",    ""),
+        ("down",      "nav_domain('down')",  ""),
+        ("left",      "nav_domain('left')",  ""),
+        ("right",     "nav_domain('right')", ""),
     ]
 
     def __init__(self, state: SimulationState) -> None:
@@ -1665,6 +1669,36 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         else:
             btn.remove_class("continue-ready")
 
+    def action_nav_domain(self, direction: str) -> None:
+        squares = list(self.query(DomainSquare))
+        if not any(sq.has_focus for sq in squares):
+            return
+        focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
+        row, col = divmod(focused_idx, 4)
+        dr, dc = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+        r, c = row + dr, col + dc
+        while 0 <= r < 4 and 0 <= c < 4:
+            candidate = squares[r * 4 + c]
+            if not candidate.disabled:
+                candidate.focus()
+                return
+            r, c = r + dr, c + dc
+
+    def on_key(self, event) -> None:
+        if event.key != "tab":
+            return
+        focused = self.focused
+        if isinstance(focused, DomainSquare):
+            cells = [c for c in self.query(ImagoCell) if not c.disabled]
+            if cells:
+                cells[0].focus()
+                event.prevent_default()
+                event.stop()
+        elif isinstance(focused, ImagoCell):
+            self.query_one("#continue-btn", Button).focus()
+            event.prevent_default()
+            event.stop()
+
     @on(ListView.Highlighted, "#mortal-list")
     def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
         if event.item is None:
@@ -1676,7 +1710,7 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
         self._check_continue()
 
-    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         self._domain_tag    = event.tag
         self._imago_node_id = None
         name = event.tag.split(":", 1)[1].title()
@@ -1685,6 +1719,17 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         self._check_continue()
         self._swap_imago_tree("whisper-tree-container", event.tag)
 
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        self.on_domain_square_focused(DomainSquare.Focused(event.tag))
+
+    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+        self._imago_node_id = event.node_id
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        self._check_continue()
+
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
         self._imago_node_id = event.node_id
         ireg = get_imago_registry()
@@ -1692,6 +1737,8 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         name = node.name if node else event.node_id
         self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
         self._check_continue()
+        if self._mortal_id and self._domain_tag and self._imago_node_id:
+            self.dismiss((self._mortal_id, self._domain_tag, self._imago_node_id))
 
     @on(Button.Pressed, "#continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
