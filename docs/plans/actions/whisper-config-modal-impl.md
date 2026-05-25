@@ -1,5 +1,7 @@
 # WhisperConfigModal Implementation Plan
 
+> **STATUS: COMPLETE** — All tasks implemented and pushed to `action-redesign` branch (2026-05-25).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the 3-step whisper wizard (mortal → domain → imago) with a single unified `WhisperConfigModal` that shows all three panels at once.
