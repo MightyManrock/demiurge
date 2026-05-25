@@ -1350,8 +1350,10 @@ class WhisperConfigModal(ModalScreen):
                             pop_name = pop_obj.name if pop_obj else "?"
                             loc_obj  = self._state.locations.get(str(m.current_location))
                             loc      = loc_obj.name if loc_obj else "?"
+                            name = m.name or "?"
+                            align = m.alignment if m.alignment is not None else 0.0
                             yield ListItem(
-                                Label(f"{m.name:<18}  align:{m.alignment:.2f}  {pop_name:<14}  {loc}"),
+                                Label(f"{name:<18}  align:{align:.2f}  {pop_name:<14}  {loc}"),
                                 id=f"mortal-{i}",
                             )
                 with Vertical(classes="whisper-right"):
