@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Input, Label, ListItem, ListView,
+    Button, Checkbox, Input, Label, ListItem, ListView,
     RadioButton, RadioSet, RichLog, Static,
     TabbedContent, Tab, TabPane,
 )
@@ -492,12 +492,17 @@ class DomainPickerModal(ModalScreen):
 # ─────────────────────────────────────────
 # EXPLORE BELIEFS MODAL
 # Dedicated domain picker for Explore Beliefs. Selection does not immediately
-# advance — a Confirm button must be pressed. No "Skip" option.
-# Dismisses with a domain tag str, BACK, or None on cancel.
+# dismiss — the player also configures auto-stop settings before confirming.
+# Returns (tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both) on confirm,
+# BACK or None otherwise.
 # ─────────────────────────────────────────
 
 class ExploreBeliefsModal(ModalScreen):
-    """Domain grid picker for Explore Beliefs. Requires explicit Confirm."""
+    """Domain grid + auto-stop settings for Explore Beliefs.
+
+    Returns (tag, stop_t1_one, stop_t1_both, stop_t2_one, stop_t2_both,
+             stop_t3_one, stop_t3_both), BACK, or None.
+    """
 
     BINDINGS = [
         ("escape",    "force_cancel", "Cancel"),
@@ -538,10 +543,20 @@ class ExploreBeliefsModal(ModalScreen):
                     show_names=True,
                 )
             yield Static("", id="lum-panel")
+            with Vertical(id="auto-stop-panel"):
+                yield Label("Auto-stop when…", classes="auto-stop-title")
+                with Grid(id="auto-stop-grid"):
+                    yield Checkbox("One T1 unlockable",   id="stop-t1-one",  value=False, disabled=True)
+                    yield Checkbox("Both T1s unlockable", id="stop-t1-both", value=False, disabled=True)
+                    yield Checkbox("One T2 unlockable",   id="stop-t2-one",  value=False, disabled=True)
+                    yield Checkbox("Both T2s unlockable", id="stop-t2-both", value=False, disabled=True)
+                    yield Checkbox("One T3 unlockable",   id="stop-t3-one",  value=False, disabled=True)
+                    yield Checkbox("Both T3s unlockable", id="stop-t3-both", value=False, disabled=True)
+                yield Checkbox("Revelation cap reached", id="stop-cap", value=True, disabled=True)
             with Horizontal(classes="btn-row"):
-                yield Button("← Back",   id="back-btn")
-                yield Button("Cancel",   id="cancel-btn", classes="-danger")
-                yield Button("Confirm",  id="confirm-btn", disabled=True)
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn", classes="-danger")
+                yield Button("Confirm", id="confirm-btn", disabled=True)
 
     def on_mount(self) -> None:
         for sq in self.query(DomainSquare):
@@ -566,7 +581,7 @@ class ExploreBeliefsModal(ModalScreen):
             r, c = r + dr, c + dc
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
-        tag   = event.tag
+        tag = event.tag
         self._selected_tag = tag
         btn = self.query_one("#confirm-btn", Button)
         btn.disabled = False
@@ -583,15 +598,70 @@ class ExploreBeliefsModal(ModalScreen):
                 col = "#50b870" if v > 0.15 else ("#b04050" if v < -0.15 else "#5a7090")
                 parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.0%}[/]")
         self.query_one("#lum-panel", Static).update("  ".join(parts))
+        self._update_checkbox_states(tag)
+
+    def _update_checkbox_states(self, tag: str) -> None:
+        ireg = get_imago_registry()
+        tree = tag.split(":", 1)[1] if ":" in tag else tag
+        unlocked = set(self._state.demiurge.unlocked_imagines)
+        nodes = ireg.nodes_for_tree(tree)
+        for tier in (1, 2, 3):
+            remaining = sum(1 for n in nodes if n.tier == tier and n.node_id not in unlocked)
+            cb_one  = self.query_one(f"#stop-t{tier}-one",  Checkbox)
+            cb_both = self.query_one(f"#stop-t{tier}-both", Checkbox)
+            cb_one.disabled  = remaining < 1
+            cb_both.disabled = remaining < 2
+            if remaining < 1:
+                cb_one.value = False
+            if remaining < 2:
+                cb_both.value = False
+
+    @on(Checkbox.Changed, "#stop-t1-one")
+    def _t1_one_changed(self, event: Checkbox.Changed) -> None:
+        if event.value:
+            self.query_one("#stop-t1-both", Checkbox).value = False
+
+    @on(Checkbox.Changed, "#stop-t1-both")
+    def _t1_both_changed(self, event: Checkbox.Changed) -> None:
+        if event.value:
+            self.query_one("#stop-t1-one", Checkbox).value = False
+
+    @on(Checkbox.Changed, "#stop-t2-one")
+    def _t2_one_changed(self, event: Checkbox.Changed) -> None:
+        if event.value:
+            self.query_one("#stop-t2-both", Checkbox).value = False
+
+    @on(Checkbox.Changed, "#stop-t2-both")
+    def _t2_both_changed(self, event: Checkbox.Changed) -> None:
+        if event.value:
+            self.query_one("#stop-t2-one", Checkbox).value = False
+
+    @on(Checkbox.Changed, "#stop-t3-one")
+    def _t3_one_changed(self, event: Checkbox.Changed) -> None:
+        if event.value:
+            self.query_one("#stop-t3-both", Checkbox).value = False
+
+    @on(Checkbox.Changed, "#stop-t3-both")
+    def _t3_both_changed(self, event: Checkbox.Changed) -> None:
+        if event.value:
+            self.query_one("#stop-t3-one", Checkbox).value = False
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         self._selected_tag = event.tag
-        self.dismiss(self._selected_tag)
+        self.query_one("#confirm-btn", Button).focus()
 
     @on(Button.Pressed, "#confirm-btn")
     def _confirm(self, _: Button.Pressed) -> None:
         if self._selected_tag:
-            self.dismiss(self._selected_tag)
+            self.dismiss((
+                self._selected_tag,
+                self.query_one("#stop-t1-one",  Checkbox).value,
+                self.query_one("#stop-t1-both", Checkbox).value,
+                self.query_one("#stop-t2-one",  Checkbox).value,
+                self.query_one("#stop-t2-both", Checkbox).value,
+                self.query_one("#stop-t3-one",  Checkbox).value,
+                self.query_one("#stop-t3-both", Checkbox).value,
+            ))
 
     @on(Button.Pressed, "#back-btn")
     def _back(self, _: Button.Pressed) -> None:

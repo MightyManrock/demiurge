@@ -300,6 +300,25 @@ ModalScreen {
     margin: 1 0;
 }
 
+#auto-stop-panel {
+    border: round $border;
+    margin: 1 0 0 0;
+    padding: 0 1 1 1;
+    height: auto;
+}
+
+.auto-stop-title {
+    color: $muted;
+    text-style: italic;
+    padding: 0 0 0 0;
+}
+
+#auto-stop-grid {
+    grid-size: 2;
+    height: auto;
+    margin: 0;
+}
+
 DomainSquare {
     border: round $border;
     height: 4;
