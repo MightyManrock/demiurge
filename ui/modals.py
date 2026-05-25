@@ -565,7 +565,30 @@ class ExploreBeliefsModal(ModalScreen):
                 sq.focus()
                 break
 
+    _CB_GRID = [
+        ("stop-t1-one",  0, 0), ("stop-t1-both", 0, 1),
+        ("stop-t2-one",  1, 0), ("stop-t2-both", 1, 1),
+        ("stop-t3-one",  2, 0), ("stop-t3-both", 2, 1),
+    ]
+
     def action_nav(self, direction: str) -> None:
+        focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
+        if focused_cb is not None:
+            entry = next((e for e in self._CB_GRID if e[0] == focused_cb.id), None)
+            if entry:
+                _, row, col = entry
+                dr, dc = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+                r, c = row + dr, col + dc
+                while 0 <= r < 3 and 0 <= c < 2:
+                    target_id = next((e[0] for e in self._CB_GRID if e[1] == r and e[2] == c), None)
+                    if target_id:
+                        cb = self.query_one(f"#{target_id}", Checkbox)
+                        if not cb.disabled:
+                            cb.focus()
+                            return
+                    r, c = r + dr, c + dc
+            return
+
         squares = list(self.query(DomainSquare))
         focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
         if focused_idx == -1:
@@ -580,6 +603,48 @@ class ExploreBeliefsModal(ModalScreen):
                 candidate.focus()
                 return
             r, c = r + dr, c + dc
+
+    def on_key(self, event) -> None:
+        if event.key == "tab":
+            focused_sq = next((sq for sq in self.query(DomainSquare) if sq.has_focus), None)
+            if focused_sq is not None:
+                event.prevent_default()
+                self._focus_first_checkbox()
+                return
+            focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
+            if focused_cb is not None:
+                event.prevent_default()
+                self.query_one("#back-btn", Button).focus()
+                return
+        elif event.key == "shift+tab":
+            focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
+            if focused_cb is not None:
+                event.prevent_default()
+                self._focus_selected_square()
+                return
+            back_btn = self.query_one("#back-btn", Button)
+            if back_btn.has_focus:
+                event.prevent_default()
+                self._focus_first_checkbox()
+                return
+
+    def _focus_first_checkbox(self) -> None:
+        for cb_id, _, _ in self._CB_GRID:
+            cb = self.query_one(f"#{cb_id}", Checkbox)
+            if not cb.disabled:
+                cb.focus()
+                return
+
+    def _focus_selected_square(self) -> None:
+        if self._selected_tag:
+            for sq in self.query(DomainSquare):
+                if sq._tag == self._selected_tag and not sq.disabled:
+                    sq.focus()
+                    return
+        for sq in self.query(DomainSquare):
+            if not sq.disabled:
+                sq.focus()
+                return
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         tag = event.tag
@@ -656,10 +721,9 @@ class ExploreBeliefsModal(ModalScreen):
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         self._selected_tag = event.tag
-        self.query_one("#confirm-btn", Button).focus()
+        self._do_confirm()
 
-    @on(Button.Pressed, "#confirm-btn")
-    def _confirm(self, _: Button.Pressed) -> None:
+    def _do_confirm(self) -> None:
         if self._selected_tag:
             self.dismiss((
                 self._selected_tag,
@@ -670,6 +734,10 @@ class ExploreBeliefsModal(ModalScreen):
                 self.query_one("#stop-t3-one",  Checkbox).value,
                 self.query_one("#stop-t3-both", Checkbox).value,
             ))
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self._do_confirm()
 
     @on(Button.Pressed, "#back-btn")
     def _back(self, _: Button.Pressed) -> None:
