@@ -1647,6 +1647,16 @@ class ImagoRegistry:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path)
         try:
+            try:
+                already_seeded = conn.execute(
+                    "SELECT COUNT(*) FROM imago_node"
+                ).fetchone()[0] > 0
+            except sqlite3.OperationalError:
+                already_seeded = False
+
+            if already_seeded:
+                return
+
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS imago_node (
                     node_id        TEXT PRIMARY KEY,
@@ -1666,31 +1676,26 @@ class ImagoRegistry:
                 );
             """)
 
-            already_seeded = conn.execute(
-                "SELECT COUNT(*) FROM imago_node"
-            ).fetchone()[0] > 0
+            for node in _IMAGO_NODES:
+                conn.execute(
+                    "INSERT OR IGNORE INTO imago_node "
+                    "(node_id, tree, tier, name, tooltip_blurb, description, "
+                    " mechanics_json, min_prereqs, sort_order) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        node.node_id, node.tree, node.tier, node.name,
+                        node.tooltip_blurb, node.description,
+                        json.dumps(node.mechanics),
+                        node.min_prereqs, node.sort_order,
+                    ),
+                )
 
-            if not already_seeded:
-                for node in _IMAGO_NODES:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO imago_node "
-                        "(node_id, tree, tier, name, tooltip_blurb, description, "
-                        " mechanics_json, min_prereqs, sort_order) "
-                        "VALUES (?,?,?,?,?,?,?,?,?)",
-                        (
-                            node.node_id, node.tree, node.tier, node.name,
-                            node.tooltip_blurb, node.description,
-                            json.dumps(node.mechanics),
-                            node.min_prereqs, node.sort_order,
-                        ),
-                    )
-
-                for node_id, required_id in _PREREQ_DATA:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO imago_prerequisite "
-                        "(node_id, required_node_id) VALUES (?,?)",
-                        (node_id, required_id),
-                    )
+            for node_id, required_id in _PREREQ_DATA:
+                conn.execute(
+                    "INSERT OR IGNORE INTO imago_prerequisite "
+                    "(node_id, required_node_id) VALUES (?,?)",
+                    (node_id, required_id),
+                )
 
             conn.commit()
         finally:

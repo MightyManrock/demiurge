@@ -732,31 +732,40 @@ class ActionRegistry:
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row
         try:
-            conn.execute(_CREATE_TABLE)
-            existing = {r["action_key"] for r in conn.execute("SELECT action_key FROM actions")}
-            for row in _ACTION_SEED:
-                if row["action_key"] not in existing:
-                    conn.execute(
-                        "INSERT INTO actions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (
-                            row["action_key"],
-                            row["name"],
-                            row.get("short_name", ""),
-                            row["category"],
-                            row["description"],
-                            json.dumps(row["valid_targets"]),
-                            row["reliability"],
-                            row["fp_overt_miracles"],
-                            row["fp_subtle_influence"],
-                            row["fp_proxius_activity"],
-                            row["fp_direct_creation"],
-                            row["essence_cost"],
-                            row["concealment_impact"],
-                            row["requires_proxius"],
-                            json.dumps(row["tags"]),
-                        ),
-                    )
-            conn.commit()
+            try:
+                existing = {r["action_key"] for r in conn.execute("SELECT action_key FROM actions")}
+            except sqlite3.OperationalError:
+                existing = set()
+
+            seed_keys = {row["action_key"] for row in _ACTION_SEED}
+            needs_write = not existing.issuperset(seed_keys)
+
+            if needs_write:
+                conn.execute(_CREATE_TABLE)
+                for row in _ACTION_SEED:
+                    if row["action_key"] not in existing:
+                        conn.execute(
+                            "INSERT INTO actions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (
+                                row["action_key"],
+                                row["name"],
+                                row.get("short_name", ""),
+                                row["category"],
+                                row["description"],
+                                json.dumps(row["valid_targets"]),
+                                row["reliability"],
+                                row["fp_overt_miracles"],
+                                row["fp_subtle_influence"],
+                                row["fp_proxius_activity"],
+                                row["fp_direct_creation"],
+                                row["essence_cost"],
+                                row["concealment_impact"],
+                                row["requires_proxius"],
+                                json.dumps(row["tags"]),
+                            ),
+                        )
+                conn.commit()
+
             rows = conn.execute(
                 "SELECT * FROM actions ORDER BY rowid"
             ).fetchall()

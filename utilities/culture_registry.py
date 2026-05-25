@@ -427,6 +427,16 @@ class CultureRegistry:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path)
         try:
+            try:
+                already_seeded = conn.execute(
+                    "SELECT COUNT(*) FROM culture_registry"
+                ).fetchone()[0] > 0
+            except sqlite3.OperationalError:
+                already_seeded = False
+
+            if already_seeded:
+                return
+
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS culture_registry (
                     tag          TEXT PRIMARY KEY,
@@ -447,32 +457,27 @@ class CultureRegistry:
                 );
             """)
 
-            already_seeded = conn.execute(
-                "SELECT COUNT(*) FROM culture_registry"
-            ).fetchone()[0] > 0
+            for i, tag in enumerate(ALL_CULTURE_TAGS):
+                display = tag.split(":", 1)[1].replace("_", " ").title()
+                conn.execute(
+                    "INSERT OR IGNORE INTO culture_registry (tag, display_name, sort_order) VALUES (?,?,?)",
+                    (tag, display, i),
+                )
 
-            if not already_seeded:
-                for i, tag in enumerate(ALL_CULTURE_TAGS):
-                    display = tag.split(":", 1)[1].replace("_", " ").title()
+            for tag_a, tag_b, syn in _SYNERGY_DATA:
+                a, b = min(tag_a, tag_b), max(tag_a, tag_b)
+                conn.execute(
+                    "INSERT OR IGNORE INTO culture_synergy (tag_a, tag_b, synergy) VALUES (?,?,?)",
+                    (a, b, syn),
+                )
+
+            for culture_tag, affinities in _DOMAIN_AFFINITY_DATA.items():
+                for domain_tag, mod in affinities.items():
                     conn.execute(
-                        "INSERT OR IGNORE INTO culture_registry (tag, display_name, sort_order) VALUES (?,?,?)",
-                        (tag, display, i),
+                        "INSERT OR IGNORE INTO culture_domain_affinity "
+                        "(culture_tag, domain_tag, modifier) VALUES (?,?,?)",
+                        (culture_tag, domain_tag, mod),
                     )
-
-                for tag_a, tag_b, syn in _SYNERGY_DATA:
-                    a, b = min(tag_a, tag_b), max(tag_a, tag_b)
-                    conn.execute(
-                        "INSERT OR IGNORE INTO culture_synergy (tag_a, tag_b, synergy) VALUES (?,?,?)",
-                        (a, b, syn),
-                    )
-
-                for culture_tag, affinities in _DOMAIN_AFFINITY_DATA.items():
-                    for domain_tag, mod in affinities.items():
-                        conn.execute(
-                            "INSERT OR IGNORE INTO culture_domain_affinity "
-                            "(culture_tag, domain_tag, modifier) VALUES (?,?,?)",
-                            (culture_tag, domain_tag, mod),
-                        )
 
             conn.commit()
         finally:
