@@ -1753,9 +1753,15 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         await container.mount(ImagoTreeGrid(self._state, tree))
 
     def on_key(self, event) -> None:
+        focused = self.focused
         if event.key == "tab":
-            focused = self.focused
-            if isinstance(focused, DomainSquare):
+            if isinstance(focused, ListView):
+                squares = list(self.query(DomainSquare))
+                target  = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, DomainSquare):
                 tag = focused._tag
                 self._domain_tag    = tag
                 self._imago_node_id = None
@@ -1763,14 +1769,18 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 self.query_one("#imago-label",  Label).update("Imāgō: —")
                 self._check_continue()
                 self._tab_select_domain(tag)
-                event.prevent_default()
-                event.stop()
+                event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
                 self.query_one("#continue-btn", Button).focus()
-                event.prevent_default()
-                event.stop()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button):
+                self.query_one("#mortal-list", ListView).focus()
+                event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
-            if isinstance(self.focused, ImagoCell):
+            if isinstance(focused, ListView):
+                self.query_one("#continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoCell):
                 self._domain_tag    = None
                 self._imago_node_id = None
                 self.query_one("#domain-label", Label).update("Domain: —")
@@ -1781,8 +1791,7 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 target  = next((sq for sq in squares if not sq.disabled), None)
                 if target:
                     target.focus()
-                event.prevent_default()
-                event.stop()
+                event.prevent_default(); event.stop()
 
     @on(ListView.Highlighted, "#mortal-list")
     def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
