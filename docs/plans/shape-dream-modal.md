@@ -445,7 +445,7 @@ git commit -m "feat: add ShapeDreamConfigModal"
 
 ---
 
-## Task 4: Wire `shape_dream` in `ui.py`
+## ✅ Task 4: Wire `shape_dream` in `ui.py`
 
 **Files:**
 - Modify: `ui/ui.py:73` (add `ShapeDreamConfigModal` to import)
