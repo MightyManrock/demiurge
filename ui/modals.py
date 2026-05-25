@@ -4,7 +4,7 @@ ModalScreen subclass; they communicate with callers by being pushed via
 push_screen_wait() and returning a value from dismiss().
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 from rich.markup import escape as _e
 from rich.text import Text
@@ -1363,13 +1363,130 @@ class CategoryPendingModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
+# SHARED HELPERS FOR CONFIG MODALS
+# ─────────────────────────────────────────
+
+def _eligible_domain_tags(state: SimulationState) -> set[str]:
+    """Return the set of domain tags that have at least one unlocked Imago node."""
+    ireg = get_imago_registry()
+    unlocked = set(state.demiurge.unlocked_imagines)
+    return {
+        tag for tag in _DOMAIN_GRID_ORDER
+        if any(n.node_id in unlocked for n in ireg.nodes_for_tree(tag.split(":", 1)[1]))
+    }
+
+
+def _compose_entity_list(
+    state: SimulationState,
+    entity_type: str,
+    id_prefix: str,
+    anchor_location: "str | None" = None,
+) -> "list[tuple[str, ListItem]]":
+    """
+    Build a list of (entity_id, ListItem) pairs for a ListView.
+
+    entity_type:
+      "mortal"  — visible, non-deceased, non-proxius/herald mortals
+      "proxius" — mortals that are active Proxii
+      "pop"     — visible Pops
+      "world"   — visible SignificantLocations
+
+    anchor_location (str UUID or None): when set, limits mortals/pops to those
+    whose current_location matches this PopLocation id.
+    """
+    items: list[tuple[str, ListItem]] = []
+
+    if entity_type in ("mortal", "proxius"):
+        proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
+        for mid, m in state.mortals.items():
+            if m.status == MortalStatus.DECEASED:
+                continue
+            if not (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR):
+                continue
+            if entity_type == "mortal":
+                if m.role in (MortalRole.PROXIUS, MortalRole.HERALD):
+                    continue
+                if mid in proxius_ids:
+                    continue
+            else:
+                if m.role != MortalRole.PROXIUS or mid not in proxius_ids:
+                    continue
+            if anchor_location is not None and str(m.current_location) != str(anchor_location):
+                continue
+            pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
+            pop_name = _pop_stratum_label(pop_obj) if pop_obj else "?"
+            loc_obj  = state.locations.get(str(m.current_location))
+            loc      = (loc_obj.name or "?") if loc_obj else "?"
+            name     = m.name or "?"
+            align    = m.alignment if m.alignment is not None else 0.0
+            i = len(items)
+            items.append((mid, ListItem(
+                Label(f"{name:<18}  {align*100:>4.0f}%  {pop_name:<14}  {loc}"),
+                id=f"{id_prefix}-{i}",
+            )))
+
+    elif entity_type == "pop":
+        for pid, pop in state.pops.items():
+            if not (pop.pinned or pop.visibility > ENTITY_VISIBILITY_FLOOR):
+                continue
+            if anchor_location is not None and str(pop.current_location) != str(anchor_location):
+                continue
+            pop_label = _pop_stratum_label(pop)
+            loc_obj   = state.locations.get(str(pop.current_location))
+            loc       = (loc_obj.name or "?") if loc_obj else "?"
+            name      = pop.name or pop_label
+            i = len(items)
+            items.append((pid, ListItem(
+                Label(f"{name:<22}  {pop_label:<14}  {loc}"),
+                id=f"{id_prefix}-{i}",
+            )))
+
+    elif entity_type == "world":
+        for wid, world in state.worlds.items():
+            if not (world.pinned or world.visibility > ENTITY_VISIBILITY_FLOOR):
+                continue
+            name = world.name or "?"
+            i = len(items)
+            items.append((wid, ListItem(Label(name), id=f"{id_prefix}-{i}")))
+
+    return items
+
+
+def _domain_grid_squares(
+    state: SimulationState,
+    dreg: "object",
+    eligible_tags: "set[str]",
+) -> "Iterable[DomainSquare]":
+    """Yield the 16 DomainSquare widgets for a domain picker grid."""
+    for tag in _DOMAIN_GRID_ORDER:
+        yield DomainSquare(
+            tag=tag,
+            icon=dreg.icon(tag),
+            name="",
+            affiliated=tag in state.demiurge.affiliated_domains,
+            accessible=tag in eligible_tags,
+        )
+
+
+class _ImagoSwapMixin:
+    """Provides `_swap_imago_tree(container_id, tag)` as a @work method."""
+
+    @work
+    async def _swap_imago_tree(self, container_id: str, tag: str) -> None:
+        tree      = tag.split(":", 1)[1]
+        container = self.query_one(f"#{container_id}", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
+
+
+# ─────────────────────────────────────────
 # WHISPER CONFIG MODAL
 # Unified mortal + domain + imago picker for the Whisper action.
 # Replaces the 3-step wizard. Dismisses with (mortal_id_str, domain_tag,
 # imago_node_id) on Continue, BACK, or None on cancel.
 # ─────────────────────────────────────────
 
-class WhisperConfigModal(ModalScreen):
+class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
     """
     Single-screen Whisper configuration. Left panel: mortal list.
     Right panel: 2×8 domain grid + dynamic imago tree.
@@ -1383,28 +1500,14 @@ class WhisperConfigModal(ModalScreen):
 
     def __init__(self, state: SimulationState) -> None:
         super().__init__()
-        self._state         = state
-        self._mortal_id:    str | None = None
-        self._domain_tag:   str | None = None
+        self._state          = state
+        self._mortal_id:     str | None = None
+        self._domain_tag:    str | None = None
         self._imago_node_id: str | None = None
-
-        dreg = get_domain_registry()
-        _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
-        self._mortals = [
-            (mid, m) for mid, m in state.mortals.items()
-            if m.status != MortalStatus.DECEASED
-            and (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR)
-            and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
-            and mid not in _proxius_ids
-        ]
-        self._mortal_ids   = [mid for mid, _ in self._mortals]
-        self._dreg         = dreg
-        ireg               = get_imago_registry()
-        unlocked_set       = set(state.demiurge.unlocked_imagines)
-        self._eligible_tags = {
-            tag for tag in _DOMAIN_GRID_ORDER
-            if any(n.node_id in unlocked_set for n in ireg.nodes_for_tree(tag.split(":", 1)[1]))
-        }
+        self._dreg           = get_domain_registry()
+        self._eligible_tags  = _eligible_domain_tags(state)
+        self._mortals        = _compose_entity_list(state, "mortal", "mortal")
+        self._mortal_ids     = [mid for mid, _ in self._mortals]
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="whisper-config-modal"):
@@ -1413,29 +1516,12 @@ class WhisperConfigModal(ModalScreen):
                 with Vertical(classes="whisper-left"):
                     yield Label("Mortal: —", id="mortal-label")
                     with ListView(id="mortal-list"):
-                        for i, (mid, m) in enumerate(self._mortals):
-                            pop_obj  = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
-                            pop_name = _pop_stratum_label(pop_obj) if pop_obj else "?"
-                            loc_obj  = self._state.locations.get(str(m.current_location))
-                            loc      = (loc_obj.name or "?") if loc_obj else "?"
-                            name     = m.name or "?"
-                            align    = m.alignment if m.alignment is not None else 0.0
-                            yield ListItem(
-                                Label(f"{name:<18}  {align*100:>4.0f}%  {pop_name:<14}  {loc}"),
-                                id=f"mortal-{i}",
-                            )
+                        for _, item in self._mortals:
+                            yield item
                 with Vertical(classes="whisper-right"):
                     yield Label("Domain: —", id="domain-label")
                     with Grid(id="whisper-domain-grid"):
-                        for tag in _DOMAIN_GRID_ORDER:
-                            eligible = tag in self._eligible_tags
-                            yield DomainSquare(
-                                tag=tag,
-                                icon=self._dreg.icon(tag),
-                                name="",
-                                affiliated=tag in self._state.demiurge.affiliated_domains,
-                                accessible=eligible,
-                            )
+                        yield from _domain_grid_squares(self._state, self._dreg, self._eligible_tags)
                     yield Label("Imāgō: —", id="imago-label")
                     with ScrollableContainer(id="whisper-tree-container"):
                         pass
@@ -1465,7 +1551,7 @@ class WhisperConfigModal(ModalScreen):
     def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
         if event.item is None:
             return
-        idx = int(event.item.id.split("-", 1)[1])
+        idx = int(event.item.id.rsplit("-", 1)[1])
         self._mortal_id = self._mortal_ids[idx]
         m = self._state.mortals.get(self._mortal_id)
         if m:
@@ -1479,7 +1565,7 @@ class WhisperConfigModal(ModalScreen):
         self.query_one("#domain-label", Label).update(f"Domain: {name}")
         self.query_one("#imago-label",  Label).update("Imāgō: —")
         self._check_continue()
-        self._swap_tree(event.tag)
+        self._swap_imago_tree("whisper-tree-container", event.tag)
 
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
         self._imago_node_id = event.node_id
@@ -1488,13 +1574,6 @@ class WhisperConfigModal(ModalScreen):
         name = node.name if node else event.node_id
         self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
         self._check_continue()
-
-    @work
-    async def _swap_tree(self, tag: str) -> None:
-        tree      = tag.split(":", 1)[1]
-        container = self.query_one("#whisper-tree-container", ScrollableContainer)
-        await container.remove_children()
-        await container.mount(ImagoTreeGrid(self._state, tree))
 
     @on(Button.Pressed, "#continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
@@ -1516,7 +1595,7 @@ class WhisperConfigModal(ModalScreen):
         self.dismiss(BACK)
 
 
-class ShapeDreamConfigModal(ModalScreen):
+class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
     """
     Single-screen Shape Dream configuration. Left panel: mortal list.
     Right panel: two tabs (one per Imāgō slot) each with a domain grid +
@@ -1538,23 +1617,10 @@ class ShapeDreamConfigModal(ModalScreen):
         self._domain_a:      str | None = None
         self._domain_b:      str | None = None
 
-        dreg = get_domain_registry()
-        _proxius_ids = {str(pid) for pid in state.demiurge.proxius_ids}
-        self._mortals = [
-            (mid, m) for mid, m in state.mortals.items()
-            if m.status != MortalStatus.DECEASED
-            and (m.pinned or m.visibility > ENTITY_VISIBILITY_FLOOR)
-            and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
-            and mid not in _proxius_ids
-        ]
-        self._mortal_ids  = [mid for mid, _ in self._mortals]
-        self._dreg        = dreg
-        ireg              = get_imago_registry()
-        unlocked_set      = set(state.demiurge.unlocked_imagines)
-        self._eligible_tags = {
-            tag for tag in _DOMAIN_GRID_ORDER
-            if any(n.node_id in unlocked_set for n in ireg.nodes_for_tree(tag.split(":", 1)[1]))
-        }
+        self._dreg          = get_domain_registry()
+        self._eligible_tags = _eligible_domain_tags(state)
+        self._mortals       = _compose_entity_list(state, "mortal", "sd-mortal")
+        self._mortal_ids    = [mid for mid, _ in self._mortals]
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="shape-dream-modal"):
@@ -1563,17 +1629,8 @@ class ShapeDreamConfigModal(ModalScreen):
                 with Vertical(classes="shape-dream-left"):
                     yield Label("Mortal: —", id="sd-mortal-label")
                     with ListView(id="sd-mortal-list"):
-                        for i, (mid, m) in enumerate(self._mortals):
-                            pop_obj  = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
-                            pop_name = _pop_stratum_label(pop_obj) if pop_obj else "?"
-                            loc_obj  = self._state.locations.get(str(m.current_location))
-                            loc      = (loc_obj.name or "?") if loc_obj else "?"
-                            name     = m.name or "?"
-                            align    = m.alignment if m.alignment is not None else 0.0
-                            yield ListItem(
-                                Label(f"{name:<18}  {align*100:>4.0f}%  {pop_name:<14}  {loc}"),
-                                id=f"sd-mortal-{i}",
-                            )
+                        for _, item in self._mortals:
+                            yield item
                 with Vertical(classes="shape-dream-right"):
                     with TabbedContent(
                         id="sd-tabs",
@@ -1583,30 +1640,14 @@ class ShapeDreamConfigModal(ModalScreen):
                         with TabPane("Domain 1: Imāgō 1", id="sd-tab-a"):
                             yield Label("Domain: —", id="sd-domain-label-a")
                             with Grid(id="shape-dream-domain-grid-a"):
-                                for tag in _DOMAIN_GRID_ORDER:
-                                    eligible = tag in self._eligible_tags
-                                    yield DomainSquare(
-                                        tag=tag,
-                                        icon=self._dreg.icon(tag),
-                                        name="",
-                                        affiliated=tag in self._state.demiurge.affiliated_domains,
-                                        accessible=eligible,
-                                    )
+                                yield from _domain_grid_squares(self._state, self._dreg, self._eligible_tags)
                             yield Label("Imāgō: —", id="sd-imago-label-a")
                             with ScrollableContainer(id="shape-dream-tree-container-a"):
                                 pass
                         with TabPane("Domain 2: Imāgō 2", id="sd-tab-b"):
                             yield Label("Domain: —", id="sd-domain-label-b")
                             with Grid(id="shape-dream-domain-grid-b"):
-                                for tag in _DOMAIN_GRID_ORDER:
-                                    eligible = tag in self._eligible_tags
-                                    yield DomainSquare(
-                                        tag=tag,
-                                        icon=self._dreg.icon(tag),
-                                        name="",
-                                        affiliated=tag in self._state.demiurge.affiliated_domains,
-                                        accessible=eligible,
-                                    )
+                                yield from _domain_grid_squares(self._state, self._dreg, self._eligible_tags)
                             yield Label("Imāgō: —", id="sd-imago-label-b")
                             with ScrollableContainer(id="shape-dream-tree-container-b"):
                                 pass
@@ -1680,7 +1721,7 @@ class ShapeDreamConfigModal(ModalScreen):
             self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
                 self._tab_label("1", self._domain_a, None)
             self._set_domain_excluded("shape-dream-domain-grid-b", event.tag, prev)
-            self._swap_tree("shape-dream-tree-container-a", event.tag)
+            self._swap_imago_tree("shape-dream-tree-container-a", event.tag)
         else:
             prev = self._domain_b
             self._domain_b = event.tag
@@ -1692,7 +1733,7 @@ class ShapeDreamConfigModal(ModalScreen):
             self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
                 self._tab_label("2", self._domain_b, None)
             self._set_domain_excluded("shape-dream-domain-grid-a", event.tag, prev)
-            self._swap_tree("shape-dream-tree-container-b", event.tag)
+            self._swap_imago_tree("shape-dream-tree-container-b", event.tag)
 
         self._check_continue()
 
@@ -1716,13 +1757,6 @@ class ShapeDreamConfigModal(ModalScreen):
                 self._tab_label("2", self._domain_b, self._imago_b)
 
         self._check_continue()
-
-    @work
-    async def _swap_tree(self, container_id: str, tag: str) -> None:
-        tree      = tag.split(":", 1)[1]
-        container = self.query_one(f"#{container_id}", ScrollableContainer)
-        await container.remove_children()
-        await container.mount(ImagoTreeGrid(self._state, tree))
 
     @on(Button.Pressed, "#sd-continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
