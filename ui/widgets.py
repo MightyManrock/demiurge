@@ -589,15 +589,15 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     # Puissance
     p = state.demiurge.puissance
     p_col = "#50b870" if p >= 0.6 else ("#c09030" if p >= 0.3 else "#b04050")
-    a(f"[bold #4a80b0]PUISSANCE[/]  [{p_col}]{p:.2f}[/]")
+    a(f"[bold #4a80b0]PUISSANCE[/]  [{p_col}]{p:.0%}[/]")
     a("")
 
     # Footprint
     a("[bold #4a80b0]FOOTPRINT[/]")
-    a(f"  overt  [#b06050]{fp.overt_miracles:.2f}[/]  "
-      f"subtle [#9060a0]{fp.subtle_influence:.2f}[/]")
-    a(f"  proxii [#60a070]{fp.proxius_activity:.2f}[/]  "
-      f"create [#6080c0]{fp.direct_creation:.2f}[/]")
+    a(f"  overt  [#b06050]{fp.overt_miracles:.0%}[/]  "
+      f"subtle [#9060a0]{fp.subtle_influence:.0%}[/]")
+    a(f"  proxii [#60a070]{fp.proxius_activity:.0%}[/]  "
+      f"create [#6080c0]{fp.direct_creation:.0%}[/]")
     a("")
 
     # Luminaries
