@@ -71,6 +71,7 @@ from ui.modals import (
     TextFormModal, DomainPickerModal, ImagoTreeModal, ImagoDetailModal,
     ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
+    ShapeDreamConfigModal,
 )
 
 
@@ -1495,76 +1496,54 @@ class GameScreen(Screen):
                 )
 
             if action_key == "shape_dream":
-                # Two Imāginēs from different Domain trees. The system randomly
-                # picks one as dominant at resolution time; the player only
-                # learns which dominated from the action's narrative line.
                 ireg = get_imago_registry()
-                step = 0
-                imago_a = imago_b = None
-                dvs_a = cvs_a = dvs_b = cvs_b = []
-                concept = None
                 while True:
-                    if step == 0:
-                        domain_result = await self._pick_domain_and_imago(state)
-                        if domain_result is None: return None
-                        if domain_result == BACK: return BACK
-                        dvs_a, cvs_a, imago_a = domain_result
-                        if not imago_a:
-                            # Shape Dream requires an Imago — re-prompt.
-                            self._feed_markup(
-                                "[#b09040]Shape Dream requires choosing an Imāgō. "
-                                "Pick again or cancel.[/]",
-                                "actions",
-                            )
-                            continue
-                        step = 1
-                    if step == 1:
-                        # Exclude the first Imago's Domain so the second comes
-                        # from a different tree.
-                        excl = "domain:" + imago_a.split(":", 1)[0]
-                        domain_result = await self._pick_domain_and_imago(
-                            state, exclude_domain_tag=excl,
-                        )
-                        if domain_result is None: return None
-                        if domain_result == BACK: step = 0; continue
-                        dvs_b, cvs_b, imago_b = domain_result
-                        if not imago_b:
-                            self._feed_markup(
-                                "[#b09040]Shape Dream needs a second Imāgō.[/]",
-                                "actions",
-                            )
-                            continue
-                        step = 2
-                    if step == 2:
-                        name_a = ireg.get_node(imago_a).name
-                        name_b = ireg.get_node(imago_b).name
-                        default_concept = f"{name_a} ⊗ {name_b}"
-                        form = await app.push_screen_wait(
-                            TextFormModal(
-                                "Shape Dream",
-                                [("Dream concept", "concept", default_concept)],
-                                show_back=True,
-                            )
-                        )
-                        if form is None: return None
-                        if form == BACK: step = 1; continue
-                        concept = form["concept"].strip() or default_concept
-                        step = 3
-                    if step == 3:
-                        framing = await self._pick_framing()
-                        if framing is None: return None
-                        if framing == BACK: step = 2; continue
-                        break
-                return ShapeDreamIntent(
-                    concept=concept,
-                    imago_node_id_a=imago_a,
-                    imago_node_id_b=imago_b,
-                    domain_vectors_a=dvs_a,
-                    culture_vectors_a=cvs_a,
-                    domain_vectors_b=dvs_b,
-                    culture_vectors_b=cvs_b,
-                    framing=framing,
-                )
+                    result = await app.push_screen_wait(ShapeDreamConfigModal(state))
+                    if result is None: return None
+                    if result == BACK: return BACK
+                    mortal_id_str, imago_node_id_a, imago_node_id_b = result
+                    node_a = ireg.get_node(imago_node_id_a)
+                    node_b = ireg.get_node(imago_node_id_b)
+                    dvs_a = [
+                        DomainVector(domain_tag=t, direction=v)
+                        for t, v in node_a.mechanics.items()
+                        if t.startswith("domain:")
+                    ]
+                    cvs_a = [
+                        CultureVector(culture_tag=t, direction=v)
+                        for t, v in node_a.mechanics.items()
+                        if not t.startswith("domain:")
+                    ]
+                    dvs_b = [
+                        DomainVector(domain_tag=t, direction=v)
+                        for t, v in node_b.mechanics.items()
+                        if t.startswith("domain:")
+                    ]
+                    cvs_b = [
+                        CultureVector(culture_tag=t, direction=v)
+                        for t, v in node_b.mechanics.items()
+                        if not t.startswith("domain:")
+                    ]
+                    framing = await self._pick_framing()
+                    if framing is None: return None
+                    if framing == BACK: continue
+                    return ActionInstance(
+                        action_definition_id=defn.id,
+                        target_type=TargetType.MORTAL,
+                        target_id=UUID(mortal_id_str),
+                        timestamp=state.universe.current_age.to_float_years(),
+                        demiurge_id=state.demiurge.id,
+                        proxius_id=None,
+                        intent=ShapeDreamIntent(
+                            imago_node_id_a=imago_node_id_a,
+                            imago_node_id_b=imago_node_id_b,
+                            domain_vectors_a=dvs_a,
+                            culture_vectors_a=cvs_a,
+                            domain_vectors_b=dvs_b,
+                            culture_vectors_b=cvs_b,
+                            framing=framing,
+                        ),
+                    )
 
             if action_key == "nudge_probability":
                 step = 0; form_data = None
