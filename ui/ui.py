@@ -1193,15 +1193,18 @@ class GameScreen(Screen):
         # ── whisper: unified config modal ──
         if action_key == "whisper":
             ireg = get_imago_registry()
+            prefill = None
             while True:
-                result = await app.push_screen_wait(WhisperConfigModal(state))
+                result = await app.push_screen_wait(WhisperConfigModal(state, prefill=prefill))
                 if result is None: return None
                 if result == BACK: return BACK
                 mortal_id_str, domain_tag, imago_node_id = result
                 node      = ireg.get_node(imago_node_id)
                 confirmed = await app.push_screen_wait(ImagoDetailModal(node, state))
                 if confirmed is None: return None
-                if not confirmed:     continue
+                if not confirmed:
+                    prefill = result
+                    continue
                 dvs = [
                     DomainVector(domain_tag=t, direction=v)
                     for t, v in node.mechanics.items()

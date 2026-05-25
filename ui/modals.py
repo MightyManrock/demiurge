@@ -1620,12 +1620,17 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         ("right",     "nav_domain('right')", ""),
     ]
 
-    def __init__(self, state: SimulationState) -> None:
+    def __init__(
+        self,
+        state: SimulationState,
+        prefill: "tuple[str, str, str] | None" = None,
+    ) -> None:
         super().__init__()
         self._state          = state
-        self._mortal_id:     str | None = None
-        self._domain_tag:    str | None = None
-        self._imago_node_id: str | None = None
+        self._prefill        = prefill
+        self._mortal_id:     str | None = prefill[0] if prefill else None
+        self._domain_tag:    str | None = prefill[1] if prefill else None
+        self._imago_node_id: str | None = prefill[2] if prefill else None
         self._dreg           = get_domain_registry()
         self._eligible_tags  = _eligible_domain_tags(state)
         self._mortals        = _compose_entity_list(state, "mortal", "mortal")
@@ -1653,7 +1658,25 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                         yield Button("Continue →", id="continue-btn", disabled=True)
 
     def on_mount(self) -> None:
-        if self._mortal_ids:
+        if self._prefill:
+            mortal_id, domain_tag, imago_node_id = self._prefill
+            if mortal_id in self._mortal_ids:
+                self.query_one("#mortal-list", ListView).move_cursor(
+                    row=self._mortal_ids.index(mortal_id)
+                )
+            m = self._state.mortals.get(mortal_id)
+            if m:
+                self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
+            self.query_one("#domain-label", Label).update(
+                f"Domain: {domain_tag.split(':', 1)[1].title()}"
+            )
+            ireg = get_imago_registry()
+            node = ireg.get_node(imago_node_id)
+            self.query_one("#imago-label", Label).update(
+                f"Imāgō: {node.name if node else imago_node_id}"
+            )
+            self._restore_prefill_tree(domain_tag)
+        elif self._mortal_ids:
             self._mortal_id = self._mortal_ids[0]
             m = self._state.mortals.get(self._mortal_id)
             if m:
@@ -1721,6 +1744,13 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
     async def _clear_domain_tree(self) -> None:
         container = self.query_one("#whisper-tree-container", ScrollableContainer)
         await container.remove_children()
+
+    @work
+    async def _restore_prefill_tree(self, domain_tag: str) -> None:
+        tree      = domain_tag.split(":", 1)[1]
+        container = self.query_one("#whisper-tree-container", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
 
     def on_key(self, event) -> None:
         if event.key == "tab":
