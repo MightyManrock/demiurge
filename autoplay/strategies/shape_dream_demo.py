@@ -18,7 +18,7 @@ from uuid import UUID
 from core.action_core import (
     TargetType,
     ShapeDreamIntent, EssenceHarvestIntent,
-    DomainVector, CultureVector, Framing,
+    DomainVector, CultureVector,
 )
 from logic.tick_logic import TickLoop, SimulationState
 from utilities.imago_registry import get_registry as get_imago_registry
@@ -81,7 +81,6 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
                   culture_vectors_a=cvs_a,
                   domain_vectors_b=dvs_b,
                   culture_vectors_b=cvs_b,
-                  framing=Framing.AMBIGUOUS,
               ))
             return f"Shape Dream: {IMAGO_A} ⊗ {IMAGO_B} → {TARGET_NAME}"
 

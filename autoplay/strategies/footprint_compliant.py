@@ -16,7 +16,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from core.action_core import (
-    TargetType, WhisperIntent, DomainVector, Framing,
+    TargetType, WhisperIntent, DomainVector,
     EssenceHarvestIntent, ScryIntent, ScryScope, DevelopmentIntent,
 )
 from logic.tick_logic import TickLoop, SimulationState
@@ -54,9 +54,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     if mid_senna and tick % 3 == 1:
         q("whisper", TargetType.MORTAL, UUID(mid_senna),
           WhisperIntent(
-              concept="Order flows through patience; the Confederacy endures through quiet law.",
               domain_vectors=[DomainVector(domain_tag="domain:order", direction=0.5)],
-              framing=Framing.INSPIRATIONAL,
           ))
         return f"Tick {tick}: Whisper to Senna (subtle_influence=0.1) — well inside tolerance."
 
@@ -64,9 +62,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     if mid_kael and tick % 3 == 2:
         q("whisper", TargetType.MORTAL, UUID(mid_kael),
           WhisperIntent(
-              concept="The old ways of the Keth are strong; patience brings victory.",
               domain_vectors=[DomainVector(domain_tag="domain:conflict", direction=0.4)],
-              framing=Framing.INSPIRATIONAL,
           ))
         return f"Tick {tick}: Whisper to Kael (subtle_influence=0.1) — well inside tolerance."
 

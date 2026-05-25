@@ -21,7 +21,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from core.action_core import (
-    TargetType, WhisperIntent, DomainVector, Framing,
+    TargetType, WhisperIntent, DomainVector,
     EssenceHarvestIntent, ScryIntent, ScryScope,
 )
 from core.universe_core import MortalRole, MortalStatus
@@ -74,9 +74,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     if mid_senna:
         q("whisper", TargetType.MORTAL, UUID(mid_senna),
           WhisperIntent(
-              concept="Order flows through patience.",
               domain_vectors=[DomainVector(domain_tag="domain:order", direction=0.3)],
-              framing=Framing.INSPIRATIONAL,
           ))
         return f"Tick {tick}: Whisper to Senna — all Proxii appointed, maintaining low overt footprint."
 

@@ -3513,6 +3513,14 @@ class TickLoop:
             effectiveness *= mortal.alignment
             # A drifting Proxius is also harder to reach with whispers
 
+            _w_ireg  = get_imago_registry()
+            _w_node  = _w_ireg.get_node(intent.imago_node_id) if intent.imago_node_id else None
+            _w_name  = _w_node.name if _w_node else (intent.imago_node_id or "")
+            _w_label = (
+                f"§imago§{intent.imago_node_id}§{_w_name}§"
+                if intent.imago_node_id else f"'{_w_name}'"
+            )
+
             for dv in intent.domain_vectors:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.MORTAL_BELIEF_SHIFT,
@@ -3520,10 +3528,7 @@ class TickLoop:
                     field=dv.domain_tag,
                     delta=dv.direction * effectiveness * 0.1,
                     new_value=dv.domain_tag,
-                    note=(
-                        f"Whisper to {mortal.name}: "
-                        f"'{intent.concept[:40]}...'"
-                    ),
+                    note=f"Whisper to {mortal.name}: {_w_name}",
                 ))
             for cv in intent.culture_vectors:
                 mutations.append(StateMutation(
@@ -3532,18 +3537,9 @@ class TickLoop:
                     field=cv.culture_tag,
                     delta=cv.direction * effectiveness * 0.1,
                     new_value=cv.culture_tag,
-                    note=(
-                        f"Whisper culture rider to {mortal.name}: "
-                        f"'{intent.concept[:40]}...'"
-                    ),
+                    note=f"Whisper culture rider to {mortal.name}: {_w_name}",
                 ))
 
-            if intent.imago_node_id:
-                _w_ireg = get_imago_registry()
-                _w_node = _w_ireg.get_node(intent.imago_node_id)
-                _w_label = f"§imago§{intent.imago_node_id}§{_w_node.name if _w_node else intent.imago_node_id}§"
-            else:
-                _w_label = f"'{intent.concept}'"
             narrative = (
                 f"You whispered to {mortal.name}, implying the concept of {_w_label}, "
                 f"with {effectiveness:.0%} effectiveness."
@@ -3568,8 +3564,8 @@ class TickLoop:
                     culture_vectors=intent.culture_vectors,
                     domain_shift_rate=0.06,
                     attention_per_tick=0.01,
-                    imago_node_id=getattr(intent, "imago_node_id", None),
-                    concept=intent.concept,
+                    imago_node_id=intent.imago_node_id,
+                    concept=_w_name,
                 ),
             ))
 

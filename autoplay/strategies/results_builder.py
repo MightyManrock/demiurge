@@ -204,21 +204,16 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
             whisper_imago = best_conflict
             wvecs    = [DomainVector(domain_tag="domain:conflict", direction=0.6),
                         DomainVector(domain_tag="domain:change",   direction=0.3)]
-            wconcept = "Those who clash and endure are reshaping the world."
         elif tick % 2 == 0:
             whisper_imago = best_conflict
             wvecs    = [DomainVector(domain_tag="domain:conflict", direction=0.7)]
-            wconcept = "Conflict is the edge that carves meaning from chaos."
         else:
             whisper_imago = "change:t2:dawn" if has_dawn else "change:t1:wheel"
             wvecs    = [DomainVector(domain_tag="domain:change", direction=0.7)]
-            wconcept = "The dawn that follows struggle belongs to those who endure."
 
         q("whisper", TargetType.MORTAL, UUID(wmid),
           WhisperIntent(
-              concept=wconcept,
               domain_vectors=wvecs,
-              framing=Framing.INSPIRATIONAL,
               imago_node_id=whisper_imago,
           ))
         actions.append(f"whisper to {wmortal.name} [{whisper_imago}]")

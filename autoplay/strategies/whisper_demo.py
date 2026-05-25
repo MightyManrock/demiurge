@@ -14,7 +14,7 @@ from uuid import UUID
 from core.action_core import (
     TargetType,
     WhisperIntent, EssenceHarvestIntent,
-    DomainVector, CultureVector, Framing,
+    DomainVector, CultureVector,
 )
 from logic.tick_logic import TickLoop, SimulationState
 from utilities.imago_registry import get_registry as get_imago_registry
@@ -77,10 +77,8 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
                    for t, v in node.mechanics.items() if not t.startswith("domain:")]
             q("whisper", TargetType.MORTAL, UUID(mid),
               WhisperIntent(
-                  concept="The wheel turns; the Confederacy must learn to bend with it.",
                   domain_vectors=dvs,
                   culture_vectors=cvs,
-                  framing=Framing.INSPIRATIONAL,
                   imago_node_id=WHISPER_IMAGO,
               ))
             return f"Whisper framed by '{WHISPER_IMAGO}' to {TARGET_NAME}."

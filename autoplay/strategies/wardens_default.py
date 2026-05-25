@@ -20,7 +20,7 @@ from core.action_core import (
     TargetType,
     WhisperIntent, EssenceHarvestIntent, DevelopmentIntent,
     ProxiusDirectiveIntent, LuminaryPetitionIntent, ProbabilityNudgeIntent,
-    DomainVector, Framing, ScryIntent, ScryScope,
+    DomainVector, ScryIntent, ScryScope,
 )
 from logic.tick_logic import TickLoop, SimulationState
 from core.universe_core import MortalRole
@@ -66,10 +66,8 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         if mid:
             q("whisper", TargetType.MORTAL, UUID(mid),
               WhisperIntent(
-                  concept="The Confederacy's stability is a cage — the time for change is now.",
                   domain_vectors=[DomainVector(domain_tag="domain:conflict", direction=0.8),
                                   DomainVector(domain_tag="domain:change",   direction=0.7)],
-                  framing=Framing.INSPIRATIONAL,
               ))
             return "Whisper to Orryn Vel — plant seeds of conflict/change."
         else:
@@ -98,9 +96,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         if mid:
             q("whisper", TargetType.MORTAL, UUID(mid),
               WhisperIntent(
-                  concept="Victory over the rival band will unite the Keth under your banner.",
                   domain_vectors=[DomainVector(domain_tag="domain:conflict", direction=0.9)],
-                  framing=Framing.INSPIRATIONAL,
               ))
             return "Whisper to Kael Ash — push conflict on Oros for Vrath."
         q("scry", TargetType.WORLD, world_id(state, "Oros"), ScryIntent(scope=ScryScope.WORLD))
@@ -190,10 +186,8 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         if mid:
             q("whisper", TargetType.MORTAL, UUID(mid),
               WhisperIntent(
-                  concept="The temple's silence speaks louder than any proclamation.",
                   domain_vectors=[DomainVector(domain_tag="domain:silence", direction=0.7),
                                   DomainVector(domain_tag="domain:order",   direction=0.6)],
-                  framing=Framing.INSPIRATIONAL,
               ))
             return "Whisper to Maeva Sorn — deepen silence/order for Cassiel."
         q("harvest_essence", TargetType.UNDERREAL, None,
@@ -259,9 +253,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         if mid:
             q("whisper", TargetType.MORTAL, UUID(mid),
               WhisperIntent(
-                  concept="The other bands respect only strength. Strike first and they will follow.",
                   domain_vectors=[DomainVector(domain_tag="domain:conflict", direction=1.0)],
-                  framing=Framing.INSPIRATIONAL,
               ))
             return "Whisper to Kael: escalate aggression — pure conflict signal for Vrath."
         q("harvest_essence", TargetType.UNDERREAL, None,
@@ -379,10 +371,8 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         if mid:
             q("whisper", TargetType.MORTAL, UUID(mid),
               WhisperIntent(
-                  concept="Unite the Keth under your fist — the age of wandering is over.",
                   domain_vectors=[DomainVector(domain_tag="domain:conflict", direction=0.9),
                                   DomainVector(domain_tag="domain:change",   direction=0.8)],
-                  framing=Framing.PROPHETIC,
               ))
             return "Whisper to Kael (prophetic) — escalate unification drive."
         q("harvest_essence", TargetType.UNDERREAL, None,

@@ -1207,9 +1207,6 @@ class GameScreen(Screen):
                     for t, v in node.mechanics.items()
                     if not t.startswith("domain:")
                 ]
-                framing = await self._pick_framing()
-                if framing is None: return None
-                if framing == BACK: continue
                 return ActionInstance(
                     action_definition_id=defn.id,
                     target_type=TargetType.MORTAL,
@@ -1218,10 +1215,8 @@ class GameScreen(Screen):
                     demiurge_id=state.demiurge.id,
                     proxius_id=None,
                     intent=WhisperIntent(
-                        concept=node.name,
                         domain_vectors=dvs,
                         culture_vectors=cvs,
-                        framing=framing,
                         imago_node_id=imago_node_id,
                     ),
                 )
@@ -1256,9 +1251,6 @@ class GameScreen(Screen):
                     for t, v in node_b.mechanics.items()
                     if not t.startswith("domain:")
                 ]
-                framing = await self._pick_framing()
-                if framing is None: return None
-                if framing == BACK: continue
                 return ActionInstance(
                     action_definition_id=defn.id,
                     target_type=TargetType.MORTAL,
@@ -1273,7 +1265,6 @@ class GameScreen(Screen):
                         culture_vectors_a=cvs_a,
                         domain_vectors_b=dvs_b,
                         culture_vectors_b=cvs_b,
-                        framing=framing,
                     ),
                 )
 
@@ -1542,8 +1533,8 @@ class GameScreen(Screen):
                             continue
                         break
                 return WhisperIntent(
-                    concept=concept, domain_vectors=dvs, culture_vectors=cvs,
-                    framing=framing, imago_node_id=imago_id,
+                    domain_vectors=dvs, culture_vectors=cvs,
+                    imago_node_id=imago_id,
                 )
 
             if action_key == "nudge_probability":

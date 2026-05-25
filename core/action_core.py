@@ -203,25 +203,17 @@ class Framing(str, Enum):
 
 class WhisperIntent(BaseModel):
     """
-    For: whisper, shape_dream
+    For: whisper
     The core of a subtle influence on a specific mortal.
     """
-    concept: str
-    # Plain statement of what you're planting.
-    # e.g. "The eastern tribes could be united under a single leader"
-    #      "Your gods have abandoned you — seek new ones"
-    #      "The merchant guild is planning to betray the king"
-
     domain_vectors: list[DomainVector] = Field(default_factory=list)
     # What Domain shifts this is meant to eventually produce
     # in the wider civilization, through this mortal
 
     culture_vectors: list[CultureVector] = Field(default_factory=list)
-    # Culture-tag "riders" carried by the framing Imago. Whisper applies them
+    # Culture-tag "riders" carried by the Imago. Whisper applies them
     # to the target mortal and (via splash) to nearby Pops, just like
     # domain_vectors. Empty when no Imago framed the action.
-
-    framing: Framing = Framing.INSPIRATIONAL
 
     target_audience: Optional[str] = None
     # Who the mortal is meant to carry this to, if anyone.
@@ -263,9 +255,6 @@ class ShapeDreamIntent(BaseModel):
     culture_vectors_b: list[CultureVector] = Field(default_factory=list)
     # Vectors derived from each Imago's mechanics at intent-construction time.
     # The handler combines them per the rules above.
-
-    framing: Framing = Framing.AMBIGUOUS
-    # Dreams are inherently ambiguous — the mortal supplies the meaning.
 
     target_audience: Optional[str] = None
 
