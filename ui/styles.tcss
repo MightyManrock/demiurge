@@ -299,7 +299,7 @@ ModalScreen {
 }
 
 #explore-right ImagoCell {
-    margin-bottom: 1;
+    height: 6;
 }
 
 .explore-ref-title {
@@ -311,7 +311,7 @@ ModalScreen {
 
 #imago-ref-tooltip {
     height: 4;
-    background: $bg-panel;
+    background: #090b1c;
     border: solid $border;
     padding: 0 1;
     margin-top: 1;
