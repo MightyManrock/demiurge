@@ -270,7 +270,7 @@ ModalScreen {
 .modal-box-wide {
     background: $bg-modal;
     border: solid $border;
-    width: 144;
+    width: 160;
     height: auto;
     max-height: 90%;
     padding: 1 2;
@@ -298,8 +298,9 @@ ModalScreen {
     background: #090b1c;
 }
 
-#explore-right ImagoCell {
-    height: 6;
+#explore-right ImagoCell,
+#explore-right ImagoRevealCell {
+    height: 7;
 }
 
 .explore-ref-title {
