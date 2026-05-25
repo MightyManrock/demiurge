@@ -1702,30 +1702,53 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                     return
                 r += dr
 
+    @work
+    async def _tab_select_domain(self, tag: str) -> None:
+        """Select a domain via Tab and advance focus to the first ImagoCell."""
+        tree      = tag.split(":", 1)[1]
+        container = self.query_one("#whisper-tree-container", ScrollableContainer)
+        await container.remove_children()
+        await container.mount(ImagoTreeGrid(self._state, tree))
+        cells = [c for c in self.query(ImagoCell) if not c.disabled]
+        if cells:
+            cells[0].focus()
+
+    @work
+    async def _clear_domain_tree(self) -> None:
+        container = self.query_one("#whisper-tree-container", ScrollableContainer)
+        await container.remove_children()
+
     def on_key(self, event) -> None:
         if event.key == "tab":
             focused = self.focused
             if isinstance(focused, DomainSquare):
-                cells = [c for c in self.query(ImagoCell) if not c.disabled]
-                if cells:
-                    cells[0].focus()
-                    event.prevent_default()
-                    event.stop()
+                tag = focused._tag
+                self._domain_tag    = tag
+                self._imago_node_id = None
+                self.query_one("#domain-label", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
+                self.query_one("#imago-label",  Label).update("Imāgō: —")
+                self._check_continue()
+                self._tab_select_domain(tag)
+                event.prevent_default()
+                event.stop()
             elif isinstance(focused, ImagoCell):
                 self.query_one("#continue-btn", Button).focus()
                 event.prevent_default()
                 event.stop()
         elif event.key == "shift+tab":
             if isinstance(self.focused, ImagoCell):
+                self._domain_tag    = None
+                self._imago_node_id = None
+                self.query_one("#domain-label", Label).update("Domain: —")
+                self.query_one("#imago-label",  Label).update("Imāgō: —")
+                self._check_continue()
+                self._clear_domain_tree()
                 squares = list(self.query(DomainSquare))
-                target  = next(
-                    (sq for sq in squares if sq._tag == self._domain_tag and not sq.disabled),
-                    next((sq for sq in squares if not sq.disabled), None),
-                )
+                target  = next((sq for sq in squares if not sq.disabled), None)
                 if target:
                     target.focus()
-                    event.prevent_default()
-                    event.stop()
+                event.prevent_default()
+                event.stop()
 
     @on(ListView.Highlighted, "#mortal-list")
     def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
@@ -1738,17 +1761,14 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
         self._check_continue()
 
-    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
-        self._domain_tag    = event.tag
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        tag = event.tag
+        self._domain_tag    = tag
         self._imago_node_id = None
-        name = event.tag.split(":", 1)[1].title()
-        self.query_one("#domain-label", Label).update(f"Domain: {name}")
+        self.query_one("#domain-label", Label).update(f"Domain: {tag.split(':', 1)[1].title()}")
         self.query_one("#imago-label",  Label).update("Imāgō: —")
         self._check_continue()
-        self._swap_imago_tree("whisper-tree-container", event.tag)
-
-    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
-        self.on_domain_square_focused(DomainSquare.Focused(event.tag))
+        self._swap_imago_tree("whisper-tree-container", tag)
 
     def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
         self._imago_node_id = event.node_id
