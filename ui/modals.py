@@ -1661,9 +1661,7 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         if self._prefill:
             mortal_id, domain_tag, imago_node_id = self._prefill
             if mortal_id in self._mortal_ids:
-                self.query_one("#mortal-list", ListView).move_cursor(
-                    row=self._mortal_ids.index(mortal_id)
-                )
+                self.query_one("#mortal-list", ListView).index = self._mortal_ids.index(mortal_id)
             m = self._state.mortals.get(mortal_id)
             if m:
                 self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
