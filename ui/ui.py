@@ -857,8 +857,11 @@ class GameScreen(Screen):
                 continue
             break
 
-        # Ask once vs repeat — only actions tagged can_persist are eligible
-        if "can_persist" in (defn.tags or []):
+        # Ask once vs repeat — only actions tagged can_persist are eligible.
+        # always_persist skips the prompt and forces repeating=True.
+        if "always_persist" in (defn.tags or []):
+            make_repeating = True
+        elif "can_persist" in (defn.tags or []):
             make_repeating = await app.push_screen_wait(
                 YesNoModal(
                     f"Queue '{defn.name}'",

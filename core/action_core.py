@@ -513,7 +513,12 @@ class ExploreBeliefIntent(BaseModel):
     accumulating Revelation in that Domain's pool each tick.
     """
     domain_tag: str
-    # The canonical domain:... tag being researched.
+    stop_on_t1_one:  bool = False
+    stop_on_t1_both: bool = False
+    stop_on_t2_one:  bool = False
+    stop_on_t2_both: bool = False
+    stop_on_t3_one:  bool = False
+    stop_on_t3_both: bool = False
 
 
 class RevealImagoIntent(BaseModel):

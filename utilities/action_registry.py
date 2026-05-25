@@ -639,7 +639,7 @@ _ACTION_SEED: list[dict] = [
         "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
         "essence_cost": 0.2, "concealment_impact": 0.0,
         "requires_proxius": 0,
-        "tags": ["zero_footprint", "self_refinement", "can_persist"],
+        "tags": ["zero_footprint", "self_refinement", "always_persist"],
     },
     {
         "action_key": "reveal_imago",
