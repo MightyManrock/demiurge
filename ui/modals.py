@@ -539,9 +539,9 @@ class ExploreBeliefsModal(ModalScreen):
                 )
             yield Static("", id="lum-panel")
             with Horizontal(classes="btn-row"):
-                yield Button("Confirm",  id="confirm-btn", disabled=True)
                 yield Button("← Back",   id="back-btn")
                 yield Button("Cancel",   id="cancel-btn", classes="-danger")
+                yield Button("Confirm",  id="confirm-btn", disabled=True)
 
     def on_mount(self) -> None:
         for sq in self.query(DomainSquare):
