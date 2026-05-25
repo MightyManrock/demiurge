@@ -27,7 +27,7 @@ from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
 
-from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag
+from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag, _pop_stratum_label
 
 from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, ImagoTreeGrid, LoopingListView
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
@@ -1335,8 +1335,14 @@ class WhisperConfigModal(ModalScreen):
             and m.role not in (MortalRole.PROXIUS, MortalRole.HERALD)
             and mid not in _proxius_ids
         ]
-        self._mortal_ids = [mid for mid, _ in self._mortals]
-        self._dreg       = dreg
+        self._mortal_ids   = [mid for mid, _ in self._mortals]
+        self._dreg         = dreg
+        ireg               = get_imago_registry()
+        unlocked_set       = set(state.demiurge.unlocked_imagines)
+        self._eligible_tags = {
+            tag for tag in _DOMAIN_GRID_ORDER
+            if any(n.node_id in unlocked_set for n in ireg.nodes_for_tree(tag.split(":", 1)[1]))
+        }
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="whisper-config-modal"):
@@ -1347,11 +1353,11 @@ class WhisperConfigModal(ModalScreen):
                     with ListView(id="mortal-list"):
                         for i, (mid, m) in enumerate(self._mortals):
                             pop_obj  = self._state.pops.get(str(m.pop_id)) if m.pop_id else None
-                            pop_name = (pop_obj.name or "?") if pop_obj else "?"
+                            pop_name = _pop_stratum_label(pop_obj) if pop_obj else "?"
                             loc_obj  = self._state.locations.get(str(m.current_location))
                             loc      = (loc_obj.name or "?") if loc_obj else "?"
-                            name = m.name or "?"
-                            align = m.alignment if m.alignment is not None else 0.0
+                            name     = m.name or "?"
+                            align    = m.alignment if m.alignment is not None else 0.0
                             yield ListItem(
                                 Label(f"{name:<18}  align:{align:.2f}  {pop_name:<14}  {loc}"),
                                 id=f"mortal-{i}",
@@ -1362,7 +1368,7 @@ class WhisperConfigModal(ModalScreen):
                         yield Label("Imāgō: —",  id="imago-label")
                     with Grid(id="whisper-domain-grid"):
                         for tag in _DOMAIN_GRID_ORDER:
-                            eligible = self._state.demiurge.revelation_pools.get(tag, 0.0) > 0
+                            eligible = tag in self._eligible_tags
                             yield DomainSquare(
                                 tag=tag,
                                 icon=self._dreg.icon(tag),
