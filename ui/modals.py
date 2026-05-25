@@ -567,6 +567,10 @@ class ExploreBeliefsModal(ModalScreen):
 
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         tag   = event.tag
+        self._selected_tag = tag
+        btn = self.query_one("#confirm-btn", Button)
+        btn.disabled = False
+        btn.add_class("continue-ready")
         parts = []
         for lum, lum_tags in self._lum_info:
             if lum_tags:
@@ -582,9 +586,7 @@ class ExploreBeliefsModal(ModalScreen):
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         self._selected_tag = event.tag
-        btn = self.query_one("#confirm-btn", Button)
-        btn.disabled = False
-        btn.add_class("continue-ready")
+        self.dismiss(self._selected_tag)
 
     @on(Button.Pressed, "#confirm-btn")
     def _confirm(self, _: Button.Pressed) -> None:
