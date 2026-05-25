@@ -530,7 +530,7 @@ git commit -m "feat: wire shape_dream to ShapeDreamConfigModal"
 
 ---
 
-## Task 5: Manual smoke-test and push
+## ✅ Task 5: Manual smoke-test and push
 
 - [ ] **Step 1: Run autoplay to confirm no regressions**
 
