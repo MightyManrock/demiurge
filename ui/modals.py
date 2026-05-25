@@ -534,30 +534,39 @@ class ExploreBeliefsModal(ModalScreen):
         self._fellow_tags    = fellow_tags
         self._accessible_set = accessible_set
 
+        first_tag = next(iter(sorted(accessible_set)), None)
+        self._initial_tree = first_tag.split(":", 1)[1] if first_tag and ":" in first_tag else "fire"
+
     def compose(self) -> ComposeResult:
-        with Vertical(classes="modal-box"):
+        with Vertical(classes="modal-box-wide"):
             yield Label("Explore Beliefs", classes="modal-title")
-            yield Static("Domain: -", id="domain-label")
-            with Grid(id="domain-grid"):
-                yield from _domain_grid_squares(
-                    self._state, self._dreg, self._accessible_set,
-                    show_names=True,
-                )
-            yield Static("", id="lum-panel")
-            with Vertical(id="auto-stop-panel"):
-                yield Label("Auto-stop when…", classes="auto-stop-title")
-                with Grid(id="auto-stop-grid"):
-                    yield Checkbox("One T1 unlockable",   id="stop-t1-one",  value=False, disabled=True)
-                    yield Checkbox("Both T1s unlockable", id="stop-t1-both", value=False, disabled=True)
-                    yield Checkbox("One T2 unlockable",   id="stop-t2-one",  value=False, disabled=True)
-                    yield Checkbox("Both T2s unlockable", id="stop-t2-both", value=False, disabled=True)
-                    yield Checkbox("One T3 unlockable",   id="stop-t3-one",  value=False, disabled=True)
-                    yield Checkbox("Both T3s unlockable", id="stop-t3-both", value=False, disabled=True)
-                yield Checkbox("Revelation cap reached", id="stop-cap", value=True, disabled=True)
-            with Horizontal(classes="btn-row"):
-                yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn", classes="-danger")
-                yield Button("Confirm", id="confirm-btn", disabled=True)
+            with Horizontal(id="explore-panels"):
+                with Vertical(id="explore-left"):
+                    yield Static("Domain: -", id="domain-label")
+                    with Grid(id="domain-grid"):
+                        yield from _domain_grid_squares(
+                            self._state, self._dreg, self._accessible_set,
+                            show_names=True,
+                        )
+                    yield Static("", id="lum-panel")
+                    with Vertical(id="auto-stop-panel"):
+                        yield Label("Auto-stop when…", classes="auto-stop-title")
+                        with Grid(id="auto-stop-grid"):
+                            yield Checkbox("One T1 unlockable",   id="stop-t1-one",  value=False, disabled=True)
+                            yield Checkbox("Both T1s unlockable", id="stop-t1-both", value=False, disabled=True)
+                            yield Checkbox("One T2 unlockable",   id="stop-t2-one",  value=False, disabled=True)
+                            yield Checkbox("Both T2s unlockable", id="stop-t2-both", value=False, disabled=True)
+                            yield Checkbox("One T3 unlockable",   id="stop-t3-one",  value=False, disabled=True)
+                            yield Checkbox("Both T3s unlockable", id="stop-t3-both", value=False, disabled=True)
+                        yield Checkbox("Revelation cap reached", id="stop-cap", value=True, disabled=True)
+                    with Horizontal(classes="btn-row"):
+                        yield Button("← Back",  id="back-btn")
+                        yield Button("Cancel",  id="cancel-btn", classes="-danger")
+                        yield Button("Confirm", id="confirm-btn", disabled=True)
+                with Vertical(id="explore-right"):
+                    yield Label("— Imāgō reference —", classes="explore-ref-title")
+                    yield ImagoTreeGrid(self._state, self._initial_tree, readonly=True)
+                    yield Static("", id="imago-ref-tooltip")
 
     def on_mount(self) -> None:
         for sq in self.query(DomainSquare):
@@ -676,6 +685,9 @@ class ExploreBeliefsModal(ModalScreen):
                 parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.0%}[/]")
         self.query_one("#lum-panel", Static).update("  ".join(parts))
         self._update_checkbox_states(tag)
+        tree = tag.split(":", 1)[1] if ":" in tag else tag
+        self.query_one(ImagoTreeGrid).load_tree(tree)
+        self.query_one("#imago-ref-tooltip", Static).update("")
 
     def _update_checkbox_states(self, tag: str) -> None:
         ireg = get_imago_registry()
@@ -692,6 +704,12 @@ class ExploreBeliefsModal(ModalScreen):
                 cb_one.value = False
             if remaining < 2:
                 cb_both.value = False
+
+    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        tip  = (node.tooltip_blurb or f"Tier {node.tier} apex.") if node else ""
+        self.query_one("#imago-ref-tooltip", Static).update(tip)
 
     @on(Checkbox.Changed, "#stop-t1-one")
     def _t1_one_changed(self, event: Checkbox.Changed) -> None:

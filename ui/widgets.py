@@ -316,10 +316,11 @@ class ImagoTreeGrid(Widget):
 
     _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
 
-    def __init__(self, state: "SimulationState", tree: str) -> None:
+    def __init__(self, state: "SimulationState", tree: str, *, readonly: bool = False) -> None:
         super().__init__()
-        self._state = state
-        self._tree  = tree
+        self._state    = state
+        self._tree     = tree
+        self._readonly = readonly
         self._setup(tree)
 
     def _setup(self, tree: str) -> None:
@@ -370,13 +371,18 @@ class ImagoTreeGrid(Widget):
                 children.append(Static("", classes="imago-spacer"))
                 node     = nodes[0]
                 unlocked = node.node_id in self._unlocked
-                children.append(ImagoCell(node, unlocked, self._approval_class(node) if unlocked else ""))
+                cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
+                if self._readonly:
+                    cell.can_focus = False
+                children.append(cell)
                 children.append(Static("", classes="imago-spacer"))
             else:
                 left, right = nodes[0], nodes[1]
                 for node in (left, right):
                     unlocked = node.node_id in self._unlocked
                     cell = ImagoCell(node, unlocked, self._approval_class(node) if unlocked else "")
+                    if self._readonly:
+                        cell.can_focus = False
                     if node is left:
                         children.append(cell)
                         children.append(Static("", classes="imago-spacer"))
@@ -395,7 +401,8 @@ class ImagoTreeGrid(Widget):
             target.focus()
 
     def on_mount(self) -> None:
-        self._focus_first_unlocked()
+        if not self._readonly:
+            self._focus_first_unlocked()
 
     @work
     async def load_tree(self, tree: str) -> None:
@@ -405,9 +412,12 @@ class ImagoTreeGrid(Widget):
         grid = self.query_one(Grid)
         await grid.remove_children()
         await grid.mount(*self._build_cells())
-        self._focus_first_unlocked()
+        if not self._readonly:
+            self._focus_first_unlocked()
 
     def action_nav(self, direction: str) -> None:
+        if self._readonly:
+            return
         cells   = list(self.query(ImagoCell))
         pos_map = {p: i for i, p in enumerate(self._POSITIONS)}
         focused = next((i for i, c in enumerate(cells) if c.has_focus), -1)

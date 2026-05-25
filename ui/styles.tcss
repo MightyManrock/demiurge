@@ -267,6 +267,47 @@ ModalScreen {
     padding: 1 2;
 }
 
+.modal-box-wide {
+    background: $bg-modal;
+    border: solid $border;
+    width: 115;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+}
+
+#explore-panels {
+    height: auto;
+}
+
+#explore-left {
+    width: 64;
+    height: auto;
+}
+
+#explore-right {
+    width: 1fr;
+    height: auto;
+    padding-left: 2;
+    border-left: solid $border;
+}
+
+.explore-ref-title {
+    color: #5a7090;
+    text-style: italic;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#imago-ref-tooltip {
+    height: 4;
+    background: $bg-panel;
+    border: solid $border;
+    padding: 0 1;
+    margin-top: 1;
+    content-align: left middle;
+}
+
 .modal-title {
     color: $accent;
     text-style: bold;
