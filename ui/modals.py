@@ -1676,7 +1676,7 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             with Horizontal(classes="whisper-panels"):
                 with Vertical(classes="whisper-left"):
                     yield Label("Mortal: —", id="mortal-label")
-                    with ListView(id="mortal-list"):
+                    with LoopingListView(id="mortal-list"):
                         for _, item in self._mortals:
                             yield item
                 with Vertical(classes="whisper-right"):
@@ -1901,7 +1901,7 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             with Horizontal(classes="shape-dream-panels"):
                 with Vertical(classes="shape-dream-left"):
                     yield Label("Mortal: —", id="sd-mortal-label")
-                    with ListView(id="sd-mortal-list"):
+                    with LoopingListView(id="sd-mortal-list"):
                         for _, item in self._mortals:
                             yield item
                 with Vertical(classes="shape-dream-right"):
