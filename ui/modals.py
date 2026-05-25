@@ -1675,29 +1675,57 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             return
         focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
         row, col = divmod(focused_idx, 4)
-        dr, dc = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
-        r, c = row + dr, col + dc
-        while 0 <= r < 4 and 0 <= c < 4:
-            candidate = squares[r * 4 + c]
-            if not candidate.disabled:
-                candidate.focus()
-                return
-            r, c = r + dr, c + dc
+
+        if direction in ("left", "right"):
+            dc = 1 if direction == "right" else -1
+            c  = col + dc
+            # Scan rest of current row
+            while 0 <= c < 4:
+                if not squares[row * 4 + c].disabled:
+                    squares[row * 4 + c].focus()
+                    return
+                c += dc
+            # Wrap to start/end of adjacent row
+            next_row = row + (1 if direction == "right" else -1)
+            if 0 <= next_row < 4:
+                scan = range(4) if direction == "right" else range(3, -1, -1)
+                for sc in scan:
+                    if not squares[next_row * 4 + sc].disabled:
+                        squares[next_row * 4 + sc].focus()
+                        return
+        else:
+            dr = 1 if direction == "down" else -1
+            r  = row + dr
+            while 0 <= r < 4:
+                if not squares[r * 4 + col].disabled:
+                    squares[r * 4 + col].focus()
+                    return
+                r += dr
 
     def on_key(self, event) -> None:
-        if event.key != "tab":
-            return
-        focused = self.focused
-        if isinstance(focused, DomainSquare):
-            cells = [c for c in self.query(ImagoCell) if not c.disabled]
-            if cells:
-                cells[0].focus()
+        if event.key == "tab":
+            focused = self.focused
+            if isinstance(focused, DomainSquare):
+                cells = [c for c in self.query(ImagoCell) if not c.disabled]
+                if cells:
+                    cells[0].focus()
+                    event.prevent_default()
+                    event.stop()
+            elif isinstance(focused, ImagoCell):
+                self.query_one("#continue-btn", Button).focus()
                 event.prevent_default()
                 event.stop()
-        elif isinstance(focused, ImagoCell):
-            self.query_one("#continue-btn", Button).focus()
-            event.prevent_default()
-            event.stop()
+        elif event.key == "shift+tab":
+            if isinstance(self.focused, ImagoCell):
+                squares = list(self.query(DomainSquare))
+                target  = next(
+                    (sq for sq in squares if sq._tag == self._domain_tag and not sq.disabled),
+                    next((sq for sq in squares if not sq.disabled), None),
+                )
+                if target:
+                    target.focus()
+                    event.prevent_default()
+                    event.stop()
 
     @on(ListView.Highlighted, "#mortal-list")
     def _on_mortal_highlighted(self, event: ListView.Highlighted) -> None:
