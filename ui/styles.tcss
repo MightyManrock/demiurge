@@ -302,6 +302,7 @@ ModalScreen {
 #explore-right ImagoRevealCell {
     height: 7;
     padding: 1 2;
+    text-align: center;
 }
 
 .explore-ref-title {
