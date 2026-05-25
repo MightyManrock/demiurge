@@ -358,7 +358,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     lines = [
         SEP2,
         f"  UNIVERSE: {state.universe.name}",
-        f"  {_short_age_label(state.universe.current_age, state.tick_number)}  |  Tick: {state.tick_number}",
+        f"  {state.universe.current_age.display()}  |  Tick: {state.tick_number}",
         SEP2,
     ]
     fp = state.demiurge.footprint

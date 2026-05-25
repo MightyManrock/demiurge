@@ -37,7 +37,7 @@ from ui.display import (
     _personality_label, _format_beliefs, _format_culture, _prominence_label,
     _name_for_id, _name_link_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,
-    display_briefing, _lines_to_text, _get_lum_domain_context,
+    display_briefing, _lines_to_text, _get_lum_domain_context, _short_age_label,
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -546,7 +546,7 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
 
     a(f"[bold #4a80b0]━━ STATUS ━━[/]")
     a(f"[#3a6090]{_e(state.universe.name)}[/]")
-    a(f"[#2a4a6a]{state.universe.current_age.display()}  ·  Tick {state.tick_number}[/]")
+    a(f"[#2a4a6a]{_short_age_label(state.universe.current_age, state.tick_number)}  ·  Tick {state.tick_number}[/]")
     a("")
 
     # Essence
