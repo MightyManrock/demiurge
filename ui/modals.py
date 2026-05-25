@@ -1804,6 +1804,9 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
         self._check_continue()
 
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
+        self.query_one("#domain-label", Label).update(f"Domain: {event.tag.split(':', 1)[1].title()}")
+
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         tag = event.tag
         self._domain_tag    = tag
@@ -2151,6 +2154,13 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
         if m:
             self.query_one("#sd-mortal-label", Label).update(f"Mortal: {m.name}")
         self._check_continue()
+
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
+        grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
+        if grid_a in event._sender.ancestors_with_self:
+            self.query_one("#sd-domain-label-a", Label).update(f"Domain: {event.tag.split(':', 1)[1].title()}")
+        else:
+            self.query_one("#sd-domain-label-b", Label).update(f"Domain: {event.tag.split(':', 1)[1].title()}")
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
