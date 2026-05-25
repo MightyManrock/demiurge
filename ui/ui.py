@@ -147,6 +147,8 @@ class LoadScreen(Screen):
             return
         path = Path(path_str)
         state = load_scenario(path)
+        if display.DEV_MODE:
+            state.demiurge.unlocked_imagines = get_imago_registry().all_node_ids()
         violations = validate_luminary_affinities(state)
         if violations:
             msg = "Scenario rejected — Luminary affinity constraints violated:\n\n"
