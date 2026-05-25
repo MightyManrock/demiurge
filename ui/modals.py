@@ -536,7 +536,8 @@ class ExploreBeliefsModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box"):
-            yield Label("Explore Domain", classes="modal-title")
+            yield Label("Explore Beliefs", classes="modal-title")
+            yield Static("Domain: -", id="domain-label")
             with Grid(id="domain-grid"):
                 yield from _domain_grid_squares(
                     self._state, self._dreg, self._accessible_set,
@@ -586,6 +587,13 @@ class ExploreBeliefsModal(ModalScreen):
         btn = self.query_one("#confirm-btn", Button)
         btn.disabled = False
         btn.add_class("continue-ready")
+        name  = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+        pool  = self._state.demiurge.revelation_pools.get(tag, 0.0)
+        cap   = _compute_revelation_cap(self._state, tag)
+        cap_s = f"{cap:.0f}" if cap > 0.0 else "∞"
+        self.query_one("#domain-label", Static).update(
+            f"Domain: {name}  {pool:.0f} / {cap_s} Revelation"
+        )
         parts = []
         for lum, lum_tags in self._lum_info:
             if lum_tags:
