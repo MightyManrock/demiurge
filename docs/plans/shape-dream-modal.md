@@ -162,7 +162,7 @@ git commit -m "ui: add CSS for ShapeDreamConfigModal"
 
 ---
 
-## Task 3: Build `ShapeDreamConfigModal`
+## ✅ Task 3: Build `ShapeDreamConfigModal`
 
 **Files:**
 - Modify: `ui/modals.py` (add class after `WhisperConfigModal`, around line 1456)
