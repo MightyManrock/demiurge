@@ -1670,36 +1670,40 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             btn.remove_class("continue-ready")
 
     def action_nav_domain(self, direction: str) -> None:
+        cols = 8  # matches #whisper-domain-grid { grid-size: 8 }
         squares = list(self.query(DomainSquare))
         if not any(sq.has_focus for sq in squares):
             return
         focused_idx = next((i for i, sq in enumerate(squares) if sq.has_focus), -1)
-        row, col = divmod(focused_idx, 4)
+        num_rows = (len(squares) + cols - 1) // cols
+        row, col = divmod(focused_idx, cols)
 
         if direction in ("left", "right"):
             dc = 1 if direction == "right" else -1
             c  = col + dc
-            # Scan rest of current row
-            while 0 <= c < 4:
-                if not squares[row * 4 + c].disabled:
-                    squares[row * 4 + c].focus()
-                    return
+            while 0 <= c < cols:
+                idx = row * cols + c
+                if idx < len(squares) and not squares[idx].disabled:
+                    squares[idx].focus(); return
                 c += dc
-            # Wrap to start/end of adjacent row
-            next_row = row + (1 if direction == "right" else -1)
-            if 0 <= next_row < 4:
-                scan = range(4) if direction == "right" else range(3, -1, -1)
-                for sc in scan:
-                    if not squares[next_row * 4 + sc].disabled:
-                        squares[next_row * 4 + sc].focus()
-                        return
+            row_range = range(row + 1, num_rows) if direction == "right" else range(row - 1, -1, -1)
+            for nr in row_range:
+                col_range = range(cols) if direction == "right" else range(cols - 1, -1, -1)
+                for sc in col_range:
+                    idx = nr * cols + sc
+                    if idx < len(squares) and not squares[idx].disabled:
+                        squares[idx].focus(); return
+            # wrap around to first/last enabled
+            enabled = [sq for sq in squares if not sq.disabled]
+            if enabled:
+                (enabled[0] if direction == "right" else enabled[-1]).focus()
         else:
             dr = 1 if direction == "down" else -1
             r  = row + dr
-            while 0 <= r < 4:
-                if not squares[r * 4 + col].disabled:
-                    squares[r * 4 + col].focus()
-                    return
+            while 0 <= r < num_rows:
+                idx = r * cols + col
+                if idx < len(squares) and not squares[idx].disabled:
+                    squares[idx].focus(); return
                 r += dr
 
     @work
