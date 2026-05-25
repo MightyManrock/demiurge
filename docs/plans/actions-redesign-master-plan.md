@@ -98,3 +98,13 @@ Listed in category order, matching the in-game action browser. Stubs and parked 
 ## Branch note
 
 When implementation begins, cut `action-redesign` from current `main`. All sub-plan changes go there. No partial merges — the branch lands as a unit unless a sub-plan is explicitly flagged as independent.
+
+---
+
+## Preservation rule
+
+**Do not overwrite or remove any existing modal class during implementation.** New modals are added alongside old ones. The existing wizard-chain modals (`DomainPickerModal`, `ImagoTreeModal`, etc.) stay in place and fully functional throughout the redesign — other parts of the codebase that still use them must not break.
+
+The only exception is shared helpers: if a helper is extracted from an existing modal (e.g. an imago tree rendering widget), the extraction may modify the original class to delegate to the helper, as long as its external behaviour is unchanged.
+
+At the end of the full redesign pass, a dedicated cleanup step will identify and remove all modal code that is no longer referenced.
