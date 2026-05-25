@@ -9,6 +9,150 @@
 │   4720 │   │   except TypeError as error:                                                                                                                                                             │
 │   4721 │   │   │   raise TypeError(                                                                                                                                                                   │
 │                                                                                                                                                                                                       │
+│ /run/media/deck/manrockdeck-sd/Programming/Games/Demiurge/ui/modals.py:1354 in compose                                                                                                                │
+│                                                                                                                                                                                                       │
+│   1351 │   │   │   │   │   │   │   loc_obj  = self._state.locations.get(str(m.current_location)                                                                                                       │
+│   1352 │   │   │   │   │   │   │   loc      = loc_obj.name if loc_obj else "?"                                                                                                                        │
+│   1353 │   │   │   │   │   │   │   yield ListItem(                                                                                                                                                    │
+│ ❱ 1354 │   │   │   │   │   │   │   │   Label(f"{m.name:<18}  align:{m.alignment:.2f}  {pop_name                                                                                                       │
+│   1355 │   │   │   │   │   │   │   │   id=f"mortal-{i}",                                                                                                                                              │
+│   1356 │   │   │   │   │   │   │   )                                                                                                                                                                  │
+│   1357 │   │   │   │   with Vertical(classes="whisper-right"):                                                                                                                                        │
+│                                                                                                                                                                                                       │
+│ ╭────────────────────────────────────────────────────────────────────────────────────────── locals ───────────────────────────────────────────────────────────────────────────────────────────╮       │
+│ │        i = 0                                                                                                                                                                                │       │
+│ │      loc = 'Neran Surface'                                                                                                                                                                  │       │
+│ │  loc_obj = PopLocation(                                                                                                                                                                     │       │
+│ │            │   id=UUID('2ac3f5fc-d4fd-4d72-be5b-eada9fb43e6d'),                                                                                                                             │       │
+│ │            │   name='Neran Surface',                                                                                                                                                        │       │
+│ │            │   description='',                                                                                                                                                              │       │
+│ │            │   location_type='pop_location',                                                                                                                                                │       │
+│ │            │   parent_id=UUID('cd7ad259-4fe1-4d08-9155-98d5f9917044'),                                                                                                                      │       │
+│ │            │   child_ids=[],                                                                                                                                                                │       │
+│ │            │   traits=[],                                                                                                                                                                   │       │
+│ │            │   condition=<LocCondition.STABLE: 'stable'>,                                                                                                                                   │       │
+│ │            │   coordinates=CosmicCoordinates(x=0.0, y=0.0, z=0.0),                                                                                                                          │       │
+│ │            │   visibility=1.0,                                                                                                                                                              │       │
+│ │            │   pinned=False,                                                                                                                                                                │       │
+│ │            │   visibility_stall_remaining=360,                                                                                                                                              │       │
+│ │            │   pop_ids=[UUID('72f3eb17-d6eb-40ab-9ae2-7acbe97628da'), UUID('1bb33337-65ab-4856-88e4-d7d2fbb4a0be'), UUID('768ec49a-6d99-4a70-8399-1086bfeca012')],                          │       │
+│ │            │   distance_from_core=0,                                                                                                                                                        │       │
+│ │            │   travel_network_ids=[UUID('8a1b70a3-0ef3-406b-bb37-1b7609ae5f58')]                                                                                                            │       │
+│ │            )                                                                                                                                                                                │       │
+│ │        m = NotableMortal(                                                                                                                                                                   │       │
+│ │            │   id=UUID('b59f0f11-c758-4212-8300-6f28a42bef8d'),                                                                                                                             │       │
+│ │            │   name='Senna Vaur',                                                                                                                                                           │       │
+│ │            │   description='',                                                                                                                                                              │       │
+│ │            │   civilization_id=UUID('0c95110e-27eb-4676-97c3-54bfe972f985'),                                                                                                                │       │
+│ │            │   role=<MortalRole.OTHER: 'other'>,                                                                                                                                            │       │
+│ │            │   status=<MortalStatus.ACTIVE: 'active'>,                                                                                                                                      │       │
+│ │            │   appointed_by_demiurge=None,                                                                                                                                                  │       │
+│ │            │   appointed_by_luminary=None,                                                                                                                                                  │       │
+│ │            │   belief_tags={'domain:order': 0.8, 'domain:mastery': 0.5, 'domain:truth': 0.25, 'domain:community': 0.3},                                                                     │       │
+│ │            │   personal_tags=['ambitious', 'pragmatic'],                                                                                                                                    │       │
+│ │            │   status_tags=['senator'],                                                                                                                                                     │       │
+│ │            │   culture_tags={                                                                                                                                                               │       │
+│ │            │   │   'structure:hierarchy': 0.8,                                                                                                                                              │       │
+│ │            │   │   'relations:diplomacy': 0.8,                                                                                                                                              │       │
+│ │            │   │   'practice:sedentism': 0.8,                                                                                                                                               │       │
+│ │            │   │   'values:ambition': 0.7,                                                                                                                                                  │       │
+│ │            │   │   'values:pragmatism': 0.6,                                                                                                                                                │       │
+│ │            │   │   'values:erudition': 0.4                                                                                                                                                  │       │
+│ │            │   },                                                                                                                                                                           │       │
+│ │            │   species_id=UUID('5446d6d9-78fe-431c-839e-c2ee60a5a0dd'),                                                                                                                     │       │
+│ │            │   pop_id=UUID('72f3eb17-d6eb-40ab-9ae2-7acbe97628da'),                                                                                                                         │       │
+│ │            │   proxius_appointed_tick=None,                                                                                                                                                 │       │
+│ │            │   herald_appointed_tick=None,                                                                                                                                                  │       │
+│ │            │   prominence_roles=[<MortalProminence.LEADER: 'leader'>],                                                                                                                      │       │
+│ │            │   prominence=0.65,                                                                                                                                                             │       │
+│ │            │   visibility=1.0,                                                                                                                                                              │       │
+│ │            │   pinned=False,                                                                                                                                                                │       │
+│ │            │   visibility_stall_remaining=360,                                                                                                                                              │       │
+│ │            │   alignment=0.6408280551819878,                                                                                                                                                │       │
+│ │            │   chrono_age=170.0,                                                                                                                                                            │       │
+│ │            │   bio_age=170.0,                                                                                                                                                               │       │
+│ │            │   birthday=(13, 675, 481, 920, 10, 6),                                                                                                                                         │       │
+│ │            │   home_location=UUID('cd7ad259-4fe1-4d08-9155-98d5f9917044'),                                                                                                                  │       │
+│ │            │   current_location=UUID('2ac3f5fc-d4fd-4d72-be5b-eada9fb43e6d'),                                                                                                               │       │
+│ │            │   origin_pop_subsumed=False,                                                                                                                                                   │       │
+│ │            │   active_goal=None,                                                                                                                                                            │       │
+│ │            │   travel_intent=None,                                                                                                                                                          │       │
+│ │            │   last_audit_text=None,                                                                                                                                                        │       │
+│ │            │   last_audit_tick=None                                                                                                                                                         │       │
+│ │            )                                                                                                                                                                                │       │
+│ │      mid = 'b59f0f11-c758-4212-8300-6f28a42bef8d'                                                                                                                                           │       │
+│ │ pop_name = None                                                                                                                                                                             │       │
+│ │  pop_obj = Pop(                                                                                                                                                                             │       │
+│ │            │   id=UUID('72f3eb17-d6eb-40ab-9ae2-7acbe97628da'),                                                                                                                             │       │
+│ │            │   name=None,                                                                                                                                                                   │       │
+│ │            │   demiurge_authored=False,                                                                                                                                                     │       │
+│ │            │   civilization_id=UUID('0c95110e-27eb-4676-97c3-54bfe972f985'),                                                                                                                │       │
+│ │            │   species_id=UUID('5446d6d9-78fe-431c-839e-c2ee60a5a0dd'),                                                                                                                     │       │
+│ │            │   social_class=<SocialClass.ELITE: 'elite'>,                                                                                                                                   │       │
+│ │            │   wild_stratum=None,                                                                                                                                                           │       │
+│ │            │   current_location=UUID('2ac3f5fc-d4fd-4d72-be5b-eada9fb43e6d'),                                                                                                               │       │
+│ │            │   size_fractional=4.2,                                                                                                                                                         │       │
+│ │            │   dominant_beliefs={'domain:order': 0.9, 'domain:mastery': 0.65, 'domain:truth': 0.3},                                                                                         │       │
+│ │            │   culture_tags={                                                                                                                                                               │       │
+│ │            │   │   'structure:hierarchy': 0.9,                                                                                                                                              │       │
+│ │            │   │   'relations:diplomacy': 0.8,                                                                                                                                              │       │
+│ │            │   │   'techno:science': 0.75,                                                                                                                                                  │       │
+│ │            │   │   'techno:industrialism': 0.7,                                                                                                                                             │       │
+│ │            │   │   'values:ambition': 0.7,                                                                                                                                                  │       │
+│ │            │   │   'values:pragmatism': 0.55,                                                                                                                                               │       │
+│ │            │   │   'values:erudition': 0.45                                                                                                                                                 │       │
+│ │            │   },                                                                                                                                                                           │       │
+│ │            │   rider_traits={},                                                                                                                                                             │       │
+│ │            │   preaching_imago_id=None,                                                                                                                                                     │       │
+│ │            │   preaching_goal_cooldown_until=0,                                                                                                                                             │       │
+│ │            │   notable_mortal_ids=[UUID('b59f0f11-c758-4212-8300-6f28a42bef8d'), UUID('099e893d-d84b-4ae5-86a2-24f7e182f069')],                                                             │       │
+│ │            │   parent_pop_id=None,                                                                                                                                                          │       │
+│ │            │   child_pop_ids=[],                                                                                                                                                            │       │
+│ │            │   visibility=1.0,                                                                                                                                                              │       │
+│ │            │   pinned=False,                                                                                                                                                                │       │
+│ │            │   visibility_stall_remaining=360                                                                                                                                               │       │
+│ │            )                                                                                                                                                                                │       │
+│ │     self = WhisperConfigModal()                                                                                                                                                             │       │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯       │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+TypeError: unsupported format string passed to NoneType.__format__
+
+The above exception was the direct cause of the following exception:
+
+╭────────────────────────────────────────────────────────────────────────────────── Traceback (most recent call last) ──────────────────────────────────────────────────────────────────────────────────╮
+│ /run/media/deck/manrockdeck-sd/Programming/Games/Demiurge/venv/lib/python3.13/site-packages/textual/screen.py:1486 in _compose                                                                        │
+│                                                                                                                                                                                                       │
+│   1483 │   │   │   self.refresh()                                                               ╭────────── locals ───────────╮                                                                       │
+│   1484 │                                                                                        │ self = WhisperConfigModal() │                                                                       │
+│   1485 │   async def _compose(self) -> None:                                                    ╰─────────────────────────────╯                                                                       │
+│ ❱ 1486 │   │   await super()._compose()                                                                                                                                                               │
+│   1487 │   │   self._update_auto_focus()                                                                                                                                                              │
+│   1488 │                                                                                                                                                                                              │
+│   1489 │   def _update_auto_focus(self) -> None:                                                                                                                                                      │
+│                                                                                                                                                                                                       │
+│ /run/media/deck/manrockdeck-sd/Programming/Games/Demiurge/venv/lib/python3.13/site-packages/textual/widget.py:4721 in _compose                                                                        │
+│                                                                                                                                                                                                       │
+│   4718 │   │   │   widgets = [*self._pending_children, *compose(self)]                          ╭────────── locals ───────────╮                                                                       │
+│   4719 │   │   │   self._pending_children.clear()                                               │ self = WhisperConfigModal() │                                                                       │
+│   4720 │   │   except TypeError as error:                                                       ╰─────────────────────────────╯                                                                       │
+│ ❱ 4721 │   │   │   raise TypeError(                                                                                                                                                                   │
+│   4722 │   │   │   │   f"{self!r} compose() method returned an invalid result; {error}"                                                                                                               │
+│   4723 │   │   │   ) from error                                                                                                                                                                       │
+│   4724 │   │   except Exception as error:                                                                                                                                                             │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+TypeError: WhisperConfigModal() compose() method returned an invalid result; unsupported format string passed to NoneType.__format__
+(deck@manrockdeck Demiurge)$ python main.py
+╭────────────────────────────────────────────────────────────────────────────────── Traceback (most recent call last) ──────────────────────────────────────────────────────────────────────────────────╮
+│ /run/media/deck/manrockdeck-sd/Programming/Games/Demiurge/venv/lib/python3.13/site-packages/textual/widget.py:4718 in _compose                                                                        │
+│                                                                                                                                                                                                       │
+│   4715 │                                                                                        ╭────────── locals ───────────╮                                                                       │
+│   4716 │   async def _compose(self) -> None:                                                    │ self = WhisperConfigModal() │                                                                       │
+│   4717 │   │   try:                                                                             ╰─────────────────────────────╯                                                                       │
+│ ❱ 4718 │   │   │   widgets = [*self._pending_children, *compose(self)]                                                                                                                                │
+│   4719 │   │   │   self._pending_children.clear()                                                                                                                                                     │
+│   4720 │   │   except TypeError as error:                                                                                                                                                             │
+│   4721 │   │   │   raise TypeError(                                                                                                                                                                   │
+│                                                                                                                                                                                                       │
 │ /run/media/deck/manrockdeck-sd/Programming/Games/Demiurge/ui/modals.py:1356 in compose                                                                                                                │
 │                                                                                                                                                                                                       │
 │   1353 │   │   │   │   │   │   │   name = m.name or "?"                                                                                                                                               │
@@ -143,3 +287,24 @@ The above exception was the direct cause of the following exception:
 │   4724 │   │   except Exception as error:                                                                                                                                                             │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 TypeError: WhisperConfigModal() compose() method returned an invalid result; unsupported format string passed to NoneType.__format__
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+(deck@manrockdeck Demiurge)$ python main.py
+╭────────────────────────────────────────────────────────────────────────────────── Traceback (most recent call last) ──────────────────────────────────────────────────────────────────────────────────╮
+│ /run/media/deck/manrockdeck-sd/Programming/Games/Demiurge/ui/modals.py:1609 in on_domain_square_selected                                                                                              │
+│                                                                                                                                                                                                       │
+│   1606 │                                                                                        ╭─────────────────── locals ────────────────────╮                                                     │
+│   1607 │   def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:           │  event = Selected()                           │                                                     │
+│   1608 │   │   grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)                      │ grid_a = Grid(id='shape-dream-domain-grid-a') │                                                     │
+│ ❱ 1609 │   │   in_tab_a = grid_a in event.control.ancestors_with_self                           │   self = ShapeDreamConfigModal()              │                                                     │
+│   1610 │   │                                                                                    ╰───────────────────────────────────────────────╯                                                     │
+│   1611 │   │   if in_tab_a:                                                                                                                                                                           │
+│   1612 │   │   │   prev = self._domain_a                                                                                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+AttributeError: 'NoneType' object has no attribute 'ancestors_with_self'
