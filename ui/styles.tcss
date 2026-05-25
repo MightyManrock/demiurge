@@ -290,10 +290,16 @@ ModalScreen {
     height: 100%;
     padding-left: 2;
     border-left: solid $border;
+    background: #090b1c;
 }
 
 #explore-right ImagoTreeGrid {
     height: 1fr;
+    background: #090b1c;
+}
+
+#explore-right ImagoCell {
+    margin-bottom: 1;
 }
 
 .explore-ref-title {
