@@ -847,12 +847,13 @@ class GameScreen(Screen):
                 return
             action_key, defn = picked
 
-            # Build intent; BACK means "re-show action browser"
+            # Build intent; BACK means "re-show action browser at same category"
             instance = await self._build_intent(action_key, defn)
             if instance is None:
                 self._feed_markup("[#5a7090]Cancelled.[/]", "actions")
                 return
             if instance == BACK:
+                initial_category = defn.category
                 continue
             break
 
