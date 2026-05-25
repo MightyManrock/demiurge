@@ -270,7 +270,7 @@ ModalScreen {
 .modal-box-wide {
     background: $bg-modal;
     border: solid $border;
-    width: 127;
+    width: 140;
     height: auto;
     max-height: 90%;
     padding: 1 2;
