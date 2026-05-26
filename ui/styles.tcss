@@ -720,6 +720,10 @@ Button.continue-ready {
     margin: 0 0 1 0;
 }
 
+.affiliated-domain-row DomainSquare {
+    width: 1fr;
+}
+
 .affiliated-placeholder {
     height: 4;
     border: round $border;
