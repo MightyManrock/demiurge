@@ -1643,6 +1643,75 @@ class ChangeAffiliatedDomainModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
+# CHANGE AFFILIATED DOMAIN CONFIRM MODAL
+# ─────────────────────────────────────────
+
+class ChangeAffiliatedDomainConfirmModal(ModalScreen):
+    """
+    Confirmation screen for Change Affiliated Domain.
+    Shows which domain is being replaced and what the new one will be.
+    Dismisses with True (confirm), False (back to config), or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "back",         "Back"),
+    ]
+
+    def __init__(
+        self,
+        state: "SimulationState",
+        old_tag: str,
+        new_tag: str,
+    ) -> None:
+        super().__init__()
+        self._state   = state
+        self._old_tag = old_tag
+        self._new_tag = new_tag
+
+    def _body(self) -> Text:
+        dreg     = get_domain_registry()
+        old_icon = dreg.icon(self._old_tag)
+        new_icon = dreg.icon(self._new_tag)
+        old_name = _domain_display_name(self._old_tag)
+        new_name = _domain_display_name(self._new_tag)
+        return Text.from_markup(
+            f"[#5a7090]Replace[/]  [bold #c0ccdc]{old_icon} {_e(old_name)}[/]\n"
+            f"[#5a7090]with[/]     [bold #50b870]{new_icon} {_e(new_name)}[/]"
+        )
+
+    def compose(self) -> "ComposeResult":
+        with Vertical(classes="modal-box"):
+            yield Label("Change Affiliated Domain — Confirm", classes="modal-title")
+            yield Static(self._body())
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("Confirm", id="confirm-btn", classes="-primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-btn", Button).focus()
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
 # MORTAL DETAIL MODAL
 # Read-only profile shown before appointing a Proxius.
 # Dismisses with True (confirm appoint), BACK sentinel (re-pick), or None (cancel).
