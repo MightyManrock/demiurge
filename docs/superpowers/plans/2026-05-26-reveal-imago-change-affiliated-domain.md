@@ -168,7 +168,7 @@ Expected: 50 ticks, no exceptions.
 **Files:**
 - Modify: `ui/styles.tcss` (insert after the Whisper CSS block, after line ~683)
 
-- [ ] **Step 1: Insert CSS block after the Whisper block**
+- [x] **Step 1: Insert CSS block after the Whisper block**
 
 Find the comment `/* ── Shape Dream Confirm Modal` and insert this block immediately before it:
 
@@ -227,7 +227,7 @@ Find the comment `/* ── Shape Dream Confirm Modal` and insert this block imm
 }
 ```
 
-- [ ] **Step 2: Verify autoplay**
+- [x] **Step 2: Verify autoplay**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay

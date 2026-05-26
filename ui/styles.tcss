@@ -682,6 +682,59 @@ Button.continue-ready {
     text-style: bold;
 }
 
+/* ── Reveal Imāgō Config Modal ─────────────── */
+
+.reveal-imago-modal {
+    background: $bg-modal;
+    border: solid $border;
+    width: 60%;
+    height: 85%;
+    padding: 1 2;
+}
+
+#reveal-domain-grid {
+    grid-size: 8;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#reveal-tree-container {
+    height: 1fr;
+    border: solid $border;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+/* ── Change Affiliated Domain Modal ──────────── */
+
+.change-affiliated-modal {
+    background: $bg-modal;
+    border: solid $border;
+    width: 55%;
+    height: 75%;
+    padding: 1 2;
+}
+
+.affiliated-domain-row {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+.affiliated-placeholder {
+    height: 4;
+    border: round $border;
+    width: 1fr;
+    color: $muted;
+    content-align: center middle;
+    text-align: center;
+}
+
+#new-domain-grid {
+    grid-size: 4;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
 /* ── Shape Dream Confirm Modal ─────────────── */
 
 .sd-confirm-modal {
