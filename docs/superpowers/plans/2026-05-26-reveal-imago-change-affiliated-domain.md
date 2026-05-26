@@ -516,7 +516,7 @@ Pre-selects the first affiliated domain on mount. Dismisses with `(old_tag, new_
 **Imports needed** (verify at top of `modals.py`; add if missing):
 - `ChangeAffiliatedDomainsIntent` from `core.action_core`
 
-- [ ] **Step 1: Insert `ChangeAffiliatedDomainModal`**
+- [x] **Step 1: Insert `ChangeAffiliatedDomainModal`**
 
 Find the line `class ImagoRevealModal(ModalScreen):` and insert this class immediately before it (after `RevealImagoConfigModal`):
 
@@ -686,11 +686,11 @@ class ChangeAffiliatedDomainModal(ModalScreen):
         self.dismiss(None)
 ```
 
-- [ ] **Step 2: Verify `ChangeAffiliatedDomainsIntent` is imported in `modals.py`**
+- [x] **Step 2: Verify `ChangeAffiliatedDomainsIntent` is imported in `modals.py`**
 
 Check the `from core.action_core import ...` line at the top of `ui/modals.py`. Add `ChangeAffiliatedDomainsIntent` if missing. (Note: the intent is used in `ui.py` wiring, but verifying now is cheap.)
 
-- [ ] **Step 3: Verify autoplay**
+- [x] **Step 3: Verify autoplay**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay

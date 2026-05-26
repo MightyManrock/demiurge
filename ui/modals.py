@@ -20,7 +20,7 @@ from textual.widgets import (
 
 from core.action_core import (
     ActionCategory, ActionDefinition, OngoingAction, compute_cooldown,
-    RevealImagoIntent,
+    RevealImagoIntent, ChangeAffiliatedDomainsIntent,
 )
 from logic.tick_logic import (
     SimulationState,
@@ -1251,6 +1251,164 @@ class RevealImagoConfigModal(ModalScreen):
     def _confirm(self, _: Button.Pressed) -> None:
         if self._domain_tag and self._node_id:
             self.dismiss(RevealImagoIntent(domain_tag=self._domain_tag, node_id=self._node_id))
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ChangeAffiliatedDomainModal(ModalScreen):
+    """
+    Single-screen Change Affiliated Domain configuration.
+    Affiliated row (3 selectable DomainSquares + placeholder) → 4×4 new domain grid → confirm.
+    First affiliated domain is pre-selected on mount.
+    Dismisses with (old_tag, new_tag) tuple, BACK, or None.
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+        ("up",        "nav_new('up')",    ""),
+        ("down",      "nav_new('down')",  ""),
+        ("left",      "nav_new('left')",  ""),
+        ("right",     "nav_new('right')", ""),
+    ]
+
+    def __init__(self, state: "SimulationState") -> None:
+        super().__init__()
+        self._state      = state
+        self._dreg       = get_domain_registry()
+        self._affiliated = list(state.demiurge.affiliated_domains)
+        self._old_tag: "str | None" = self._affiliated[0] if self._affiliated else None
+        self._new_tag: "str | None" = None
+
+        affiliated_set = set(self._affiliated)
+        self._accessible_new: "set[str]" = set(self._dreg.all_tags) - affiliated_set
+
+    def compose(self) -> "ComposeResult":
+        with Vertical(classes="change-affiliated-modal"):
+            yield Label("Change Affiliated Domain", classes="modal-title")
+            yield Label(
+                f"Domain to Replace: {_domain_display_name(self._old_tag)}"
+                if self._old_tag else "Domain to Replace: —",
+                id="old-label",
+            )
+            with Horizontal(classes="affiliated-domain-row"):
+                for tag in self._affiliated:
+                    yield DomainSquare(
+                        tag=tag,
+                        icon=self._dreg.icon(tag),
+                        name="",
+                        affiliated=True,
+                        accessible=True,
+                    )
+                yield Static("", classes="affiliated-placeholder")
+            yield Label("New Domain: —", id="new-label")
+            with Grid(id="new-domain-grid"):
+                yield from _domain_grid_squares(
+                    self._state, self._dreg, self._accessible_new, show_names=True,
+                )
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("Confirm", id="confirm-btn", classes="-primary", disabled=True)
+
+    def on_mount(self) -> None:
+        if self._old_tag:
+            for sq in self.query(DomainSquare):
+                if sq._tag == self._old_tag:
+                    sq.focus()
+                    break
+
+    def action_nav_new(self, direction: str) -> None:
+        affiliated_set = set(self._affiliated)
+        squares = [sq for sq in self.query(DomainSquare) if sq._tag not in affiliated_set]
+        if any(sq.has_focus for sq in squares):
+            _nav_domain_grid(squares, direction, cols=4)
+
+    def on_key(self, event) -> None:
+        focused = self.focused
+        affiliated_set = set(self._affiliated)
+        if event.key == "tab":
+            if isinstance(focused, DomainSquare) and focused._tag in affiliated_set:
+                new_squares = [sq for sq in self.query(DomainSquare) if sq._tag not in affiliated_set]
+                target = next((sq for sq in new_squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, DomainSquare):
+                self.query_one("#back-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "confirm-btn":
+                aff_squares = [sq for sq in self.query(DomainSquare) if sq._tag in affiliated_set]
+                if aff_squares:
+                    aff_squares[0].focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "shift+tab":
+            if isinstance(focused, DomainSquare) and focused._tag in affiliated_set:
+                self.query_one("#confirm-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "back-btn":
+                new_squares = [sq for sq in self.query(DomainSquare) if sq._tag not in affiliated_set]
+                target = next((sq for sq in new_squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, DomainSquare):
+                aff_squares = [sq for sq in self.query(DomainSquare) if sq._tag in affiliated_set]
+                if aff_squares:
+                    aff_squares[0].focus()
+                event.prevent_default(); event.stop()
+
+    def on_domain_square_focused(self, event: "DomainSquare.Focused") -> None:
+        tag = event.tag
+        if tag in set(self._affiliated):
+            self._old_tag = tag
+            self.query_one("#old-label", Label).update(
+                f"Domain to Replace: {_domain_display_name(tag)}"
+            )
+        else:
+            self.query_one("#new-label", Label).update(
+                f"New Domain: {_domain_display_name(tag)}"
+            )
+
+    def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
+        tag = event.tag
+        if tag in set(self._affiliated):
+            self._old_tag = tag
+            self.query_one("#old-label", Label).update(
+                f"Domain to Replace: {_domain_display_name(tag)}"
+            )
+        else:
+            self._new_tag = tag
+            self.query_one("#new-label", Label).update(
+                f"New Domain: {_domain_display_name(tag)}"
+            )
+            self._check_confirm()
+
+    def _check_confirm(self) -> None:
+        ready = bool(self._old_tag and self._new_tag)
+        btn   = self.query_one("#confirm-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        if self._old_tag and self._new_tag:
+            self.dismiss((self._old_tag, self._new_tag))
 
     @on(Button.Pressed, "#back-btn")
     def _back(self, _: Button.Pressed) -> None:
