@@ -796,6 +796,99 @@ class ExploreBeliefsModal(ModalScreen):
 
 
 # ─────────────────────────────────────────
+# EXPLORE BELIEFS CONFIRM MODAL
+# ─────────────────────────────────────────
+
+class ExploreBeliefConfirmModal(ModalScreen):
+    """
+    Confirmation screen for Explore Beliefs.
+    Shows domain name, revelation pool/cap, and the active auto-stop condition.
+    Dismisses with True (confirm), False (back to config), or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "back",         "Back"),
+    ]
+
+    def __init__(
+        self,
+        state: SimulationState,
+        tag: str,
+        t1_one: bool, t1_both: bool,
+        t2_one: bool, t2_both: bool,
+        t3_one: bool, t3_both: bool,
+    ) -> None:
+        super().__init__()
+        self._state = state
+        self._tag   = tag
+        self._stops = (t1_one, t1_both, t2_one, t2_both, t3_one, t3_both)
+
+    def _body(self) -> Text:
+        tag   = self._tag
+        pool  = self._state.demiurge.revelation_pools.get(tag, 0.0)
+        cap   = _compute_revelation_cap(self._state, tag)
+        cap_s = f"{cap:.0f}" if cap > 0.0 else "∞"
+        name  = _domain_display_name(tag)
+
+        t1_one, t1_both, t2_one, t2_both, t3_one, t3_both = self._stops
+        stop_map = [
+            (t1_one,  "one Tier 1 node becomes unlockable"),
+            (t1_both, "both Tier 1 nodes become unlockable"),
+            (t2_one,  "one Tier 2 node becomes unlockable"),
+            (t2_both, "both Tier 2 nodes become unlockable"),
+            (t3_one,  "one Tier 3 node becomes unlockable"),
+            (t3_both, "both Tier 3 nodes become unlockable"),
+        ]
+        active = [label for val, label in stop_map if val]
+
+        lines: list[str] = [
+            f"[bold #c0ccdc]{_e(name)}[/]",
+            f"[#5a7090]Revelation: {pool:.0f} / {cap_s}[/]",
+            "",
+        ]
+        if active:
+            lines.append("[bold #5a7090]WILL AUTO-STOP WHEN[/]")
+            for label in active:
+                lines.append(f"  [#c0ccdc]· {label}[/]")
+        else:
+            lines.append(
+                "[#5a7090]No auto-stop condition — will run until the Revelation cap.[/]"
+            )
+        return Text.from_markup("\n".join(lines))
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box"):
+            yield Label("Explore Beliefs — Confirm", classes="modal-title")
+            yield Static(self._body())
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("Confirm", id="confirm-btn", classes="-primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-btn", Button).focus()
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────
 # IMAGO TREE PICKER
 # Shows all 7 nodes of one tree in a 3-column pyramid layout.
 # Dismisses with a node_id (str), BACK to return to domain picker,
