@@ -1400,6 +1400,84 @@ class RevealImagoConfigModal(ModalScreen):
         self.dismiss(None)
 
 
+# ─────────────────────────────────────────
+# REVEAL IMĀGŌ CONFIRM MODAL
+# ─────────────────────────────────────────
+
+class RevealImagoConfirmModal(ModalScreen):
+    """
+    Confirmation screen for Reveal Imāgō.
+    Shows full node details plus revelation cost vs pool.
+    The Reveal button is disabled if the pool is no longer sufficient.
+    Dismisses with True (confirm), False (back to config), or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "back",         "Back"),
+    ]
+
+    def __init__(
+        self,
+        state: "SimulationState",
+        node: "ImagoNode",
+        domain_tag: str,
+    ) -> None:
+        super().__init__()
+        self._state      = state
+        self._node       = node
+        self._domain_tag = domain_tag
+
+        rev_count        = state.demiurge.revealed_imagines
+        self._cost       = _revelation_adjusted_cost(node.tier, rev_count)
+        self._pool       = state.demiurge.revelation_pools.get(f"domain:{node.tree}", 0.0)
+        self._affordable = self._pool >= self._cost
+
+    def _body(self) -> "Text":
+        base  = _imago_panel_body(self._node, self._state)
+        col   = "#50b870" if self._affordable else "#b04050"
+        extra = Text.from_markup(
+            f"\n[bold #5a7090]REVELATION COST[/]\n"
+            f"  [{col}]Cost: {self._cost}  ·  Pool: {self._pool:.0f}[/]"
+        )
+        base.append_text(extra)
+        return base
+
+    def compose(self) -> "ComposeResult":
+        with Vertical(classes="modal-box-tall"):
+            yield Label("Reveal Imāgō — Confirm", classes="modal-title")
+            with ScrollableContainer():
+                yield Static(self._body())
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button(
+                    "Reveal", id="confirm-btn", classes="-primary",
+                    disabled=not self._affordable,
+                )
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-btn", Button).focus()
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class ChangeAffiliatedDomainModal(ModalScreen):
     """
     Single-screen Change Affiliated Domain configuration.
