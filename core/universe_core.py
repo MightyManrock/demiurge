@@ -10,7 +10,10 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
-from core.agent_core import ProxiusGoal, TravelIntent
+from core.agent_core import (
+    ProxiusGoal, TravelIntent,
+    KnowledgeBase, CivilianAgentState, MortalAsset, CollectibleResource,
+)
 
 # ─────────────────────────────────────────
 # UNIVERSE RULES
@@ -199,6 +202,8 @@ class PopLocation(Location):
     # effective depth used by Scry and (future) travel mechanics.
     distance_from_core: int = 0
     travel_network_ids: list[UUID] = Field(default_factory=list)
+    commerce_quality: float = Field(ge=0.0, le=1.0, default=0.5)
+    collectible_resource: Optional[CollectibleResource] = None
 
 
 class TravelLocation(Location):
@@ -565,6 +570,11 @@ class NotableMortal(BaseModel):
     # True when the Pop this mortal originated from was fully absorbed into the goal Pop.
     # They may poorly represent the new Pop's cultural/belief profile.
     origin_pop_subsumed: bool = False
+
+    fatigue: float = Field(ge=0.0, le=1.0, default=0.0)
+    assets: list[MortalAsset] = Field(default_factory=list)
+    knowledge_base: Optional[KnowledgeBase] = None
+    civilian_state: Optional[CivilianAgentState] = None
 
     active_goal: Optional["ProxiusGoal"] = None
     travel_intent: Optional[TravelIntent] = None
