@@ -102,7 +102,7 @@ Dismisses with: `"explore_beliefs"` (→ route to Explore Beliefs), `BACK` (→ 
 **Files:**
 - Modify: `ui/modals.py` (insert before `ImagoRevealModal`, around line 1002)
 
-- [ ] **Step 1: Insert `NoUnlockableModal` before `ImagoRevealModal`**
+- [x] **Step 1: Insert `NoUnlockableModal` before `ImagoRevealModal`**
 
 Find the line `class ImagoRevealModal(ModalScreen):` and insert this class immediately before it:
 
@@ -154,7 +154,7 @@ class NoUnlockableModal(ModalScreen):
         self.dismiss(None)
 ```
 
-- [ ] **Step 2: Verify autoplay**
+- [x] **Step 2: Verify autoplay**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay

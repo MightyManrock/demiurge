@@ -999,6 +999,53 @@ class ShapeDreamConfirmModal(ModalScreen):
 # IMAGO REVEAL MODALS
 # ─────────────────────────────────────────
 
+class NoUnlockableModal(ModalScreen):
+    """
+    Shown when the player selects Reveal Imāgō but no nodes are currently unlockable.
+    Dismisses with "explore_beliefs" (route to Explore Beliefs), BACK, or None (cancel).
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+    ]
+
+    def compose(self) -> "ComposeResult":
+        with Vertical(classes="modal-box"):
+            yield Label("No Unlockable Imāgō", classes="modal-title")
+            yield Static(
+                "There are no Imāgō nodes available to reveal right now.\n"
+                "You may not have met the prerequisites, or your Revelation pools\n"
+                "may be empty. Explore Beliefs to build up Revelation.",
+                id="no-unlock-body",
+            )
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",         id="back-btn")
+                yield Button("Cancel",          id="cancel-btn",   classes="-danger")
+                yield Button("Explore Beliefs", id="explore-btn",  classes="-primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#explore-btn", Button).focus()
+
+    @on(Button.Pressed, "#explore-btn")
+    def _explore(self, _: Button.Pressed) -> None:
+        self.dismiss("explore_beliefs")
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class ImagoRevealModal(ModalScreen):
     """
     Imago tree view for the Reveal Imago flow.
