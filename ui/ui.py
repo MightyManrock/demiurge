@@ -70,7 +70,7 @@ from ui.modals import (
     ErrorModal, ToastModal, PickerModal, PopLatitudePickerModal, YesNoModal,
     QuitConfirmModal,
     TextFormModal, DomainPickerModal, ExploreBeliefsModal, ImagoTreeModal, ImagoDetailModal,
-    ImagoRevealModal, ImagoRevealDetailModal, MortalDetailModal,
+    NoUnlockableModal, RevealImagoConfigModal, ChangeAffiliatedDomainModal, MortalDetailModal,
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
     ShapeDreamConfigModal, ShapeDreamConfirmModal,
 )
@@ -1766,34 +1766,57 @@ class GameScreen(Screen):
                 )
 
             if action_key == "reveal_imago":
-                return await self._build_reveal_imago_intent(state)
+                _ireg     = get_imago_registry()
+                _unlocked = set(state.demiurge.unlocked_imagines)
+                _has_unlockable = any(
+                    _ireg.is_unlockable(n.node_id, _unlocked)
+                    for _tag in get_domain_registry().all_tags
+                    for n in _ireg.nodes_for_tree(_tag.split(":", 1)[1])
+                )
+                if not _has_unlockable:
+                    gate_result = await self.app.push_screen_wait(NoUnlockableModal())
+                    if gate_result is None:
+                        return None
+                    if gate_result == BACK:
+                        return BACK
+                    dreg  = get_domain_registry()
+                    capped = {
+                        tag for tag in dreg.all_tags
+                        if _compute_revelation_cap(state, tag) == 0.0
+                        or state.demiurge.revelation_pools.get(tag, 0.0)
+                            >= _compute_revelation_cap(state, tag)
+                    }
+                    eb_result = await self.app.push_screen_wait(
+                        ExploreBeliefsModal(state, capped_domains=capped)
+                    )
+                    if eb_result is None:
+                        return None
+                    if eb_result == BACK:
+                        return BACK
+                    tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both = eb_result
+                    return ExploreBeliefIntent(
+                        domain_tag=tag,
+                        stop_on_t1_one=t1_one,   stop_on_t1_both=t1_both,
+                        stop_on_t2_one=t2_one,   stop_on_t2_both=t2_both,
+                        stop_on_t3_one=t3_one,   stop_on_t3_both=t3_both,
+                    )
+                result = await self.app.push_screen_wait(RevealImagoConfigModal(state))
+                if result is None:
+                    return None
+                if result == BACK:
+                    return BACK
+                return result
 
             if action_key == "change_affiliated_domains":
                 if not state.demiurge.affiliated_domains:
                     self.app.notify("No affiliated domains to swap.", severity="warning")
                     return None
-                step = 0; old_tag = None
-                while True:
-                    if step == 0:
-                        result = await self.app.push_screen_wait(
-                            PickerModal(
-                                title="Drop which affiliated domain?",
-                                items=[(t, t.split(":", 1)[1].title()) for t in state.demiurge.affiliated_domains],
-                                show_back=True,
-                            )
-                        )
-                        if result is None: return None
-                        if result == BACK: return BACK
-                        old_tag = result; step = 1
-                    if step == 1:
-                        exclude = set(state.demiurge.affiliated_domains)
-                        new_tag = await self.app.push_screen_wait(
-                            DomainPickerModal(state, exclude_tags=exclude)
-                        )
-                        if new_tag is None: return None
-                        if new_tag == BACK: step = 0; continue
-                        if not new_tag: step = 0; continue
-                        break
+                result = await self.app.push_screen_wait(ChangeAffiliatedDomainModal(state))
+                if result is None:
+                    return None
+                if result == BACK:
+                    return BACK
+                old_tag, new_tag = result
                 return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
 
         # No intent needed
@@ -1855,76 +1878,6 @@ class GameScreen(Screen):
                         ]
                         return (dvs, cvs, chosen_id)
                 continue
-
-    async def _build_reveal_imago_intent(
-        self,
-        state: SimulationState,
-    ) -> "RevealImagoIntent | str | None":
-        """
-        Multi-step flow for Reveal Imago:
-          domain picker → Imago reveal tree → detail/confirm modal → RevealImagoIntent
-        """
-        dreg = get_domain_registry()
-        ireg = get_imago_registry()
-
-        def _min_cost(tag: str) -> int:
-            tree = tag.split(":", 1)[1] if ":" in tag else tag
-            unlocked = set(state.demiurge.unlocked_imagines)
-            rev = state.demiurge.revealed_imagines
-            return min(
-                (_revelation_adjusted_cost(n.tier, rev) for n in ireg.nodes_for_tree(tree)
-                 if n.node_id not in unlocked and ireg.is_unlockable(n.node_id, unlocked)),
-                default=9999,
-            )
-
-        eligible_reveal_domains = {
-            tag for tag in dreg.all_tags
-            if state.demiurge.revelation_pools.get(tag, 0.0) >= _min_cost(tag)
-        }
-        capped = {
-            tag for tag in dreg.all_tags
-            if _compute_revelation_cap(state, tag) == 0.0
-        }
-
-        step = 0
-        chosen_tag: str = ""
-        chosen_node_id: str = ""
-        while True:
-            if step == 0:
-                tag = await self.app.push_screen_wait(
-                    DomainPickerModal(
-                        state,
-                        capped_domains=capped,
-                        eligible_reveal_domains=eligible_reveal_domains,
-                    )
-                )
-                if tag is None: return None
-                if tag == BACK: return BACK
-                if not tag: return None
-                chosen_tag = tag
-                step = 1
-
-            if step == 1:
-                result = await self.app.push_screen_wait(
-                    ImagoRevealModal(state, chosen_tag)
-                )
-                if result is None: return None
-                if result == BACK: step = 0; continue
-                chosen_node_id = result
-                step = 2
-
-            if step == 2:
-                node = ireg.get_node(chosen_node_id)
-                if node is None:
-                    step = 1; continue
-                cost = _revelation_adjusted_cost(node.tier, state.demiurge.revealed_imagines)
-                pool = state.demiurge.revelation_pools.get(chosen_tag, 0.0)
-                confirmed = await self.app.push_screen_wait(
-                    ImagoRevealDetailModal(node, state, chosen_tag, cost, pool)
-                )
-                if confirmed is None: return None
-                if confirmed is False: step = 1; continue
-                return RevealImagoIntent(domain_tag=chosen_tag, node_id=chosen_node_id)
 
     async def _pick_proxius(
         self,

@@ -708,13 +708,13 @@ Replace `_build_reveal_imago_intent` and the `change_affiliated_domains` block w
 
 ### Step 1: Add imports at the top of `ui/ui.py`
 
-- [ ] Find the import block that imports modal classes from `ui/modals.py`. Add `NoUnlockableModal`, `RevealImagoConfigModal`, `ChangeAffiliatedDomainModal` to it. Remove `ImagoRevealModal` and `ImagoRevealDetailModal` from the same import line (they will be deleted in Task 7).
+- [x] Find the import block that imports modal classes from `ui/modals.py`. Add `NoUnlockableModal`, `RevealImagoConfigModal`, `ChangeAffiliatedDomainModal` to it. Remove `ImagoRevealModal` and `ImagoRevealDetailModal` from the same import line (they will be deleted in Task 7).
 
 Also check the `from core.action_core import` line — ensure `ExploreBeliefIntent` is present (needed for the Explore Beliefs routing from `NoUnlockableModal`).
 
 ### Step 2: Replace the `reveal_imago` block
 
-- [ ] Find this block in `ui/ui.py` (currently around line 1768):
+- [x] Find this block in `ui/ui.py` (currently around line 1768):
 
 ```python
             if action_key == "reveal_imago":
@@ -772,7 +772,7 @@ Note: The unlockable check is inlined directly using `get_imago_registry()` and 
 
 ### Step 3: Replace the `change_affiliated_domains` block
 
-- [ ] Find this block in `ui/ui.py` (currently around line 1771–1797):
+- [x] Find this block in `ui/ui.py` (currently around line 1771–1797):
 
 ```python
             if action_key == "change_affiliated_domains":
@@ -822,9 +822,9 @@ Replace the entire block with:
 
 ### Step 4: Delete `_build_reveal_imago_intent`
 
-- [ ] Find and delete the entire `_build_reveal_imago_intent` method (currently lines ~1859–1927 in `ui/ui.py`). It's no longer called.
+- [x] Find and delete the entire `_build_reveal_imago_intent` method (currently lines ~1859–1927 in `ui/ui.py`). It's no longer called.
 
-- [ ] **Step 5: Verify autoplay**
+- [x] **Step 5: Verify autoplay**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay
