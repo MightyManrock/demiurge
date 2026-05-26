@@ -1660,6 +1660,45 @@ def _eligible_domain_tags(state: SimulationState) -> set[str]:
     }
 
 
+def _has_any_unlockable(state: SimulationState) -> bool:
+    """Return True if any Imago node has prereqs met and is not yet unlocked."""
+    ireg     = get_imago_registry()
+    dreg     = get_domain_registry()
+    unlocked = set(state.demiurge.unlocked_imagines)
+    return any(
+        ireg.is_unlockable(n.node_id, unlocked)
+        for tag in dreg.all_tags
+        for n in ireg.nodes_for_tree(tag.split(":", 1)[1])
+    )
+
+
+def _eligible_reveal_domain_tags(state: SimulationState) -> set[str]:
+    """
+    Return domain tags where the revelation pool can afford at least one
+    unlockable node — used for 'eligible-reveal' styling in the domain grid.
+    """
+    ireg     = get_imago_registry()
+    dreg     = get_domain_registry()
+    unlocked = set(state.demiurge.unlocked_imagines)
+    rev      = state.demiurge.revealed_imagines
+
+    def _min_cost(tag: str) -> int:
+        tree = tag.split(":", 1)[1]
+        return min(
+            (
+                _revelation_adjusted_cost(n.tier, rev)
+                for n in ireg.nodes_for_tree(tree)
+                if n.node_id not in unlocked and ireg.is_unlockable(n.node_id, unlocked)
+            ),
+            default=9999,
+        )
+
+    return {
+        tag for tag in dreg.all_tags
+        if state.demiurge.revelation_pools.get(tag, 0.0) >= _min_cost(tag)
+    }
+
+
 def _compose_entity_list(
     state: SimulationState,
     entity_type: str,
