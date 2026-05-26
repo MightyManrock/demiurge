@@ -298,6 +298,8 @@ def _write_locations(conn, state: SimulationState):
         pop_ids = "[]"
         distance_from_core = 0
         travel_network_ids_val = "[]"
+        commerce_quality = 0.5
+        collectible_resource_val = None
         legs = "{}"
         travel_current_wp = ""
         travel_ticks_rem = 0
@@ -323,6 +325,8 @@ def _write_locations(conn, state: SimulationState):
             pop_ids = _j(loc.pop_ids)
             distance_from_core = int(loc.distance_from_core)
             travel_network_ids_val = _j(loc.travel_network_ids)
+            commerce_quality = loc.commerce_quality
+            collectible_resource_val = loc.collectible_resource.model_dump_json() if loc.collectible_resource else None
         elif isinstance(loc, TravelLocation):
             legs             = _j(loc.legs)
             travel_current_wp = loc.current_waypoint
@@ -340,6 +344,7 @@ def _write_locations(conn, state: SimulationState):
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids,
+                commerce_quality, collectible_resource,
                 visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
@@ -349,6 +354,7 @@ def _write_locations(conn, state: SimulationState):
                        ?, ?, ?,
                        ?, ?,
                        ?, ?, ?, ?, ?,
+                       ?, ?,
                        ?, ?, ?)""",
             (
                 str(loc.id),
@@ -368,6 +374,7 @@ def _write_locations(conn, state: SimulationState):
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids_val,
+                commerce_quality, collectible_resource_val,
                 loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),
         )
@@ -501,8 +508,9 @@ def _write_mortals(conn, state: SimulationState):
                 active_goal_json,
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
-                travel_intent_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                travel_intent_json,
+                fatigue, assets, knowledge_base, civilian_state)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -541,6 +549,10 @@ def _write_mortals(conn, state: SimulationState):
                 m.last_audit_text,
                 m.last_audit_tick,
                 m.travel_intent.model_dump_json() if m.travel_intent else None,
+                m.fatigue,
+                json.dumps([a.model_dump() for a in m.assets]),
+                m.knowledge_base.model_dump_json() if m.knowledge_base else None,
+                m.civilian_state.model_dump_json() if m.civilian_state else None,
             ),
         )
 
