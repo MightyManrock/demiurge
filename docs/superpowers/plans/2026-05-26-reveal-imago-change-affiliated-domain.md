@@ -840,15 +840,15 @@ These two classes are fully replaced by `RevealImagoConfigModal`. They must be d
 **Files:**
 - Modify: `ui/modals.py`
 
-- [ ] **Step 1: Delete `ImagoRevealModal`**
+- [x] **Step 1: Delete `ImagoRevealModal`**
 
 Find and delete the entire `ImagoRevealModal` class (currently lines ~1002–1107 in `ui/modals.py`). It starts at `class ImagoRevealModal(ModalScreen):` and ends before `class ImagoRevealDetailModal(ModalScreen):`.
 
-- [ ] **Step 2: Delete `ImagoRevealDetailModal`**
+- [x] **Step 2: Delete `ImagoRevealDetailModal`**
 
 Find and delete the entire `ImagoRevealDetailModal` class (currently lines ~1109–1228 in `ui/modals.py`). It ends before the `# ─────────────────────────────────────────\n# MORTAL DETAIL MODAL` comment block.
 
-- [ ] **Step 3: Check for any remaining references**
+- [x] **Step 3: Check for any remaining references**
 
 ```bash
 grep -n "ImagoRevealModal\|ImagoRevealDetailModal" /root/demiurge/ui/modals.py /root/demiurge/ui/ui.py
@@ -856,14 +856,14 @@ grep -n "ImagoRevealModal\|ImagoRevealDetailModal" /root/demiurge/ui/modals.py /
 
 Expected: no output. If any references remain, remove them.
 
-- [ ] **Step 4: Final autoplay run**
+- [x] **Step 4: Final autoplay run**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay
 ```
 Expected: 50 ticks, no exceptions.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /root/demiurge && git add ui/modals.py ui/styles.tcss ui/ui.py && git commit -m "feat: collapse Reveal Imāgō and Change Affiliated Domain into single modals
