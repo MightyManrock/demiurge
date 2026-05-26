@@ -250,7 +250,7 @@ Dismisses with: `RevealImagoIntent` (confirmed), `BACK`, or `None` (cancel).
 - `ImagoRevealCell` (from `ui/widgets.py`, already imported)
 - `_revelation_adjusted_cost`, `_compute_revelation_cap` (from `logic/tick_logic.py`, already imported)
 
-- [ ] **Step 1: Insert `RevealImagoConfigModal` before `ImagoRevealModal`**
+- [x] **Step 1: Insert `RevealImagoConfigModal` before `ImagoRevealModal`**
 
 Find the line `class ImagoRevealModal(ModalScreen):` and insert this class immediately before it (after `NoUnlockableModal`):
 
@@ -491,11 +491,11 @@ class RevealImagoConfigModal(ModalScreen):
         self.dismiss(None)
 ```
 
-- [ ] **Step 2: Verify `RevealImagoIntent` is imported in `modals.py`**
+- [x] **Step 2: Verify `RevealImagoIntent` is imported in `modals.py`**
 
 Search for `RevealImagoIntent` in the imports at the top of `ui/modals.py`. If it's missing, add it to the `from core.action_core import ...` line.
 
-- [ ] **Step 3: Verify autoplay**
+- [x] **Step 3: Verify autoplay**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay

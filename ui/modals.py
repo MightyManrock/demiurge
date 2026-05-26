@@ -18,7 +18,10 @@ from textual.widgets import (
     TabbedContent, Tab, TabPane,
 )
 
-from core.action_core import ActionCategory, ActionDefinition, OngoingAction, compute_cooldown
+from core.action_core import (
+    ActionCategory, ActionDefinition, OngoingAction, compute_cooldown,
+    RevealImagoIntent,
+)
 from logic.tick_logic import (
     SimulationState,
     _compute_revelation_cap, _revelation_adjusted_cost,
@@ -1030,6 +1033,224 @@ class NoUnlockableModal(ModalScreen):
     @on(Button.Pressed, "#explore-btn")
     def _explore(self, _: Button.Pressed) -> None:
         self.dismiss("explore_beliefs")
+
+    @on(Button.Pressed, "#back-btn")
+    def _back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_go_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_force_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class RevealImagoConfigModal(ModalScreen):
+    """
+    Single-screen Reveal Imāgō configuration.
+    Domain grid (2×8, symbol-only) → ImagoRevealCell tree → confirm.
+    Dismisses with RevealImagoIntent, BACK, or None.
+    """
+
+    BINDINGS = [
+        ("escape",    "force_cancel", "Cancel"),
+        ("backspace", "go_back",      "Back"),
+    ]
+
+    _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
+
+    def __init__(self, state: "SimulationState") -> None:
+        super().__init__()
+        self._state       = state
+        self._dreg        = get_domain_registry()
+        self._domain_tag: "str | None" = None
+        self._node_id:    "str | None" = None
+
+        self._accessible_tags: "set[str]" = {
+            tag for tag in self._dreg.all_tags
+            if _compute_revelation_cap(state, tag) > 0.0
+        }
+        self._eligible_reveal_tags = _eligible_reveal_domain_tags(state)
+
+    def compose(self) -> "ComposeResult":
+        with Vertical(classes="reveal-imago-modal"):
+            yield Label("Reveal Imāgō", classes="modal-title")
+            yield Label("Domain: —", id="domain-label")
+            with Grid(id="reveal-domain-grid"):
+                yield from _domain_grid_squares(
+                    self._state, self._dreg, self._accessible_tags,
+                    eligible_reveal_tags=self._eligible_reveal_tags,
+                )
+            yield Label("Imāgō: —", id="imago-label")
+            with ScrollableContainer(id="reveal-tree-container"):
+                pass
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",  id="back-btn")
+                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("Confirm", id="confirm-btn", classes="-primary", disabled=True)
+
+    def on_mount(self) -> None:
+        for sq in self.query(DomainSquare):
+            if not sq.disabled:
+                sq.focus()
+                break
+
+    def _nav_imago_tree(self, direction: str) -> None:
+        cells = list(self.query(ImagoRevealCell))
+        if not cells:
+            return
+        focused_idx = next((i for i, c in enumerate(cells) if c.has_focus), -1)
+        if focused_idx == -1:
+            return
+        pos_map = {i: p for i, p in enumerate(self._POSITIONS)}
+        cur_pos = pos_map.get(focused_idx, (0, 1))
+        dr, dc  = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}[direction]
+        r, c    = cur_pos[0] + dr, cur_pos[1] + dc
+        while 0 <= r <= 3 and 0 <= c <= 2:
+            for i, p in pos_map.items():
+                if p == (r, c) and not cells[i].disabled:
+                    cells[i].focus()
+                    return
+            r, c = r + dr, c + dc
+
+    def on_key(self, event) -> None:
+        focused = self.focused
+        if event.key in ("up", "down", "left", "right"):
+            if isinstance(focused, DomainSquare):
+                squares = list(self.query(DomainSquare))
+                _nav_domain_grid(squares, event.key)
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoRevealCell):
+                self._nav_imago_tree(event.key)
+                event.prevent_default(); event.stop()
+            return
+        if event.key == "tab":
+            if isinstance(focused, DomainSquare):
+                tag = focused._tag
+                self._domain_tag = tag
+                self._node_id    = None
+                self.query_one("#domain-label", Label).update(
+                    f"Domain: {_domain_display_name(tag)}"
+                )
+                self.query_one("#imago-label", Label).update("Imāgō: —")
+                self._check_confirm()
+                self._load_reveal_tree(tag, focus_first=True)
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoRevealCell):
+                self.query_one("#back-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "confirm-btn":
+                squares = list(self.query(DomainSquare))
+                target  = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "shift+tab":
+            if isinstance(focused, DomainSquare):
+                self.query_one("#confirm-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "back-btn":
+                cells  = [c for c in self.query(ImagoRevealCell) if not c.disabled]
+                if cells:
+                    cells[0].focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoRevealCell):
+                squares = list(self.query(DomainSquare))
+                target  = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+
+    def on_domain_square_focused(self, event: "DomainSquare.Focused") -> None:
+        self.query_one("#domain-label", Label).update(
+            f"Domain: {_domain_display_name(event.tag)}"
+        )
+
+    def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
+        tag              = event.tag
+        self._domain_tag = tag
+        self._node_id    = None
+        self.query_one("#domain-label", Label).update(
+            f"Domain: {_domain_display_name(tag)}"
+        )
+        self.query_one("#imago-label", Label).update("Imāgō: —")
+        self._check_confirm()
+        self._load_reveal_tree(tag)
+
+    def on_imago_reveal_cell_focused(self, event: "ImagoRevealCell.Focused") -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+
+    def on_imago_reveal_cell_selected(self, event: "ImagoRevealCell.Selected") -> None:
+        self._node_id = event.node_id
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        self._check_confirm()
+
+    def _check_confirm(self) -> None:
+        ready = bool(self._domain_tag and self._node_id)
+        btn   = self.query_one("#confirm-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    @work
+    async def _load_reveal_tree(self, tag: str, *, focus_first: bool = False) -> None:
+        tree      = tag.split(":", 1)[1]
+        ireg      = get_imago_registry()
+        nodes     = ireg.nodes_for_tree(tree)
+        rev_count = self._state.demiurge.revealed_imagines
+
+        by_tier: "dict[int, list]" = {1: [], 2: [], 3: [], 4: []}
+        for n in nodes:
+            by_tier[n.tier].append(n)
+
+        container = self.query_one("#reveal-tree-container", ScrollableContainer)
+        await container.remove_children()
+
+        cells_and_spacers: list = []
+        for tier in (4, 3, 2, 1):
+            tnodes = by_tier[tier]
+            if tier == 4:
+                cells_and_spacers.append(Static("", classes="imago-spacer"))
+                node = tnodes[0]
+                cells_and_spacers.append(
+                    ImagoRevealCell(node, self._state, _revelation_adjusted_cost(node.tier, rev_count))
+                )
+                cells_and_spacers.append(Static("", classes="imago-spacer"))
+            else:
+                left, right = tnodes[0], tnodes[1]
+                cells_and_spacers.append(
+                    ImagoRevealCell(left, self._state, _revelation_adjusted_cost(left.tier, rev_count))
+                )
+                cells_and_spacers.append(Static("", classes="imago-spacer"))
+                cells_and_spacers.append(
+                    ImagoRevealCell(right, self._state, _revelation_adjusted_cost(right.tier, rev_count))
+                )
+
+        grid = Grid(classes="imago-tree-inner-grid")
+        await container.mount(grid)
+        await grid.mount(*cells_and_spacers)
+
+        if focus_first:
+            cells = [c for c in self.query(ImagoRevealCell) if not c.disabled]
+            if cells:
+                cells[0].focus()
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _confirm(self, _: Button.Pressed) -> None:
+        if self._domain_tag and self._node_id:
+            self.dismiss(RevealImagoIntent(domain_tag=self._domain_tag, node_id=self._node_id))
 
     @on(Button.Pressed, "#back-btn")
     def _back(self, _: Button.Pressed) -> None:
