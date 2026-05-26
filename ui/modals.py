@@ -520,10 +520,12 @@ class ExploreBeliefsModal(ModalScreen):
         self,
         state: SimulationState,
         capped_domains: set | None = None,
+        initial: tuple | None = None,
     ) -> None:
         super().__init__()
-        self._state         = state
-        self._selected_tag: str | None = None
+        self._state             = state
+        self._initial_selection = initial          # (tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both)
+        self._selected_tag: str | None = initial[0] if initial else None
 
         dreg = get_domain_registry()
         lum_info, fellow_tags, _ = _get_lum_domain_context(state)
@@ -537,7 +539,7 @@ class ExploreBeliefsModal(ModalScreen):
         self._fellow_tags    = fellow_tags
         self._accessible_set = accessible_set
 
-        first_tag = next(iter(sorted(accessible_set)), None)
+        first_tag = initial[0] if initial else next(iter(sorted(accessible_set)), None)
         self._initial_tree = first_tag.split(":", 1)[1] if first_tag and ":" in first_tag else "fire"
 
     def compose(self) -> ComposeResult:
@@ -565,7 +567,7 @@ class ExploreBeliefsModal(ModalScreen):
                     with Horizontal(classes="btn-row"):
                         yield Button("← Back",  id="back-btn")
                         yield Button("Cancel",  id="cancel-btn", classes="-danger")
-                        yield Button("Confirm", id="confirm-btn", disabled=True)
+                        yield Button("Continue →", id="confirm-btn", disabled=True)
                 with Vertical(id="explore-right"):
                     yield Label("— Imāgō reference —", classes="explore-ref-title")
                     yield Static("", id="imago-ref-pool")
@@ -573,10 +575,26 @@ class ExploreBeliefsModal(ModalScreen):
                     yield Static("", id="imago-ref-tooltip")
 
     def on_mount(self) -> None:
-        for sq in self.query(DomainSquare):
-            if not sq.disabled:
-                sq.focus()
-                break
+        if self._initial_selection:
+            tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both = self._initial_selection
+            for sq in self.query(DomainSquare):
+                if sq._tag == tag and not sq.disabled:
+                    sq.focus()
+                    break
+            for cb_id, val in [
+                ("#stop-t1-one",  t1_one),
+                ("#stop-t1-both", t1_both),
+                ("#stop-t2-one",  t2_one),
+                ("#stop-t2-both", t2_both),
+                ("#stop-t3-one",  t3_one),
+                ("#stop-t3-both", t3_both),
+            ]:
+                self.query_one(cb_id, Checkbox).value = val
+        else:
+            for sq in self.query(DomainSquare):
+                if not sq.disabled:
+                    sq.focus()
+                    break
 
     _CB_GRID = [
         ("stop-t1-one",  0, 0), ("stop-t1-both", 0, 1),
@@ -1063,12 +1081,13 @@ class RevealImagoConfigModal(ModalScreen):
 
     _POSITIONS = [(0, 1), (1, 0), (1, 2), (2, 0), (2, 2), (3, 0), (3, 2)]
 
-    def __init__(self, state: "SimulationState") -> None:
+    def __init__(self, state: "SimulationState", initial: "tuple[str, str] | None" = None) -> None:
         super().__init__()
         self._state       = state
         self._dreg        = get_domain_registry()
-        self._domain_tag: "str | None" = None
-        self._node_id:    "str | None" = None
+        self._initial     = initial                  # (domain_tag, node_id)
+        self._domain_tag: "str | None" = initial[0] if initial else None
+        self._node_id:    "str | None" = initial[1] if initial else None
 
         self._accessible_tags: "set[str]" = {
             tag for tag in self._dreg.all_tags
@@ -1089,15 +1108,26 @@ class RevealImagoConfigModal(ModalScreen):
             with ScrollableContainer(id="reveal-tree-container"):
                 pass
             with Horizontal(classes="btn-row"):
-                yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
-                yield Button("Confirm", id="confirm-btn", classes="-primary", disabled=True)
+                yield Button("← Back",    id="back-btn")
+                yield Button("Cancel",    id="cancel-btn",  classes="-danger")
+                yield Button("Continue →", id="confirm-btn", classes="-primary", disabled=True)
 
     def on_mount(self) -> None:
-        for sq in self.query(DomainSquare):
-            if not sq.disabled:
-                sq.focus()
-                break
+        if self._initial:
+            domain_tag, node_id = self._initial
+            self.query_one("#domain-label", Label).update(
+                f"Domain: {_domain_display_name(domain_tag)}"
+            )
+            for sq in self.query(DomainSquare):
+                if sq._tag == domain_tag and not sq.disabled:
+                    sq.focus()
+                    break
+            self._load_reveal_tree(domain_tag, initial_node_id=node_id)
+        else:
+            for sq in self.query(DomainSquare):
+                if not sq.disabled:
+                    sq.focus()
+                    break
 
     def _nav_imago_tree(self, direction: str) -> None:
         cells = list(self.query(ImagoRevealCell))
@@ -1205,7 +1235,7 @@ class RevealImagoConfigModal(ModalScreen):
             btn.remove_class("continue-ready")
 
     @work
-    async def _load_reveal_tree(self, tag: str, *, focus_first: bool = False) -> None:
+    async def _load_reveal_tree(self, tag: str, *, focus_first: bool = False, initial_node_id: "str | None" = None) -> None:
         tree      = tag.split(":", 1)[1]
         ireg      = get_imago_registry()
         nodes     = ireg.nodes_for_tree(tree)
@@ -1242,7 +1272,17 @@ class RevealImagoConfigModal(ModalScreen):
         await container.mount(grid)
         await grid.mount(*cells_and_spacers)
 
-        if focus_first:
+        if initial_node_id:
+            matched = [c for c in self.query(ImagoRevealCell) if c._node.node_id == initial_node_id]
+            if matched:
+                self._node_id = initial_node_id
+                ireg = get_imago_registry()
+                node = ireg.get_node(initial_node_id)
+                name = node.name if node else initial_node_id
+                self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+                self._check_confirm()
+                matched[0].focus()
+        elif focus_first:
             cells = [c for c in self.query(ImagoRevealCell) if not c.disabled]
             if cells:
                 cells[0].focus()
@@ -1250,7 +1290,7 @@ class RevealImagoConfigModal(ModalScreen):
     @on(Button.Pressed, "#confirm-btn")
     def _confirm(self, _: Button.Pressed) -> None:
         if self._domain_tag and self._node_id:
-            self.dismiss(RevealImagoIntent(domain_tag=self._domain_tag, node_id=self._node_id))
+            self.dismiss((self._domain_tag, self._node_id))
 
     @on(Button.Pressed, "#back-btn")
     def _back(self, _: Button.Pressed) -> None:
@@ -1284,13 +1324,14 @@ class ChangeAffiliatedDomainModal(ModalScreen):
         ("right",     "nav_new('right')", ""),
     ]
 
-    def __init__(self, state: "SimulationState") -> None:
+    def __init__(self, state: "SimulationState", initial: "tuple[str, str] | None" = None) -> None:
         super().__init__()
         self._state      = state
         self._dreg       = get_domain_registry()
         self._affiliated = list(state.demiurge.affiliated_domains)
-        self._old_tag: "str | None" = self._affiliated[0] if self._affiliated else None
-        self._new_tag: "str | None" = None
+        self._initial    = initial                   # (old_tag, new_tag)
+        self._old_tag: "str | None" = initial[0] if initial else (self._affiliated[0] if self._affiliated else None)
+        self._new_tag: "str | None" = initial[1] if initial else None
 
         affiliated_set = set(self._affiliated)
         self._accessible_new: "set[str]" = set(self._dreg.all_tags) - affiliated_set
@@ -1319,16 +1360,21 @@ class ChangeAffiliatedDomainModal(ModalScreen):
                     self._state, self._dreg, self._accessible_new, show_names=True,
                 )
             with Horizontal(classes="btn-row"):
-                yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
-                yield Button("Confirm", id="confirm-btn", classes="-primary", disabled=True)
+                yield Button("← Back",    id="back-btn")
+                yield Button("Cancel",    id="cancel-btn",  classes="-danger")
+                yield Button("Continue →", id="confirm-btn", classes="-primary", disabled=True)
 
     def on_mount(self) -> None:
-        if self._old_tag:
-            for sq in self.query(DomainSquare):
-                if sq._tag == self._old_tag:
-                    sq.focus()
-                    break
+        if self._initial:
+            _, new_tag = self._initial
+            self.query_one("#new-label", Label).update(
+                f"New Domain: {_domain_display_name(new_tag)}"
+            )
+            self._check_confirm()
+        for sq in self.query(DomainSquare):
+            if sq._tag == self._old_tag:
+                sq.focus()
+                break
 
     def action_nav_new(self, direction: str) -> None:
         affiliated_set = set(self._affiliated)
