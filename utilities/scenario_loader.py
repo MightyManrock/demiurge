@@ -41,7 +41,10 @@ from core.action_core import (
     DomainVector, CultureVector, CategoryCooldowns,
 )
 from core.event_core import Event, EventType, StrengthCurve
-from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
+from core.agent_core import (
+    ProxiusGoal, AgentActionChoice, TravelIntent,
+    KnowledgeBase, MortalAsset, CivilianAgentState, CollectibleResource,
+)
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
     PauseConfig, compute_mortal_alignment_base,
@@ -491,6 +494,8 @@ def _load_locations(conn) -> dict[str, Location]:
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
                 distance_from_core=int(row.get("distance_from_core", 0) or 0),
                 travel_network_ids=[UUID(x) for x in _j(row.get("travel_network_ids", "[]"))],
+                commerce_quality=float(row.get("commerce_quality") or 0.5),
+                collectible_resource=_load_collectible_resource(row.get("collectible_resource")),
             )
         elif subclass == "travel_location":
             from core.universe_core import TravelLocation
@@ -697,6 +702,10 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
             active_goal=_load_proxius_goal(row.get("active_goal_json")),
             travel_intent=_load_travel_intent(row.get("travel_intent_json")),
+            fatigue=float(row.get("fatigue") or 0.0),
+            assets=_load_mortal_assets(row.get("assets")),
+            knowledge_base=_load_knowledge_base(row.get("knowledge_base")),
+            civilian_state=_load_civilian_state(row.get("civilian_state")),
             pop_id=_uuid(row.get("pop_id")),
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
             herald_appointed_tick=row.get("herald_appointed_tick"),
@@ -706,6 +715,42 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
         )
         out[str(m.id)] = m
     return out
+
+
+def _load_mortal_assets(raw: Optional[str]) -> list[MortalAsset]:
+    if not raw:
+        return []
+    try:
+        return [MortalAsset.model_validate(a) for a in json.loads(raw)]
+    except Exception:
+        return []
+
+
+def _load_knowledge_base(raw: Optional[str]) -> Optional[KnowledgeBase]:
+    if not raw:
+        return None
+    try:
+        return KnowledgeBase.model_validate_json(raw)
+    except Exception:
+        return None
+
+
+def _load_civilian_state(raw: Optional[str]) -> Optional[CivilianAgentState]:
+    if not raw:
+        return None
+    try:
+        return CivilianAgentState.model_validate_json(raw)
+    except Exception:
+        return None
+
+
+def _load_collectible_resource(raw: Optional[str]) -> Optional[CollectibleResource]:
+    if not raw:
+        return None
+    try:
+        return CollectibleResource.model_validate_json(raw)
+    except Exception:
+        return None
 
 
 def _load_proxius_goal(raw: Optional[str]) -> Optional[ProxiusGoal]:
