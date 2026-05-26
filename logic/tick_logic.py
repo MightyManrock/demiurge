@@ -55,6 +55,7 @@ from utilities.culture_registry import (
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
+from logic.civilian_agent_logic import evaluate_civilian_action
 
 
 # ─────────────────────────────────────────
@@ -1264,6 +1265,9 @@ class TickLoop:
         agent_mutations, agent_narratives = self._resolve_proxius_agents(state, phase_rng)
         state = self._apply_mutations(state, agent_mutations)
         result.agent_narratives.extend(agent_narratives)
+
+        # ── Phase 2.55: Civilian Agent Actions ─────────
+        self._tick_civilian_agents(state, state.tick_number)
 
         # ── Phase 2.6: Mortal Travel ────────────────────
         travel_decisions = self._resolve_mortal_travel_decisions(state)
@@ -5269,6 +5273,50 @@ class TickLoop:
             state.locations.pop(lid, None)
 
         return narratives
+
+    def _tick_civilian_agents(self, state: SimulationState, current_tick: int) -> None:
+        """Phase 2.55 — run autonomous civilian agent logic for each mortal with civilian_state."""
+        import uuid as _uuid_mod
+        for mortal in state.mortals.values():
+            cs = mortal.civilian_state
+            if cs is None:
+                continue
+
+            for need in cs.needs:
+                need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
+
+            if mortal.fatigue > 0.0:
+                mortal.fatigue = max(0.0, mortal.fatigue - 0.1)
+
+            action = evaluate_civilian_action(mortal, state, current_tick)
+
+            if action == "collect":
+                loc = state.locations.get(str(mortal.current_location))
+                resource = getattr(loc, "collectible_resource", None)
+                if resource:
+                    cs.resources += resource.resource_yield
+                    mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
+                    cs.action_cooldowns["collect"] = current_tick + resource.cooldown_ticks
+
+            elif action == "spend":
+                loc = state.locations.get(str(mortal.current_location))
+                quality = getattr(loc, "commerce_quality", 0.5)
+                amount = min(cs.resources, cs.spend_threshold)
+                cs.resources -= amount
+                for need in cs.needs:
+                    need.satisfaction = min(1.0, need.satisfaction + quality * 0.4)
+                cs.action_cooldowns["spend"] = current_tick + 2
+
+            elif action and action.startswith("travel:"):
+                dest_id = action.split(":", 1)[1]
+                try:
+                    mortal.travel_intent = TravelIntent(
+                        travel_location_id=_uuid_mod.UUID(dest_id)
+                    )
+                    mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
+                    cs.action_cooldowns["travel"] = current_tick + 1
+                except ValueError:
+                    pass
 
     def _resolve_proxius_agents(
         self,
