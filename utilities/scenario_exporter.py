@@ -409,7 +409,7 @@ def _write_civilizations(conn, state: SimulationState):
         conn.execute(
             """INSERT INTO civilizations
                (id, name, description, origin_location_id, scale,
-                health_stability, health_prosperity, health_cohesion,
+                health_stability, health_wealth, health_cohesion,
                 primary_species_id, dominant_beliefs, established_beliefs, pop_ids,
                 culture_tags, established_culture_tags,
                 theistic, divine_awareness, core_locs, age,
@@ -424,7 +424,7 @@ def _write_civilizations(conn, state: SimulationState):
                 str(c.origin_location_id) if c.origin_location_id else None,
                 c.scale.value,
                 c.health.stability,
-                c.health.prosperity,
+                c.health.wealth,
                 c.health.cohesion,
                 str(c.primary_species_id) if c.primary_species_id else None,
                 _j(c.dominant_beliefs),
@@ -646,9 +646,9 @@ def _write_civ_momentum(conn, state: SimulationState):
     for cid, m in state.civ_momentum.items():
         conn.execute(
             """INSERT INTO civ_momentum
-               (civilization_id, stability_delta, prosperity_delta, cohesion_delta)
+               (civilization_id, stability_delta, wealth_delta, cohesion_delta)
                VALUES (?, ?, ?, ?)""",
-            (cid, m.stability_delta, m.prosperity_delta, m.cohesion_delta),
+            (cid, m.stability_delta, m.wealth_delta, m.cohesion_delta),
         )
 
 

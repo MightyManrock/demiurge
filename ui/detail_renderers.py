@@ -280,7 +280,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         h = civ.health
         civ_link = _click_link("civ", str(cid), f"[bold]{_e(civ.name)}[/]")
         a(f"  {cm}● {civ_link}  \\[{_e(civ.scale.value)}]  "
-          f"S{h.stability:.0%} W{h.prosperity:.0%} C{h.cohesion:.0%}{ce}")
+          f"S{h.stability:.0%} W{h.wealth:.0%} C{h.cohesion:.0%}{ce}")
     if not any_civ:
         a("  [#5a7090](none in Window)[/]")
 
@@ -463,7 +463,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     a("")
     a("[bold #4a80b0]HEALTH[/]")
     a(f"  stability:  {h.stability:+.0%}")
-    a(f"  wealth:     {h.prosperity:+.0%}")
+    a(f"  wealth:     {h.wealth:+.0%}")
     a(f"  cohesion:   {h.cohesion:+.0%}")
 
     if display.DEV_MODE:

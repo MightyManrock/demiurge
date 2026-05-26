@@ -52,7 +52,7 @@ def civ_summary(state: SimulationState) -> str:
         ) or "none"
         lines.append(
             f"    {c.name} [{c.scale.value}] "
-            f"stab={h.stability:.2f} pros={h.prosperity:.2f} coh={h.cohesion:.2f}\n"
+            f"stab={h.stability:.2f} wealth={h.wealth:.2f} coh={h.cohesion:.2f}\n"
             f"      beliefs: {beliefs}"
         )
     return "\n".join(lines)

@@ -118,7 +118,7 @@ def civ_text_fields(civ: Optional[Civilization] = None) -> list[tuple[str, str, 
         ("Divine awareness (0.0–1.0)", "divine_awareness",
          f"{civ.divine_awareness}" if civ else "0.3"),
         ("Stability",        "stability",        f"{h.stability}"),
-        ("Prosperity",       "prosperity",       f"{h.prosperity}"),
+        ("Wealth",           "wealth",           f"{h.wealth}"),
         ("Cohesion",         "cohesion",         f"{h.cohesion}"),
     ]
 
@@ -155,7 +155,7 @@ def validate_civ_fields(result: dict[str, str]) -> Optional[str]:
     try:
         age = float(result["age"])
         s = float(result["stability"])
-        p = float(result["prosperity"])
+        p = float(result["wealth"])
         c = float(result["cohesion"])
         da = float(result["divine_awareness"])
     except (KeyError, TypeError, ValueError):
@@ -214,7 +214,7 @@ def construct_civilization(
         core_locs=[origin_location_id],
         health=CivilizationHealth(
             stability =float(fields["stability"]),
-            prosperity=float(fields["prosperity"]),
+            wealth=float(fields["wealth"]),
             cohesion  =float(fields["cohesion"]),
         ),
         age=float(fields["age"]),
@@ -262,7 +262,7 @@ def apply_civ_fields(civ: Civilization, fields: dict[str, str]) -> None:
     civ.age = float(fields["age"])
     civ.divine_awareness = float(fields["divine_awareness"])
     civ.health.stability  = float(fields["stability"])
-    civ.health.prosperity = float(fields["prosperity"])
+    civ.health.wealth = float(fields["wealth"])
     civ.health.cohesion   = float(fields["cohesion"])
 
 

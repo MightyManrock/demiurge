@@ -441,7 +441,7 @@ def _apply_create(state, op: dict) -> InjectorResult:
             sp_id = sp.id
         h = CivilizationHealth(
             stability=float(v.get("stability", 0.5)),
-            prosperity=float(v.get("prosperity", 0.5)),
+            wealth=float(v.get("wealth", v.get("prosperity", 0.5))),
             cohesion=float(v.get("cohesion", 0.5)),
         )
         civ = Civilization(

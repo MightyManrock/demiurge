@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
     scale               TEXT NOT NULL DEFAULT 'tribal',
     -- CivilizationHealth (embedded)
     health_stability    REAL NOT NULL DEFAULT 0.5,
-    health_prosperity   REAL NOT NULL DEFAULT 0.5,
+    health_wealth       REAL NOT NULL DEFAULT 0.5,
     health_cohesion     REAL NOT NULL DEFAULT 0.5,
     primary_species_id  TEXT,
     dominant_beliefs    TEXT NOT NULL DEFAULT '{}',  -- JSON object {tag: strength_float}; derived aggregate of Pops
@@ -348,7 +348,7 @@ CREATE TABLE IF NOT EXISTS tick_config (
 CREATE TABLE IF NOT EXISTS civ_momentum (
     civilization_id  TEXT PRIMARY KEY,
     stability_delta  REAL NOT NULL DEFAULT 0.0,
-    prosperity_delta REAL NOT NULL DEFAULT 0.0,
+    wealth_delta REAL NOT NULL DEFAULT 0.0,
     cohesion_delta   REAL NOT NULL DEFAULT 0.0
 );
 

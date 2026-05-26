@@ -402,7 +402,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
             civ_vis = f"  [vis:{civ.visibility:.0%}]" if not civ.pinned else ""
             lines.append(
                 f"{cm}    └─ {civ.name} [{civ.scale.value}]{civ_vis}  "
-                f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
+                f"stab:{h.stability:.0%} wealth:{h.wealth:.0%} coh:{h.cohesion:.0%}"
             )
             lines.append(f"{cm}       beliefs: {_format_beliefs(civ.dominant_beliefs) or 'none'}")
             for pid in civ.pop_ids:
@@ -799,7 +799,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                     civ_vis = f"  [vis:{civ.visibility:.0%}]" if not civ.pinned else ""
                     lines.append(
                         f"{cm}        └─ {civ.name}  [{civ.scale.value}]{civ_vis}  "
-                        f"stab:{h.stability:.0%} wealth:{h.prosperity:.0%} coh:{h.cohesion:.0%}"
+                        f"stab:{h.stability:.0%} wealth:{h.wealth:.0%} coh:{h.cohesion:.0%}"
                     )
                     if civ.dominant_beliefs:
                         lines.append(f"{cm}           beliefs: {_format_beliefs(civ.dominant_beliefs)}")

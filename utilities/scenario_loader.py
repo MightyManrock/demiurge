@@ -594,7 +594,7 @@ def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilizati
             scale=CivilizationScale(row["scale"]),
             health=CivilizationHealth(
                 stability=row["health_stability"],
-                prosperity=row["health_prosperity"],
+                wealth=row["health_wealth"] if "health_wealth" in row.keys() else row["health_prosperity"],
                 cohesion=row["health_cohesion"],
             ),
             primary_species_id=_uuid(row["primary_species_id"]),
@@ -818,7 +818,7 @@ def _load_civ_momentum(conn) -> dict[str, CivilizationMomentum]:
         out[cid] = CivilizationMomentum(
             civilization_id=UUID(cid),
             stability_delta=row["stability_delta"],
-            prosperity_delta=row["prosperity_delta"],
+            wealth_delta=row["wealth_delta"] if "wealth_delta" in row.keys() else row["prosperity_delta"],
             cohesion_delta=row["cohesion_delta"],
         )
     return out

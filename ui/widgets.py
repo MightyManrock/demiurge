@@ -592,7 +592,7 @@ class EntitiesTab(ContentTab):
             a(f"{style}● {civ_link} "
               f"[#5a7090]\\[{_e(civ.scale.value)}][/] "
               f"[#3a6a8a]{_e(origin_name)}[/]{end}")
-            a(f"{style}    S{h.stability:.0%} W{h.prosperity:.0%} C{h.cohesion:.0%}{end}")
+            a(f"{style}    S{h.stability:.0%} W{h.wealth:.0%} C{h.cohesion:.0%}{end}")
         if not any_civ:
             a("[#5a7090](none in Window)[/]")
         a("")
@@ -925,7 +925,7 @@ class UniverseTab(ContentTab):
                         civ_link = _click_link("civ", str(cid_iter), f"[bold]{_e(civ.name)}[/]")
                         a(f"{cm}{IDX}    └─ {civ_link} "
                           f"\\[{_e(civ.scale.value)}]{civ_vis}  "
-                          f"S{h.stability:.0%} W{h.prosperity:.0%} C{h.cohesion:.0%}{ce}")
+                          f"S{h.stability:.0%} W{h.wealth:.0%} C{h.cohesion:.0%}{ce}")
                         if civ.dominant_beliefs:
                             a(f"{cm}{IDX}       beliefs: {_format_beliefs_markup(civ.dominant_beliefs, top_n=4)}{ce}")
                         if civ.culture_tags:

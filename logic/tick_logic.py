@@ -667,7 +667,7 @@ class CivilizationMomentum(BaseModel):
     """
     civilization_id: UUID
     stability_delta:  float = 0.0
-    prosperity_delta: float = 0.0
+    wealth_delta: float = 0.0
     cohesion_delta:   float = 0.0
 
 
@@ -1409,11 +1409,11 @@ class TickLoop:
             )
 
             stability_delta = 0.0
-            # prosperity, cohesion, and stability momentum fires monthly (day 1 of each month)
+            # wealth, cohesion, and stability momentum fires monthly (day 1 of each month)
             if _new_age_obj.day == 1:
                 for stat, delta in [
-                    ("prosperity", momentum.prosperity_delta),
-                    ("cohesion",   momentum.cohesion_delta),
+                    ("wealth",   momentum.wealth_delta),
+                    ("cohesion", momentum.cohesion_delta),
                 ]:
                     noise = rng.gauss(0, cfg.civ_noise_factor)
                     effective_delta = (delta * cfg.civ_momentum_rate) + noise

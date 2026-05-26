@@ -400,13 +400,13 @@ class CivilizationHealth(BaseModel):
     interventions actually move — either directly
     or through Proxii action.
     """
-    stability: float  = Field(ge=0.0, le=1.0, default=0.5)
-    prosperity: float = Field(ge=0.0, le=1.0, default=0.5)
-    cohesion: float   = Field(ge=0.0, le=1.0, default=0.5)
+    stability: float = Field(ge=0.0, le=1.0, default=0.5)
+    wealth: float    = Field(ge=0.0, le=1.0, default=0.5)
+    cohesion: float  = Field(ge=0.0, le=1.0, default=0.5)
     # cohesion: how unified vs. fractured internally
 
     def overall(self) -> float:
-        return (self.stability + self.prosperity + self.cohesion) / 3.0
+        return (self.stability + self.wealth + self.cohesion) / 3.0
 
 
 class Civilization(BaseModel):
