@@ -73,6 +73,7 @@ from ui.modals import (
     NoUnlockableModal, RevealImagoConfigModal, ChangeAffiliatedDomainModal, MortalDetailModal,
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
     ShapeDreamConfigModal, ShapeDreamConfirmModal,
+    ExploreBeliefConfirmModal, RevealImagoConfirmModal, ChangeAffiliatedDomainConfirmModal,
 )
 
 
@@ -1746,24 +1747,35 @@ class GameScreen(Screen):
         # ── SELF REFINEMENT ──────────────────────────────
         elif cat == ActionCategory.SELF_REFINEMENT:
             if action_key == "explore_beliefs":
-                dreg = get_domain_registry()
-                capped = {
-                    tag for tag in dreg.all_tags
-                    if _compute_revelation_cap(state, tag) == 0.0
-                    or state.demiurge.revelation_pools.get(tag, 0.0) >= _compute_revelation_cap(state, tag)
-                }
-                result = await self.app.push_screen_wait(
-                    ExploreBeliefsModal(state, capped_domains=capped)
-                )
-                if result is None: return None
-                if result == BACK: return BACK
-                tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both = result
-                return ExploreBeliefIntent(
-                    domain_tag=tag,
-                    stop_on_t1_one=t1_one,   stop_on_t1_both=t1_both,
-                    stop_on_t2_one=t2_one,   stop_on_t2_both=t2_both,
-                    stop_on_t3_one=t3_one,   stop_on_t3_both=t3_both,
-                )
+                dreg    = get_domain_registry()
+                initial: tuple | None = None
+                while True:
+                    capped = {
+                        tag for tag in dreg.all_tags
+                        if _compute_revelation_cap(state, tag) == 0.0
+                        or state.demiurge.revelation_pools.get(tag, 0.0)
+                            >= _compute_revelation_cap(state, tag)
+                    }
+                    config = await self.app.push_screen_wait(
+                        ExploreBeliefsModal(state, capped_domains=capped, initial=initial)
+                    )
+                    if config is None: return None
+                    if config == BACK: return BACK
+                    tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both = config
+                    confirmed = await self.app.push_screen_wait(
+                        ExploreBeliefConfirmModal(
+                            state, tag, t1_one, t1_both, t2_one, t2_both, t3_one, t3_both
+                        )
+                    )
+                    if confirmed is True:
+                        return ExploreBeliefIntent(
+                            domain_tag=tag,
+                            stop_on_t1_one=t1_one,   stop_on_t1_both=t1_both,
+                            stop_on_t2_one=t2_one,   stop_on_t2_both=t2_both,
+                            stop_on_t3_one=t3_one,   stop_on_t3_both=t3_both,
+                        )
+                    if confirmed is None: return None
+                    initial = config
 
             if action_key == "reveal_imago":
                 _ireg     = get_imago_registry()
@@ -1800,24 +1812,43 @@ class GameScreen(Screen):
                         stop_on_t2_one=t2_one,   stop_on_t2_both=t2_both,
                         stop_on_t3_one=t3_one,   stop_on_t3_both=t3_both,
                     )
-                result = await self.app.push_screen_wait(RevealImagoConfigModal(state))
-                if result is None:
-                    return None
-                if result == BACK:
-                    return BACK
-                return result
+                initial: tuple | None = None
+                while True:
+                    config = await self.app.push_screen_wait(
+                        RevealImagoConfigModal(state, initial=initial)
+                    )
+                    if config is None: return None
+                    if config == BACK: return BACK
+                    domain_tag, node_id = config
+                    ireg = get_imago_registry()
+                    node = ireg.get_node(node_id)
+                    confirmed = await self.app.push_screen_wait(
+                        RevealImagoConfirmModal(state, node, domain_tag)
+                    )
+                    if confirmed is True:
+                        return RevealImagoIntent(domain_tag=domain_tag, node_id=node_id)
+                    if confirmed is None: return None
+                    initial = config
 
             if action_key == "change_affiliated_domains":
                 if not state.demiurge.affiliated_domains:
                     self.app.notify("No affiliated domains to swap.", severity="warning")
                     return None
-                result = await self.app.push_screen_wait(ChangeAffiliatedDomainModal(state))
-                if result is None:
-                    return None
-                if result == BACK:
-                    return BACK
-                old_tag, new_tag = result
-                return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
+                initial: tuple | None = None
+                while True:
+                    config = await self.app.push_screen_wait(
+                        ChangeAffiliatedDomainModal(state, initial=initial)
+                    )
+                    if config is None: return None
+                    if config == BACK: return BACK
+                    old_tag, new_tag = config
+                    confirmed = await self.app.push_screen_wait(
+                        ChangeAffiliatedDomainConfirmModal(state, old_tag, new_tag)
+                    )
+                    if confirmed is True:
+                        return ChangeAffiliatedDomainsIntent(old_domain=old_tag, new_domain=new_tag)
+                    if confirmed is None: return None
+                    initial = config
 
         # No intent needed
         return None
