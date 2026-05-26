@@ -395,6 +395,7 @@ class ImagoTreeGrid(Widget):
             else:
                 cost = _revelation_adjusted_cost(node.tier, rev_count)
                 cell = ImagoRevealCell(node, self._state, cost)
+                cell.disabled = False  # keep visual classes but allow on_enter hover events
             cell.can_focus = False
         else:
             unlocked = node.node_id in self._unlocked
