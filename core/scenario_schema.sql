@@ -155,6 +155,8 @@ CREATE TABLE IF NOT EXISTS locations (
     travel_occupants      TEXT    NOT NULL DEFAULT '[]',   -- JSON array of UUID strs
     -- PopLocation addition
     travel_network_ids    TEXT    NOT NULL DEFAULT '[]',   -- JSON array of TravelNetwork UUIDs
+    commerce_quality      REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; spend effectiveness multiplier
+    collectible_resource  TEXT    DEFAULT NULL,            -- JSON of CollectibleResource, or NULL
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0,      -- bool; 1 = never decays (all starting locations)
@@ -269,7 +271,11 @@ CREATE TABLE IF NOT EXISTS mortals (
     origin_pop_subsumed    INTEGER NOT NULL DEFAULT 0,  -- bool; True when mortal's origin Pop was absorbed into the goal Pop
     last_audit_text        TEXT,                         -- narrative from last Audit Proxius
     last_audit_tick        INTEGER,                      -- tick the last audit was recorded
-    travel_intent_json     TEXT DEFAULT NULL             -- JSON of TravelIntent, or NULL
+    travel_intent_json     TEXT DEFAULT NULL,            -- JSON of TravelIntent, or NULL
+    fatigue                REAL NOT NULL DEFAULT 0.0,
+    assets                 TEXT NOT NULL DEFAULT '[]',   -- JSON array of MortalAsset
+    knowledge_base         TEXT DEFAULT NULL,            -- JSON of KnowledgeBase, or NULL
+    civilian_state         TEXT DEFAULT NULL             -- JSON of CivilianAgentState, or NULL
 );
 
 -- ─────────────────────────────────────────
