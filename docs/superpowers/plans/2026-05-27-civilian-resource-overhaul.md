@@ -838,7 +838,7 @@ Vail's known location IDs (from current DB):
 - Sethis Surface: `ef5b9dc6-...`
 - Route from→to uses these IDs
 
-- [ ] **Step 4.1: Identify exact location IDs**
+- [x] **Step 4.1: Identify exact location IDs**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -c "
@@ -854,7 +854,7 @@ for f in kb.facts:
 
 Note the exact UUID strings for Neran Surface and Sethis Surface from the output.
 
-- [ ] **Step 4.2: Create migration script**
+- [x] **Step 4.2: Create migration script**
 
 Create `tools/migrate_civilian_resources.py` — replace `NERAN_SURFACE_ID` and `SETHIS_SURFACE_ID` with the exact UUIDs from Step 4.1:
 
@@ -974,11 +974,11 @@ if __name__ == "__main__":
     migrate()
 ```
 
-- [ ] **Step 4.3: Fill in exact UUIDs**
+- [x] **Step 4.3: Fill in exact UUIDs**
 
 Edit `tools/migrate_civilian_resources.py` and replace all `FILL-IN` placeholders with the actual UUID strings from Step 4.1. There are four IDs to fill in: Neran Surface, Sethis Surface, and Neran Orbital Ring (the third spend quality fact).
 
-- [ ] **Step 4.4: Run the migration**
+- [x] **Step 4.4: Run the migration**
 
 ```bash
 cd /root/demiurge && source bin/activate && python tools/migrate_civilian_resources.py
@@ -986,7 +986,7 @@ cd /root/demiurge && source bin/activate && python tools/migrate_civilian_resour
 
 Expected: `Migration complete. Patched Durenn Vail in scenarios/wardens_compact.db.`
 
-- [ ] **Step 4.5: Verify the migration round-tripped correctly**
+- [x] **Step 4.5: Verify the migration round-tripped correctly**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -c "
@@ -1010,7 +1010,7 @@ Expected output includes:
 - `sell locs` resolving to Neran Surface ID
 - `ticks to Sethis` = 12
 
-- [ ] **Step 4.6: Commit**
+- [x] **Step 4.6: Commit**
 
 ```bash
 cd /root/demiurge && git add tools/migrate_civilian_resources.py scenarios/wardens_compact.db && git commit -m "feat: migrate Vail to typed Resource inventory and dual-threshold needs"
