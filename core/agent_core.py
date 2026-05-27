@@ -22,6 +22,7 @@ class LocationFact(BaseModel):
 class ResourceFact(BaseModel):
     fact_type: Literal["resource"] = "resource"
     location_id: str
+    resource_type: str = "unobtanium"
     resource_yield: float = 1.0
     confidence: float = 1.0
     learned_at_tick: int = 0
@@ -32,6 +33,7 @@ class RouteFact(BaseModel):
     from_id: str
     to_id: str
     vehicle_type: Optional[str] = None
+    ticks_cost: int = 0
     confidence: float = 1.0
     learned_at_tick: int = 0
 
@@ -40,6 +42,7 @@ class LocationQualityFact(BaseModel):
     fact_type: Literal["location_quality"] = "location_quality"
     location_id: str
     quality: float = 0.5
+    quality_type: Literal["sell", "spend"] = "spend"
     confidence: float = 1.0
     learned_at_tick: int = 0
 
@@ -54,7 +57,19 @@ class KnowledgeBase(BaseModel):
     facts: list[KnowledgeFact] = Field(default_factory=list)
 
     def best_known_spend_location(self) -> Optional[str]:
-        quality_facts = [f for f in self.facts if f.fact_type == "location_quality"]
+        quality_facts = [
+            f for f in self.facts
+            if f.fact_type == "location_quality" and f.quality_type == "spend"
+        ]
+        if not quality_facts:
+            return None
+        return max(quality_facts, key=lambda f: f.quality * f.confidence).location_id
+
+    def best_known_sell_location(self) -> Optional[str]:
+        quality_facts = [
+            f for f in self.facts
+            if f.fact_type == "location_quality" and f.quality_type == "sell"
+        ]
         if not quality_facts:
             return None
         return max(quality_facts, key=lambda f: f.quality * f.confidence).location_id
@@ -68,6 +83,10 @@ class KnowledgeBase(BaseModel):
                 return f
         return None
 
+    def route_ticks_to(self, to_id: str) -> int:
+        fact = self.route_to(to_id)
+        return fact.ticks_cost if fact else 0
+
 
 # ---------------------------------------------------------------------------
 # Needs
@@ -77,12 +96,17 @@ class MortalNeed(BaseModel):
     name: str
     satisfaction: float = Field(ge=0.0, le=1.0, default=1.0)
     decay_rate: float = 0.05
-    pressing_threshold: float = 0.3
-    satiation_hold: int = 0  # ticks remaining at max before decay resumes
+    pressing_threshold: float = 0.65
+    urgent_threshold: float = 0.35
+    satiation_hold: int = 0
 
     @property
     def is_pressing(self) -> bool:
         return self.satisfaction < self.pressing_threshold
+
+    @property
+    def is_urgent(self) -> bool:
+        return self.satisfaction < self.urgent_threshold
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +121,21 @@ class MortalAsset(BaseModel):
 class CollectibleResource(BaseModel):
     resource_yield: float = 1.0
     cooldown_ticks: int = 3
+    resource_type: str = "unobtanium"
+
+
+# ---------------------------------------------------------------------------
+# Typed resource inventory
+# ---------------------------------------------------------------------------
+
+class Resource(BaseModel):
+    resource_type: str
+    quantity: float = 0.0
+    base_value: float = 1.0
+    converts_to: Optional[str] = None
+    threshold: float = 1.0
+    usable_for: list[str] = Field(default_factory=list)
+    fills_need: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -105,8 +144,7 @@ class CollectibleResource(BaseModel):
 
 class CivilianAgentState(BaseModel):
     needs: list[MortalNeed] = Field(default_factory=list)
-    resources: float = 0.0
-    spend_threshold: float = 2.0
+    inventory: list[Resource] = Field(default_factory=list)
     action_cooldowns: dict[str, int] = Field(default_factory=dict)
 
     def pressing_needs(self) -> list[MortalNeed]:
@@ -114,6 +152,9 @@ class CivilianAgentState(BaseModel):
 
     def cooldown_expired(self, action_type: str, current_tick: int) -> bool:
         return self.action_cooldowns.get(action_type, 0) <= current_tick
+
+    def get_resource(self, resource_type: str) -> Optional[Resource]:
+        return next((r for r in self.inventory if r.resource_type == resource_type), None)
 
 
 class TravelIntent(BaseModel):
