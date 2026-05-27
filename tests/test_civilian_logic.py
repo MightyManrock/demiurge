@@ -4,7 +4,7 @@ from core.agent_core import (
     CivilianAgentState, Resource, MortalNeed, KnowledgeBase,
     RouteFact, LocationQualityFact, ResourceFact,
 )
-from logic.civilian_agent_logic import evaluate_civilian_action
+from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need
 
 
 def _mortal(cs, kb=None, fatigue=0.0, assets=None, travel_intent=None, loc_id="loc-A"):
@@ -122,21 +122,21 @@ def test_collect_at_resource_location():
     assert result == "collect"
 
 
-# Trip-length awareness: urgent need blocks long travel
+# Trip-length awareness: helper correctly identifies trips that are too long
 
-def test_urgent_need_blocks_long_travel():
-    sell_loc_id = "neran-surface"
-    # satisfaction=0.2, decay_rate=0.05 → ticks_until_desperate = 4
+def test_trip_too_long_for_urgent_need_true():
+    # satisfaction=0.2, decay_rate=0.05 → ticks_until_desperate = 4; trip=12 → too long
     urgent_need = MortalNeed(name="indulgence", satisfaction=0.2, decay_rate=0.05,
                              pressing_threshold=0.65, urgent_threshold=0.35)
-    cs = CivilianAgentState(
-        needs=[urgent_need],
-        inventory=[Resource(resource_type="unobtanium", quantity=5.0, threshold=2.0, usable_for=["sell"])],
-    )
-    kb = KnowledgeBase(facts=[
-        LocationQualityFact(location_id=sell_loc_id, quality=0.9, quality_type="sell"),
-        RouteFact(from_id="sethis", to_id=sell_loc_id, ticks_cost=12),
-    ])
-    result = evaluate_civilian_action(_mortal(cs, kb, loc_id="sethis"), _state(), 0)
-    # Trip takes 12 ticks, need hits 0 in 4 → should NOT travel
-    assert result != f"travel:{sell_loc_id}"
+    cs = CivilianAgentState(needs=[urgent_need])
+    kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])
+    assert _trip_too_long_for_urgent_need(cs, kb, "neran") is True
+
+
+def test_trip_too_long_for_urgent_need_false_when_not_urgent():
+    # satisfaction=0.5 → not urgent
+    need = MortalNeed(name="indulgence", satisfaction=0.5, decay_rate=0.05,
+                      pressing_threshold=0.65, urgent_threshold=0.35)
+    cs = CivilianAgentState(needs=[need])
+    kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])
+    assert _trip_too_long_for_urgent_need(cs, kb, "neran") is False

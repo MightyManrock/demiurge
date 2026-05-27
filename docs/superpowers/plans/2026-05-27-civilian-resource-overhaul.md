@@ -1097,7 +1097,7 @@ cd /root/demiurge && git add ui/detail_renderers.py && git commit -m "feat: show
 **Files:**
 - Modify: `autoplay/strategies/vail_travel_test.py`
 
-- [ ] **Step 6.1: Extend the test to track inventory and sell/spend events**
+- [x] **Step 6.1: Extend the test to track inventory and sell/spend events**
 
 Replace the file content:
 
@@ -1227,7 +1227,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     return "Idle harvest (watching Vail)."
 ```
 
-- [ ] **Step 6.2: Run the autoplay validation**
+- [x] **Step 6.2: Run the autoplay validation**
 
 ```bash
 cd /root/demiurge && source bin/activate && python main.py --autoplay vail_travel_test 2>&1 | tail -30
@@ -1239,7 +1239,7 @@ If you see `PASS (partial): round trip done but sell/spend not observed`, check 
 
 If Vail is blocked at tick 1 (never starts travel), check the `pressing_needs()` condition — needs start at `satisfaction=0.1` which is below both thresholds, so they should be pressing.
 
-- [ ] **Step 6.3: Run unit tests one final time**
+- [x] **Step 6.3: Run unit tests one final time**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -m pytest tests/ -v
@@ -1247,7 +1247,7 @@ cd /root/demiurge && source bin/activate && python -m pytest tests/ -v
 
 Expected: all tests PASS.
 
-- [ ] **Step 6.4: Commit**
+- [x] **Step 6.4: Commit**
 
 ```bash
 cd /root/demiurge && git add autoplay/strategies/vail_travel_test.py && git commit -m "feat: extend vail_travel_test to validate full sell/spend trade loop"
@@ -1257,7 +1257,7 @@ cd /root/demiurge && git add autoplay/strategies/vail_travel_test.py && git comm
 
 ### Task 7: Push
 
-- [ ] **Step 7.1: Push to origin**
+- [x] **Step 7.1: Push to origin**
 
 ```bash
 cd /root/demiurge && git push origin agent-mvp

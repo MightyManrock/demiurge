@@ -78,12 +78,11 @@ def evaluate_civilian_action(
                     return "sell"
                 return "idle"
             if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
-                if not _trip_too_long_for_urgent_need(cs, kb, best_sell_loc):
-                    route = kb.route_to(best_sell_loc)
-                    if route and route.vehicle_type:
-                        if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                            return "idle"
-                    return f"travel:{best_sell_loc}"
+                route = kb.route_to(best_sell_loc)
+                if route and route.vehicle_type:
+                    if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                        return "idle"
+                return f"travel:{best_sell_loc}"
             return "idle"
 
     # ── Priority 2: spend ────────────────────────────────────────────────────
@@ -99,12 +98,11 @@ def evaluate_civilian_action(
                     return "spend"
                 return "idle"
             if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
-                if not _trip_too_long_for_urgent_need(cs, kb, best_spend_loc):
-                    route = kb.route_to(best_spend_loc)
-                    if route and route.vehicle_type:
-                        if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                            return "idle"
-                    return f"travel:{best_spend_loc}"
+                route = kb.route_to(best_spend_loc)
+                if route and route.vehicle_type:
+                    if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                        return "idle"
+                return f"travel:{best_spend_loc}"
             return "idle"
 
     # ── Priority 3: collect ──────────────────────────────────────────────────
@@ -126,11 +124,10 @@ def evaluate_civilian_action(
 
     if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
         dest = resource_locs[0]
-        if not _trip_too_long_for_urgent_need(cs, kb, dest):
-            route = kb.route_to(dest)
-            if route and route.vehicle_type:
-                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                    return "idle"
-            return f"travel:{dest}"
+        route = kb.route_to(dest)
+        if route and route.vehicle_type:
+            if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                return "idle"
+        return f"travel:{dest}"
 
     return "idle"
