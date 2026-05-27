@@ -1764,6 +1764,8 @@ class TickLoop:
 
         # ── Location visibility decay ──────────────────
         for lid, loc in state.locations.items():
+            if getattr(loc, "location_type", None) == "travel_location":
+                continue  # TravelLocation visibility is derived from endpoints, updated below
             if loc.visibility <= 0.0:
                 continue
             loc_stall = getattr(loc, "visibility_stall_remaining", 0)
@@ -1783,6 +1785,22 @@ class TickLoop:
                     delta=-(loc.visibility - new_vis),
                     note=f"{loc.name} visibility decay",
                 ))
+
+        # ── TravelLocation visibility (derived from endpoints) ─
+        for lid, loc in state.locations.items():
+            if getattr(loc, "location_type", None) != "travel_location":
+                continue
+            legs = getattr(loc, "legs", {})
+            if not legs:
+                continue
+            leg_keys = list(legs.keys())
+            origin_loc = state.locations.get(leg_keys[0])
+            dest_key = next((k for k, v in legs.items() if v == 0), None)
+            dest_loc = state.locations.get(dest_key) if dest_key else None
+            if origin_loc is not None and dest_loc is not None and is_in_window(origin_loc) and is_in_window(dest_loc):
+                loc.visibility = 1.0
+            else:
+                loc.visibility = 0.0
 
         # ── Civilization visibility decay ──────────────
         for cid, civ in state.civilizations.items():
@@ -3126,18 +3144,6 @@ class TickLoop:
             eligible_locs: set[str] = {
                 lid for lid, loc in state.locations.items() if is_in_window(loc)
             }
-            # TravelLocations are in-window when both endpoints are already in-window.
-            for lid, loc in state.locations.items():
-                if getattr(loc, "location_type", None) != "travel_location":
-                    continue
-                legs = getattr(loc, "legs", {})
-                if not legs:
-                    continue
-                leg_keys = list(legs.keys())
-                origin_id = leg_keys[0]
-                dest_id = next((k for k, v in legs.items() if v == 0), None)
-                if dest_id and origin_id in eligible_locs and dest_id in eligible_locs:
-                    eligible_locs.add(lid)
 
             # First-contact carve-out: a GALAXY-scope scry on a galaxy whose
             # interior is wholly outside the Window bypasses the spatial-factor
