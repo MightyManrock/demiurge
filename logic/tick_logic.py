@@ -5234,18 +5234,23 @@ class TickLoop:
             try:
                 current_idx = leg_keys.index(loc.current_waypoint)
             except ValueError:
+                fallback_loc = UUID(leg_keys[0]) if leg_keys else loc.id
                 for occ_id in loc.occupants:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
+                        mortal.current_location = fallback_loc
                         mortal.travel_intent = None
                 to_remove.append(lid)
                 continue
 
             next_idx = current_idx + 1
             if next_idx >= len(leg_keys):
+                # current_waypoint is already the destination key (cost 0)
+                dest_uuid = UUID(loc.current_waypoint)
                 for occ_id in loc.occupants:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
+                        mortal.current_location = dest_uuid
                         mortal.travel_intent = None
                 to_remove.append(lid)
                 continue
@@ -5340,6 +5345,7 @@ class TickLoop:
                         mortal.travel_intent = TravelIntent(
                             travel_location_id=tl.id
                         )
+                        mortal.current_location = tl.id
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
                         cs.action_cooldowns["travel"] = current_tick + 1
                 except (ValueError, Exception):
