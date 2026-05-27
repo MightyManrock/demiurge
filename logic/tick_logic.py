@@ -5341,35 +5341,75 @@ class TickLoop:
 
             if action == "collect":
                 loc = state.locations.get(str(mortal.current_location))
-                resource = getattr(loc, "collectible_resource", None)
-                if resource:
-                    cs.resources += resource.resource_yield
+                cr = getattr(loc, "collectible_resource", None)
+                if cr:
+                    res = cs.get_resource(cr.resource_type)
+                    if res is None:
+                        from core.agent_core import Resource as _Resource
+                        res = _Resource(resource_type=cr.resource_type)
+                        cs.inventory.append(res)
+                    res.quantity += cr.resource_yield
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
-                    cs.action_cooldowns["collect"] = current_tick + resource.cooldown_ticks
+                    cs.action_cooldowns["collect"] = current_tick + cr.cooldown_ticks
+
+            elif action == "sell":
+                loc = state.locations.get(str(mortal.current_location))
+                quality = getattr(loc, "commerce_quality", 0.5)
+                for res in cs.inventory:
+                    if "sell" not in res.usable_for or res.quantity < res.threshold:
+                        continue
+                    if res.converts_to is None:
+                        continue
+                    units = int(res.quantity)
+                    if units == 0:
+                        continue
+                    credits_gained = units * res.base_value * quality
+                    res.quantity -= units
+                    target = cs.get_resource(res.converts_to)
+                    if target is None:
+                        from core.agent_core import Resource as _Resource
+                        target = _Resource(resource_type=res.converts_to)
+                        cs.inventory.append(target)
+                    target.quantity += credits_gained
+                    if res.fills_need:
+                        need = next((n for n in cs.needs if n.name == res.fills_need), None)
+                        if need:
+                            need.satisfaction = min(1.0, need.satisfaction + min(0.4, credits_gained * 0.05))
+                    mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
+                    cs.action_cooldowns["sell"] = current_tick + 2
+                    break
 
             elif action == "spend":
                 loc = state.locations.get(str(mortal.current_location))
                 quality = getattr(loc, "commerce_quality", 0.5)
-                # Spend minimum integer units to cover the largest need deficit.
-                base_per_unit = 0.12
-                bulk_bonus = 0.04
-                max_deficit = max((1.0 - n.satisfaction for n in cs.needs), default=0.0)
-                available = int(cs.resources)
-                if max_deficit > 0 and base_per_unit * quality > 0:
-                    n_units = max(1, min(
-                        int(max_deficit / (base_per_unit * quality) + 0.5),
-                        available,
-                    ))
-                else:
-                    n_units = min(1, available)
-                gain_per_need = n_units * base_per_unit * quality * (1 + bulk_bonus * (n_units - 1))
-                cs.resources -= n_units
-                hold_ticks = round(8 * quality)
-                for need in cs.needs:
-                    need.satisfaction = min(1.0, need.satisfaction + gain_per_need)
-                    if need.satisfaction >= 1.0:
-                        need.satiation_hold = hold_ticks
-                cs.action_cooldowns["spend"] = current_tick + 2
+                for res in cs.inventory:
+                    if "spend" not in res.usable_for or res.quantity < res.threshold:
+                        continue
+                    base_per_unit = 0.12
+                    bulk_bonus = 0.04
+                    target_need = (
+                        next((n for n in cs.needs if n.name == res.fills_need), None)
+                        if res.fills_need else None
+                    )
+                    needs_to_fill = [target_need] if target_need else cs.needs
+                    max_deficit = max((1.0 - n.satisfaction for n in needs_to_fill), default=0.0)
+                    available = int(res.quantity)
+                    if max_deficit > 0 and base_per_unit * quality > 0:
+                        n_units = max(1, min(
+                            int(max_deficit / (base_per_unit * quality) + 0.5),
+                            available,
+                        ))
+                    else:
+                        n_units = min(1, available)
+                    gain_per_need = n_units * base_per_unit * quality * (1 + bulk_bonus * (n_units - 1))
+                    res.quantity -= n_units
+                    hold_ticks = round(8 * quality)
+                    for need in needs_to_fill:
+                        need.satisfaction = min(1.0, need.satisfaction + gain_per_need)
+                        if need.satisfaction >= 1.0:
+                            need.satiation_hold = hold_ticks
+                    cs.action_cooldowns["spend"] = current_tick + 2
+                    break
 
             elif action and action.startswith("travel:"):
                 dest_id = action.split(":", 1)[1]

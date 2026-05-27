@@ -681,7 +681,7 @@ cd /root/demiurge && git add logic/civilian_agent_logic.py tests/test_civilian_l
 **Files:**
 - Modify: `logic/tick_logic.py` lines ~5342–5392 (`_tick_civilian_agents`)
 
-- [ ] **Step 3.1: Update the `collect` branch**
+- [x] **Step 3.1: Update the `collect` branch**
 
 Find and replace the `collect` branch (around line 5342):
 
@@ -712,7 +712,7 @@ New:
                     cs.action_cooldowns["collect"] = current_tick + cr.cooldown_ticks
 ```
 
-- [ ] **Step 3.2: Replace the `spend` branch and add `sell` branch**
+- [x] **Step 3.2: Replace the `spend` branch and add `sell` branch**
 
 Find and replace the `spend` branch (around line 5350):
 
@@ -805,7 +805,7 @@ New (sell + spend):
                     break
 ```
 
-- [ ] **Step 3.3: Smoke-check tick_logic imports and syntax**
+- [x] **Step 3.3: Smoke-check tick_logic imports and syntax**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -c "from logic.tick_logic import TickLoop; print('ok')"
@@ -813,7 +813,7 @@ cd /root/demiurge && source bin/activate && python -c "from logic.tick_logic imp
 
 Expected: `ok`
 
-- [ ] **Step 3.4: Commit**
+- [x] **Step 3.4: Commit**
 
 ```bash
 cd /root/demiurge && git add logic/tick_logic.py && git commit -m "feat: tick engine uses typed Resource inventory for collect/sell/spend"
