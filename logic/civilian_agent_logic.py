@@ -12,6 +12,8 @@ TRAVEL_COOLDOWN = "travel"
 
 
 def _mortal_is_travelling(mortal: NotableMortal, state: SimulationState) -> bool:
+    if mortal.travel_intent is not None:
+        return True
     loc = state.locations.get(str(mortal.current_location))
     return loc is not None and getattr(loc, "location_type", None) == "travel_location"
 
