@@ -78,6 +78,7 @@ class MortalNeed(BaseModel):
     satisfaction: float = Field(ge=0.0, le=1.0, default=1.0)
     decay_rate: float = 0.05
     pressing_threshold: float = 0.3
+    satiation_hold: int = 0  # ticks remaining at max before decay resumes
 
     @property
     def is_pressing(self) -> bool:

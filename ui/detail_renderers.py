@@ -816,8 +816,13 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             a("  needs:")
             for need in cs.needs:
                 bar = "█" * int(need.satisfaction * 10) + "░" * (10 - int(need.satisfaction * 10))
-                pressing = "  [#c09030][PRESSING][/]" if need.is_pressing else ""
-                a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{pressing}")
+                if need.is_pressing:
+                    suffix = "  [#c09030][PRESSING][/]"
+                elif need.satiation_hold > 0:
+                    suffix = f"  [#60a860][held:{need.satiation_hold}][/]"
+                else:
+                    suffix = ""
+                a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{suffix}")
         if cs.action_cooldowns:
             a(f"  cooldowns: {_e(str(cs.action_cooldowns))}")
         tl_loc = state.locations.get(str(m.current_location))

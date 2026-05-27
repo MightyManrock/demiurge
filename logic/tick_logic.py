@@ -5283,7 +5283,10 @@ class TickLoop:
                 continue
 
             for need in cs.needs:
-                need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
+                if need.satiation_hold > 0:
+                    need.satiation_hold -= 1
+                else:
+                    need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
 
             if mortal.fatigue > 0.0:
                 mortal.fatigue = max(0.0, mortal.fatigue - 0.1)
@@ -5303,8 +5306,11 @@ class TickLoop:
                 quality = getattr(loc, "commerce_quality", 0.5)
                 amount = min(cs.resources, cs.spend_threshold)
                 cs.resources -= amount
+                hold_ticks = round(8 * quality)
                 for need in cs.needs:
                     need.satisfaction = min(1.0, need.satisfaction + quality * 0.4)
+                    if need.satisfaction >= 1.0:
+                        need.satiation_hold = hold_ticks
                 cs.action_cooldowns["spend"] = current_tick + 2
 
             elif action and action.startswith("travel:"):
