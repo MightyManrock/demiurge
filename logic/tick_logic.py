@@ -5304,11 +5304,23 @@ class TickLoop:
             elif action == "spend":
                 loc = state.locations.get(str(mortal.current_location))
                 quality = getattr(loc, "commerce_quality", 0.5)
-                amount = min(cs.resources, cs.spend_threshold)
-                cs.resources -= amount
+                # Spend minimum integer units to cover the largest need deficit.
+                base_per_unit = 0.12
+                bulk_bonus = 0.04
+                max_deficit = max((1.0 - n.satisfaction for n in cs.needs), default=0.0)
+                available = int(cs.resources)
+                if max_deficit > 0 and base_per_unit * quality > 0:
+                    n_units = max(1, min(
+                        int(max_deficit / (base_per_unit * quality) + 0.5),
+                        available,
+                    ))
+                else:
+                    n_units = min(1, available)
+                gain_per_need = n_units * base_per_unit * quality * (1 + bulk_bonus * (n_units - 1))
+                cs.resources -= n_units
                 hold_ticks = round(8 * quality)
                 for need in cs.needs:
-                    need.satisfaction = min(1.0, need.satisfaction + quality * 0.4)
+                    need.satisfaction = min(1.0, need.satisfaction + gain_per_need)
                     if need.satisfaction >= 1.0:
                         need.satiation_hold = hold_ticks
                 cs.action_cooldowns["spend"] = current_tick + 2
