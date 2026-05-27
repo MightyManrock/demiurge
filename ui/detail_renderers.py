@@ -808,15 +808,26 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         cs = m.civilian_state
         a("")
         a("[bold #4a80b0]CIVILIAN AGENT[/]")
-        a(f"  resources: {cs.resources:.2f}  (spend threshold: {cs.spend_threshold:.2f})")
         a(f"  fatigue:   {m.fatigue:.2f}")
         if m.assets:
             a(f"  assets:    {_e(', '.join(a_.label or a_.asset_type for a_ in m.assets))}")
+        if cs.inventory:
+            a("  inventory:")
+            for res in cs.inventory:
+                thresh_tag = (
+                    f"  [#888888](need {res.threshold:.0f})[/]"
+                    if res.quantity < res.threshold else ""
+                )
+                a(f"    {_e(res.resource_type):15s} {res.quantity:6.2f}{thresh_tag}")
+        else:
+            a("  inventory: (empty)")
         if cs.needs:
             a("  needs:")
             for need in cs.needs:
                 bar = "█" * int(need.satisfaction * 10) + "░" * (10 - int(need.satisfaction * 10))
-                if need.is_pressing:
+                if need.is_urgent:
+                    suffix = "  [#c04040][URGENT][/]"
+                elif need.is_pressing:
                     suffix = "  [#c09030][PRESSING][/]"
                 elif need.satiation_hold > 0:
                     suffix = f"  [#60a860][held:{need.satiation_hold}][/]"

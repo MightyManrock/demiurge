@@ -1023,7 +1023,7 @@ cd /root/demiurge && git add tools/migrate_civilian_resources.py scenarios/warde
 **Files:**
 - Modify: `ui/detail_renderers.py` lines ~807–827
 
-- [ ] **Step 5.1: Replace the resources/spend_threshold display with inventory breakdown**
+- [x] **Step 5.1: Replace the resources/spend_threshold display with inventory breakdown**
 
 Find and replace this block (around line 811):
 
@@ -1076,7 +1076,7 @@ New:
                 a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{suffix}")
 ```
 
-- [ ] **Step 5.2: Smoke-check the TUI renders without crashing**
+- [x] **Step 5.2: Smoke-check the TUI renders without crashing**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -c "from ui.detail_renderers import render_mortal_detail; print('ok')"
@@ -1084,7 +1084,7 @@ cd /root/demiurge && source bin/activate && python -c "from ui.detail_renderers 
 
 Expected: `ok`
 
-- [ ] **Step 5.3: Commit**
+- [x] **Step 5.3: Commit**
 
 ```bash
 cd /root/demiurge && git add ui/detail_renderers.py && git commit -m "feat: show typed inventory and URGENT need label in mortal detail renderer"
