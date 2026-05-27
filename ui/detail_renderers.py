@@ -803,6 +803,37 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             ticks_word = "tick" if ticks_remaining == 1 else "ticks"
             a(f"  Traveling → {_e(dest_name)} | {ticks_remaining} {ticks_word} remaining")
 
+    # ── Civilian Agent State (temporary debug view) ──────────────────
+    if m.civilian_state is not None:
+        cs = m.civilian_state
+        a("")
+        a("[bold #4a80b0]CIVILIAN AGENT[/]")
+        a(f"  resources: {cs.resources:.2f}  (spend threshold: {cs.spend_threshold:.2f})")
+        a(f"  fatigue:   {m.fatigue:.2f}")
+        if m.assets:
+            a(f"  assets:    {_e(', '.join(a_.label or a_.asset_type for a_ in m.assets))}")
+        if cs.needs:
+            a("  needs:")
+            for need in cs.needs:
+                bar = "█" * int(need.satisfaction * 10) + "░" * (10 - int(need.satisfaction * 10))
+                pressing = "  [#c09030][PRESSING][/]" if need.is_pressing else ""
+                a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{pressing}")
+        if cs.action_cooldowns:
+            a(f"  cooldowns: {_e(str(cs.action_cooldowns))}")
+        tl_loc = state.locations.get(str(m.current_location))
+        in_transit = tl_loc is not None and getattr(tl_loc, "location_type", None) == "travel_location"
+        if in_transit and tl_loc is not None:
+            dest_id = list(tl_loc.legs.keys())[-1] if tl_loc.legs else None
+            dest_loc = state.locations.get(dest_id) if dest_id else None
+            dest_name = dest_loc.name if dest_loc else "unknown"
+            tr = getattr(tl_loc, "ticks_remaining", 0)
+            ticks_word = "tick" if tr == 1 else "ticks"
+            a(f"  status:    [#a0d080]in transit → {_e(dest_name)} ({tr} {ticks_word})[/]")
+        elif m.travel_intent:
+            a(f"  status:    [#a0d080]travel intent set[/]")
+        else:
+            a(f"  status:    idle")
+
     return Text.from_markup("\n".join(lines))
 
 
