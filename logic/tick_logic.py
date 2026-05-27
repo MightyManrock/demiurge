@@ -3126,6 +3126,18 @@ class TickLoop:
             eligible_locs: set[str] = {
                 lid for lid, loc in state.locations.items() if is_in_window(loc)
             }
+            # TravelLocations are in-window when both endpoints are already in-window.
+            for lid, loc in state.locations.items():
+                if getattr(loc, "location_type", None) != "travel_location":
+                    continue
+                legs = getattr(loc, "legs", {})
+                if not legs:
+                    continue
+                leg_keys = list(legs.keys())
+                origin_id = leg_keys[0]
+                dest_id = next((k for k, v in legs.items() if v == 0), None)
+                if dest_id and origin_id in eligible_locs and dest_id in eligible_locs:
+                    eligible_locs.add(lid)
 
             # First-contact carve-out: a GALAXY-scope scry on a galaxy whose
             # interior is wholly outside the Window bypasses the spatial-factor
