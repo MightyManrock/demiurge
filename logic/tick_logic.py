@@ -5246,6 +5246,23 @@ class TickLoop:
 
             loc.ticks_remaining -= 1
             if loc.ticks_remaining > 0:
+                # Still crossing this leg — move occupants into the TravelLocation
+                # and update its name to reflect the current leg.
+                leg_keys = list(loc.legs.keys())
+                try:
+                    cw_idx = leg_keys.index(loc.current_waypoint)
+                    next_wp_id = leg_keys[cw_idx + 1] if cw_idx + 1 < len(leg_keys) else None
+                except ValueError:
+                    next_wp_id = None
+                if next_wp_id:
+                    cw_obj = state.locations.get(loc.current_waypoint)
+                    nw_obj = state.locations.get(next_wp_id)
+                    loc.name = f"{cw_obj.name if cw_obj else loc.current_waypoint} → {nw_obj.name if nw_obj else next_wp_id}"
+                loc_uuid = loc.id
+                for occ_id in loc.occupants:
+                    mortal = state.mortals.get(str(occ_id))
+                    if mortal:
+                        mortal.current_location = loc_uuid
                 continue
 
             leg_keys = list(loc.legs.keys())
@@ -5291,6 +5308,12 @@ class TickLoop:
             else:
                 loc.current_waypoint  = next_wp
                 loc.ticks_remaining   = next_cost
+                # Mortal arrives at the start of the next leg's PopLocation.
+                next_wp_uuid = UUID(next_wp)
+                for occ_id in loc.occupants:
+                    mortal = state.mortals.get(str(occ_id))
+                    if mortal:
+                        mortal.current_location = next_wp_uuid
 
         for lid in to_remove:
             state.locations.pop(lid, None)
@@ -5363,7 +5386,6 @@ class TickLoop:
                         mortal.travel_intent = TravelIntent(
                             travel_location_id=tl.id
                         )
-                        mortal.current_location = tl.id
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
                         cs.action_cooldowns["travel"] = current_tick + 1
                 except (ValueError, Exception):

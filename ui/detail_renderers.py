@@ -835,7 +835,14 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             ticks_word = "tick" if tr == 1 else "ticks"
             a(f"  status:    [#a0d080]in transit → {_e(dest_name)} ({tr} {ticks_word})[/]")
         elif m.travel_intent:
-            a(f"  status:    [#a0d080]travel intent set[/]")
+            tl = state.locations.get(str(m.travel_intent.travel_location_id))
+            if tl and tl.legs:
+                dest_id = next((k for k, v in tl.legs.items() if v == 0), None)
+                dest_loc = state.locations.get(dest_id) if dest_id else None
+                dest_name = dest_loc.name if dest_loc else "unknown"
+                a(f"  status:    [#a0d080]at waypoint → {_e(dest_name)}[/]")
+            else:
+                a(f"  status:    [#a0d080]in transit[/]")
         else:
             a(f"  status:    idle")
 
