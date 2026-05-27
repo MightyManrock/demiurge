@@ -5186,7 +5186,7 @@ class TickLoop:
                     if current_name == self._KARATH_OMN_SHUTTLE_A
                     else self._KARATH_OMN_SHUTTLE_A
                 )
-            elif mortal.name == self._DURENN_VAIL_NAME:
+            elif mortal.name == self._DURENN_VAIL_NAME and mortal.civilian_state is None:
                 dest_name = (
                     self._VAIL_DEST_B
                     if current_name == self._VAIL_DEST_A
@@ -5310,12 +5310,21 @@ class TickLoop:
             elif action and action.startswith("travel:"):
                 dest_id = action.split(":", 1)[1]
                 try:
-                    mortal.travel_intent = TravelIntent(
-                        travel_location_id=_uuid_mod.UUID(dest_id)
+                    from utilities.travel_routing import (
+                        find_route, build_legs, get_or_create_travel_location,
                     )
-                    mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
-                    cs.action_cooldowns["travel"] = current_tick + 1
-                except ValueError:
+                    dest_uuid = _uuid_mod.UUID(dest_id)
+                    route = find_route(state, mortal.current_location, dest_uuid)
+                    if route and len(route) >= 2:
+                        legs = build_legs(state, route)
+                        tl = get_or_create_travel_location(state, legs)
+                        tl.occupants.append(mortal.id)
+                        mortal.travel_intent = TravelIntent(
+                            travel_location_id=tl.id
+                        )
+                        mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
+                        cs.action_cooldowns["travel"] = current_tick + 1
+                except (ValueError, Exception):
                     pass
 
     def _resolve_proxius_agents(
