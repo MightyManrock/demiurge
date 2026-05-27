@@ -3,10 +3,12 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
+    from core.agent_core import CivilianAgentState, KnowledgeBase
     from logic.tick_logic import SimulationState
 
 FATIGUE_BLOCK_THRESHOLD = 0.85
 COLLECT_COOLDOWN = "collect"
+SELL_COOLDOWN = "sell"
 SPEND_COOLDOWN = "spend"
 TRAVEL_COOLDOWN = "travel"
 
@@ -18,14 +20,34 @@ def _mortal_is_travelling(mortal: NotableMortal, state: SimulationState) -> bool
     return loc is not None and getattr(loc, "location_type", None) == "travel_location"
 
 
+def _trip_too_long_for_urgent_need(
+    cs: CivilianAgentState,
+    kb: KnowledgeBase,
+    dest_id: str,
+) -> bool:
+    """Return True if any urgent need will reach 0 before the trip completes."""
+    ticks_cost = kb.route_ticks_to(dest_id)
+    if ticks_cost == 0:
+        return False
+    for need in cs.needs:
+        if need.is_urgent and need.decay_rate > 0:
+            ticks_until_desperate = need.satisfaction / need.decay_rate
+            if ticks_cost > ticks_until_desperate:
+                return True
+    return False
+
+
 def evaluate_civilian_action(
     mortal: NotableMortal,
     state: SimulationState,
     current_tick: int,
 ) -> Optional[str]:
     """
-    Returns one of: "collect", "spend", "travel:<location_id>", "idle", None.
+    Returns one of: "collect", "sell", "spend", "travel:<location_id>", "idle", None.
     None means the mortal has no civilian_state and should be skipped.
+
+    Priority: sell sellable resources → spend credits → collect raw resources.
+    Long-trip guard: if any urgent need would hit 0 before arrival, skip that travel.
     """
     cs = mortal.civilian_state
     kb = mortal.knowledge_base
@@ -43,22 +65,49 @@ def evaluate_civilian_action(
 
     current_loc_id = str(mortal.current_location)
 
-    if cs.resources >= cs.spend_threshold:
-        best_spend_loc = kb.best_known_spend_location()
-        if not best_spend_loc:
+    # ── Priority 1: sell ─────────────────────────────────────────────────────
+    sellable = next(
+        (r for r in cs.inventory if "sell" in r.usable_for and r.quantity >= r.threshold),
+        None,
+    )
+    if sellable:
+        best_sell_loc = kb.best_known_sell_location()
+        if best_sell_loc:
+            if current_loc_id == best_sell_loc:
+                if cs.cooldown_expired(SELL_COOLDOWN, current_tick):
+                    return "sell"
+                return "idle"
+            if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
+                if not _trip_too_long_for_urgent_need(cs, kb, best_sell_loc):
+                    route = kb.route_to(best_sell_loc)
+                    if route and route.vehicle_type:
+                        if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                            return "idle"
+                    return f"travel:{best_sell_loc}"
             return "idle"
-        if current_loc_id == best_spend_loc:
-            if cs.cooldown_expired(SPEND_COOLDOWN, current_tick):
-                return "spend"
-            return "idle"
-        if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
-            route = kb.route_to(best_spend_loc)
-            if route and route.vehicle_type:
-                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                    return "idle"
-            return f"travel:{best_spend_loc}"
-        return "idle"
 
+    # ── Priority 2: spend ────────────────────────────────────────────────────
+    spendable = next(
+        (r for r in cs.inventory if "spend" in r.usable_for and r.quantity >= r.threshold),
+        None,
+    )
+    if spendable:
+        best_spend_loc = kb.best_known_spend_location()
+        if best_spend_loc:
+            if current_loc_id == best_spend_loc:
+                if cs.cooldown_expired(SPEND_COOLDOWN, current_tick):
+                    return "spend"
+                return "idle"
+            if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
+                if not _trip_too_long_for_urgent_need(cs, kb, best_spend_loc):
+                    route = kb.route_to(best_spend_loc)
+                    if route and route.vehicle_type:
+                        if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                            return "idle"
+                    return f"travel:{best_spend_loc}"
+            return "idle"
+
+    # ── Priority 3: collect ──────────────────────────────────────────────────
     resource_locs = kb.known_resource_locations()
     if not resource_locs:
         return "idle"
@@ -77,10 +126,11 @@ def evaluate_civilian_action(
 
     if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
         dest = resource_locs[0]
-        route = kb.route_to(dest)
-        if route and route.vehicle_type:
-            if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                return "idle"
-        return f"travel:{dest}"
+        if not _trip_too_long_for_urgent_need(cs, kb, dest):
+            route = kb.route_to(dest)
+            if route and route.vehicle_type:
+                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                    return "idle"
+            return f"travel:{dest}"
 
     return "idle"

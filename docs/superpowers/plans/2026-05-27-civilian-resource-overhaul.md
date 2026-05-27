@@ -331,7 +331,7 @@ class KnowledgeBase(BaseModel):
         return fact.ticks_cost if fact else 0
 ```
 
-- [ ] **Step 1.5: Run tests, confirm they pass**
+- [x] **Step 1.5: Run tests, confirm they pass**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -m pytest tests/test_agent_core.py -v
@@ -339,7 +339,7 @@ cd /root/demiurge && source bin/activate && python -m pytest tests/test_agent_co
 
 Expected: all tests PASS.
 
-- [ ] **Step 1.6: Smoke-check the app still loads**
+- [x] **Step 1.6: Smoke-check the app still loads**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -c "from core.agent_core import CivilianAgentState, Resource, KnowledgeBase; print('ok')"
@@ -347,7 +347,7 @@ cd /root/demiurge && source bin/activate && python -c "from core.agent_core impo
 
 Expected: `ok`
 
-- [ ] **Step 1.7: Commit**
+- [x] **Step 1.7: Commit**
 
 ```bash
 cd /root/demiurge && git add core/agent_core.py tests/conftest.py tests/__init__.py tests/test_agent_core.py && git commit -m "feat: typed Resource model, dual need thresholds, quality_type/ticks_cost on KB facts"
@@ -361,7 +361,7 @@ cd /root/demiurge && git add core/agent_core.py tests/conftest.py tests/__init__
 - Modify: `logic/civilian_agent_logic.py`
 - Test: `tests/test_civilian_logic.py`
 
-- [ ] **Step 2.1: Write failing tests**
+- [x] **Step 2.1: Write failing tests**
 
 Create `tests/test_civilian_logic.py`:
 
@@ -509,7 +509,7 @@ def test_urgent_need_blocks_long_travel():
     assert result != f"travel:{sell_loc_id}"
 ```
 
-- [ ] **Step 2.2: Run tests, confirm they fail**
+- [x] **Step 2.2: Run tests, confirm they fail**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -m pytest tests/test_civilian_logic.py -v 2>&1 | head -50
@@ -517,7 +517,7 @@ cd /root/demiurge && source bin/activate && python -m pytest tests/test_civilian
 
 Expected: failures due to missing `SELL_COOLDOWN`, wrong return values from old logic.
 
-- [ ] **Step 2.3: Rewrite `logic/civilian_agent_logic.py`**
+- [x] **Step 2.3: Rewrite `logic/civilian_agent_logic.py`**
 
 Replace the entire file content:
 
@@ -660,7 +660,7 @@ def evaluate_civilian_action(
     return "idle"
 ```
 
-- [ ] **Step 2.4: Run tests, confirm they pass**
+- [x] **Step 2.4: Run tests, confirm they pass**
 
 ```bash
 cd /root/demiurge && source bin/activate && python -m pytest tests/test_civilian_logic.py -v
@@ -668,7 +668,7 @@ cd /root/demiurge && source bin/activate && python -m pytest tests/test_civilian
 
 Expected: all tests PASS.
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 cd /root/demiurge && git add logic/civilian_agent_logic.py tests/test_civilian_logic.py && git commit -m "feat: sell→spend→collect priority, urgency trip-cost guard in civilian_agent_logic"
