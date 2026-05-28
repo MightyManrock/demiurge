@@ -2184,13 +2184,16 @@ class TickLoop:
             )
 
             if lum_total_aff == 0.0:
-                # No Luminary claims this domain — Demiurge gets 100% if affiliated
+                # Uncontested domain — Demiurge claim capped by puissance (floor 0.25, ceil 0.50).
+                # Upgrading the ceiling (e.g. Stronghold) would raise the max above 0.50.
                 if tag in demiurge_affiliated:
-                    demiurge_total_claim += pool
-                    domain_claim_breakdown[tag] = domain_claim_breakdown.get(tag, 0.0) + pool
+                    uncontested_fraction = min(0.50, max(0.25, state.demiurge.puissance))
+                    claim = pool * uncontested_fraction
+                    demiurge_total_claim += claim
+                    domain_claim_breakdown[tag] = domain_claim_breakdown.get(tag, 0.0) + claim
                     if tag in tracked:
                         state.domain_essence_claimed[tag] = (
-                            state.domain_essence_claimed.get(tag, 0.0) + pool
+                            state.domain_essence_claimed.get(tag, 0.0) + claim
                         )
                 # else sinks to Underreal
                 continue
