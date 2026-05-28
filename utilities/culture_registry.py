@@ -41,6 +41,13 @@ PRACTICE_TAGS: list[str] = [
     "practice:slavery",
     "practice:sedentism", "practice:nomadism",
     "practice:agriculture", "practice:foraging",
+    # Arts & performance
+    "practice:music", "practice:dance", "practice:visual",
+    "practice:theatre", "practice:lit", "practice:poetry",
+    # Craft & food
+    "practice:crafts", "practice:culinary",
+    # Physical & ceremonial
+    "practice:athletics", "practice:combat", "practice:ritual", "practice:revelry",
 ]
 RELATIONS_TAGS: list[str] = [
     "relations:conquest", "relations:isolationism",
@@ -57,6 +64,10 @@ VALUES_TAGS: list[str] = [
     "values:patience", "values:tenacity",
     "values:idealism", "values:pragmatism",
     "values:erudition", "values:folk_wisdom",
+    # Canonical new values (replacing old aliases and adding new)
+    "values:honor", "values:prowess",
+    "values:hierarchy", "values:sedentism", "values:xenophilia",
+    "values:meritocracy", "values:solidarity", "values:autonomy",
 ]
 
 ALL_CULTURE_TAGS: list[str] = [
@@ -85,6 +96,64 @@ _PREFIX_TO_CATEGORY: dict[str, list[str]] = {
     "relations": RELATIONS_TAGS,
     "values":    VALUES_TAGS,
 }
+
+
+# ── Alias map: old tag → list of (canonical_tag, multiplier) ─────────
+# Multiplier of -1.0 means the old tag maps to the *negative* of the new
+# canonical (e.g. xenophobia → -1 × xenophilia).
+CULTURE_TAG_ALIASES: dict[str, list[tuple[str, float]]] = {
+    "values:honesty":           [("values:honor",      1.0)],
+    "values:ambition":          [("values:prowess",    1.0)],
+    "structure:hierarchy":      [("values:hierarchy",  1.0)],
+    "structure:egalitarianism": [("values:hierarchy", -1.0)],
+    "practice:sedentism":       [("values:sedentism",  1.0)],
+    "practice:nomadism":        [("values:sedentism", -1.0)],
+    "relations:xenophilia":     [("values:xenophilia",  1.0)],
+    "relations:xenophobia":     [("values:xenophilia", -1.0)],
+    "techno:science":           [("values:erudition",   1.0)],
+    "techno:industrialism":     [
+        ("values:tenacity",     0.7),
+        ("values:adaptability", 0.7),
+        ("values:moderation",  -0.3),
+    ],
+    "relations:diplomacy":      [
+        ("values:solidarity",   0.5),
+        ("values:honor",        0.5),
+    ],
+}
+
+
+def expand_culture_tag(tag: str, delta: float) -> list[tuple[str, float]]:
+    """Return (canonical_tag, adjusted_delta) pairs for a mutation.
+
+    If `tag` is an alias, fans out to canonical targets with scaled deltas.
+    Otherwise returns [(tag, delta)] unchanged.
+    """
+    if tag in CULTURE_TAG_ALIASES:
+        return [(canonical, delta * mult) for canonical, mult in CULTURE_TAG_ALIASES[tag]]
+    return [(tag, delta)]
+
+
+def migrate_culture_tags(tags: dict[str, float]) -> dict[str, float]:
+    """Convert a culture_tags dict from old keys to canonical new ones.
+
+    Additive: if both old and new keys are present, values are summed and
+    clamped to [-1.0, 1.0] for signed tags or [0.0, 1.0] for unsigned.
+    Call this at load time to keep saves forward-compatible.
+    """
+    if not any(t in CULTURE_TAG_ALIASES for t in tags):
+        return tags
+    result: dict[str, float] = {}
+    for tag, value in tags.items():
+        for canonical, mult in CULTURE_TAG_ALIASES.get(tag, [(tag, 1.0)]):
+            result[canonical] = result.get(canonical, 0.0) + value * mult
+    _s_prefixes = ("values:", "practice:")
+    for k, v in result.items():
+        if k.startswith(_s_prefixes):
+            result[k] = max(-1.0, min(1.0, v))
+        else:
+            result[k] = max(0.0, min(1.0, v))
+    return result
 
 
 def is_culture_tag(tag: str) -> bool:
@@ -250,6 +319,108 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     ("values:adaptability",        "relations:diplomacy",          0.35),
     ("values:prosperity",          "relations:imperialism",        0.35),
     ("values:moderation",          "relations:isolationism",       0.30),
+    # ── New canonical values ──────────────────────────────────────────────
+    # values:honor (replaces values:honesty)
+    ("values:honor",               "values:sincerity",             0.65),
+    ("values:honor",               "structure:cooperation",        0.45),
+    ("values:honor",               "relations:diplomacy",          0.40),
+    ("values:honor",               "values:hierarchy",             0.40),
+    ("values:honor",               "values:humility",              0.30),
+    ("values:honor",               "values:solidarity",            0.45),
+    # values:prowess (replaces values:ambition)
+    ("values:prowess",             "values:tenacity",              0.60),
+    ("values:prowess",             "values:prosperity",            0.50),
+    ("values:prowess",             "structure:competition",        0.55),
+    ("values:prowess",             "structure:hierarchy",          0.40),
+    ("values:prowess",             "relations:imperialism",        0.45),
+    ("values:prowess",             "values:meritocracy",           0.55),
+    ("values:prowess",             "values:humility",             -0.65),
+    ("values:prowess",             "values:solidarity",           -0.30),
+    # values:hierarchy
+    ("values:hierarchy",           "structure:hierarchy",          0.85),
+    ("values:hierarchy",           "practice:slavery",             0.55),
+    ("values:hierarchy",           "relations:conquest",           0.40),
+    ("values:hierarchy",           "values:meritocracy",           0.40),
+    ("values:hierarchy",           "values:autonomy",             -0.50),
+    ("values:hierarchy",           "structure:egalitarianism",    -0.85),
+    ("values:hierarchy",           "values:solidarity",           -0.35),
+    # values:sedentism
+    ("values:sedentism",           "practice:sedentism",           0.90),
+    ("values:sedentism",           "practice:agriculture",         0.80),
+    ("values:sedentism",           "techno:industrialism",         0.65),
+    ("values:sedentism",           "structure:hierarchy",          0.50),
+    ("values:sedentism",           "values:moderation",            0.35),
+    ("values:sedentism",           "values:tenacity",              0.30),
+    ("values:sedentism",           "practice:nomadism",           -0.80),
+    ("values:sedentism",           "values:adaptability",         -0.30),
+    # values:xenophilia
+    ("values:xenophilia",          "relations:xenophilia",         0.90),
+    ("values:xenophilia",          "relations:diplomacy",          0.65),
+    ("values:xenophilia",          "relations:commerce",           0.50),
+    ("values:xenophilia",          "structure:egalitarianism",     0.45),
+    ("values:xenophilia",          "values:adaptability",          0.40),
+    ("values:xenophilia",          "relations:xenophobia",        -0.90),
+    ("values:xenophilia",          "relations:protectionism",     -0.50),
+    # values:meritocracy
+    ("values:meritocracy",         "structure:competition",        0.50),
+    ("values:meritocracy",         "values:erudition",             0.45),
+    ("values:meritocracy",         "structure:hierarchy",          0.35),
+    ("values:meritocracy",         "values:pragmatism",            0.40),
+    ("values:meritocracy",         "values:idealism",              0.30),
+    # values:solidarity
+    ("values:solidarity",          "values:charity",               0.65),
+    ("values:solidarity",          "structure:cooperation",        0.70),
+    ("values:solidarity",          "structure:egalitarianism",     0.55),
+    ("values:solidarity",          "values:idealism",              0.40),
+    ("values:solidarity",          "values:autonomy",             -0.50),
+    # values:autonomy
+    ("values:autonomy",            "structure:competition",        0.35),
+    ("values:autonomy",            "values:adaptability",          0.45),
+    ("values:autonomy",            "values:wit",                   0.30),
+    ("values:autonomy",            "structure:cooperation",       -0.25),
+    # ── New practice tags ─────────────────────────────────────────────────
+    # Arts & performance inter-synergies
+    ("practice:music",             "practice:dance",               0.70),
+    ("practice:music",             "practice:ritual",              0.55),
+    ("practice:music",             "practice:theatre",             0.50),
+    ("practice:music",             "practice:revelry",             0.60),
+    ("practice:music",             "practice:poetry",              0.45),
+    ("practice:dance",             "practice:ritual",              0.50),
+    ("practice:dance",             "practice:revelry",             0.65),
+    ("practice:dance",             "practice:athletics",           0.40),
+    ("practice:visual",            "practice:crafts",              0.60),
+    ("practice:visual",            "practice:theatre",             0.45),
+    ("practice:theatre",           "practice:lit",                 0.55),
+    ("practice:theatre",           "practice:poetry",              0.50),
+    ("practice:lit",               "practice:poetry",              0.65),
+    ("practice:crafts",            "practice:culinary",            0.40),
+    ("practice:athletics",         "practice:combat",              0.55),
+    ("practice:ritual",            "practice:revelry",             0.50),
+    # Practice × values cross-synergies
+    ("values:erudition",           "practice:lit",                 0.55),
+    ("values:erudition",           "practice:poetry",              0.40),
+    ("values:erudition",           "practice:visual",              0.35),
+    ("values:folk_wisdom",         "practice:crafts",              0.55),
+    ("values:folk_wisdom",         "practice:culinary",            0.50),
+    ("values:folk_wisdom",         "practice:ritual",              0.50),
+    ("values:indulgence",          "practice:revelry",             0.60),
+    ("values:indulgence",          "practice:culinary",            0.50),
+    ("values:indulgence",          "practice:music",               0.40),
+    ("values:prosperity",          "practice:crafts",              0.35),
+    ("values:wit",                 "practice:theatre",             0.50),
+    ("values:wit",                 "practice:poetry",              0.45),
+    ("values:humility",            "practice:ritual",              0.35),
+    ("values:pragmatism",          "practice:combat",              0.30),
+    ("values:tenacity",            "practice:athletics",           0.45),
+    ("values:tenacity",            "practice:combat",              0.40),
+    ("values:idealism",            "practice:visual",              0.40),
+    ("values:idealism",            "practice:poetry",              0.40),
+    ("values:honor",               "practice:combat",              0.50),
+    ("values:honor",               "practice:ritual",              0.40),
+    ("values:solidarity",          "practice:ritual",              0.45),
+    ("values:solidarity",          "practice:revelry",             0.40),
+    ("values:prowess",             "practice:athletics",           0.55),
+    ("values:prowess",             "practice:combat",              0.50),
 ]
 
 
@@ -374,6 +545,98 @@ _DOMAIN_AFFINITY_DATA: dict[str, dict[str, float]] = {
         "domain:water": 0.10,
         "domain:mastery": -0.20,
     },
+    # ── New canonical values ─────────────────────────────────────────────
+    "values:honor": {
+        "domain:truth": 0.25, "domain:order": 0.20, "domain:light": 0.20,
+        "domain:community": 0.15,
+        "domain:secrecy": -0.30, "domain:void": -0.10,
+    },
+    "values:prowess": {
+        "domain:mastery": 0.35, "domain:conflict": 0.20, "domain:fire": 0.15,
+        "domain:silence": -0.20, "domain:community": -0.15,
+    },
+    "values:hierarchy": {
+        "domain:order": 0.35, "domain:mastery": 0.20, "domain:community": 0.10,
+        "domain:conflict": 0.15,
+        "domain:change": -0.15,
+    },
+    "values:sedentism": {
+        "domain:memory": 0.25, "domain:order": 0.20, "domain:growth": 0.15,
+        "domain:community": 0.15,
+        "domain:change": -0.20, "domain:water": -0.10,
+    },
+    "values:xenophilia": {
+        "domain:change": 0.30, "domain:water": 0.20, "domain:truth": 0.15,
+        "domain:secrecy": -0.15, "domain:order": -0.10,
+    },
+    "values:meritocracy": {
+        "domain:mastery": 0.30, "domain:truth": 0.20, "domain:order": 0.15,
+        "domain:community": -0.10,
+    },
+    "values:solidarity": {
+        "domain:community": 0.35, "domain:sacrifice": 0.20, "domain:light": 0.15,
+        "domain:mastery": -0.20, "domain:secrecy": -0.15,
+    },
+    "values:autonomy": {
+        "domain:change": 0.25, "domain:mastery": 0.20, "domain:fire": 0.15,
+        "domain:order": -0.25, "domain:community": -0.20,
+    },
+    # ── New practice tags ────────────────────────────────────────────────
+    "practice:music": {
+        "domain:community": 0.25, "domain:memory": 0.20, "domain:fire": 0.15,
+        "domain:change": 0.10,
+        "domain:silence": -0.20,
+    },
+    "practice:dance": {
+        "domain:fire": 0.25, "domain:change": 0.20, "domain:community": 0.20,
+        "domain:silence": -0.20, "domain:order": -0.10,
+    },
+    "practice:visual": {
+        "domain:truth": 0.20, "domain:light": 0.20, "domain:memory": 0.15,
+        "domain:mastery": 0.15,
+        "domain:void": -0.10,
+    },
+    "practice:theatre": {
+        "domain:truth": 0.20, "domain:change": 0.20, "domain:community": 0.15,
+        "domain:secrecy": 0.15,
+        "domain:silence": -0.15,
+    },
+    "practice:lit": {
+        "domain:truth": 0.25, "domain:memory": 0.25, "domain:mastery": 0.15,
+        "domain:void": -0.10,
+    },
+    "practice:poetry": {
+        "domain:truth": 0.20, "domain:memory": 0.15, "domain:change": 0.15,
+        "domain:water": 0.10,
+        "domain:silence": -0.10,
+    },
+    "practice:crafts": {
+        "domain:mastery": 0.30, "domain:growth": 0.15, "domain:memory": 0.15,
+        "domain:void": -0.10,
+    },
+    "practice:culinary": {
+        "domain:growth": 0.20, "domain:fire": 0.20, "domain:community": 0.20,
+        "domain:water": 0.10,
+        "domain:decay": -0.10,
+    },
+    "practice:athletics": {
+        "domain:mastery": 0.25, "domain:conflict": 0.20, "domain:fire": 0.15,
+        "domain:silence": -0.10,
+    },
+    "practice:combat": {
+        "domain:conflict": 0.30, "domain:mastery": 0.25, "domain:fire": 0.20,
+        "domain:community": -0.20, "domain:light": -0.10,
+    },
+    "practice:ritual": {
+        "domain:order": 0.25, "domain:memory": 0.20, "domain:community": 0.20,
+        "domain:sacrifice": 0.20,
+        "domain:change": -0.15,
+    },
+    "practice:revelry": {
+        "domain:fire": 0.25, "domain:community": 0.30, "domain:change": 0.15,
+        "domain:water": 0.10,
+        "domain:silence": -0.25, "domain:order": -0.15,
+    },
 }
 
 
@@ -427,16 +690,6 @@ class CultureRegistry:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path)
         try:
-            try:
-                already_seeded = conn.execute(
-                    "SELECT COUNT(*) FROM culture_registry"
-                ).fetchone()[0] > 0
-            except sqlite3.OperationalError:
-                already_seeded = False
-
-            if already_seeded:
-                return
-
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS culture_registry (
                     tag          TEXT PRIMARY KEY,
