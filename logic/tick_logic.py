@@ -467,7 +467,7 @@ _SOCIAL_CLASS_RANK: dict[str, int] = {
     "wild":       -2,   # No social structure at all (pre-sapient pods, true wilderness).
     "feral":      -1,   # Partially or recently de-civilized — outside class but not pre-social.
     "underclass":  0, "common": 1, "artisan": 2, "merchant": 3,
-    "warrior":     4, "priest": 5, "elite":   6,
+    "warrior":     4, "scholar": 5, "elite":   6,
 }
 
 _CIV_SCALE_CONTACT_RANK: dict[str, int] = {
@@ -484,7 +484,7 @@ _STRATUM_SUSCEPTIBILITY: dict[str, float] = {
     "merchant": -0.12,
     "elite":    -0.06,
     "warrior":  +0.06,
-    "priest":   +0.12,
+    "scholar":  +0.12,
 }
 
 # ─────────────────────────────────────────
@@ -3359,7 +3359,7 @@ class TickLoop:
             # ── Pops
             # Pops are gated on their civilization being in-window.
             # Discovery probability scales with Pop size and social class prominence.
-            _PROMINENT_CLASSES = {"elite", "priest", "warrior"}
+            _PROMINENT_CLASSES = {"elite", "scholar", "warrior"}
             for pid, pop in state.pops.items():
                 if pop.pinned:
                     continue

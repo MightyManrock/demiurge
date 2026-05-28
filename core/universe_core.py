@@ -266,7 +266,7 @@ class SocialClass(str, Enum):
     ARTISAN    = "artisan"      # Skilled specialists and craftspeople
     MERCHANT   = "merchant"     # Traders and economic actors
     WARRIOR    = "warrior"      # Martial class
-    PRIEST     = "priest"       # Religious and scholarly class
+    SCHOLAR    = "scholar"      # Religious and scholarly class
     ELITE      = "elite"        # Ruling class and aristocracy
 
 
