@@ -4598,9 +4598,11 @@ class TickLoop:
                 continue
 
             civ.culture_tags = {
-                tag: min(1.0, val / total_weight)
+                tag: (max(-1.0, min(1.0, val / total_weight))
+                      if tag.startswith(("values:", "practice:"))
+                      else min(1.0, val / total_weight))
                 for tag, val in weighted.items()
-                if val / total_weight > CULTURE_FLOOR
+                if abs(val / total_weight) > CULTURE_FLOOR
             }
 
     def _build_domain_profile(
@@ -5023,14 +5025,14 @@ class TickLoop:
                 tag: s for tag, s in pop.dominant_beliefs.items() if s > BELIEF_FLOOR
             }
             pop.culture_tags = {
-                tag: s for tag, s in pop.culture_tags.items() if s > CULTURE_FLOOR
+                tag: s for tag, s in pop.culture_tags.items() if abs(s) > CULTURE_FLOOR
             }
         for mortal in state.mortals.values():
             mortal.belief_tags = {
                 tag: s for tag, s in mortal.belief_tags.items() if s > BELIEF_FLOOR
             }
             mortal.culture_tags = {
-                tag: s for tag, s in mortal.culture_tags.items() if s > CULTURE_FLOOR
+                tag: s for tag, s in mortal.culture_tags.items() if abs(s) > CULTURE_FLOOR
             }
         return state
 
@@ -5755,14 +5757,18 @@ class TickLoop:
                             for i in range(1, 3):
                                 tick_rate = base_rate * (1.0 + i * 0.05)
                                 raw_delta = tick_rate * cv.direction
+                                _s = cv.culture_tag.startswith(("values:", "practice:"))
                                 if cv.culture_tag.startswith("values:"):
                                     raw_delta *= _stub_mult
-                                raw_delta *= self._belief_inertia(current, raw_delta)
-                                cap = BELIEF_CAP if raw_delta > 0 else 1.0
-                                current = max(0.0, min(cap, current + raw_delta))
+                                raw_delta *= self._belief_inertia(abs(current) if _s else current, raw_delta)
+                                if _s:
+                                    current = max(-1.0, min(1.0, current + raw_delta))
+                                else:
+                                    cap = BELIEF_CAP if raw_delta > 0 else 1.0
+                                    current = max(0.0, min(cap, current + raw_delta))
                             new_culture[cv.culture_tag] = current
                         new_culture = {
-                            k: v for k, v in new_culture.items() if v > CULTURE_FLOOR
+                            k: v for k, v in new_culture.items() if abs(v) > CULTURE_FLOOR
                         }
 
                         pop_b = Pop(
@@ -7114,14 +7120,18 @@ class TickLoop:
                 if tid and tid in state.mortals and tag:
                     culture = state.mortals[tid].culture_tags
                     current = culture.get(tag, 0.0)
-                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    _s = tag.startswith(("values:", "practice:"))
+                    delta = (m.delta or 0.0) * self._belief_inertia(abs(current) if _s else current, m.delta or 0.0)
                     # values:* tags are stubborn — extra dampening on either direction.
                     if tag.startswith("values:"):
                         delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
-                    cap = BELIEF_CAP if delta > 0 else 1.0
-                    new_strength = max(0.0, min(cap, current + delta))
+                    if _s:
+                        new_strength = max(-1.0, min(1.0, current + delta))
+                    else:
+                        cap = BELIEF_CAP if delta > 0 else 1.0
+                        new_strength = max(0.0, min(cap, current + delta))
                     # Sub-floor accumulation — see MORTAL_BELIEF_SHIFT above.
-                    if new_strength > 1e-5:
+                    if abs(new_strength) > 1e-5:
                         culture[tag] = new_strength
                     elif tag in culture:
                         del culture[tag]
@@ -7156,13 +7166,17 @@ class TickLoop:
                 if tid and tid in state.civilizations and tag:
                     est_cult = state.civilizations[tid].established_culture_tags
                     current = est_cult.get(tag, 0.0)
-                    delta = (m.delta or 0.0) * self._belief_inertia(current, m.delta or 0.0)
+                    _s = tag.startswith(("values:", "practice:"))
+                    delta = (m.delta or 0.0) * self._belief_inertia(abs(current) if _s else current, m.delta or 0.0)
                     # values:* tags are stubborn — extra dampening on either direction.
                     if tag.startswith("values:"):
                         delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
-                    cap = BELIEF_CAP if delta > 0 else 1.0
-                    new_strength = max(0.0, min(cap, current + delta))
-                    if new_strength > CULTURE_FLOOR:
+                    if _s:
+                        new_strength = max(-1.0, min(1.0, current + delta))
+                    else:
+                        cap = BELIEF_CAP if delta > 0 else 1.0
+                        new_strength = max(0.0, min(cap, current + delta))
+                    if abs(new_strength) > CULTURE_FLOOR:
                         est_cult[tag] = new_strength
                     elif tag in est_cult:
                         del est_cult[tag]
@@ -7211,17 +7225,21 @@ class TickLoop:
                 if tid and tid in state.pops and tag and m.delta is not None:
                     pop = state.pops[tid]
                     current = pop.culture_tags.get(tag, 0.0)
-                    delta = m.delta * self._belief_inertia(current, m.delta)
+                    _s = tag.startswith(("values:", "practice:"))
+                    delta = m.delta * self._belief_inertia(abs(current) if _s else current, m.delta)
                     # values:* tags are stubborn — extra dampening on either direction.
                     if tag.startswith("values:"):
                         delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
-                    cap = BELIEF_CAP if delta > 0 else 1.0
-                    new_val = max(0.0, min(cap, current + delta))
+                    if _s:
+                        new_val = max(-1.0, min(1.0, current + delta))
+                    else:
+                        cap = BELIEF_CAP if delta > 0 else 1.0
+                        new_val = max(0.0, min(cap, current + delta))
                     # Sub-floor accumulation (lever C, culture variant): allow
                     # entries to persist below CULTURE_FLOOR within a tick so
                     # repeated splashes can compound. `_prune_weak_beliefs`
                     # clears entries still under floor at the next passive phase.
-                    if new_val > 1e-5:
+                    if abs(new_val) > 1e-5:
                         pop.culture_tags[tag] = new_val
                     elif tag in pop.culture_tags:
                         del pop.culture_tags[tag]
