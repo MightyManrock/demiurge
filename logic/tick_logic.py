@@ -567,9 +567,10 @@ class TickConfig(BaseModel):
     # Sapient Pops (via essence_pop_weight) collectively outweigh any single
     # location; locations outweigh pre-sapient Pops; mortals are the floor.
 
-    essence_pop_weight: float = 10.0
+    essence_pop_weight: float = 1.0
     # Baseline multiplier applied to all Pop dominant_beliefs contributions
     # (before scale_mult and belief-match bonuses are applied).
+    # At 1×, Pop dominance reflects sheer numbers/size rather than artificial amplification.
 
     essence_mortal_weight: float = 0.5
     # Multiplier for NotableMortal.belief_tags contributions.
