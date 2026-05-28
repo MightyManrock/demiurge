@@ -356,6 +356,7 @@ class Pop(BaseModel):
     visibility: float = 0.0
     pinned: bool = False
     visibility_stall_remaining: int = 0
+    occupation: str = ""
 
 
 # ─────────────────────────────────────────
@@ -504,6 +505,7 @@ class NotableMortal(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     description: str = ""
+    occupation: str = ""
     civilization_id: Optional[UUID] = None
     role: MortalRole = MortalRole.OTHER
     status: MortalStatus = MortalStatus.ACTIVE

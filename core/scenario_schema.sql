@@ -231,7 +231,8 @@ CREATE TABLE IF NOT EXISTS pops (
     pinned           INTEGER NOT NULL DEFAULT 0,
     visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
     preaching_imago_id            TEXT DEFAULT NULL,     -- imago_node_id if this Pop is an active preaching goal target
-    preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0  -- tick before which Pop cannot be a source target
+    preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0,  -- tick before which Pop cannot be a source target
+    occupation                    TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS mortals (
@@ -275,7 +276,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     fatigue                REAL NOT NULL DEFAULT 0.0,
     assets                 TEXT NOT NULL DEFAULT '[]',   -- JSON array of MortalAsset
     knowledge_base         TEXT DEFAULT NULL,            -- JSON of KnowledgeBase, or NULL
-    civilian_state         TEXT DEFAULT NULL             -- JSON of CivilianAgentState, or NULL
+    civilian_state         TEXT DEFAULT NULL,            -- JSON of CivilianAgentState, or NULL
+    occupation             TEXT NOT NULL DEFAULT ''
 );
 
 -- ─────────────────────────────────────────

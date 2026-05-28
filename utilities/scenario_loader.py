@@ -668,6 +668,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
             preaching_imago_id=row.get("preaching_imago_id"),
             preaching_goal_cooldown_until=int(row.get("preaching_goal_cooldown_until") or 0),
+            occupation=row.get("occupation", ""),
         )
         out[str(p.id)] = p
     return out
@@ -714,6 +715,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             origin_pop_subsumed=bool(row.get("origin_pop_subsumed", 0)),
             last_audit_text=row.get("last_audit_text"),
             last_audit_tick=(int(row["last_audit_tick"]) if row.get("last_audit_tick") is not None else None),
+            occupation=row.get("occupation", ""),
         )
         out[str(m.id)] = m
     return out

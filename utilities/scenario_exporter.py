@@ -466,8 +466,9 @@ def _write_pops(conn, state: SimulationState):
                 dominant_beliefs, culture_tags, rider_traits,
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
                 visibility, pinned, visibility_stall_remaining,
-                preaching_imago_id, preaching_goal_cooldown_until)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                preaching_imago_id, preaching_goal_cooldown_until,
+                occupation)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -489,6 +490,7 @@ def _write_pops(conn, state: SimulationState):
                 p.visibility_stall_remaining,
                 p.preaching_imago_id,
                 p.preaching_goal_cooldown_until,
+                p.occupation,
             ),
         )
 
@@ -509,8 +511,9 @@ def _write_mortals(conn, state: SimulationState):
                 pop_id, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json,
-                fatigue, assets, knowledge_base, civilian_state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                fatigue, assets, knowledge_base, civilian_state,
+                occupation)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -553,6 +556,7 @@ def _write_mortals(conn, state: SimulationState):
                 json.dumps([a.model_dump() for a in m.assets]),
                 m.knowledge_base.model_dump_json() if m.knowledge_base else None,
                 m.civilian_state.model_dump_json() if m.civilian_state else None,
+                m.occupation,
             ),
         )
 
