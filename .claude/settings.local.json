@@ -6,7 +6,10 @@
       "Bash(mv onto_core.py universe_core.py action_core.py eval_core.py scenario_schema.sql core/)",
       "Bash(mv scenario_loader.py scenario_exporter.py domain_registry.py culture_registry.py imago_registry.py utilities/)",
       "Bash(mv tick_logic.py logic/)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
