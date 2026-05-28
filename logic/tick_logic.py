@@ -1267,7 +1267,8 @@ class TickLoop:
         result.agent_narratives.extend(agent_narratives)
 
         # ── Phase 2.55: Civilian Agent Actions ─────────
-        self._tick_civilian_agents(state, state.tick_number)
+        civilian_narratives = self._tick_civilian_agents(state, state.tick_number)
+        result.mortal_narratives.extend(civilian_narratives)
 
         # ── Phase 2.6: Mortal Travel ────────────────────
         travel_decisions = self._resolve_mortal_travel_decisions(state)
@@ -5320,9 +5321,10 @@ class TickLoop:
 
         return narratives
 
-    def _tick_civilian_agents(self, state: SimulationState, current_tick: int) -> None:
+    def _tick_civilian_agents(self, state: SimulationState, current_tick: int) -> list[str]:
         """Phase 2.55 — run autonomous civilian agent logic for each mortal with civilian_state."""
         import uuid as _uuid_mod
+        narratives: list[str] = []
         for mortal in state.mortals.values():
             cs = mortal.civilian_state
             if cs is None:
@@ -5351,6 +5353,10 @@ class TickLoop:
                     res.quantity += cr.resource_yield
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
                     cs.action_cooldowns["collect"] = current_tick + cr.cooldown_ticks
+                    narratives.append(
+                        f"{mortal.name} collects {cr.resource_yield} {cr.resource_type} "
+                        f"(total: {res.quantity:.0f})."
+                    )
 
             elif action == "sell":
                 loc = state.locations.get(str(mortal.current_location))
@@ -5374,9 +5380,14 @@ class TickLoop:
                     if res.fills_need:
                         need = next((n for n in cs.needs if n.name == res.fills_need), None)
                         if need:
-                            need.satisfaction = min(1.0, need.satisfaction + min(0.4, credits_gained * 0.05))
+                            need.satisfaction = 1.0
+                            need.satiation_hold = round(8 * quality)
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
                     cs.action_cooldowns["sell"] = current_tick + 2
+                    narratives.append(
+                        f"{mortal.name} sells {units} {res.resource_type} "
+                        f"for {credits_gained:.0f} credits."
+                    )
                     break
 
             elif action == "spend":
@@ -5409,6 +5420,11 @@ class TickLoop:
                         if need.satisfaction >= 1.0:
                             need.satiation_hold = hold_ticks
                     cs.action_cooldowns["spend"] = current_tick + 2
+                    need_names = ", ".join(n.name for n in needs_to_fill)
+                    narratives.append(
+                        f"{mortal.name} spends {n_units} credits on {need_names} "
+                        f"(+{gain_per_need:.2f} satisfaction)."
+                    )
                     break
 
             elif action and action.startswith("travel:"):
@@ -5428,8 +5444,13 @@ class TickLoop:
                         )
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
                         cs.action_cooldowns["travel"] = current_tick + 1
+                        dest_loc = state.locations.get(dest_id)
+                        dest_name = dest_loc.name if dest_loc else dest_id
+                        narratives.append(f"{mortal.name} departs for {dest_name}.")
                 except (ValueError, Exception):
                     pass
+
+        return narratives
 
     def _resolve_proxius_agents(
         self,
