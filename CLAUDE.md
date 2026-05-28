@@ -62,8 +62,12 @@ demiurge/
 ├── core/core.db           # scenario-agnostic registries
 ├── scenarios/*.db         # scenario starting points
 ├── saves/*.db             # mid-run save files
-└── docs/                  # design docs (Obsidian vault) + plans/
-    └── Mechanics/         # per-topic deep-dives (see below)
+├── docs/                  # human-readable docs (player-facing; reserved for future use)
+└── docs/.dev/             # development docs (Obsidian vault, plans, mechanics deep-dives)
+    ├── Mechanics/         # per-system deep-dives (see below)
+    ├── plans/             # implementation plans + PLANS.md index
+    ├── Brainstorming/     # design explorations not yet committed to a plan
+    └── superpowers/plans/ # agentic implementation plans (recent work)
 ```
 
 ## Architectural layers
@@ -79,13 +83,14 @@ The codebase is strictly layered. `logic/tick_logic.py` knows nothing about SQL 
 | `core/action_core.py` | Action taxonomy: `ActionDefinition`, `ActionInstance`, `OngoingAction`, all `*Intent` types, `build_action_library()` |
 | `core/eval_core.py` | Luminary evaluation: `UniverseDomainProfile`, `LuminaryEvaluation`, `DispositionDelta`, `EvaluationEngine` |
 | `core/event_core.py` | Multi-tick effect system: `Event`, `EventType`, `StrengthCurve` |
-| `core/agent_core.py` | `ProxiusGoal`, `AgentActionChoice` |
+| `core/agent_core.py` | `ProxiusGoal`, `AgentActionChoice`, `CivilianAgentState`, `KnowledgeBase`, `MortalNeed`, `Resource`, `RouteFact`, `LocationFact`, `LocationQualityFact` |
 
 ### Engine, registries, and persistence
 
 | File | What it does |
 |---|---|
-| `logic/tick_logic.py` | The simulation engine: `SimulationState`, `TickLoop`, all six tick phases |
+| `logic/tick_logic.py` | The simulation engine: `SimulationState`, `TickLoop`, all six tick phases + Phase 2.55 civilian agents |
+| `logic/civilian_agent_logic.py` | `evaluate_civilian_action()` — autonomous decision loop for mortals with `civilian_state` (sell → spend → collect priority) |
 | `utilities/domain_registry.py` | Canonical `domain:...` list, pairwise similarity, `luminary_approval()` |
 | `utilities/culture_registry.py` | Canonical `culture:...` traits, pairwise synergy |
 | `utilities/imago_registry.py` | 112 `ImagoNode` records across 16 trees |
@@ -117,23 +122,23 @@ The TUI is a tabbed workspace: left panel (`Status`, `Locations`, `Entities`, `A
 
 ## Mechanics reference
 
-Deep-dive docs live in `docs/Mechanics/`. Reach for these when working on a specific system:
+Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a specific system:
 
 | Topic | File |
 |-------|------|
-| Tick loop, mutation pattern, queue, ongoing actions, active events | [tick-loop.md](docs/Mechanics/tick-loop.md) |
-| Action system, adding new actions, success rolls, puissance | [action-system.md](docs/Mechanics/action-system.md) |
-| Domain tags, similarity, affiliated domains | [domain-system.md](docs/Mechanics/domain-system.md) |
-| Luminary personality axes | [luminary-personality.md](docs/Mechanics/luminary-personality.md) |
-| Essence generation and claim split | [essence-generation.md](docs/Mechanics/essence-generation.md) |
-| Imago trees, mechanics dict, influence integration | [imago-system.md](docs/Mechanics/imago-system.md) |
-| Revelation accumulation and reveal actions | [imago-revelation.md](docs/Mechanics/imago-revelation.md) |
-| Whisper, Shape Dream, Manifest Omen; influence success roll | [influence-actions.md](docs/Mechanics/influence-actions.md) |
-| Belief/culture floors, caps, inertia; footprint | [belief-footprint.md](docs/Mechanics/belief-footprint.md) |
-| Window visibility, entity decay | [window-visibility.md](docs/Mechanics/window-visibility.md) |
-| Scry scope and discovery | [scry-action.md](docs/Mechanics/scry-action.md) |
-| Mortal aging, alignment, prominence | [mortal-system.md](docs/Mechanics/mortal-system.md) |
-| Proxii, authored splinters, planned agent tiers | [agent-system.md](docs/Mechanics/agent-system.md) |
+| Tick loop, mutation pattern, queue, ongoing actions, active events | [tick-loop.md](docs/.dev/Mechanics/tick-loop.md) |
+| Action system, adding new actions, success rolls, puissance | [action-system.md](docs/.dev/Mechanics/action-system.md) |
+| Domain tags, similarity, affiliated domains | [domain-system.md](docs/.dev/Mechanics/domain-system.md) |
+| Luminary personality axes | [luminary-personality.md](docs/.dev/Mechanics/luminary-personality.md) |
+| Essence generation and claim split | [essence-generation.md](docs/.dev/Mechanics/essence-generation.md) |
+| Imago trees, mechanics dict, influence integration | [imago-system.md](docs/.dev/Mechanics/imago-system.md) |
+| Revelation accumulation and reveal actions | [imago-revelation.md](docs/.dev/Mechanics/imago-revelation.md) |
+| Whisper, Shape Dream, Manifest Omen; influence success roll | [influence-actions.md](docs/.dev/Mechanics/influence-actions.md) |
+| Belief/culture floors, caps, inertia; footprint | [belief-footprint.md](docs/.dev/Mechanics/belief-footprint.md) |
+| Window visibility, entity decay | [window-visibility.md](docs/.dev/Mechanics/window-visibility.md) |
+| Scry scope and discovery | [scry-action.md](docs/.dev/Mechanics/scry-action.md) |
+| Mortal aging, alignment, prominence | [mortal-system.md](docs/.dev/Mechanics/mortal-system.md) |
+| Proxii, authored splinters, planned agent tiers; civilian agent system | [agent-system.md](docs/.dev/Mechanics/agent-system.md) |
 
 ## Extending the system
 
@@ -143,9 +148,18 @@ Deep-dive docs live in `docs/Mechanics/`. Reach for these when working on a spec
 
 **Adding a new model field**: (1) add to the Pydantic model with a default; (2) add the column to `core/scenario_schema.sql`; (3) load it in `utilities/scenario_loader.py` via `row.get("column", default)`; (4) export in `utilities/scenario_exporter.py`.
 
-**Adding a new constraint subtype**: (1) define a new `XConstraint(BaseModel)` with `constraint_type: Literal["x"] = "x"` in `core/onto_core.py`; (2) add it to the `Constraint` union; (3) add a dispatch branch in the `scenario_loader.py` constraint loop; (4) handle `isinstance(c, XConstraint)` in `scenario_exporter.py` INSERT; (5) evaluate it in the per-luminary and Pantheon fan-out loops in `tick_logic.py`; (6) add the `constraint_type` value and any new columns to `core/scenario_schema.sql`. See [belief-footprint.md](docs/Mechanics/belief-footprint.md) for FootprintConstraint as a reference implementation.
+**Adding a new constraint subtype**: (1) define a new `XConstraint(BaseModel)` with `constraint_type: Literal["x"] = "x"` in `core/onto_core.py`; (2) add it to the `Constraint` union; (3) add a dispatch branch in the `scenario_loader.py` constraint loop; (4) handle `isinstance(c, XConstraint)` in `scenario_exporter.py` INSERT; (5) evaluate it in the per-luminary and Pantheon fan-out loops in `tick_logic.py`; (6) add the `constraint_type` value and any new columns to `core/scenario_schema.sql`. See [belief-footprint.md](docs/.dev/Mechanics/belief-footprint.md) for FootprintConstraint as a reference implementation.
 
 **Adding a new autoplay strategy**: create `autoplay/strategies/<name>.py` exporting `decide(loop, state, tick) -> str`.
+
+## Planning framework
+
+Active implementation plans live in [`docs/.dev/plans/PLANS.md`](docs/.dev/plans/PLANS.md). The index lists active/parked plans only — complete plans are pruned. Playtest notes and future ideas go in [`docs/.dev/TO-PLAN.md`](docs/.dev/TO-PLAN.md).
+
+- `docs/.dev/plans/` — one `.md` per plan; new plans follow the existing format (status/ref/last-updated header, goal, approach, files affected)
+- `docs/.dev/Brainstorming/` — design explorations not yet committed to a plan
+- `docs/.dev/superpowers/plans/` — agentic implementation plans for recent feature work
+- `docs/` — reserved for future player-facing documentation
 
 ## Known issues
 
