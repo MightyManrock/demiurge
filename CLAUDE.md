@@ -22,7 +22,19 @@ python main.py --edit-scenario        # scenario builder/editor (alias: --build-
 python main.py --inject NAME PATCH    # apply a JSON patch to scenarios/NAME.db (creates if missing)
 ```
 
-`main.py` is a thin gateway: it parses CLI flags and dispatches to `ui/ui.py` (TUI), `autoplay/autoplay.py` (headless), `tools/rebuild_databases.py`, `tools/imago_editor.py`, or `tools/scenario_builder/`. There is no test suite or linter; `--autoplay` is the closest thing to a regression test.
+`main.py` is a thin gateway: it parses CLI flags and dispatches to `ui/ui.py` (TUI), `autoplay/autoplay.py` (headless), `tools/rebuild_databases.py`, `tools/imago_editor.py`, or `tools/scenario_builder/`. `--autoplay` serves as the integration-level regression check; unit tests live in `tests/` (see Testing below).
+
+### Testing
+
+```bash
+source venv/bin/activate
+pytest                                # run the full suite (fast: ~0.3s)
+pytest tests/test_civilian_logic.py   # one file
+pytest -k fatigue                     # only tests matching a name pattern
+pytest -v                             # verbose: show each test
+```
+
+Unit tests cover pure-logic layers (`core/` models, `logic/` decision functions, `utilities/` registries) using `MagicMock` to stub out `Mortal` / `SimulationState` so each test sets only the few fields under test. UI and full-scenario integration are intentionally **not** unit-tested — `--autoplay` covers that ground. See [docs/.dev/testing.md](docs/.dev/testing.md) for the test index, conventions, and what to add when extending the simulation.
 
 ### Data editing tools
 
