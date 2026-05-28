@@ -270,6 +270,23 @@ class SocialClass(str, Enum):
     ELITE      = "elite"        # Ruling class and aristocracy
 
 
+# Canonical occupations per social stratum. Used for Pop.occupation (a Pop
+# representing a coherent occupational bloc) and as the seed vocabulary for
+# NotableMortal.occupation — though individual mortals will eventually support
+# far more variation than these canonical buckets.
+OCCUPATIONS_BY_CLASS: dict["SocialClass", tuple[str, ...]] = {
+    SocialClass.WILD:       ("forager", "raider"),
+    SocialClass.FERAL:      ("outcast", "criminal"),
+    SocialClass.UNDERCLASS: ("bonded", "dispossessed"),
+    SocialClass.COMMON:     ("producer", "laborer", "service", "transport", "professional"),
+    SocialClass.ARTISAN:    ("crafter", "builder", "engineer", "technician", "healer", "artist"),
+    SocialClass.TRADER:     ("merchant", "financier", "executive"),
+    SocialClass.WARRIOR:    ("soldier", "officer", "guard", "mercenary", "militia"),
+    SocialClass.SCHOLAR:    ("clergy", "scientist", "academic"),
+    SocialClass.ELITE:      ("poli_admin", "noble"),
+}
+
+
 class WildStratum(str, Enum):
     APEX     = "apex"      # Top predator / dominant organism
     HERD     = "herd"      # Prey species / herd animals

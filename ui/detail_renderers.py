@@ -334,7 +334,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
                 pm = "[dim]" if p_oow else ""
                 pe = "[/]" if p_oow else ""
                 is_wild = pop.is_wild
-                class_label = _pop_stratum_label(pop)
+                class_label = _pop_stratum_label(state, pop)
                 sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                 pop_stratum_md = _click_link("pop", str(pop.id), class_label)
                 if sp_obj:
@@ -556,7 +556,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
                     p_oow = not is_in_window(pop)
                     pm = "[dim]" if p_oow else ""
                     pe = "[/]" if p_oow else ""
-                    class_label = _pop_stratum_label(pop)
+                    class_label = _pop_stratum_label(state, pop)
                     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                     pop_stratum_md = _click_link("pop", str(pop.id), class_label)
                     if sp_obj:
@@ -664,7 +664,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
 
     pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
     if pop:
-        stratum = _pop_stratum_label(pop)
+        stratum = _pop_stratum_label(state, pop)
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
         pop_md = _click_link("pop", str(pop.id), f"{_e(stratum)}")
         if sp_obj:
@@ -718,13 +718,13 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 if g.source_pop_id:
                     src = state.pops.get(str(g.source_pop_id))
                     if src:
-                        slabel = _pop_stratum_label(src)
+                        slabel = _pop_stratum_label(state, src)
                         src_link = _click_link("pop", str(g.source_pop_id), f"{_e(slabel)}")
                         a(f"  source pop: {src_link}  sz:{src.size_magnitude}")
                 if g.goal_pop_id:
                     gp = state.pops.get(str(g.goal_pop_id))
                     if gp:
-                        glabel = _pop_stratum_label(gp)
+                        glabel = _pop_stratum_label(state, gp)
                         gp_link = _click_link("pop", str(g.goal_pop_id), f"{_e(glabel)}")
                         a(f"  goal pop:   {gp_link}  sz:{gp.size_magnitude}")
                 if g.research_domain:
@@ -748,12 +748,12 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 if g.source_pop_id:
                     src = state.pops.get(str(g.source_pop_id))
                     if src:
-                        slabel = src.name if src.name else _pop_stratum_label(src)
+                        slabel = src.name if src.name else _pop_stratum_label(state, src)
                         a(f"  source: {_click_link('pop', str(g.source_pop_id), _e(slabel))}")
                 if g.goal_pop_id:
                     gp = state.pops.get(str(g.goal_pop_id))
                     if gp:
-                        glabel = gp.name if gp.name else _pop_stratum_label(gp)
+                        glabel = gp.name if gp.name else _pop_stratum_label(state, gp)
                         a(f"  target: {_click_link('pop', str(g.goal_pop_id), _e(glabel))}")
                 elif not g.source_pop_id and g.target_civilization_id:
                     civ = state.civilizations.get(str(g.target_civilization_id))
@@ -980,7 +980,7 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     lines: list[str] = []
     a = lines.append
 
-    stratum = _pop_stratum_label(pop)
+    stratum = _pop_stratum_label(state, pop)
     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
     # Header uses Title Case even for the "wild" no-stratum fallback.
     if pop.is_wild and stratum == "wild":
@@ -1121,7 +1121,7 @@ def render_species_detail(state: "SimulationState", species_id: str) -> Text:
             p_oow = not is_in_window(pop)
             pm = "[dim]" if p_oow else ""
             pe = "[/]" if p_oow else ""
-            stratum = _pop_stratum_label(pop)
+            stratum = _pop_stratum_label(state, pop)
             pop_link = _click_link("pop", str(pop.id), f"{_e(stratum)}")
             civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
             if civ and not is_wild_civ(civ):
@@ -1248,7 +1248,7 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
             for pop, p_oow in civ_buckets[civ_key]:
                 pm = "[dim]" if p_oow else ""
                 pe = "[/]" if p_oow else ""
-                class_label = _pop_stratum_label(pop)
+                class_label = _pop_stratum_label(state, pop)
                 pop_link = _click_link("pop", str(pop.id), class_label)
                 sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                 sp_str = ""

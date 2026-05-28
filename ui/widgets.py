@@ -1043,7 +1043,7 @@ class UniverseTab(ContentTab):
                             return
                         pm = "[dim]" if (w_oow or civ_oow_local or p_oow) else ""
                         pe = "[/]" if (w_oow or civ_oow_local or p_oow) else ""
-                        class_label = _pop_stratum_label(pop)
+                        class_label = _pop_stratum_label(state, pop)
                         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                         pop_stratum_md = _click_link("pop", str(pop.id), class_label)
                         if sp_obj:

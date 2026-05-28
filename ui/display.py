@@ -231,25 +231,23 @@ def _color_short_tag(tag: str, value: float, *, with_value: bool = True, scale: 
     return _maybe_domain_link(tag, f"[{color}]{label}{suffix}[/]")
 
 
-def _pop_stratum_label(pop) -> str:
-    """Player-facing single-segment label for a Pop. When `pop.name` is set,
-    that authored name takes priority. Otherwise we render the computed
-    stratum — Title Case for civilized strata, the literal 'wild' (lowercase)
-    only when no wild_stratum is available either."""
-    if getattr(pop, "name", None):
-        return pop.name
-    if not pop.stratum:
-        return "Pop"
-    if pop.stratum == "wild":
-        return "wild"
-    return pop.stratum.title()
+def _pop_stratum_label(state, pop) -> str:
+    """Player-facing single-segment label for a Pop. Resolution order:
+    explicit `pop.name` → occupation alias scoped to the Pop's civ scale →
+    stratum label (Title Case, or the literal 'wild' for wild pops with no
+    `wild_stratum`). See `utilities/occupation_registry.pop_display_name`."""
+    from utilities.occupation_registry import pop_display_name
+    civ = None
+    if getattr(pop, "civilization_id", None) is not None and state is not None:
+        civ = state.civilizations.get(str(pop.civilization_id))
+    return pop_display_name(pop, civ)
 
 
 def _pop_identity_label(state, pop) -> str:
     """Full Pop identity for top-level contexts (detail-tab names, pickers,
     isolated rows): `(name or stratum) (Species)`. Falls back gracefully
     when species or stratum are missing."""
-    primary = _pop_stratum_label(pop)
+    primary = _pop_stratum_label(state, pop)
     sp = state.species.get(str(pop.species_id)) if pop.species_id else None
     if sp:
         return f"{primary} ({sp.name})"
@@ -413,7 +411,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
                 if p_oow and not dev_mode:
                     continue
                 pm = _OOW if (w_oow or c_oow or p_oow) else ""
-                class_label = _pop_stratum_label(pop)
+                class_label = _pop_stratum_label(state, pop)
                 sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
                 sp_note = f"  ({sp_obj.name})" if sp_obj else ""
                 top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
@@ -813,7 +811,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                         if p_oow and not dev_mode:
                             continue
                         pm = _OOW if (cm or p_oow) else ""
-                        class_label = _pop_stratum_label(pop)
+                        class_label = _pop_stratum_label(state, pop)
                         top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
                         belief_str = "  ".join(
                             f"{_short_tag(t)}({v:.0%})" for t, v in top_beliefs

@@ -2221,7 +2221,7 @@ def _compose_entity_list(
             if anchor_location is not None and str(m.current_location) != str(anchor_location):
                 continue
             pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
-            pop_name = _pop_stratum_label(pop_obj) if pop_obj else "?"
+            pop_name = _pop_stratum_label(state, pop_obj) if pop_obj else "?"
             loc_obj  = state.locations.get(str(m.current_location))
             loc      = (loc_obj.name or "?") if loc_obj else "?"
             name     = m.name or "?"
@@ -2238,7 +2238,7 @@ def _compose_entity_list(
                 continue
             if anchor_location is not None and str(pop.current_location) != str(anchor_location):
                 continue
-            pop_label = _pop_stratum_label(pop)
+            pop_label = _pop_stratum_label(state, pop)
             loc_obj   = state.locations.get(str(pop.current_location))
             loc       = (loc_obj.name or "?") if loc_obj else "?"
             name      = pop.name or pop_label

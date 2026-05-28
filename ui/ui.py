@@ -1326,7 +1326,7 @@ class GameScreen(Screen):
                 sp_obj   = state.species.get(str(m.species_id)) if m.species_id else None
                 sp_name  = sp_obj.name if sp_obj else "?"
                 pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
-                pop_str  = f"  {_pop_stratum_label(pop_obj)}" if pop_obj else ""
+                pop_str  = f"  {_pop_stratum_label(state, pop_obj)}" if pop_obj else ""
                 mortal_items.append((mid, f"{m.name:<18} [{role_str}]  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{pop_str}"))
             intent = None
             while True:
@@ -1934,7 +1934,7 @@ class GameScreen(Screen):
             sp_obj    = state.species.get(str(m.species_id)) if m.species_id else None
             sp_name   = sp_obj.name if sp_obj else "?"
             pop_obj   = state.pops.get(str(m.pop_id)) if m.pop_id else None
-            pop_str   = f"  {_pop_stratum_label(pop_obj)}" if pop_obj else ""
+            pop_str   = f"  {_pop_stratum_label(state, pop_obj)}" if pop_obj else ""
             dorm_note = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
             items.append((mid, f"{m.name:<18}  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{pop_str}{dorm_note}"))
         return await self.app.push_screen_wait(PickerModal("Select Proxius", items, show_back=True))
