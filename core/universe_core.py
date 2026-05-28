@@ -264,7 +264,7 @@ class SocialClass(str, Enum):
     UNDERCLASS = "underclass"   # Slaves, serfs, the dispossessed
     COMMON     = "common"       # Peasants, laborers, the broad base
     ARTISAN    = "artisan"      # Skilled specialists and craftspeople
-    MERCHANT   = "merchant"     # Traders and economic actors
+    TRADER     = "trader"       # Traders and economic actors
     WARRIOR    = "warrior"      # Martial class
     SCHOLAR    = "scholar"      # Religious and scholarly class
     ELITE      = "elite"        # Ruling class and aristocracy

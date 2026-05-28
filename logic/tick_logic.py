@@ -467,7 +467,7 @@ def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id:
 _SOCIAL_CLASS_RANK: dict[str, int] = {
     "wild":       -2,   # No social structure at all (pre-sapient pods, true wilderness).
     "feral":      -1,   # Partially or recently de-civilized — outside class but not pre-social.
-    "underclass":  0, "common": 1, "artisan": 2, "merchant": 3,
+    "underclass":  0, "common": 1, "artisan": 2, "trader": 3,
     "warrior":     4, "scholar": 5, "elite":   6,
 }
 
@@ -482,7 +482,7 @@ _CIV_SCALE_CONTACT_RANK: dict[str, int] = {
 # Flat susceptibility modifier applied after all other resistance factors.
 # Negative = more open to outside influence; positive = more closed.
 _STRATUM_SUSCEPTIBILITY: dict[str, float] = {
-    "merchant": -0.12,
+    "trader": -0.12,
     "elite":    -0.06,
     "warrior":  +0.06,
     "scholar":  +0.12,

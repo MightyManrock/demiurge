@@ -645,8 +645,10 @@ def _load_pops(conn) -> dict[str, Pop]:
     for raw in rows:
         row = dict(raw)
         sc_raw = row.get("social_class")
-        if sc_raw == "priest":  # migrate old DB value
+        if sc_raw == "priest":    # migrate old DB value
             sc_raw = "scholar"
+        if sc_raw == "merchant":  # migrate old DB value
+            sc_raw = "trader"
         ws_raw = row.get("wild_stratum")
         p = Pop(
             id=UUID(row["id"]),
