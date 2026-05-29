@@ -1222,6 +1222,8 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
 
     if loc.traits:
         a(f"  traits: {_e(', '.join(_short_tag(t) for t in loc.traits))}")
+    if loc.domain_expression:
+        a(f"  domain expression: {_format_beliefs_markup(loc.domain_expression)}")
 
     # Pops here — bucketed by civilization (None last for wild).
     civ_buckets: dict = {}
