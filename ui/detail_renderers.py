@@ -484,16 +484,21 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
         for tag, val in sorted(civ.dominant_beliefs.items(), key=lambda kv: -kv[1]):
             a(f"  {_color_short_tag(tag, val, with_value=False)}: {val:.0%}")
 
-    if civ.culture_tags:
-        a("")
-        a("[bold #4a80b0]CULTURE[/]")
-        a(f"  {_format_culture_markup(civ.culture_tags)}")
-
     if display.DEV_MODE and civ.established_beliefs:
         a("")
         a("[bold #4a80b0]ESTABLISHED BELIEFS[/] [#5a7090](dev)[/]")
         for tag, val in sorted(civ.established_beliefs.items(), key=lambda kv: -kv[1]):
             a(f"  {_color_short_tag(tag, val, with_value=False)}: {val:.0%}")
+
+    if civ.culture_tags:
+        a("")
+        a("[bold #4a80b0]CULTURE[/]")
+        a(f"  {_format_culture_markup(civ.culture_tags)}")
+
+    if display.DEV_MODE and civ.established_culture_tags:
+        a("")
+        a("[bold #4a80b0]ESTABLISHED CULTURE[/] [#5a7090](dev)[/]")
+        a(f"  {_format_culture_markup(civ.established_culture_tags)}")
 
     dev = display.DEV_MODE
 
