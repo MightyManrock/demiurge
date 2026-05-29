@@ -133,6 +133,38 @@ def test_trip_too_long_for_urgent_need_true():
     assert _trip_too_long_for_urgent_need(cs, kb, "neran") is True
 
 
+# Spend skipped when its target need is not pressing — falls through to collect
+
+def test_spend_skipped_when_target_need_not_pressing():
+    """Credits available but indulgence is full → spend doesn't intercept; mortal travels to collect."""
+    spend_loc_id = "neran-surface"
+    resource_loc_id = "sethis-surface"
+    loc = MagicMock()
+    loc.collectible_resource = MagicMock()
+    loc.location_type = "pop_location"
+    cs = CivilianAgentState(
+        needs=[
+            MortalNeed(name="trader", satisfaction=0.5, pressing_threshold=0.65),
+            MortalNeed(name="indulgence", satisfaction=1.0, pressing_threshold=0.65),
+        ],
+        inventory=[
+            Resource(resource_type="credits", quantity=81.0, threshold=1.0,
+                     usable_for=["spend"], fills_need="indulgence"),
+        ],
+    )
+    kb = KnowledgeBase(facts=[
+        LocationQualityFact(location_id=spend_loc_id, quality=0.9, quality_type="spend"),
+        ResourceFact(location_id=resource_loc_id),
+        RouteFact(from_id=spend_loc_id, to_id=resource_loc_id, ticks_cost=12),
+    ])
+    result = evaluate_civilian_action(
+        _mortal(cs, kb, loc_id=spend_loc_id),
+        _state({resource_loc_id: loc}),
+        0,
+    )
+    assert result == f"travel:{resource_loc_id}"
+
+
 def test_trip_too_long_for_urgent_need_false_when_not_urgent():
     # satisfaction=0.5 → not urgent
     need = MortalNeed(name="indulgence", satisfaction=0.5, decay_rate=0.05,

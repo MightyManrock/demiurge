@@ -87,7 +87,15 @@ def evaluate_civilian_action(
 
     # ── Priority 2: spend ────────────────────────────────────────────────────
     spendable = next(
-        (r for r in cs.inventory if "spend" in r.usable_for and r.quantity >= r.threshold),
+        (
+            r for r in cs.inventory
+            if "spend" in r.usable_for
+            and r.quantity >= r.threshold
+            and (
+                r.fills_need is None
+                or any(n.name == r.fills_need and n.is_pressing for n in cs.needs)
+            )
+        ),
         None,
     )
     if spendable:
