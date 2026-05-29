@@ -52,5 +52,21 @@ Choose the next major system: Agent expansion, Factions, Governments, or resourc
 
 `logic/tick_logic.py` has grown very large and handles too many concerns in one file. Once the belief propagation extraction (→ plan: belief-propagation.md) is complete, do a systematic pass to identify other self-contained subsystems that can safely be extracted into their own modules under `logic/`. Candidates include: essence generation, splinter logic, civilian agent tick, visibility/decay, and the evaluation engine call-out. Each extraction should be a clean mechanical move (no behavioral changes) committed separately, with tick_logic.py's call sites updated to import from the new module.
 
+**Status (2026-05-29):** First wave complete. Extracted: `belief_propagation`, `essence_generation`, `visibility_logic`, `proxius_logic`, `sim_utils`. Pop splinter check wrapped into `_check_pop_splinters()`. Remaining large blocks: `_resolve_intent_mutations` (~2000 lines) and `_apply_mutations` (~2500 lines).
+
+---
+
+### Intent resolution and mutation dispatch redesign
+
+`_resolve_intent_mutations` and `_apply_mutations` together account for ~4500 lines in `tick_logic.py` and are the last major extraction blockers. A clean extraction requires rethinking their design rather than a mechanical move:
+
+- **Intent resolution**: each intent branch is currently an `if/elif` arm in one giant function. A self-registering pattern (each intent type registers a handler function in a dict, dispatched by intent class) would let handlers live in per-intent modules or a dedicated `logic/intent_handlers/` package. Prerequisite: audit what helpers each branch calls and identify which need to move to shared locations first.
+
+- **Mutation dispatch** (`_apply_mutations`): tightly coupled to every model type and `MutationType`. Worth exploring a visitor/protocol pattern where each model handles its own mutation types, reducing the central dispatch to a thin router.
+
+- **Shared prerequisite**: `NarrativeEvent` currently lives in `tick_logic.py`. Any extraction that produces narrative events needs it moved to `core/` first.
+
+Defer until there's a functional reason to touch these (e.g., adding a new intent type or mutation type that makes the current structure painful).
+
 ---
 

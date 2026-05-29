@@ -1612,6 +1612,19 @@ class TickLoop:
         # ── Pop splinter check ─────────────────────────
         # A Pop splits when its beliefs diverge too far from civ.established_beliefs.
         # Runs after conformity pressure so we react to this tick's final belief state.
+        splinter_mutations, splinter_events = self._check_pop_splinters(state)
+        result.entity_mutations.extend(splinter_mutations)
+        result.narrative_events.extend(splinter_events)
+
+        return result
+
+    def _check_pop_splinters(
+        self,
+        state: SimulationState,
+    ) -> tuple[list[StateMutation], list[NarrativeEvent]]:
+        """Check every eligible Pop for belief divergence and emit splinter mutations."""
+        mutations: list[StateMutation] = []
+        events: list[NarrativeEvent] = []
         for pid, pop in list(state.pops.items()):
             if pop.size_fractional < SPLINTER_MIN_SIZE:
                 continue
@@ -1626,7 +1639,6 @@ class TickLoop:
             if divergence < SPLINTER_DIVERGENCE_THRESHOLD:
                 continue
 
-            # Identify the primary divergent domain for the narrative log
             top_div_tag = max(
                 (t for t in pop.dominant_beliefs),
                 key=lambda t: abs(
@@ -1657,19 +1669,18 @@ class TickLoop:
                 f"[Pop splinter] A faction within {civ.name}'s {class_label} class "
                 f"broke away over {short_tag} (divergence {divergence:.2f})."
             )
-            result.entity_mutations.append(StateMutation(
+            mutations.append(StateMutation(
                 mutation_type=MutationType.POP_SPLINTER,
                 target_id=pop.id,
                 field="pops",
                 new_value=splinter,
                 note=note,
             ))
-            result.narrative_events.append(NarrativeEvent(
+            events.append(NarrativeEvent(
                 text=note,
                 in_window=is_in_window(pop) or is_in_window(civ),
             ))
-
-        return result
+        return mutations, events
 
     def _apply_passive_mutations(
         self,
