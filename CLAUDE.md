@@ -147,6 +147,7 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Revelation accumulation and reveal actions | [imago-revelation.md](docs/.dev/Mechanics/imago-revelation.md) |
 | Whisper, Shape Dream, Manifest Omen; influence success roll | [influence-actions.md](docs/.dev/Mechanics/influence-actions.md) |
 | Belief/culture floors, caps, inertia; footprint | [belief-footprint.md](docs/.dev/Mechanics/belief-footprint.md) |
+| Pop↔civ belief/culture influence, conformity, pop contact, resistance system | [belief-culture-influence.md](docs/.dev/Mechanics/belief-culture-influence.md) |
 | Window visibility, entity decay | [window-visibility.md](docs/.dev/Mechanics/window-visibility.md) |
 | Scry scope and discovery | [scry-action.md](docs/.dev/Mechanics/scry-action.md) |
 | Mortal aging, alignment, prominence | [mortal-system.md](docs/.dev/Mechanics/mortal-system.md) |
