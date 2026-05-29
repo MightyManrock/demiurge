@@ -566,6 +566,9 @@ class TickConfig(BaseModel):
 
     # Cross-Pop contact (passive belief drift between co-located Pops of different civs)
     pop_contact_base_rate: float = 0.00003
+    pop_contact_stride: int = 7
+    # Pop contact fires every N ticks. Co-prime with civ_conformity_stride (10)
+    # so the two rarely fire on the same tick.
     cross_civ_contact_factor: float = 0.15
     cross_civ_scale_penalty: float = 0.08
     cross_species_contact_factor: float = 0.50
@@ -1889,8 +1892,9 @@ class TickLoop:
         # Co-located Pops of different civs slowly drift toward each other's beliefs.
         # Resistance is applied for cross-civ scale gap, cross-species, and
         # cross-stratum. Omens are unaffected.
-        for m in process_pop_contact(state, cfg):
-            result.civilization_mutations.append(m)
+        if state.tick_number % cfg.pop_contact_stride == 0:
+            for m in process_pop_contact(state, cfg):
+                result.civilization_mutations.append(m)
 
         # ── Pop splinter check ─────────────────────────
         # A Pop splits when its beliefs diverge too far from civ.established_beliefs.
