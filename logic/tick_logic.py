@@ -554,6 +554,9 @@ class TickConfig(BaseModel):
     # Base rate at which Pops are nudged toward civ.established_beliefs per tick.
     # Scaled by scale_conformity_mult * civ.health.cohesion at runtime.
 
+    civ_conformity_stride: int = 10
+    # Conformity pressure fires every N ticks (not every tick) to reduce churn.
+
     pop_visibility_drift_rate: float = 0.002
     # Rate at which Pop.visibility converges toward min(civ.visibility, world.visibility).
 
@@ -1485,8 +1488,9 @@ class TickLoop:
                 ))
 
         # ── Civ → Pop conformity pressure ──────────────
-        for m in civ_conformity_pressure(state, cfg):
-            result.civilization_mutations.append(m)
+        if state.tick_number % cfg.civ_conformity_stride == 0:
+            for m in civ_conformity_pressure(state, cfg):
+                result.civilization_mutations.append(m)
 
         # ── Rider trait → culture tag attrition ───────
         # Culture tags that conflict with a Pop's active rider traits decay passively.
