@@ -118,7 +118,11 @@ _STRATUM_INFLUENCE_WEIGHT: dict[str, float] = {
     "scholar":    1.8,
     "warrior":    1.5,
     "trader":     1.2,
-    # artisan, common, underclass, feral, wild: 1.0 (default)
+    "artisan":    1.1,
+    "common":     1.0,
+    "underclass": 0.8,
+    "feral":      0.4,
+    "wild":       0.1
 }
 ```
 
