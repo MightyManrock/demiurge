@@ -1,4 +1,4 @@
-> status: active | last updated: 2026-05-29
+> status: complete | last updated: 2026-05-29
 
 # Belief Propagation: Extraction + Tuning
 

@@ -25,10 +25,24 @@ Peripheral pops (on `PopLocation`s whose parent world is not in `civ.core_locs`)
 
 ---
 
-## Influence pathways (all fire every tick)
+## Influence pathways
 
-### 1. Pop → Civ aggregate (`_recompute_civ_beliefs` / `_recompute_civ_culture_tags`)
-Called once per tick. **Fully overwrites** `civ.dominant_beliefs` and `civ.culture_tags` as size-weighted averages. There is no smoothing here — the aggregate is always the exact current mean of all pops.
+### 1. Pop → Civ aggregate (`recompute_civ_dominant_beliefs` / `recompute_civ_culture_tags`)
+Called once per tick. **Fully overwrites** `civ.dominant_beliefs` and `civ.culture_tags` as weighted averages. There is no smoothing here — the aggregate is always the exact current mean of all pops.
+
+Each pop's contribution is weighted by `size_fractional × stratum_influence_weight × peripheral_factor`. The **stratum influence weight** (`_STRATUM_INFLUENCE_WEIGHT`) gives politically prominent strata outsized representation:
+
+| Stratum | Weight |
+|---|---|
+| `elite` | 2.0 |
+| `scholar` | 1.8 |
+| `warrior` | 1.5 |
+| `trader` | 1.2 |
+| `artisan` | 1.1 |
+| `common` | 1.0 |
+| `underclass` | 0.8 |
+| `feral` | 0.4 |
+| `wild` | 0.1 |
 
 ### 2. Civ aggregate → Civ established beliefs (institutional lag)
 ```
@@ -37,7 +51,9 @@ delta_per_tag = (dominant_val − established_val) × established_rate
 ```
 `civ.established_beliefs` lerps toward `civ.dominant_beliefs` each tick. At cohesion = 1.0, the half-life of a gap is roughly 1,400 ticks (~3.8 years at 1 tick/day). The same rate governs `established_culture_tags` drifting toward `culture_tags`.
 
-### 3. Civ established beliefs → Pops (conformity pressure, `_civ_conformity_pressure`)
+### 3. Civ established beliefs → Pops (conformity pressure, `civ_conformity_pressure`)
+Fires every `civ_conformity_stride` ticks (default **10**).
+
 ```
 conformity_rate = pop_conformity_base (0.0003)
                 × _SCALE_CONFORMITY[civ.scale]   (0.2 nascent → 2.0 intergalactic)
@@ -57,8 +73,8 @@ Applies to both `dominant_beliefs` (using `established_beliefs`) and `culture_ta
 | `warrior` | +0.15 | 15% more resistant |
 | all others | 0.0 | no modifier |
 
-### 4. Pop-to-Pop contact (`_process_pop_contact`)
-Passive belief drift between all co-located pops (same SignificantLocation / world). Runs every tick.
+### 4. Pop-to-Pop contact (`process_pop_contact`)
+Passive belief drift between all co-located pops (same SignificantLocation / world). Fires every `pop_contact_stride` ticks (default **7**). Co-prime with `civ_conformity_stride` (10) so the two rarely fire on the same tick.
 
 ```
 raw_delta = (a_strength − b_strength) × pop_contact_base_rate (0.00003)
@@ -162,14 +178,11 @@ When a pop's beliefs shift (from whispers, culture shifts, etc.), `LINEAGE_BLEED
 | `values_stubbornness_factor` | 0.1 | Extra dampening on `values:*` culture tag changes |
 | `peripheral_pop_belief_weight` | 0.25 | Weight of non-core pops in civ aggregate recomputation |
 | `peripheral_pop_culture_weight` | 0.25 | Same for culture_tags |
+| `civ_conformity_stride` | 10 | Conformity pressure fires every N ticks |
+| `pop_contact_stride` | 7 | Pop contact fires every N ticks |
 
 ---
 
-## Pending changes (discussed 2026-05-29)
+## Deferred / TO-PLAN
 
-The following tuning changes have been discussed but not yet implemented:
-
-1. **Stagger conformity pressure**: fire civ→pop conformity only every 10 ticks (`tick % 10 == 0`), keeping per-firing delta the same. Reduces daily drift rate by 10×.
-2. **Stagger pop contact**: fire `_process_pop_contact` only every 7 ticks (`tick % 7 == 0`), offset from conformity stride so the two rarely compound on the same tick.
-3. **Stratum influence weighting in civ aggregate**: apply a `_STRATUM_INFLUENCE_WEIGHT` multiplier (e.g. `elite: 2.0, scholar: 1.8, warrior: 1.5, trader: 1.2`) to `size_fractional` when recomputing `dominant_beliefs`, so politically prominent strata have outsized representation in the institutional signal.
-4. **Pop drift baseline ("anchor")**: a per-pop anchor value that each pop slowly fights toward independent of civ or contact influence. Requires additional model plumbing; deferred.
+- **Pop drift baseline ("anchor")**: a per-pop anchor value that each pop slowly fights toward independent of civ or contact influence. Requires additional model plumbing; tracked in TO-PLAN.md.
