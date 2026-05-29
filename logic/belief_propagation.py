@@ -53,6 +53,18 @@ _STRATUM_SUSCEPTIBILITY: dict[str, float] = {
     "scholar":  +0.12,
 }
 
+_STRATUM_INFLUENCE_WEIGHT: dict[str, float] = {
+    "elite":      2.0,
+    "scholar":    1.8,
+    "warrior":    1.5,
+    "trader":     1.2,
+    "artisan":    1.1,
+    "common":     1.0,
+    "underclass": 0.8,
+    "feral":      0.4,
+    "wild":       0.1,
+}
+
 _SCALE_CONFORMITY: dict[str, float] = {
     "nascent": 0.2, "tribal": 0.4, "city_state": 0.6,
     "regional": 0.8, "continental": 1.0, "planetary": 1.2,
@@ -275,8 +287,10 @@ def recompute_civ_dominant_beliefs(state: SimulationState, cfg: TickConfig) -> N
                 continue
             world_id = pop_loc_to_world.get(str(pop.current_location), "")
             is_core = (not core_loc_strs) or (world_id in core_loc_strs)
+            pop_class = pop.social_class.value if hasattr(pop.social_class, "value") else str(pop.social_class or "")
+            influence_w = _STRATUM_INFLUENCE_WEIGHT.get(pop_class, 1.0)
             base_w = max(0.001, pop.size_fractional)
-            w = base_w if is_core else base_w * cfg.peripheral_pop_belief_weight
+            w = base_w * influence_w * (1.0 if is_core else cfg.peripheral_pop_belief_weight)
             total_weight += w
             for tag, strength in pop.dominant_beliefs.items():
                 weighted[tag] = weighted.get(tag, 0.0) + strength * w
@@ -321,8 +335,10 @@ def recompute_civ_culture_tags(state: SimulationState, cfg: TickConfig) -> None:
                 continue
             world_id = pop_loc_to_world.get(str(pop.current_location), "")
             is_core = (not core_loc_strs) or (world_id in core_loc_strs)
+            pop_class = pop.social_class.value if hasattr(pop.social_class, "value") else str(pop.social_class or "")
+            influence_w = _STRATUM_INFLUENCE_WEIGHT.get(pop_class, 1.0)
             base_w = max(0.001, pop.size_fractional)
-            w = base_w if is_core else base_w * cfg.peripheral_pop_culture_weight
+            w = base_w * influence_w * (1.0 if is_core else cfg.peripheral_pop_culture_weight)
             total_weight += w
             for tag, strength in pop.culture_tags.items():
                 weighted[tag] = weighted.get(tag, 0.0) + strength * w
