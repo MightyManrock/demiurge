@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from core.universe_core import SignificantLocation, PopLocation
+from utilities.culture_registry import get_registry as get_culture_registry
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
@@ -28,6 +29,20 @@ def resolve_world_for(state: "SimulationState", loc_id) -> "SignificantLocation 
     """Same as resolve_world_id_for but returns the SignificantLocation object."""
     wid = resolve_world_id_for(state, loc_id)
     return state.worlds.get(wid) if wid else None
+
+
+def pop_domain_receptivity(pop, domain_tag: str) -> float:
+    """Multiplier (≥ 0.2) for how receptive a Pop is to domain influence.
+
+    Derived from all culture_tags (religion + values) crossing against
+    CultureRegistry.domain_affinity.
+    """
+    creg = get_culture_registry()
+    bonus = 0.0
+    for tag, strength in pop.culture_tags.items():
+        affinities = creg.domain_affinity(tag)
+        bonus += affinities.get(domain_tag, 0.0) * strength
+    return max(0.2, 1.0 + bonus)
 
 
 def cosine_similarity(a: dict[str, float], b: dict[str, float]) -> float:
