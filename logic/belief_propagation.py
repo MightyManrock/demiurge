@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from core.universe_core import PopLocation
 from core.action_core import StateMutation, MutationType
+from logic.sim_utils import cosine_similarity
 
 if TYPE_CHECKING:
     from logic.tick_logic import SimulationState, TickConfig
@@ -13,6 +14,11 @@ if TYPE_CHECKING:
 
 BELIEF_FLOOR = 0.02
 
+BELIEF_CAP = 0.9
+# Hard ceiling for positive belief/culture growth on Pops, Mortals, and
+# Civilizations. Values can decay below 0.9 naturally; they just cannot
+# grow past it. Location domain_expression is uncapped.
+
 CULTURE_FLOOR = 0.01
 # Minimum durable strength for culture_tags. Lower than BELIEF_FLOOR (0.02)
 # because culture-tag riders propagate at smaller per-tick magnitudes than
@@ -22,6 +28,10 @@ CULTURE_FLOOR = 0.01
 # whisper's per-tick contribution would have been pruned at BELIEF_FLOOR.
 # Belief/domain-expression entries below this strength are
 # silently pruned each passive phase. Keeps dicts clean of
+
+LINEAGE_BLEED_FRACTION = 0.20
+# Fraction of a splash delta that bleeds further to a Pop's parent and children.
+# Moderated by cosine similarity — diverged relatives resist the bleed.
 
 # ─────────────────────────────────────────
 # POP CONTACT RANK TABLES
@@ -403,6 +413,41 @@ def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[Sta
                         note=f"{civ.name} culture conformity on Pop ({tag})",
                     ))
     return mutations
+
+
+def emit_lineage_bleed(
+    mutations: list,
+    state: "SimulationState",
+    pop: object,
+    domain_tag: str,
+    base_delta: float,
+    source_note: str,
+) -> None:
+    """Bleed LINEAGE_BLEED_FRACTION × cosine-similarity of a splash delta to lineage relatives."""
+    relatives = []
+    parent_id = getattr(pop, "parent_pop_id", None)
+    if parent_id:
+        parent = state.pops.get(str(parent_id))
+        if parent:
+            relatives.append(parent)
+    for child_id in getattr(pop, "child_pop_ids", []):
+        child = state.pops.get(str(child_id))
+        if child:
+            relatives.append(child)
+    for rel in relatives:
+        sim = cosine_similarity(
+            getattr(pop, "dominant_beliefs", {}),
+            getattr(rel, "dominant_beliefs", {}),
+        )
+        bleed_delta = base_delta * LINEAGE_BLEED_FRACTION * sim
+        if abs(bleed_delta) > 1e-5:
+            mutations.append(StateMutation(
+                mutation_type=MutationType.POP_BELIEF_SHIFT,
+                target_id=rel.id,
+                field=domain_tag,
+                delta=bleed_delta,
+                note=f"Lineage bleed ({source_note} → {getattr(rel, 'stratum', 'Pop')})",
+            ))
 
 
 def process_location_ambient_influence(state: SimulationState, cfg: TickConfig) -> None:

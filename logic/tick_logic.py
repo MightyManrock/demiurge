@@ -57,8 +57,13 @@ from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 from logic.civilian_agent_logic import evaluate_civilian_action
+from logic.sim_utils import (
+    resolve_world_id_for as _resolve_world_id_for,
+    resolve_world_for as _resolve_world_for,
+    cosine_similarity,
+)
 from logic.belief_propagation import (
-    BELIEF_FLOOR, CULTURE_FLOOR,
+    BELIEF_FLOOR, CULTURE_FLOOR, BELIEF_CAP, LINEAGE_BLEED_FRACTION,
     belief_inertia,
     location_distance_from_core, pop_distance_factor,
     pops_on_world,
@@ -66,6 +71,7 @@ from logic.belief_propagation import (
     recompute_civ_dominant_beliefs, recompute_civ_culture_tags,
     civ_conformity_pressure,
     process_location_ambient_influence,
+    emit_lineage_bleed,
 )
 
 
@@ -86,12 +92,6 @@ VISIBILITY_STALL_SCENARIO_START = 360  # ticks of stall set during scenario-star
 # Fraction of the passive rate applied to each Proxius on a policy-compliant world.
 # Compliant worlds have ≤ proxii_policy.max_per_world active Proxii.
 PROXIUS_COMPLIANCE_FACTOR = 0.3
-
-BELIEF_CAP = 0.9
-# Hard ceiling for positive belief/culture growth on Pops, Mortals, and
-# Civilizations. Values can decay below 0.9 naturally; they just cannot
-# grow past it. Location domain_expression is uncapped.
-# ghost residue from many tiny-delta actions.
 
 # ─────────────────────────────────────────
 # POP SPLINTER CONSTANTS
@@ -180,10 +180,6 @@ _OMEN_FRAMING_AFFINITY: dict[str, dict[str, float]] = {
         "structure:hierarchy": -0.3,
     },
 }
-
-LINEAGE_BLEED_FRACTION = 0.20
-# Fraction of a splash delta that bleeds further to a Pop's parent and children.
-# Moderated by cosine similarity — diverged relatives resist the bleed.
 
 RIDER_ATTRITION_BASE = 0.00002
 # Base decay rate per tick applied to culture_tags that conflict with a Pop's active rider_traits.
@@ -378,30 +374,6 @@ def _compute_universal_expression(state: "SimulationState", domain_tag: str) -> 
             total += civ.dominant_beliefs.get(domain_tag, 0.0) * scale_mult
     normalized = total / _REVELATION_EXPRESSION_FULL
     return max(0.1, min(1.0, normalized))
-
-
-def _resolve_world_id_for(state: "SimulationState", loc_id) -> "Optional[str]":
-    """Return the id of the SignificantLocation (world) covering `loc_id`.
-
-    If `loc_id` is already a SignificantLocation, returns it. If it's a
-    PopLocation, walks up to its parent. Returns None for anything else
-    (system, galaxy, unknown, etc.)."""
-    if loc_id is None:
-        return None
-    loc = state.locations.get(str(loc_id))
-    if isinstance(loc, SignificantLocation):
-        return str(loc.id)
-    if isinstance(loc, PopLocation) and loc.parent_id is not None:
-        parent = state.locations.get(str(loc.parent_id))
-        if isinstance(parent, SignificantLocation):
-            return str(parent.id)
-    return None
-
-
-def _resolve_world_for(state: "SimulationState", loc_id) -> "Optional[SignificantLocation]":
-    """Same as `_resolve_world_id_for` but returns the SignificantLocation object."""
-    wid = _resolve_world_id_for(state, loc_id)
-    return state.worlds.get(wid) if wid else None
 
 
 def _framing_resonance(culture_tags: dict, framing) -> float:
@@ -1431,7 +1403,7 @@ class TickLoop:
                         ))
 
                 if civ.dominant_beliefs and civ.established_beliefs:
-                    stability_target = self._cosine_similarity(
+                    stability_target = cosine_similarity(
                         civ.dominant_beliefs, civ.established_beliefs
                     )
                 else:
@@ -1925,7 +1897,7 @@ class TickLoop:
             civ = state.civilizations.get(str(pop.civilization_id))
             if civ is None or not civ.established_beliefs:
                 continue
-            divergence = 1.0 - self._cosine_similarity(pop.dominant_beliefs, civ.established_beliefs)
+            divergence = 1.0 - cosine_similarity(pop.dominant_beliefs, civ.established_beliefs)
             if divergence < SPLINTER_DIVERGENCE_THRESHOLD:
                 continue
 
@@ -4018,7 +3990,7 @@ class TickLoop:
                                 delta=splash_delta,
                                 note=f"Development nudge splash to {sp.stratum} Pop",
                             ))
-                            self._emit_lineage_bleed(
+                            emit_lineage_bleed(
                                 mutations, state, sp, dv.domain_tag,
                                 splash_delta, "development",
                             )
@@ -4384,54 +4356,6 @@ class TickLoop:
     # ─────────────────────────────────────────
     # PHASE 3: DOMAIN PROFILING
     # ─────────────────────────────────────────
-
-    @staticmethod
-    def _cosine_similarity(a: dict[str, float], b: dict[str, float]) -> float:
-        """Cosine similarity between two belief/domain dicts. Returns 0.0–1.0."""
-        if not a or not b:
-            return 0.0
-        tags = set(a) | set(b)
-        dot = sum(a.get(t, 0.0) * b.get(t, 0.0) for t in tags)
-        mag_a = sum(v * v for v in a.values()) ** 0.5
-        mag_b = sum(v * v for v in b.values()) ** 0.5
-        if mag_a == 0.0 or mag_b == 0.0:
-            return 0.0
-        return dot / (mag_a * mag_b)
-
-    def _emit_lineage_bleed(
-        self,
-        mutations: list,
-        state: "SimulationState",
-        pop: object,
-        domain_tag: str,
-        base_delta: float,
-        source_note: str,
-    ) -> None:
-        """Bleed LINEAGE_BLEED_FRACTION × similarity of a splash delta to lineage relatives."""
-        relatives = []
-        parent_id = getattr(pop, "parent_pop_id", None)
-        if parent_id:
-            parent = state.pops.get(str(parent_id))
-            if parent:
-                relatives.append(parent)
-        for child_id in getattr(pop, "child_pop_ids", []):
-            child = state.pops.get(str(child_id))
-            if child:
-                relatives.append(child)
-        for rel in relatives:
-            sim = self._cosine_similarity(
-                getattr(pop, "dominant_beliefs", {}),
-                getattr(rel, "dominant_beliefs", {}),
-            )
-            bleed_delta = base_delta * LINEAGE_BLEED_FRACTION * sim
-            if abs(bleed_delta) > 1e-5:
-                mutations.append(StateMutation(
-                    mutation_type=MutationType.POP_BELIEF_SHIFT,
-                    target_id=rel.id,
-                    field=domain_tag,
-                    delta=bleed_delta,
-                    note=f"Lineage bleed ({source_note} → {getattr(rel, 'stratum', 'Pop')})",
-                ))
 
     def _build_domain_profile(
         self,
@@ -6392,7 +6316,7 @@ class TickLoop:
                             + (" (own pop)" if is_own else "")
                         ),
                     ))
-                    self._emit_lineage_bleed(
+                    emit_lineage_bleed(
                         mutations, state, sp, dv.domain_tag,
                         splash_delta, "whisper",
                     )
