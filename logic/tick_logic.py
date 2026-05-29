@@ -362,6 +362,9 @@ def _compute_universal_expression(state: "SimulationState", domain_tag: str) -> 
     """
     total = state.universe.universe_domain_expression.get(domain_tag, 0.1)
     for loc in state.locations.values():
+        if isinstance(loc, PopLocation):
+            total += loc.domain_expression.get(domain_tag, 0.0) * 0.5
+            continue
         if not isinstance(loc, SignificantLocation):
             continue
         total += loc.domain_expression.get(domain_tag, 0.0)
@@ -419,15 +422,15 @@ def _framing_resonance(culture_tags: dict, framing) -> float:
 
 def _compute_local_expression(state: "SimulationState", domain_tag: str, loc_id: "UUID") -> float:
     """
-    Normalized domain expression at a single SignificantLocation: 0.0–1.0.
-    Used for Proxius Commission Inquiry bonus calculation. Accepts a PopLocation
-    id and walks up to its parent world transparently.
+    Normalized domain expression at a location: 0.0–1.0.
+    For a PopLocation, combines the parent world's ambient expression with the
+    PopLocation's own domain_expression. Used for Proxius Commission Inquiry bonus.
     """
     world = _resolve_world_for(state, loc_id)
-    if world is None:
-        return 0.0
-    raw = world.domain_expression.get(domain_tag, 0.0)
-    return max(0.0, min(1.0, raw))
+    world_expr = world.domain_expression.get(domain_tag, 0.0) if world is not None else 0.0
+    loc = state.locations.get(str(loc_id))
+    pop_loc_expr = loc.domain_expression.get(domain_tag, 0.0) if isinstance(loc, PopLocation) else 0.0
+    return max(0.0, min(1.0, world_expr + pop_loc_expr))
 
 
 # ─────────────────────────────────────────
@@ -507,6 +510,9 @@ class TickConfig(BaseModel):
     # Essence generation weights (tuning targets; adjust after playtesting)
     essence_location_weight: float = 3.0
     # Multiplier for SignificantLocation.domain_expression contributions.
+
+    essence_pop_location_weight: float = 1.5
+    # Multiplier for PopLocation.domain_expression contributions (half world weight).
     # Sapient Pops (via essence_pop_weight) collectively outweigh any single
     # location; locations outweigh pre-sapient Pops; mortals are the floor.
 
@@ -2025,6 +2031,14 @@ class TickLoop:
         for wid, world in state.worlds.items():
             for tag, strength in world.domain_expression.items():
                 amount = strength * cfg.essence_location_weight
+                if amount > 0.0:
+                    universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
+
+        for loc in state.locations.values():
+            if not isinstance(loc, PopLocation):
+                continue
+            for tag, strength in loc.domain_expression.items():
+                amount = strength * cfg.essence_pop_location_weight
                 if amount > 0.0:
                     universe_pool[tag] = universe_pool.get(tag, 0.0) + amount
 
