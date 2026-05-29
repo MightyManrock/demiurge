@@ -17,3 +17,4 @@ Read /root/demiurge/docs/.dev/TO-PLAN.md and /root/demiurge/docs/.dev/plans/PLAN
 | [next-big-feature.md](next-big-feature.md) | `active` | Decision: choose next major system (Factions/Agents, Governments, or resources) |
 | [human-readable-docs.md](human-readable-docs.md) | `active` | Player-facing guide and system overviews; future Divine Wisdom tab |
 | [actions-redesign-master-plan.md](actions-redesign-master-plan.md) | `active` | Systematic mechanic + UI + DB-prep pass over every action |
+| [belief-propagation.md](belief-propagation.md) | `active` | Extract belief/culture propagation to logic/belief_propagation.py + add strides and stratum weighting |

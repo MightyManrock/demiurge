@@ -48,3 +48,9 @@ Choose the next major system: Agent expansion, Factions, Governments, or resourc
 
 ---
 
+### Broader tick_logic.py decomposition
+
+`logic/tick_logic.py` has grown very large and handles too many concerns in one file. Once the belief propagation extraction (→ plan: belief-propagation.md) is complete, do a systematic pass to identify other self-contained subsystems that can safely be extracted into their own modules under `logic/`. Candidates include: essence generation, splinter logic, civilian agent tick, visibility/decay, and the evaluation engine call-out. Each extraction should be a clean mechanical move (no behavioral changes) committed separately, with tick_logic.py's call sites updated to import from the new module.
+
+---
+
