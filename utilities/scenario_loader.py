@@ -196,6 +196,9 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     civs     = _load_civilizations(conn, universe_age)
     pops     = _load_pops(conn)
     mortals  = _load_mortals(conn, universe_age)
+    for m in mortals.values():
+        if m.pop_milieu is None and m.pop_id is not None:
+            m.pop_milieu = m.pop_id
     demiurge = _load_demiurge(conn)
     essence  = _load_essence(conn)
     cfg      = _load_tick_config(conn)
@@ -714,6 +717,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             knowledge_base=_load_knowledge_base(row.get("knowledge_base")),
             civilian_state=_load_civilian_state(row.get("civilian_state")),
             pop_id=_uuid(row.get("pop_id")),
+            pop_milieu=_uuid(row.get("pop_milieu")),
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
             herald_appointed_tick=row.get("herald_appointed_tick"),
             origin_pop_subsumed=bool(row.get("origin_pop_subsumed", 0)),

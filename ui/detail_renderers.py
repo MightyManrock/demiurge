@@ -684,6 +684,16 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         else:
             _gated(pop, f"pop:      {pop_md}  sz:{pop.size_magnitude}")
 
+    milieu_pop = state.pops.get(str(m.pop_milieu)) if m.pop_milieu else None
+    if milieu_pop is not None:
+        is_same_as_origin = pop is not None and milieu_pop.id == pop.id
+        milieu_oow = not is_in_window(milieu_pop)
+        if dev or (not is_same_as_origin and not milieu_oow):
+            milieu_stratum = _pop_stratum_label(state, milieu_pop)
+            milieu_md = _click_link("pop", str(milieu_pop.id), f"{_e(milieu_stratum)}")
+            line = f"among:    {milieu_md}  sz:{milieu_pop.size_magnitude}"
+            a(f"  [dim]{line}[/dim]" if milieu_oow else f"  {line}")
+
     if m.status_tags or m.personal_tags or m.belief_tags or m.culture_tags:
         a("")
     if m.status_tags:

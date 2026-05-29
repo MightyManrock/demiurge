@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS mortals (
     visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
     active_goal_json       TEXT DEFAULT NULL,           -- JSON of ProxiusGoal, or NULL
     pop_id                 TEXT DEFAULT NULL,           -- UUID of origin Pop; cleared on age-out
+    pop_milieu             TEXT DEFAULT NULL,           -- UUID of Pop the mortal is currently embedded among
     proxius_appointed_tick INTEGER DEFAULT NULL,        -- tick of first Proxius elevation (wall-clock)
     herald_appointed_tick  INTEGER DEFAULT NULL,        -- tick of first Herald elevation (wall-clock)
     origin_pop_subsumed    INTEGER NOT NULL DEFAULT 0,  -- bool; True when mortal's origin Pop was absorbed into the goal Pop

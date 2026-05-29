@@ -108,7 +108,10 @@ def migrate():
         ),
     ])
 
-    export_scenario(state, DB_PATH)
+    from pathlib import Path
+    from utilities.scenario_migrator import _peek_scenario_meta
+    name, description = _peek_scenario_meta(Path(DB_PATH))
+    export_scenario(state, DB_PATH, scenario_name=name, description=description)
     print(f"Migration complete. Patched {VAIL_NAME} in {DB_PATH}.")
 
 

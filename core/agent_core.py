@@ -159,6 +159,7 @@ class CivilianAgentState(BaseModel):
 
 class TravelIntent(BaseModel):
     travel_location_id: UUID
+    target_pop_id: Optional[UUID] = None  # if set, mortal embeds in this Pop on arrival
 
 
 class AgentActionChoice(str, Enum):

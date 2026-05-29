@@ -96,6 +96,19 @@ SPLINTER_MIN_SIZE = 4.0
 # Pop must be at least this large (size_fractional) to split.
 # Prevents micro-Pops from fragmenting further.
 
+# Stratum order lowest→highest. Used by the arrival milieu algorithm.
+_STRATUM_ORDER: list[SocialClass] = [
+    SocialClass.WILD,
+    SocialClass.FERAL,
+    SocialClass.UNDERCLASS,
+    SocialClass.COMMON,
+    SocialClass.ARTISAN,
+    SocialClass.TRADER,
+    SocialClass.WARRIOR,
+    SocialClass.SCHOLAR,
+    SocialClass.ELITE,
+]
+
 SPLINTER_FRACTION = 0.35
 # Fraction of the parent Pop's size that breaks away into the splinter.
 
@@ -4489,6 +4502,125 @@ class TickLoop:
     _VAIL_DEST_A      = "Neran Surface"
     _VAIL_DEST_B      = "Sethis Surface"
 
+    @staticmethod
+    def _default_arrival_milieu(
+        state: "SimulationState",
+        mortal: "NotableMortal",
+        dest_loc_id: "UUID",
+    ) -> "Optional[UUID]":
+        """Determine pop_milieu when a mortal arrives with no target_pop_id.
+
+        Priority:
+        1. Mortal's own Pop is at the destination → use it.
+        2. No origin Pop → None.
+        3. Build candidate list from destination PopLocation's Pops, filtered
+           and priority-sorted, then scan for:
+           a. Same occupation (origin Pop's stratum occupation labels)
+           b. Same stratum
+           c. Closest stratum beneath origin Pop's, within 2 steps
+           d. None
+        COMMON-and-above mortals exclude FERAL/WILD Pops from consideration.
+        """
+        dest_loc = state.locations.get(str(dest_loc_id))
+        if not isinstance(dest_loc, PopLocation):
+            return None
+
+        origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+
+        pop_ids = getattr(dest_loc, "pop_ids", [])
+        candidates = [state.pops[str(pid)] for pid in pop_ids if str(pid) in state.pops]
+        if not candidates:
+            return None
+
+        # Step 1: mortal's own Pop is present at the destination
+        if origin_pop is not None:
+            for pop in candidates:
+                if pop.id == origin_pop.id:
+                    return pop.id
+
+        if origin_pop is None:
+            return None
+
+        origin_cls = origin_pop.social_class
+        try:
+            origin_idx = _STRATUM_ORDER.index(origin_cls) if origin_cls else -1
+        except ValueError:
+            origin_idx = -1
+
+        # Filter: COMMON and above exclude FERAL and WILD Pops
+        _common_idx = _STRATUM_ORDER.index(SocialClass.COMMON)
+        if origin_idx >= _common_idx:
+            candidates = [
+                p for p in candidates
+                if p.social_class not in (SocialClass.FERAL, SocialClass.WILD)
+            ]
+        if not candidates:
+            return None
+
+        # Sort: same civ first, then same species, then descending size
+        origin_civ = str(origin_pop.civilization_id) if origin_pop.civilization_id else None
+        origin_spc = str(origin_pop.species_id) if origin_pop.species_id else None
+
+        candidates.sort(key=lambda p: (
+            0 if str(p.civilization_id) == origin_civ else 1,
+            0 if str(p.species_id) == origin_spc else 1,
+            -p.size_fractional,
+        ))
+
+        # Step a: same occupation (direct match on Pop.occupation string)
+        origin_occ = origin_pop.occupation
+        if origin_occ:
+            for pop in candidates:
+                if pop.occupation == origin_occ:
+                    return pop.id
+
+        # Step b: same stratum
+        if origin_cls:
+            for pop in candidates:
+                if pop.social_class == origin_cls:
+                    return pop.id
+
+        # Step c: closest stratum beneath (WARRIOR special case: COMMON > TRADER > ARTISAN)
+        if origin_idx >= 0:
+            if origin_cls == SocialClass.WARRIOR:
+                for target_cls in (SocialClass.COMMON, SocialClass.TRADER, SocialClass.ARTISAN):
+                    for pop in candidates:
+                        if pop.social_class == target_cls:
+                            return pop.id
+            else:
+                for steps in (1, 2):
+                    target_idx = origin_idx - steps
+                    if target_idx < 0:
+                        break
+                    target_cls = _STRATUM_ORDER[target_idx]
+                    for pop in candidates:
+                        if pop.social_class == target_cls:
+                            return pop.id
+
+        return None
+
+    @staticmethod
+    def _try_same_location_milieu_swap(
+        state: SimulationState,
+        mortal: "NotableMortal",
+        target_pop_id: "UUID",
+    ) -> bool:
+        """If target Pop is in the mortal's current PopLocation, update pop_milieu
+        immediately and return True. Returns False when routing is needed instead.
+
+        Call this before creating a TravelIntent when the destination is a specific
+        Pop rather than a named PopLocation. If it returns True, no TravelIntent
+        should be created — the milieu change resolves in the current tick.
+        """
+        from core.universe_core import PopLocation
+        target_pop = state.pops.get(str(target_pop_id))
+        if target_pop is None:
+            return False
+        if str(target_pop.current_location) == str(mortal.current_location):
+            mortal.pop_milieu = target_pop_id
+            return True
+        return False
+
     def _resolve_mortal_travel_decisions(self, state: SimulationState) -> list[str]:
         """Phase 2.6a — assign new TravelIntents via TravelLocation routing."""
         from core.universe_core import PopLocation, TravelLocation
@@ -4585,8 +4717,11 @@ class TickLoop:
                 for occ_id in loc.occupants:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
+                        target_pop_id = mortal.travel_intent.target_pop_id if mortal.travel_intent else None
                         mortal.current_location = fallback_loc
                         mortal.travel_intent = None
+                        if target_pop_id is not None:
+                            mortal.pop_milieu = target_pop_id
                 to_remove.append(lid)
                 continue
 
@@ -4597,8 +4732,13 @@ class TickLoop:
                 for occ_id in loc.occupants:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
+                        target_pop_id = mortal.travel_intent.target_pop_id if mortal.travel_intent else None
                         mortal.current_location = dest_uuid
                         mortal.travel_intent = None
+                        if target_pop_id is not None:
+                            mortal.pop_milieu = target_pop_id
+                        else:
+                            mortal.pop_milieu = self._default_arrival_milieu(state, mortal, dest_uuid)
                 to_remove.append(lid)
                 continue
 
@@ -4609,11 +4749,17 @@ class TickLoop:
                 # Arrival
                 dest_loc  = state.locations.get(next_wp)
                 dest_name = dest_loc.name if dest_loc else next_wp
+                dest_uuid_arr = UUID(next_wp)
                 for occ_id in loc.occupants:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
-                        mortal.current_location = UUID(next_wp)
+                        target_pop_id = mortal.travel_intent.target_pop_id if mortal.travel_intent else None
+                        mortal.current_location = dest_uuid_arr
                         mortal.travel_intent    = None
+                        if target_pop_id is not None:
+                            mortal.pop_milieu = target_pop_id
+                        else:
+                            mortal.pop_milieu = self._default_arrival_milieu(state, mortal, dest_uuid_arr)
                         if mortal.pinned:
                             narratives.append(f"{mortal.name} arrives at {dest_name}.")
                 to_remove.append(lid)

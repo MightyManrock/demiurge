@@ -61,11 +61,14 @@ class BuilderApp(App):
                 + "\n  • ".join(violations),
                 severity="warning", timeout=8,
             )
-        # scenario_loader drops scenario_meta.description; re-peek it so the
-        # Briefing tab loads with the author's blurb intact.
+        # scenario_loader drops scenario_meta.name and description; re-peek so
+        # the Briefing tab loads with the author's blurb intact and saves
+        # preserve the original scenario name rather than falling back to universe.name.
         meta = peek_meta(path)
         self.push_screen(BuilderScreen(
-            state, path, scenario_description=meta.get("description", "")
+            state, path,
+            scenario_description=meta.get("description", ""),
+            scenario_name=meta.get("name", ""),
         ))
 
     # ── Wizard dispatch ────────────────────────────────────────────────────

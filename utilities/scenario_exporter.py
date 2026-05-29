@@ -509,12 +509,12 @@ def _write_mortals(conn, state: SimulationState):
                 appointed_by_demiurge, appointed_by_luminary,
                 home_location, current_location, pinned, visibility_stall_remaining,
                 active_goal_json,
-                pop_id, proxius_appointed_tick, herald_appointed_tick,
+                pop_id, pop_milieu, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json,
                 fatigue, assets, knowledge_base, civilian_state,
                 occupation)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -547,6 +547,7 @@ def _write_mortals(conn, state: SimulationState):
                 m.visibility_stall_remaining,
                 m.active_goal.model_dump_json() if m.active_goal else None,
                 str(m.pop_id) if m.pop_id else None,
+                str(m.pop_milieu) if m.pop_milieu else None,
                 m.proxius_appointed_tick,
                 m.herald_appointed_tick,
                 int(m.origin_pop_subsumed),

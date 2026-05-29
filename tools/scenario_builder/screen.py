@@ -75,6 +75,7 @@ class BuilderScreen(Screen):
         state: SimulationState,
         db_path: Path,
         scenario_description: str = "",
+        scenario_name: str = "",
     ):
         super().__init__()
         self._state: SimulationState = state
@@ -86,6 +87,9 @@ class BuilderScreen(Screen):
         # export_scenario(..., description=...). Universe.description is read
         # from state.universe.description.
         self._scenario_description: str = scenario_description
+        # Preserve the original scenario_meta.name across saves; falls back to
+        # universe.name for new scenarios where no prior name exists.
+        self._scenario_name: str = scenario_name
         # IDs of entities with broken outgoing references (populated each
         # refresh by `_recompute_flags`). Rendered in red wherever they
         # appear; saving is refused while non-empty.
@@ -612,7 +616,7 @@ class BuilderScreen(Screen):
         bak = self._backup(path)
         export_scenario(
             self._state, path,
-            scenario_name=self._state.universe.name,
+            scenario_name=self._scenario_name or self._state.universe.name,
             description=self._scenario_description,
         )
         self._db_path = path

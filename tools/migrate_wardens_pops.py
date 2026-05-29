@@ -415,7 +415,9 @@ def migrate():
         print("\nDry run — no changes written.")
         return
 
-    export_scenario(state, SCENARIO)
+    from utilities.scenario_migrator import _peek_scenario_meta
+    name, description = _peek_scenario_meta(SCENARIO)
+    export_scenario(state, SCENARIO, scenario_name=name, description=description)
     print(f"\nWritten → {SCENARIO}")
 
 

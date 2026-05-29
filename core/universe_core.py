@@ -547,6 +547,7 @@ class NotableMortal(BaseModel):
 
     species_id: Optional[UUID] = None
     pop_id: Optional[UUID] = None   # Pop this mortal belongs to; cleared when they age out
+    pop_milieu: Optional[UUID] = None  # Pop the mortal is currently embedded among; defaults to pop_id on load
 
     # Tick at which the mortal was first elevated to each divine-appointment role.
     # Set once at appointment; never reset on dormancy/reactivation.
