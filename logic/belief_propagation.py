@@ -403,3 +403,49 @@ def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[Sta
                         note=f"{civ.name} culture conformity on Pop ({tag})",
                     ))
     return mutations
+
+
+def process_location_ambient_influence(state: SimulationState, cfg: TickConfig) -> None:
+    """
+    Directly mutate Pop.dominant_beliefs based on the domain_expression of their
+    current PopLocation and its parent world (SignificantLocation).
+    No mutation queue, no inertia, no skip guards — location influence is subtle
+    but pernicious. Called every cfg.location_ambient_stride ticks.
+    """
+    from core.universe_core import SignificantLocation
+
+    for pop in state.pops.values():
+        if not pop.current_location:
+            continue
+        pop_loc = state.locations.get(str(pop.current_location))
+        if not isinstance(pop_loc, PopLocation):
+            continue
+
+        # World-level ambient influence (with distance falloff)
+        if pop_loc.parent_id:
+            world = state.locations.get(str(pop_loc.parent_id))
+            if isinstance(world, SignificantLocation) and world.domain_expression:
+                dist = pop_loc.distance_from_core
+                falloff = cfg.location_ambient_distance_falloff ** dist
+                scale = cfg.location_ambient_base_scale * falloff
+                for tag, val in world.domain_expression.items():
+                    current = pop.dominant_beliefs.get(tag, 0.0)
+                    delta = (val - current) * scale
+                    if abs(delta) > 0.0001:
+                        new_val = max(0.0, min(1.0, current + delta))
+                        if new_val >= BELIEF_FLOOR:
+                            pop.dominant_beliefs[tag] = new_val
+                        elif tag in pop.dominant_beliefs:
+                            del pop.dominant_beliefs[tag]
+
+        # PopLocation-level ambient influence (no falloff, no splash-up)
+        if pop_loc.domain_expression:
+            for tag, val in pop_loc.domain_expression.items():
+                current = pop.dominant_beliefs.get(tag, 0.0)
+                delta = (val - current) * cfg.location_ambient_base_scale
+                if abs(delta) > 0.0001:
+                    new_val = max(0.0, min(1.0, current + delta))
+                    if new_val >= BELIEF_FLOOR:
+                        pop.dominant_beliefs[tag] = new_val
+                    elif tag in pop.dominant_beliefs:
+                        del pop.dominant_beliefs[tag]

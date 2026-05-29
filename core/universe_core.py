@@ -147,6 +147,7 @@ class Location(BaseModel):
     visibility: float = 0.0   # 0.0 = unknown; 1.0 = fully in-window
     pinned: bool = False       # True = never decays (all starting-scenario locations)
     visibility_stall_remaining: int = 0
+    domain_expression: dict[str, float] = Field(default_factory=dict)
 
 
 class StarType(str, Enum):
@@ -167,7 +168,6 @@ class SignificantLocation(Location):
     Planets, planes, and other mid-level locations that accumulate
     domain expression, local footprint, and host civilizations.
     """
-    domain_expression: dict[str, float] = Field(default_factory=dict)
     local_footprint: LocFootprint = Field(default_factory=LocFootprint)
 
     # IDs of entities anchored to this location

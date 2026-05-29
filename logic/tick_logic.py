@@ -65,6 +65,7 @@ from logic.belief_propagation import (
     pop_contact_resistance, process_pop_contact,
     recompute_civ_dominant_beliefs, recompute_civ_culture_tags,
     civ_conformity_pressure,
+    process_location_ambient_influence,
 )
 
 
@@ -573,6 +574,11 @@ class TickConfig(BaseModel):
     cross_civ_scale_penalty: float = 0.08
     cross_species_contact_factor: float = 0.50
     cross_stratum_contact_factor: float = 0.70
+
+    # Ambient location belief influence
+    location_ambient_stride: int = 61
+    location_ambient_base_scale: float = 0.2
+    location_ambient_distance_falloff: float = 0.9
 
     # `values:*` culture tags are stubborn — they resist being changed (in either
     # direction). Applied as an extra dampening multiplier on the delta of any
@@ -1895,6 +1901,10 @@ class TickLoop:
         if state.tick_number % cfg.pop_contact_stride == 0:
             for m in process_pop_contact(state, cfg):
                 result.civilization_mutations.append(m)
+
+        # ── Ambient location belief influence ──────────────────────
+        if state.tick_number % cfg.location_ambient_stride == 0:
+            process_location_ambient_influence(state, cfg)
 
         # ── Pop splinter check ─────────────────────────
         # A Pop splits when its beliefs diverge too far from civ.established_beliefs.

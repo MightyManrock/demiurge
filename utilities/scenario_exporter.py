@@ -322,6 +322,7 @@ def _write_locations(conn, state: SimulationState):
             atmo_tags = _j(loc.atmo_tags)
             age = loc.age
         elif isinstance(loc, PopLocation):
+            domain_expression = _j(loc.domain_expression)
             pop_ids = _j(loc.pop_ids)
             distance_from_core = int(loc.distance_from_core)
             travel_network_ids_val = _j(loc.travel_network_ids)

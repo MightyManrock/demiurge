@@ -492,6 +492,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 visibility=visibility,
                 pinned=pinned,
                 visibility_stall_remaining=visibility_stall_remaining,
+                domain_expression=_jd(row.get("domain_expression", "{}")),
                 pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
                 distance_from_core=int(row.get("distance_from_core", 0) or 0),
                 travel_network_ids=[UUID(x) for x in _j(row.get("travel_network_ids", "[]"))],
