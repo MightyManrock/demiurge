@@ -74,29 +74,22 @@ _SCALE_CONFORMITY: dict[str, float] = {
 
 def belief_inertia(current: float, delta: float) -> float:
     """
-    Returns a [0.0, 1.0] multiplier that slows belief/culture changes at extremes.
+    Returns a [0.05, 1.0] resistance multiplier based on the absolute strength
+    of the current value. Strong beliefs resist change in both directions.
 
-    High zone  (current > 0.7, pushing up):   1.0 → ~0.40 at cap.
-    High zone  (current > 0.7, pushing down):  1.0 → ~0.65 at cap  (entrenched but not immovable).
-    Low zone   (current < 0.2, pushing up):    0.65 → 1.0  (unfamiliar ideas face friction).
-    Floor zone (current ≤ 0.1, pushing down):  0.75 → 1.0  (tiny remnants cling).
-    Mid range  (0.2–0.7): multiplier = 1.0.
+    Always pass abs(current) for signed [-1, 1] culture tags (callers already do this).
+    delta is retained for API compatibility and future directional tuning.
+
+    ≤ 0.50: fully receptive (1.0).
+    0.50–0.75: linear ramp 1.0 → 0.25.
+    ≥ 0.75: nearly frozen (0.25 → 0.05 at 1.0).
     """
-    if delta > 0:
-        if current >= 0.7:
-            # Linear from 1.0 at 0.7 down to 0.40 at 0.9+
-            t = min(1.0, (current - 0.7) / 0.2)
-            return 1.0 - t * 0.60
-        if current < 0.2:
-            # Linear from 0.65 at 0.0 up to 1.0 at 0.2
-            return 0.65 + (current / 0.2) * 0.35
-    else:  # delta < 0 (downward pressure)
-        if current >= 0.7:
-            t = min(1.0, (current - 0.7) / 0.2)
-            return 1.0 - t * 0.35
-        if current <= 0.1:
-            # Linear from 0.75 at 0.0 up to 1.0 at 0.1
-            return 0.75 + (current / 0.1) * 0.25
+    if current >= 0.75:
+        t = min(1.0, (current - 0.75) / 0.25)
+        return max(0.05, 0.25 - t * 0.20)
+    if current >= 0.5:
+        t = (current - 0.5) / 0.25
+        return 1.0 - t * 0.75
     return 1.0
 
 
