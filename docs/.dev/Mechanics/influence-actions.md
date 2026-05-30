@@ -25,6 +25,8 @@ Targets a single mortal. Immediate effect: `effectiveness = (1.0 SUCCESS | 0.4 P
 
 **Pop splash** (`_emit_whisper_splash`): ripples to Pops on the mortal's world. Per-Pop delta = `vec.direction × per_unit_delta × WHISPER_POP_SPLASH(0.20) × receptivity × resistance × dist_factor × influence`. `influence` is prominence-derived: own-Pop = `WHISPER_OWN_POP_BASE_INFLUENCE(0.5) + prominence × WHISPER_OWN_POP_PROMINENCE_GAIN(2.0)`; cross-Pop = `prominence × WHISPER_CROSS_POP_PROMINENCE_GAIN(1.5)`. Culture-vector splash skips the domain-receptivity term.
 
+**Linked-pop override**: if a world-splash Pop is linked to the mortal's origin Pop, resistance, distance factor, and receptivity are replaced by the computed link factor — `vec.direction × per_unit_delta × WHISPER_POP_SPLASH × lf × influence`. After the world loop, `_emit_linked_pop_belief_cascade` sends a scaled copy to each linked Pop that is *off-world*. Visibility from `emit_influence_visibility_splash` cascades to linked Pops similarly. See [linked-pops.md](linked-pops.md) for full details and constants.
+
 ## Shape Dream (`ShapeDreamIntent`)
 
 Targets a mortal with **two Imagines from different Domain trees**. At resolution one Imago is randomly **boosted ×1.15** and the other **suppressed ×0.60**. Combine rules (`_combine_shape_dream_vectors`): multiplier applies only to positive-direction entries; for a tag in both Imagines, two positives take the mean, anything else sums. Otherwise resolves exactly like a Whisper (same splash, same 4-tick echo).

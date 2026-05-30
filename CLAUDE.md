@@ -150,8 +150,9 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Pop↔civ belief/culture influence, conformity, pop contact, resistance system | [belief-culture-influence.md](docs/.dev/Mechanics/belief-culture-influence.md) |
 | Window visibility, entity decay | [window-visibility.md](docs/.dev/Mechanics/window-visibility.md) |
 | Scry scope and discovery | [scry-action.md](docs/.dev/Mechanics/scry-action.md) |
-| Mortal aging, alignment, prominence | [mortal-system.md](docs/.dev/Mechanics/mortal-system.md) |
+| Mortal aging, alignment, prominence; pop_milieu and arrival algorithm | [mortal-system.md](docs/.dev/Mechanics/mortal-system.md) |
 | Proxii, authored splinters, planned agent tiers; civilian agent system | [agent-system.md](docs/.dev/Mechanics/agent-system.md) |
+| Linked Pops — data model, link factor, drift, cascade, travel milieu | [linked-pops.md](docs/.dev/Mechanics/linked-pops.md) |
 
 ## Extending the system
 
