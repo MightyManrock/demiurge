@@ -5009,9 +5009,17 @@ class TickLoop:
                         if need:
                             need.satisfaction = 1.0
                             need.satiation_hold = round(8 * quality)
-                    # Directive fulfillment — wealth gain + Purpose satisfaction
-                    _sell_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
-                    _sell_pop = state.pops.get(_sell_pop_id)
+                    # Find sell pop by location: prefer own pop if present, else any local pop.
+                    # Do NOT use pop_milieu here — milieu selection optimises for social needs
+                    # and may point to a non-merchant pop even while Durenn is at his trade hub.
+                    _sell_cur_loc = str(mortal.current_location)
+                    _sell_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+                    if _sell_pop is None or str(_sell_pop.current_location) != _sell_cur_loc:
+                        _sell_pop = next(
+                            (p for p in state.pops.values()
+                             if str(p.current_location) == _sell_cur_loc),
+                            None,
+                        )
                     if _sell_pop:
                         _pop_loc = state.locations.get(str(_sell_pop.current_location))
                         if _pop_loc and hasattr(_pop_loc, "wealth"):
