@@ -968,8 +968,8 @@ def _status_recognition_from_pop(
         return own_gain, own_hold
 
     origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
-    if origin_pop and str(local_pop.id) in origin_pop.linked_pop_ids:
-        base = origin_pop.linked_pop_ids[str(local_pop.id)]
+    if origin_pop and str(origin_pop.id) in local_pop.linked_pop_ids:
+        base = local_pop.linked_pop_ids[str(origin_pop.id)]
         lf = compute_link_factor(origin_pop, local_pop, base)
         return link_scale * lf, link_hold
 
@@ -4947,6 +4947,18 @@ class TickLoop:
             if mortal.fatigue > 0.0:
                 mortal.fatigue = max(0.0, mortal.fatigue - 0.1)
 
+            # Observe local pop_location wealth → keep sell quality fact current
+            if (kb := mortal.knowledge_base):
+                _obs_loc = state.locations.get(str(mortal.current_location))
+                if _obs_loc and hasattr(_obs_loc, "wealth"):
+                    _cur_loc_str = str(mortal.current_location)
+                    for _qf in kb.facts:
+                        if (getattr(_qf, "fact_type", None) == "location_quality"
+                                and getattr(_qf, "location_id", None) == _cur_loc_str
+                                and getattr(_qf, "quality_type", None) == "sell"):
+                            _qf.quality = _obs_loc.wealth
+                            break
+
             action = evaluate_civilian_action(mortal, state, current_tick)
             cs.last_action = action
 
@@ -5013,8 +5025,16 @@ class TickLoop:
                                 if _df.directive_type == "commerce" and _df.satisfying_action == "sell":
                                     purpose_need = cs.get_need(NEED_PURPOSE)
                                     if purpose_need:
-                                        purpose_need.satisfaction = 1.0
-                                        purpose_need.satiation_hold = 10
+                                        _origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+                                        _is_own = _origin_pop and str(_sell_pop.id) == str(_origin_pop.id)
+                                        if _is_own:
+                                            purpose_need.satisfaction = 1.0
+                                            purpose_need.satiation_hold = 10
+                                        elif _origin_pop and str(_sell_pop.id) in _origin_pop.linked_pop_ids:
+                                            _p_base = _origin_pop.linked_pop_ids[str(_sell_pop.id)]
+                                            _p_lf = compute_link_factor(_origin_pop, _sell_pop, _p_base)
+                                            purpose_need.satisfaction = min(1.0, purpose_need.satisfaction + _p_lf)
+                                            purpose_need.satiation_hold = round(10 * _p_lf)
                                     break
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
                     cs.action_cooldowns["sell"] = current_tick + 2

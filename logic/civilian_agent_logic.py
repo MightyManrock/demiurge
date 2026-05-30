@@ -113,6 +113,12 @@ def evaluate_civilian_action(
     if mortal.fatigue >= FATIGUE_BLOCK_THRESHOLD:
         return "idle"
 
+    # Pending travel: opportunistic action was taken last tick — now commit to travel
+    if cs.pending_travel_dest:
+        dest = cs.pending_travel_dest
+        cs.pending_travel_dest = None
+        return f"travel:{dest}"
+
     if not cs.pressing_needs():
         return "idle"
 
@@ -135,6 +141,16 @@ def evaluate_civilian_action(
                 if route and route.vehicle_type:
                     if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
                         return "idle"
+                # Opportunistic collect before departing to sell
+                _cur_loc = state.locations.get(current_loc_id)
+                if (
+                    _cur_loc is not None
+                    and getattr(_cur_loc, "collectible_resource", None) is not None
+                    and current_loc_id in kb.known_resource_locations()
+                    and cs.cooldown_expired(COLLECT_COOLDOWN, current_tick)
+                ):
+                    cs.pending_travel_dest = best_sell_loc
+                    return "collect"
                 return f"travel:{best_sell_loc}"
             return "idle"
 

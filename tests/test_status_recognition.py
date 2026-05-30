@@ -56,8 +56,9 @@ def test_status_socialize_own_pop():
 # ── Linked-pop relationship ───────────────────────────────────────────────────
 
 def test_status_sell_linked_pop():
-    local_pop = _pop()
-    origin_pop = _pop(linked={str(local_pop.id): 1.0})
+    # Status direction: local_pop links toward origin_pop (local recognizes Durenn's people)
+    origin_pop = _pop()
+    local_pop = _pop(linked={str(origin_pop.id): 1.0})
     mortal = _mortal(pop_id=origin_pop.id)
     state = _state(pops={str(origin_pop.id): origin_pop})
     gain, hold = _status_recognition_from_pop(mortal, local_pop, state, strong=True)
@@ -67,8 +68,8 @@ def test_status_sell_linked_pop():
 
 
 def test_status_socialize_linked_pop():
-    local_pop = _pop()
-    origin_pop = _pop(linked={str(local_pop.id): 0.5})
+    origin_pop = _pop()
+    local_pop = _pop(linked={str(origin_pop.id): 0.5})
     mortal = _mortal(pop_id=origin_pop.id)
     state = _state(pops={str(origin_pop.id): origin_pop})
     gain, hold = _status_recognition_from_pop(mortal, local_pop, state, strong=False)
