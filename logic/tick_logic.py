@@ -5006,15 +5006,15 @@ class TickLoop:
                         _status_need = cs.get_need(NEED_STATUS)
                         if _status_need:
                             _status_need.satisfaction = min(1.0, _status_need.satisfaction + _s_gain)
-                            if _s_hold and _status_need.satisfaction >= _status_need.pressing_threshold:
+                            if _s_hold:
                                 _status_need.satiation_hold = _s_hold
                         if kb := mortal.knowledge_base:
                             for _df in kb.directive_facts():
                                 if _df.directive_type == "commerce" and _df.satisfying_action == "sell":
                                     purpose_need = cs.get_need(NEED_PURPOSE)
                                     if purpose_need:
-                                        purpose_need.satisfaction = min(1.0, purpose_need.satisfaction + 0.35)
-                                        purpose_need.satiation_hold = 8
+                                        purpose_need.satisfaction = 1.0
+                                        purpose_need.satiation_hold = 10
                                     break
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
                     cs.action_cooldowns["sell"] = current_tick + 2
@@ -5095,7 +5095,7 @@ class TickLoop:
                     _soc_status = cs.get_need(NEED_STATUS)
                     if _soc_status:
                         _soc_status.satisfaction = min(1.0, _soc_status.satisfaction + _s_gain)
-                        if _s_hold and _soc_status.satisfaction >= _soc_status.pressing_threshold:
+                        if _s_hold:
                             _soc_status.satiation_hold = _s_hold
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
                     cs.action_cooldowns["socialize"] = current_tick + 3
