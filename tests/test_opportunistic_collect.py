@@ -85,17 +85,16 @@ def test_pending_travel_commits_next_tick():
     assert cs.pending_travel_dest is None
 
 
-def test_opportunistic_collect_skipped_when_cooldown_active():
-    """If collect is on cooldown, travel immediately without opportunistic collect."""
+def test_opportunistic_collect_always_fires_at_resource_before_sell_travel():
+    """At resource location with sellable goods, collect always fires first (no cooldown gate)."""
     cs = _cs(with_sellable=True)
-    cs.action_cooldowns["collect"] = 999  # cooldown active
     kb = _kb()
     mortal = _mortal(cs, kb, loc_id=SETHIS)
     state = _state(resource_loc=SETHIS)
 
     result = evaluate_civilian_action(mortal, state, 0)
-    assert result == f"travel:{NERAN}"
-    assert cs.pending_travel_dest is None
+    assert result == "collect"
+    assert cs.pending_travel_dest == NERAN
 
 
 def test_no_opportunistic_collect_when_not_at_resource_location():

@@ -274,18 +274,6 @@ def test_leisure_uses_pop_milieu_over_pop_id():
     assert result == "leisure"
 
 
-def test_leisure_cooldown_blocks():
-    cs = CivilianAgentState(
-        needs=[_pressing("leisure")],
-        action_cooldowns={"leisure": 99},  # expires at tick 99
-    )
-    result = evaluate_civilian_action(
-        _mortal_with_pop(cs),
-        _state_with_pop(),
-        current_tick=0,  # cooldown not expired
-    )
-    assert result == "idle"
-
 
 def test_leisure_priority_above_collect():
     """Leisure fires before collect when both leisure need is pressing and resource exists."""

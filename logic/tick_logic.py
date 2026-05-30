@@ -4979,7 +4979,6 @@ class TickLoop:
                         cs.inventory.append(res)
                     res.quantity += cr.resource_yield
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
-                    cs.action_cooldowns["collect"] = current_tick + cr.cooldown_ticks
                     narratives.append(
                         f"{mortal.name} collects {cr.resource_yield} {cr.resource_type} "
                         f"(total: {res.quantity:.0f})."
@@ -5051,7 +5050,6 @@ class TickLoop:
                                             purpose_need.satiation_hold = round(10 * _p_lf)
                                     break
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
-                    cs.action_cooldowns["sell"] = current_tick + 2
                     narratives.append(
                         f"{mortal.name} sells {units} {res.resource_type} "
                         f"for {credits_gained:.0f} credits."
@@ -5087,7 +5085,6 @@ class TickLoop:
                         need.satisfaction = min(1.0, need.satisfaction + gain_per_need)
                         if need.satisfaction >= 1.0:
                             need.satiation_hold = hold_ticks
-                    cs.action_cooldowns["spend"] = current_tick + 2
                     need_names = ", ".join(n.name for n in needs_to_fill)
                     narratives.append(
                         f"{mortal.name} spends {n_units} credits on {need_names} "
@@ -5106,7 +5103,6 @@ class TickLoop:
                         leisure_need.satisfaction = min(1.0, leisure_need.satisfaction + gain)
                         leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality)
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
-                    cs.action_cooldowns["leisure"] = current_tick + 3
                     narratives.append(
                         f"{mortal.name} spends time enjoying local culture "
                         f"(quality {quality:.2f}, +{LEISURE_BASE_GAIN * quality:.2f} leisure)."
@@ -5132,7 +5128,6 @@ class TickLoop:
                         if _s_hold:
                             _soc_status.satiation_hold = _s_hold
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
-                    cs.action_cooldowns["socialize"] = current_tick + 3
                     narratives.append(
                         f"{mortal.name} socializes with the local community "
                         f"(quality {quality:.2f}, +{SOCIALIZE_BASE_GAIN * quality:.2f} belonging)."
@@ -5154,7 +5149,6 @@ class TickLoop:
                             travel_location_id=tl.id
                         )
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
-                        cs.action_cooldowns["travel"] = current_tick + 1
                         dest_loc = state.locations.get(dest_id)
                         dest_name = dest_loc.name if dest_loc else dest_id
                         narratives.append(f"{mortal.name} departs for {dest_name}.")

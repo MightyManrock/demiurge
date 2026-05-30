@@ -173,26 +173,21 @@ def evaluate_civilian_action(
         best_sell_loc = kb.best_known_sell_location()
         if best_sell_loc:
             if current_loc_id == best_sell_loc:
-                if cs.cooldown_expired(SELL_COOLDOWN, current_tick):
-                    return "sell"
-                return "idle"
-            if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
-                route = kb.route_to(best_sell_loc)
-                if route and route.vehicle_type:
-                    if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                        return "idle"
-                # Opportunistic collect before departing to sell
-                _cur_loc = state.locations.get(current_loc_id)
-                if (
-                    _cur_loc is not None
-                    and getattr(_cur_loc, "collectible_resource", None) is not None
-                    and current_loc_id in kb.known_resource_locations()
-                    and cs.cooldown_expired(COLLECT_COOLDOWN, current_tick)
-                ):
-                    cs.pending_travel_dest = best_sell_loc
-                    return "collect"
-                return f"travel:{best_sell_loc}"
-            return "idle"
+                return "sell"
+            route = kb.route_to(best_sell_loc)
+            if route and route.vehicle_type:
+                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                    return "idle"
+            # Opportunistic collect before departing to sell
+            _cur_loc = state.locations.get(current_loc_id)
+            if (
+                _cur_loc is not None
+                and getattr(_cur_loc, "collectible_resource", None) is not None
+                and current_loc_id in kb.known_resource_locations()
+            ):
+                cs.pending_travel_dest = best_sell_loc
+                return "collect"
+            return f"travel:{best_sell_loc}"
 
     # ── Priority 2: spend ────────────────────────────────────────────────────
     spendable = next(
@@ -211,16 +206,12 @@ def evaluate_civilian_action(
         best_spend_loc = kb.best_known_spend_location()
         if best_spend_loc:
             if current_loc_id == best_spend_loc:
-                if cs.cooldown_expired(SPEND_COOLDOWN, current_tick):
-                    return "spend"
-                return "idle"
-            if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
-                route = kb.route_to(best_spend_loc)
-                if route and route.vehicle_type:
-                    if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                        return "idle"
-                return f"travel:{best_spend_loc}"
-            return "idle"
+                return "spend"
+            route = kb.route_to(best_spend_loc)
+            if route and route.vehicle_type:
+                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
+                    return "idle"
+            return f"travel:{best_spend_loc}"
 
     # ── Priority 2.5: directive override ────────────────────────────────────
     # When Purpose is pressing and the mortal has a commerce directive, skip
@@ -234,16 +225,14 @@ def evaluate_civilian_action(
         if leisure_need and leisure_need.is_pressing:
             local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
             if local_pop_id and local_pop_id in state.pops:
-                if cs.cooldown_expired(LEISURE_COOLDOWN, current_tick):
-                    return "leisure"
+                return "leisure"
 
         # ── Priority 4: socialize ────────────────────────────────────────────
         belonging_need = cs.get_need("belonging")
         if belonging_need and belonging_need.is_pressing:
             local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
             if local_pop_id and local_pop_id in state.pops:
-                if cs.cooldown_expired(SOCIALIZE_COOLDOWN, current_tick):
-                    return "socialize"
+                return "socialize"
 
     # ── Priority 5: collect ──────────────────────────────────────────────────
     resource_locs = kb.known_resource_locations()
@@ -258,18 +247,13 @@ def evaluate_civilian_action(
     )
 
     if at_resource:
-        if cs.cooldown_expired(COLLECT_COOLDOWN, current_tick):
-            return "collect"
-        return "idle"
+        return "collect"
 
-    if cs.cooldown_expired(TRAVEL_COOLDOWN, current_tick):
-        dest = resource_locs[0]
-        route = kb.route_to(dest)
-        if route and route.vehicle_type:
-            if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                return "idle"
-        if not _travel_motivated(cs, kb, dest):
+    dest = resource_locs[0]
+    route = kb.route_to(dest)
+    if route and route.vehicle_type:
+        if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
             return "idle"
-        return f"travel:{dest}"
-
-    return "idle"
+    if not _travel_motivated(cs, kb, dest):
+        return "idle"
+    return f"travel:{dest}"
