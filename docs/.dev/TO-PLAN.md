@@ -3,6 +3,12 @@
 
 ---
 
+### Civilian agent bugs
+
+10. **Durenn Vail doesn't return from Sethis.** After collecting a full hold and selling at Neran, he either doesn't score the return trip highly enough or gets stuck in a post-sell idle loop. The sell pop resolution, need satiation after selling, and travel scoring all interact here — needs a focused debug session.
+
+---
+
 ### Random playtest notes
 
 1. The weird margin error in the Log (when entries are sometimes formatted strangely when you're not currently looking at the Log) still resurfaces sometimes (see ![[random_additional_margin_error.png]]), but it does seem to clean itself up after a few ticks, so it's probably not a big deal.
