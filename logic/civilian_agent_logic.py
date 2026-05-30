@@ -16,6 +16,10 @@ SOCIALIZE_SATIATION_HOLD_BASE = 5
 # Score multiplier applied to sell/collect when a commerce directive is active
 DIRECTIVE_MULTIPLIER = 2.0
 
+# Exponent applied to ticks_cost in travel scoring: 1.0 = linear (harsh); 0.5 = square root
+# (gentler — a 12-tick trip divides benefit by ~3.5 instead of 12).
+TRAVEL_DIST_EXPONENT = 0.5
+
 
 def _need_urgency(need) -> float:
     """Continuous urgency in [0, ~1.5]. Zero when not pressing or held satisfied."""
@@ -261,7 +265,7 @@ def evaluate_civilian_action(
         if not can_travel or _trip_too_long_for_urgent_need(cs, kb, dest_id):
             return
         ticks = route.ticks_cost if route else 1
-        score = (dest_score - _best_local) / max(1, ticks)
+        score = (dest_score - _best_local) / max(1.0, ticks ** TRAVEL_DIST_EXPONENT)
         if score > 0:
             travel_candidates[dest_id] = max(travel_candidates.get(dest_id, 0.0), score)
 

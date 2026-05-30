@@ -61,7 +61,9 @@ def _state(resource_loc=SETHIS):
 # ── Opportunistic collect before sell-travel ──────────────────────────────────
 
 def test_opportunistic_collect_fires_before_travel():
-    """At resource location with sellable goods and pressing purpose, collect wins by score."""
+    """At resource location with sellable goods and pressing purpose, travel to sell wins by
+    score (sqrt distance scaling makes 12-tick sell-trip beat local collect), so the
+    intercept fires: collect is returned and pending_travel_dest is locked in."""
     cs = _cs(with_sellable=True)
     kb = _kb()
     mortal = _mortal(cs, kb, loc_id=SETHIS)
@@ -69,9 +71,7 @@ def test_opportunistic_collect_fires_before_travel():
 
     result = evaluate_civilian_action(mortal, state, 0)
     assert result == "collect"
-    # pending_travel_dest is set only when travel explicitly beats local collect;
-    # here collect wins naturally, so no intercept is needed.
-    assert cs.pending_travel_dest is None
+    assert cs.pending_travel_dest == NERAN
 
 
 def test_pending_travel_commits_next_tick():
