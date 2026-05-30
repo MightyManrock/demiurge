@@ -51,6 +51,28 @@ def _mortal_is_travelling(mortal: NotableMortal, state: SimulationState) -> bool
     return loc is not None and getattr(loc, "location_type", None) == "travel_location"
 
 
+def _travel_motivated(
+    cs: "CivilianAgentState",
+    kb: "KnowledgeBase",
+    dest_id: str,
+    threshold_ticks: int = 2,
+) -> bool:
+    """True if the trip to dest_id is worth taking given current need state.
+    Short trips (≤ threshold_ticks) always allowed.
+    Long trips require a pressing drive: Purpose+directive, Status, or any urgent need.
+    """
+    route = kb.route_to(dest_id)
+    if not route or route.ticks_cost <= threshold_ticks:
+        return True
+    purpose = cs.get_need("purpose")
+    if purpose and purpose.is_pressing and kb.directive_facts():
+        return True
+    status = cs.get_need("status")
+    if status and status.is_pressing:
+        return True
+    return any(n.is_urgent for n in cs.needs)
+
+
 def _trip_too_long_for_urgent_need(
     cs: CivilianAgentState,
     kb: KnowledgeBase,
@@ -190,6 +212,8 @@ def evaluate_civilian_action(
         if route and route.vehicle_type:
             if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
                 return "idle"
+        if not _travel_motivated(cs, kb, dest):
+            return "idle"
         return f"travel:{dest}"
 
     return "idle"
