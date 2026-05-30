@@ -750,7 +750,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
             continue
         gm = _OOW if g_oow else ""
         gal_vis = f"  [vis:{galaxy.visibility:.0%}]" if not galaxy.pinned else ""
-        lines += ["", f"{gm}  Galaxy: {galaxy.name}{gal_vis}"]
+        lines += ["", f"{gm}  Galaxy: {galaxy.name}{gal_vis}  age:{galaxy.age.elapsed_display()}"]
         for sid in galaxy.child_ids:
             sys_obj  = state.locations.get(str(sid))
             if not sys_obj:
@@ -761,7 +761,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
             sm = _OOW if (g_oow or s_oow) else ""
             star_str = f"  [{sys_obj.star_type.value}]" if hasattr(sys_obj, "star_type") else ""
             sys_vis  = f"  [vis:{sys_obj.visibility:.0%}]" if not sys_obj.pinned else ""
-            lines.append(f"{sm}    System: {sys_obj.name}{star_str}{sys_vis}")
+            lines.append(f"{sm}    System: {sys_obj.name}{star_str}{sys_vis}  age:{sys_obj.age.elapsed_display()}")
             for wid in sys_obj.child_ids:
                 world = state.worlds.get(str(wid))
                 if not world:

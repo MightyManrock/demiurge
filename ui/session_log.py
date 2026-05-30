@@ -90,7 +90,7 @@ class SessionLog:
     def finalize(self, state: "SimulationState", result: "TickResult | None") -> None:
         self.write("\n" + "=" * 60)
         self.write("SESSION END")
-        self.write(f"Final age: {state.universe.current_age.display()}")
+        self.write(f"Final age: {state.universe.age.display()}")
         self.write(f"Final tick: {state.tick_number}")
         if result and result.terminal.triggered:
             self.write(f"Outcome: {result.terminal.condition.value}")
