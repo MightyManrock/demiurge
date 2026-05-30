@@ -52,6 +52,8 @@ Actions that satisfy a need can set `satiation_hold` to suppress decay for sever
 - `leisure` → Leisure need: satisfaction += `LEISURE_BASE_GAIN * quality`, hold = `round(6 * quality)`
 - `socialize` → Belonging need: satisfaction += `SOCIALIZE_BASE_GAIN * quality`, hold = `round(5 * quality)`
 - Directive fulfillment via `sell` → Purpose need: +0.35, hold = 8
+- Status recognition via `sell` → Status need: see below
+- Status recognition via `socialize` → Status need: see below
 
 ---
 
@@ -75,6 +77,33 @@ Quality is computed by `_pop_social_quality(pop_tags)`:
 base = pop["values:solidarity"] * 0.5 + pop["practice:revelry"] * 0.5
 ```
 Default values: 0.3 each.
+
+---
+
+## Status Recognition
+
+Status is not self-reported — it is granted by a Pop community noticing a mortal's contribution. Two triggers fire `_status_recognition_from_pop(mortal, local_pop, state, *, strong)` in `logic/tick_logic.py`:
+
+| Trigger | `strong` | Context |
+|---------|----------|---------|
+| Sell action (after wealth increase) | `True` | Pop whose `PopLocation.wealth` was raised |
+| Socialize action (after Belonging) | `False` | Mortal's local pop (`pop_milieu or pop_id`) |
+
+### Relationship tiers
+
+Recognition magnitude scales by the mortal's relationship to the benefited pop:
+
+| Relationship | Sell gain / hold | Socialize gain / hold |
+|---|---|---|
+| Own pop (`mortal.pop_id == local_pop.id`) | +0.30 / 6 ticks | +0.10 / 3 ticks |
+| Linked pop (in `origin_pop.linked_pop_ids`) | `0.30 × link_factor` / 4 ticks | `0.10 × link_factor` / 2 ticks |
+| Stranger | +0.05 / 2 ticks | +0.02 / 0 ticks |
+
+The link factor for the linked-pop path is computed by `compute_link_factor(origin_pop, local_pop, base)` from `logic/sim_utils.py`, which incorporates stratum bonus, occupation bonus, and cosine similarity of belief+culture vectors.
+
+### Hold gating
+
+`satiation_hold` is only applied when the resulting `satisfaction >= pressing_threshold` (0.60). A mortal whose Status is very depleted gets the satisfaction gain but not the decay pause — they need another action to push above the threshold before hold kicks in.
 
 ---
 
