@@ -62,6 +62,8 @@ from logic.sim_utils import (
     resolve_world_for as _resolve_world_for,
     cosine_similarity,
     pop_domain_receptivity as _pop_domain_receptivity,
+    compute_link_factor,
+    LINK_DRIFT_RATE, LINK_BREAK_THRESHOLD, LINK_DRIFT_STRIDE,
 )
 from logic.essence_generation import process_essence_generation
 from logic.proxius_logic import resolve_proxius_agents
@@ -1629,6 +1631,12 @@ class TickLoop:
         result.entity_mutations.extend(splinter_mutations)
         result.narrative_events.extend(splinter_events)
 
+        # ── Linked-pop base factor drift ────────────────
+        # Co-prime with civ_conformity_stride (10) to avoid tick stacking.
+        if state.tick_number % LINK_DRIFT_STRIDE == 0:
+            link_events = self._process_link_drift(state)
+            result.narrative_events.extend(link_events)
+
         return result
 
     def _check_pop_splinters(
@@ -1694,6 +1702,40 @@ class TickLoop:
                 in_window=is_in_window(pop) or is_in_window(civ),
             ))
         return mutations, events
+
+    def _process_link_drift(self, state: SimulationState) -> list[NarrativeEvent]:
+        """Drift each Pop's base link factors toward cosine similarity and break dissolved links."""
+        events: list[NarrativeEvent] = []
+        for pop in state.pops.values():
+            if not pop.linked_pop_ids:
+                continue
+            to_remove: list[str] = []
+            for other_id_str, base_factor in list(pop.linked_pop_ids.items()):
+                other_pop = state.pops.get(other_id_str)
+                if other_pop is None:
+                    to_remove.append(other_id_str)
+                    continue
+                a_vec = {**pop.dominant_beliefs, **pop.culture_tags}
+                b_vec = {**other_pop.dominant_beliefs, **other_pop.culture_tags}
+                cosine = cosine_similarity(a_vec, b_vec)
+                new_base = base_factor + (cosine - base_factor) * LINK_DRIFT_RATE
+                computed = compute_link_factor(pop, other_pop, new_base)
+                if computed < LINK_BREAK_THRESHOLD:
+                    to_remove.append(other_id_str)
+                    if pop.pinned or other_pop.pinned:
+                        events.append(NarrativeEvent(
+                            text=(
+                                f"[Link dissolved] {pop.name or pop.stratum} and "
+                                f"{other_pop.name or other_pop.stratum} no longer identify with each other "
+                                f"(link factor {computed:.2f})."
+                            ),
+                            in_window=pop.pinned or other_pop.pinned,
+                        ))
+                else:
+                    pop.linked_pop_ids[other_id_str] = new_base
+            for k in to_remove:
+                del pop.linked_pop_ids[k]
+        return events
 
     def _apply_passive_mutations(
         self,

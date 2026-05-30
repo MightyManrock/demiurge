@@ -396,6 +396,37 @@ def migrate():
     build_pops(surface, NERAN_SURFACE_POPS)
     build_pops(orbital, NERAN_ORBITAL_RING_POPS)
 
+    # ── Step 4b: link surface ↔ orbital ring Pop pairs ────────────────────────
+    # Base link factors authored from brainstorming/linked_pops.md.
+    _NERAN_LINK_FACTORS: dict[str, float] = {
+        "transport":  0.90,
+        "officer":    0.80,
+        "scientist":  0.75,
+        "engineer":   0.70,
+        "soldier":    0.70,
+        "guard":      0.65,
+        "technician": 0.65,
+        "healer":     0.60,
+        "service":    0.55,
+        "laborer":    0.55,
+    }
+    surface_by_occ = {
+        state.pops[str(pid)].occupation: state.pops[str(pid)]
+        for pid in surface.pop_ids
+    }
+    orbital_by_occ = {
+        state.pops[str(pid)].occupation: state.pops[str(pid)]
+        for pid in orbital.pop_ids
+    }
+    for occ, base in _NERAN_LINK_FACTORS.items():
+        s_pop = surface_by_occ.get(occ)
+        o_pop = orbital_by_occ.get(occ)
+        if s_pop and o_pop:
+            s_pop.linked_pop_ids[str(o_pop.id)] = base
+            o_pop.linked_pop_ids[str(s_pop.id)] = base
+        else:
+            print(f"  WARNING: no link pair found for occupation {occ!r}")
+
     # ── Step 5: update mortal data ─────────────────────────────────────────────
     for name, updates in MORTAL_UPDATES.items():
         m = preserved_mortals.get(name)

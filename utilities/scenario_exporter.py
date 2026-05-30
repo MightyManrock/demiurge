@@ -468,8 +468,8 @@ def _write_pops(conn, state: SimulationState):
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
                 visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until,
-                occupation)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                occupation, linked_pop_ids)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -492,6 +492,7 @@ def _write_pops(conn, state: SimulationState):
                 p.preaching_imago_id,
                 p.preaching_goal_cooldown_until,
                 p.occupation,
+                _j(p.linked_pop_ids),
             ),
         )
 

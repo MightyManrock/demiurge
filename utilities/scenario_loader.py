@@ -676,6 +676,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             preaching_imago_id=row.get("preaching_imago_id"),
             preaching_goal_cooldown_until=int(row.get("preaching_goal_cooldown_until") or 0),
             occupation=row.get("occupation", ""),
+            linked_pop_ids=_jd(row.get("linked_pop_ids", "{}")),
         )
         out[str(p.id)] = p
     return out

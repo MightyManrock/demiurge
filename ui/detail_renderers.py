@@ -12,6 +12,7 @@ from rich.markup import escape as _e
 from rich.text import Text
 
 from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
+from logic.sim_utils import compute_link_factor
 from logic.tick_logic import is_in_window, is_mortal_visible, ENTITY_VISIBILITY_FLOOR
 from ui import display
 from ui.display import (
@@ -1085,6 +1086,28 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
         a(f"  {mm}● {m_link} \\[{role_str}]  align:{m.alignment:.2f}{me}")
     if not any_m:
         a("  [#5a7090](none in Window)[/]")
+
+    if pop.linked_pop_ids:
+        link_lines: list[str] = []
+        for other_id_str, base in pop.linked_pop_ids.items():
+            other_pop = state.pops.get(other_id_str)
+            if other_pop is None:
+                continue
+            both_visible = pop.visibility > 0 and other_pop.visibility > 0
+            if not dev and not both_visible:
+                continue
+            label = other_pop.name or f"{other_pop.stratum.title()}:{other_pop.occupation}"
+            other_link = _click_link("pop", other_id_str, label)
+            both_full = pop.visibility >= 1.0 and other_pop.visibility >= 1.0
+            if dev or both_full:
+                computed = compute_link_factor(pop, other_pop, base)
+                link_lines.append(f"  ● {other_link}  [#5a7090]link: {computed:.2f} (base {base:.2f})[/]")
+            else:
+                link_lines.append(f"  ● {other_link}")
+        if link_lines:
+            a("")
+            a("[bold #4a80b0]LINKED POPS[/]")
+            lines.extend(link_lines)
 
     return Text.from_markup("\n".join(lines))
 

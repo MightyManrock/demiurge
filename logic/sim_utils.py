@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from core.universe_core import SignificantLocation, PopLocation
+from core.universe_core import Pop, SignificantLocation, PopLocation
 from utilities.culture_registry import get_registry as get_culture_registry
 
 if TYPE_CHECKING:
@@ -56,3 +56,28 @@ def cosine_similarity(a: dict[str, float], b: dict[str, float]) -> float:
     if mag_a == 0.0 or mag_b == 0.0:
         return 0.0
     return dot / (mag_a * mag_b)
+
+
+# ── Linked-pop constants ────────────────────────────────────────────────────
+
+LINK_STRATUM_BONUS    = 0.05   # flat bonus for shared social class
+LINK_OCCUPATION_BONUS = 0.10   # flat bonus for shared occupation
+LINK_COSINE_WEIGHT    = 0.20   # max cosine contribution to computed link factor
+LINK_DRIFT_RATE       = 0.008  # per-stride lerp rate (half-life ≈ 87 strides)
+LINK_BREAK_THRESHOLD  = 0.16   # computed factor below this → link dissolves
+LINK_DRIFT_STRIDE     = 17     # ticks between link-drift passes
+
+
+def compute_link_factor(pop_a: Pop, pop_b: Pop, base: float) -> float:
+    """Computed link factor between two Pops given a base link factor.
+
+    Combines structural bonuses (shared stratum, shared occupation) with a
+    cosine similarity component over merged belief+culture vectors.
+    Returns a value clamped to [0.0, 1.0].
+    """
+    stratum_bonus = LINK_STRATUM_BONUS if pop_a.stratum == pop_b.stratum else 0.0
+    occupation_bonus = LINK_OCCUPATION_BONUS if pop_a.occupation == pop_b.occupation else 0.0
+    a_vec = {**pop_a.dominant_beliefs, **pop_a.culture_tags}
+    b_vec = {**pop_b.dominant_beliefs, **pop_b.culture_tags}
+    cosine = cosine_similarity(a_vec, b_vec)
+    return min(1.0, max(0.0, base + stratum_bonus + occupation_bonus + LINK_COSINE_WEIGHT * cosine))

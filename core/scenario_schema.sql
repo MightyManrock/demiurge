@@ -232,7 +232,8 @@ CREATE TABLE IF NOT EXISTS pops (
     visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
     preaching_imago_id            TEXT DEFAULT NULL,     -- imago_node_id if this Pop is an active preaching goal target
     preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0,  -- tick before which Pop cannot be a source target
-    occupation                    TEXT NOT NULL DEFAULT ''
+    occupation                    TEXT NOT NULL DEFAULT '',
+    linked_pop_ids                TEXT NOT NULL DEFAULT '{}'   -- JSON object {pop_id_str: base_link_factor}
 );
 
 CREATE TABLE IF NOT EXISTS mortals (

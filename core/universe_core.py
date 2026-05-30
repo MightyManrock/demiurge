@@ -375,6 +375,11 @@ class Pop(BaseModel):
     visibility_stall_remaining: int = 0
     occupation: str = ""
 
+    # Links to other Pops that represent the same demographic in different
+    # circumstances. Keys are pop ID strings; values are the base link factor
+    # (0.0–1.0). Asymmetric: each Pop stores its own perspective.
+    linked_pop_ids: dict[str, float] = Field(default_factory=dict)
+
 
 # ─────────────────────────────────────────
 # CIVILIZATION
