@@ -235,7 +235,8 @@ CREATE TABLE IF NOT EXISTS pops (
     preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0,  -- tick before which Pop cannot be a source target
     occupation                    TEXT NOT NULL DEFAULT '',
     linked_pop_ids                TEXT NOT NULL DEFAULT '{}',  -- JSON object {pop_id_str: base_link_factor}
-    active_directives             TEXT NOT NULL DEFAULT '[]'   -- JSON array of Directive objects
+    active_directives             TEXT NOT NULL DEFAULT '[]',  -- JSON array of Directive objects
+    asset_crew_for                TEXT DEFAULT NULL            -- asset_type if this is a vessel crew pop
 );
 
 CREATE TABLE IF NOT EXISTS mortals (

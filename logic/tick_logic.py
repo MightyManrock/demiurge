@@ -5175,6 +5175,15 @@ class TickLoop:
                         mortal.travel_intent = TravelIntent(
                             travel_location_id=tl.id
                         )
+                        # Set crew pop as milieu for the journey so leisure/socialize work in transit
+                        _crew_pop = next(
+                            (p for p in state.pops.values()
+                             if getattr(p, "asset_crew_for", None) is not None
+                             and any(a.asset_type == p.asset_crew_for for a in mortal.assets)),
+                            None,
+                        )
+                        if _crew_pop:
+                            mortal.pop_milieu = _crew_pop.id
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
                         dest_loc = state.locations.get(dest_id)
                         dest_name = dest_loc.name if dest_loc else dest_id

@@ -390,6 +390,7 @@ class Pop(BaseModel):
     # (0.0–1.0). Asymmetric: each Pop stores its own perspective.
     linked_pop_ids: dict[str, float] = Field(default_factory=dict)
     active_directives: list[Directive] = Field(default_factory=list)
+    asset_crew_for: Optional[str] = None  # asset_type; marks this as a vessel crew pop
 
 
 # ─────────────────────────────────────────

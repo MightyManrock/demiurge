@@ -144,7 +144,13 @@ def evaluate_civilian_action(
         return None
 
     if _mortal_is_travelling(mortal, state):
-        return "idle"
+        _has_crew_milieu = (
+            mortal.pop_milieu is not None
+            and str(mortal.pop_milieu) in state.pops
+            and getattr(state.pops[str(mortal.pop_milieu)], "asset_crew_for", None) is not None
+        )
+        if not _has_crew_milieu:
+            return "idle"
 
     if mortal.fatigue >= FATIGUE_BLOCK_THRESHOLD:
         return "idle"
@@ -278,7 +284,7 @@ def evaluate_civilian_action(
     # ── Travel candidates: score = (dest_score − best_local) / ticks_cost ────
     travel_candidates: dict[str, float] = {}
 
-    if not _docked:
+    if not _docked and not _mortal_is_travelling(mortal, state):
         def _try_travel(dest_id: str, dest_score: float) -> None:
             if dest_id == current_loc_id or dest_score <= _best_local:
                 return
@@ -289,7 +295,10 @@ def evaluate_civilian_action(
             if not can_travel or _trip_too_long_for_urgent_need(cs, kb, dest_id):
                 return
             ticks = route.ticks_cost if route else 1
-            score = (dest_score - _best_local) / max(1.0, ticks ** TRAVEL_DIST_EXPONENT)
+            _ctags = getattr(mortal, "culture_tags", None)
+            sedentism = _ctags.get("values:sedentism", 0.0) if isinstance(_ctags, dict) else 0.0
+            sedentism_bonus = max(1.0, 1.0 - sedentism * 0.5)
+            score = (dest_score - _best_local) / max(1.0, ticks ** TRAVEL_DIST_EXPONENT) * sedentism_bonus
             if score > 0:
                 travel_candidates[dest_id] = max(travel_candidates.get(dest_id, 0.0), score)
 

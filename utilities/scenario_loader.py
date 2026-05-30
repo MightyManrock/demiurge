@@ -679,6 +679,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             occupation=row.get("occupation", ""),
             linked_pop_ids=_jd(row.get("linked_pop_ids", "{}")),
             active_directives=_load_directives(row.get("active_directives", "[]")),
+            asset_crew_for=row.get("asset_crew_for") or None,
         )
         out[str(p.id)] = p
     return out
