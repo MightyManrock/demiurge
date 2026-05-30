@@ -28,7 +28,7 @@ _TRAVEL_BLOCKING_NEEDS: frozenset[str] = frozenset({"sustenance", "safety"})
 
 # Score and gain multiplier for leisure/socialize while in transit with a crew pop.
 # Chatting with your crew is real but not genuinely restorative.
-CREW_SOCIAL_MULTIPLIER = 0.15
+CREW_SOCIAL_MULTIPLIER = 0.05
 
 # Exponent applied to ticks_cost in travel scoring: 1.0 = linear (harsh); 0.5 = square root
 # (gentler — a 12-tick trip divides benefit by ~3.5 instead of 12).
@@ -203,7 +203,10 @@ def evaluate_civilian_action(
     )
 
     _directive_active = bool(kb.directive_facts())
-    _directive_work_pending = _directive_active and not _hold_full
+    _directive_work_pending = (
+        _directive_active and not _hold_full
+        and any(n.name == "purpose" and n.is_pressing for n in cs.needs)
+    )
 
     # Gate: idle when nothing is pressing — UNLESS mortal has a full hold to sell
     # or a directive with an unfilled hold (standing motivation to run the route).
@@ -253,11 +256,9 @@ def evaluate_civilian_action(
     if _directive_active and _sell_score > 0:
         _sell_score *= DIRECTIVE_MULTIPLIER
 
-    # Collect: empty-hold follow-through. Directive provides a baseline so the mortal
-    # returns for another load immediately after selling, not only when purpose is pressing.
-    _directive_base = 0.25 if _directive_active else 0.0
+    # Collect: empty-hold follow-through. Only motivating when purpose is pressing.
     _collect_score = (
-        (1.0 - _load_fraction) * max(urgency.get("purpose", 0.0), _directive_base)
+        (1.0 - _load_fraction) * urgency.get("purpose", 0.0)
     ) if not _hold_full else 0.0
     if _directive_active and _collect_score > 0:
         _collect_score *= DIRECTIVE_MULTIPLIER

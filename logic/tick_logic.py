@@ -5153,7 +5153,7 @@ class TickLoop:
                     if leisure_need:
                         gain = LEISURE_BASE_GAIN * quality * _crew_mult
                         leisure_need.satisfaction = min(1.0, leisure_need.satisfaction + gain)
-                        leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality)
+                        leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality * _crew_mult)
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
                     narratives.append(
                         f"{mortal.name} spends time enjoying local culture "
@@ -5170,7 +5170,7 @@ class TickLoop:
                     if belonging_need:
                         gain = SOCIALIZE_BASE_GAIN * quality * _crew_mult
                         belonging_need.satisfaction = min(1.0, belonging_need.satisfaction + gain)
-                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality)
+                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality * _crew_mult)
                     # Minor Status recognition from being seen by the community
                     _s_gain, _s_hold = _status_recognition_from_pop(
                         mortal, pop, state, strong=False
