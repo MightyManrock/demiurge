@@ -2901,7 +2901,7 @@ class TickLoop:
             # Pops are gated on their civilization being in-window.
             # Discovery probability scales with Pop size and social class prominence.
             _PROMINENT_CLASSES = {"elite", "scholar", "warrior"}
-            for pid, pop in state.pops.items():
+            for pid, pop in list(state.pops.items()):
                 if pop.pinned:
                     continue
                 # Civ-bound pops require their civilization to be in-window; wild
