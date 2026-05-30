@@ -173,9 +173,6 @@ def evaluate_civilian_action(
         cs.pending_travel_dest = None
         return f"travel:{dest}"
 
-    if not cs.pressing_needs() and not _in_transit_with_crew:
-        return "idle"
-
     current_loc_id = str(mortal.current_location)
 
     # ── Cargo state ──────────────────────────────────────────────────────────
@@ -193,6 +190,11 @@ def evaluate_civilian_action(
          and r.quantity >= (_sell_threshold if _sell_threshold is not None else r.threshold)),
         None,
     )
+
+    # Gate: idle when nothing is pressing — UNLESS mortal has a full hold to sell
+    # (load-fraction follow-through is self-motivating; it shouldn't need a pressing need to fire).
+    if not cs.pressing_needs() and not _in_transit_with_crew and _sellable is None:
+        return "idle"
     # Load fraction: ratio when capacity is known; sigmoid (L/(L+1)) otherwise.
     # The sigmoid never reaches 1.0, so uncapped mortals always have some collect score
     # alongside sell pressure — they don't get stuck choosing only one direction.

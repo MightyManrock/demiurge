@@ -1717,6 +1717,7 @@ class TickLoop:
                 species_id=pop.species_id,
                 social_class=pop.social_class,
                 wild_stratum=pop.wild_stratum,
+                occupation=pop.occupation,
                 current_location=pop.current_location,
                 size_fractional=pop.size_fractional * SPLINTER_FRACTION,
                 dominant_beliefs=dict(pop.dominant_beliefs),

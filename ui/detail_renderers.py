@@ -863,7 +863,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 elif need.is_pressing:
                     suffix = "  [#c09030][PRESSING][/]"
                 elif need.satiation_hold > 0:
-                    suffix = f"  [#60a860][held:{need.satiation_hold}][/]"
+                    suffix = f"  [#60a860]held:{need.satiation_hold}[/]"
                 else:
                     suffix = ""
                 a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{suffix}")
