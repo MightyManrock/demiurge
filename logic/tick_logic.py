@@ -4971,6 +4971,8 @@ class TickLoop:
                         pass
                     else:
                         need.satiation_hold -= 1
+                elif need.name == NEED_LEISURE and _was_idle:
+                    pass  # satisfaction also frozen — idle keeps leisure from falling
                 else:
                     need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
 
