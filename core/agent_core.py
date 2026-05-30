@@ -47,8 +47,18 @@ class LocationQualityFact(BaseModel):
     learned_at_tick: int = 0
 
 
+class DirectiveFact(BaseModel):
+    fact_type: Literal["directive"] = "directive"
+    directive_id: str              # UUID string matching Directive.id
+    directive_type: str            # "commerce"
+    satisfying_action: str         # "sell" — what action fulfills this directive
+    target_pop_location_id: str    # UUID of the PopLocation whose wealth this grows
+    confidence: float = 1.0
+    learned_at_tick: int = 0
+
+
 KnowledgeFact = Annotated[
-    LocationFact | ResourceFact | RouteFact | LocationQualityFact,
+    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact,
     Field(discriminator="fact_type"),
 ]
 
@@ -86,6 +96,9 @@ class KnowledgeBase(BaseModel):
     def route_ticks_to(self, to_id: str) -> int:
         fact = self.route_to(to_id)
         return fact.ticks_cost if fact else 0
+
+    def directive_facts(self) -> list[DirectiveFact]:
+        return [f for f in self.facts if f.fact_type == "directive"]
 
 
 # ---------------------------------------------------------------------------

@@ -300,6 +300,7 @@ def _write_locations(conn, state: SimulationState):
         travel_network_ids_val = "[]"
         commerce_quality = 0.5
         collectible_resource_val = None
+        wealth_val = 0.5
         legs = "{}"
         travel_current_wp = ""
         travel_ticks_rem = 0
@@ -328,6 +329,7 @@ def _write_locations(conn, state: SimulationState):
             travel_network_ids_val = _j(loc.travel_network_ids)
             commerce_quality = loc.commerce_quality
             collectible_resource_val = loc.collectible_resource.model_dump_json() if loc.collectible_resource else None
+            wealth_val = loc.wealth
         elif isinstance(loc, TravelLocation):
             legs             = _j(loc.legs)
             travel_current_wp = loc.current_waypoint
@@ -345,7 +347,7 @@ def _write_locations(conn, state: SimulationState):
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids,
-                commerce_quality, collectible_resource,
+                commerce_quality, collectible_resource, wealth,
                 visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
@@ -355,7 +357,7 @@ def _write_locations(conn, state: SimulationState):
                        ?, ?, ?,
                        ?, ?,
                        ?, ?, ?, ?, ?,
-                       ?, ?,
+                       ?, ?, ?,
                        ?, ?, ?)""",
             (
                 str(loc.id),
@@ -375,7 +377,7 @@ def _write_locations(conn, state: SimulationState):
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids_val,
-                commerce_quality, collectible_resource_val,
+                commerce_quality, collectible_resource_val, wealth_val,
                 loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),
         )
@@ -468,8 +470,8 @@ def _write_pops(conn, state: SimulationState):
                 notable_mortal_ids, parent_pop_id, child_pop_ids,
                 visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until,
-                occupation, linked_pop_ids)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                occupation, linked_pop_ids, active_directives)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -493,6 +495,7 @@ def _write_pops(conn, state: SimulationState):
                 p.preaching_goal_cooldown_until,
                 p.occupation,
                 _j(p.linked_pop_ids),
+                _j([d.model_dump() for d in p.active_directives]),
             ),
         )
 

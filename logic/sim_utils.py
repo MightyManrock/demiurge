@@ -84,3 +84,16 @@ def compute_link_factor(pop_a: Pop, pop_b: Pop, base: float) -> float:
     b_vec = {**pop_b.dominant_beliefs, **pop_b.culture_tags}
     cosine = cosine_similarity(a_vec, b_vec)
     return min(1.0, max(0.0, base + stratum_bonus + occupation_bonus + LINK_COSINE_WEIGHT * cosine))
+
+
+def compute_world_wealth(world_id: str, state: "SimulationState") -> float:
+    """Sum of all child PopLocation.wealth values for a SignificantLocation."""
+    world = state.locations.get(world_id)
+    if world is None:
+        return 0.0
+    total = 0.0
+    for child_id in getattr(world, "child_ids", []):
+        child = state.locations.get(str(child_id))
+        if isinstance(child, PopLocation):
+            total += child.wealth
+    return total

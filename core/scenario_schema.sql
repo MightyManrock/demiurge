@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS locations (
     travel_network_ids    TEXT    NOT NULL DEFAULT '[]',   -- JSON array of TravelNetwork UUIDs
     commerce_quality      REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; spend effectiveness multiplier
     collectible_resource  TEXT    DEFAULT NULL,            -- JSON of CollectibleResource, or NULL
+    wealth                REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; PopLocation prosperity indicator
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0,      -- bool; 1 = never decays (all starting locations)
@@ -233,7 +234,8 @@ CREATE TABLE IF NOT EXISTS pops (
     preaching_imago_id            TEXT DEFAULT NULL,     -- imago_node_id if this Pop is an active preaching goal target
     preaching_goal_cooldown_until INTEGER NOT NULL DEFAULT 0,  -- tick before which Pop cannot be a source target
     occupation                    TEXT NOT NULL DEFAULT '',
-    linked_pop_ids                TEXT NOT NULL DEFAULT '{}'   -- JSON object {pop_id_str: base_link_factor}
+    linked_pop_ids                TEXT NOT NULL DEFAULT '{}',  -- JSON object {pop_id_str: base_link_factor}
+    active_directives             TEXT NOT NULL DEFAULT '[]'   -- JSON array of Directive objects
 );
 
 CREATE TABLE IF NOT EXISTS mortals (

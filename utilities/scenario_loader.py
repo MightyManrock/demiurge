@@ -501,6 +501,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 travel_network_ids=[UUID(x) for x in _j(row.get("travel_network_ids", "[]"))],
                 commerce_quality=float(row.get("commerce_quality") or 0.5),
                 collectible_resource=_load_collectible_resource(row.get("collectible_resource")),
+                wealth=float(row.get("wealth", 0.5) or 0.5),
             )
         elif subclass == "travel_location":
             from core.universe_core import TravelLocation
@@ -677,6 +678,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             preaching_goal_cooldown_until=int(row.get("preaching_goal_cooldown_until") or 0),
             occupation=row.get("occupation", ""),
             linked_pop_ids=_jd(row.get("linked_pop_ids", "{}")),
+            active_directives=_load_directives(row.get("active_directives", "[]")),
         )
         out[str(p.id)] = p
     return out
@@ -755,6 +757,18 @@ def _load_civilian_state(raw: Optional[str]) -> Optional[CivilianAgentState]:
         return CivilianAgentState.model_validate_json(raw)
     except Exception:
         return None
+
+
+def _load_directives(raw: Optional[str]) -> list:
+    if not raw:
+        return []
+    try:
+        from core.universe_core import Directive
+        import json
+        items = json.loads(raw)
+        return [Directive.model_validate(d) for d in items]
+    except Exception:
+        return []
 
 
 def _load_collectible_resource(raw: Optional[str]) -> Optional[CollectibleResource]:

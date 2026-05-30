@@ -65,7 +65,7 @@ from logic.civilian_agent_logic import (
     LEISURE_SATIATION_HOLD_BASE,
     SOCIALIZE_SATIATION_HOLD_BASE,
 )
-from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING
+from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE
 from logic.sim_utils import (
     resolve_world_id_for as _resolve_world_id_for,
     resolve_world_for as _resolve_world_for,
@@ -4901,6 +4901,14 @@ class TickLoop:
             if safe and safe.satisfaction < 1.0:
                 safe.satisfaction = min(1.0, safe.satisfaction + 0.02)
 
+            # Wealth decay on the mortal's home PopLocation
+            local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+            local_pop = state.pops.get(local_pop_id)
+            if local_pop:
+                pop_loc = state.locations.get(str(local_pop.current_location))
+                if pop_loc and hasattr(pop_loc, "wealth") and pop_loc.wealth > 0.0:
+                    pop_loc.wealth = max(0.0, pop_loc.wealth - 0.005)
+
             for need in cs.needs:
                 if need.satiation_hold > 0:
                     need.satiation_hold -= 1
@@ -4953,6 +4961,22 @@ class TickLoop:
                         if need:
                             need.satisfaction = 1.0
                             need.satiation_hold = round(8 * quality)
+                    # Directive fulfillment — wealth gain + Purpose satisfaction
+                    _sell_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+                    _sell_pop = state.pops.get(_sell_pop_id)
+                    if _sell_pop:
+                        _pop_loc = state.locations.get(str(_sell_pop.current_location))
+                        if _pop_loc and hasattr(_pop_loc, "wealth"):
+                            wealth_gain = min(0.05, credits_gained * 0.005)
+                            _pop_loc.wealth = min(1.0, _pop_loc.wealth + wealth_gain)
+                        if kb := mortal.knowledge_base:
+                            for _df in kb.directive_facts():
+                                if _df.directive_type == "commerce" and _df.satisfying_action == "sell":
+                                    purpose_need = cs.get_need(NEED_PURPOSE)
+                                    if purpose_need:
+                                        purpose_need.satisfaction = min(1.0, purpose_need.satisfaction + 0.35)
+                                        purpose_need.satiation_hold = 8
+                                    break
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
                     cs.action_cooldowns["sell"] = current_tick + 2
                     narratives.append(
