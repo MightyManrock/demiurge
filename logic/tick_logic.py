@@ -5308,49 +5308,88 @@ class TickLoop:
             influence = own_influence if is_own else cross_influence
             if influence <= 0.0:
                 continue
-            resistance = pop_contact_resistance(
-                sp, src_civ_id, src_species_id, src_class, state, cfg,
-                src_size=src_size,
-            )
-            dist_factor = pop_distance_factor(state, src_loc_id, sp.current_location)
-            for dv in domain_vectors:
-                receptivity = _pop_domain_receptivity(sp, dv.domain_tag)
-                splash_delta = (
-                    dv.direction * per_unit_delta * WHISPER_POP_SPLASH
-                    * receptivity * resistance * dist_factor * influence
+
+            # Co-located linked Pops bypass resistance/distance/receptivity —
+            # the link relationship overrides social-boundary factors.
+            sp_str = str(sp.id)
+            co_linked_lf: float | None = None
+            if src_pop is not None and sp_str in src_pop.linked_pop_ids and sp_str != str(src_pop.id):
+                co_linked_lf = compute_link_factor(src_pop, sp, src_pop.linked_pop_ids[sp_str])
+
+            if co_linked_lf is not None:
+                for dv in domain_vectors:
+                    splash_delta = dv.direction * per_unit_delta * WHISPER_POP_SPLASH * co_linked_lf * influence
+                    if abs(splash_delta) > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_BELIEF_SHIFT,
+                            target_id=sp.id,
+                            field=dv.domain_tag,
+                            delta=splash_delta,
+                            note=(
+                                f"{note_prefix} linked splash to {sp.stratum} Pop"
+                                + (" (own pop)" if is_own else "")
+                            ),
+                        ))
+                        emit_lineage_bleed(mutations, state, sp, dv.domain_tag, splash_delta, "whisper")
+                for cv in culture_vectors:
+                    splash_delta = cv.direction * per_unit_delta * WHISPER_POP_SPLASH * co_linked_lf * influence
+                    if abs(splash_delta) > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_CULTURE_SHIFT,
+                            target_id=sp.id,
+                            field=cv.culture_tag,
+                            delta=splash_delta,
+                            note=(
+                                f"{note_prefix} linked culture splash to {sp.stratum} Pop"
+                                + (" (own pop)" if is_own else "")
+                            ),
+                        ))
+            else:
+                resistance = pop_contact_resistance(
+                    sp, src_civ_id, src_species_id, src_class, state, cfg,
+                    src_size=src_size,
                 )
-                if abs(splash_delta) > 1e-5:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.POP_BELIEF_SHIFT,
-                        target_id=sp.id,
-                        field=dv.domain_tag,
-                        delta=splash_delta,
-                        note=(
-                            f"{note_prefix} splash to {sp.stratum} Pop"
-                            + (" (own pop)" if is_own else "")
-                        ),
-                    ))
-                    emit_lineage_bleed(
-                        mutations, state, sp, dv.domain_tag,
-                        splash_delta, "whisper",
+                dist_factor = pop_distance_factor(state, src_loc_id, sp.current_location)
+                for dv in domain_vectors:
+                    receptivity = _pop_domain_receptivity(sp, dv.domain_tag)
+                    splash_delta = (
+                        dv.direction * per_unit_delta * WHISPER_POP_SPLASH
+                        * receptivity * resistance * dist_factor * influence
                     )
-            for cv in culture_vectors:
-                splash_delta = (
-                    cv.direction * per_unit_delta * WHISPER_POP_SPLASH
-                    * resistance * dist_factor * influence
-                )
-                if abs(splash_delta) > 1e-5:
-                    mutations.append(StateMutation(
-                        mutation_type=MutationType.POP_CULTURE_SHIFT,
-                        target_id=sp.id,
-                        field=cv.culture_tag,
-                        delta=splash_delta,
-                        note=(
-                            f"{note_prefix} culture splash to {sp.stratum} Pop"
-                            + (" (own pop)" if is_own else "")
-                        ),
-                    ))
-            # Linked-pop belief cascade (Features 1 & 2).
+                    if abs(splash_delta) > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_BELIEF_SHIFT,
+                            target_id=sp.id,
+                            field=dv.domain_tag,
+                            delta=splash_delta,
+                            note=(
+                                f"{note_prefix} splash to {sp.stratum} Pop"
+                                + (" (own pop)" if is_own else "")
+                            ),
+                        ))
+                        emit_lineage_bleed(
+                            mutations, state, sp, dv.domain_tag,
+                            splash_delta, "whisper",
+                        )
+                for cv in culture_vectors:
+                    splash_delta = (
+                        cv.direction * per_unit_delta * WHISPER_POP_SPLASH
+                        * resistance * dist_factor * influence
+                    )
+                    if abs(splash_delta) > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_CULTURE_SHIFT,
+                            target_id=sp.id,
+                            field=cv.culture_tag,
+                            delta=splash_delta,
+                            note=(
+                                f"{note_prefix} culture splash to {sp.stratum} Pop"
+                                + (" (own pop)" if is_own else "")
+                            ),
+                        ))
+
+            # Linked-pop belief cascade (cross-world only — co-located linked Pops
+            # are already handled above via link-override world splash).
             cascade_scale = LINK_SPLASH_OWN_POP_SCALE if is_own else LINK_SPLASH_WORLD_POP_SCALE
             self._emit_linked_pop_belief_cascade(
                 mutations, state, sp,
@@ -5359,6 +5398,7 @@ class TickLoop:
                 per_unit_delta=per_unit_delta,
                 cascade_scale=cascade_scale,
                 note_prefix=note_prefix,
+                skip_world_id=world_id,
             )
 
     def _emit_linked_pop_belief_cascade(
@@ -5371,6 +5411,7 @@ class TickLoop:
         per_unit_delta: float,
         cascade_scale: float,
         note_prefix: str,
+        skip_world_id: "str | None" = None,
     ) -> None:
         """Cascade belief/culture from a world-splash Pop to its linked Pops.
 
@@ -5378,6 +5419,11 @@ class TickLoop:
         the link factor IS the relationship-quality proxy, and cross-world reach
         is the intended benefit. Depth is structurally bounded to 1: this method
         only emits StateMutation objects; it never calls _emit_whisper_splash.
+
+        skip_world_id: when set, linked Pops on that world are skipped because
+        they were already handled via link-override world splash in
+        _emit_whisper_splash. Pass world_id from the caller to avoid
+        double-counting co-located linked Pops.
 
         emit_lineage_bleed is deliberately omitted: lineage bleed models
         within-world heritage; applying it through cross-world links would
@@ -5388,6 +5434,8 @@ class TickLoop:
         for other_id_str, base_factor in source_pop.linked_pop_ids.items():
             other_pop = state.pops.get(other_id_str)
             if other_pop is None or other_pop.id == source_pop.id:
+                continue
+            if skip_world_id and _resolve_world_id_for(state, other_pop.current_location) == skip_world_id:
                 continue
             lf = compute_link_factor(source_pop, other_pop, base_factor)
             for dv in domain_vectors:
