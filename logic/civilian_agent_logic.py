@@ -191,9 +191,12 @@ def evaluate_civilian_action(
         None,
     )
 
+    _directive_active = bool(kb.directive_facts())
+    _directive_work_pending = _directive_active and not _hold_full
+
     # Gate: idle when nothing is pressing — UNLESS mortal has a full hold to sell
-    # (load-fraction follow-through is self-motivating; it shouldn't need a pressing need to fire).
-    if not cs.pressing_needs() and not _in_transit_with_crew and _sellable is None:
+    # or a directive with an unfilled hold (standing motivation to run the route).
+    if not cs.pressing_needs() and not _in_transit_with_crew and _sellable is None and not _directive_work_pending:
         return "idle"
     # Load fraction: ratio when capacity is known; sigmoid (L/(L+1)) otherwise.
     # The sigmoid never reaches 1.0, so uncapped mortals always have some collect score
@@ -225,8 +228,6 @@ def evaluate_civilian_action(
     # Need urgency map
     urgency = {n.name: _need_urgency(n) for n in cs.needs}
 
-    _directive_active = bool(kb.directive_facts())
-
     _best_sell_loc  = kb.best_known_sell_location()  if _sellable  else None
     _best_spend_loc = kb.best_known_spend_location() if _spendable else None
 
@@ -241,9 +242,11 @@ def evaluate_civilian_action(
     if _directive_active and _sell_score > 0:
         _sell_score *= DIRECTIVE_MULTIPLIER
 
-    # Collect: empty-hold follow-through scaled by purpose urgency
+    # Collect: empty-hold follow-through. Directive provides a baseline so the mortal
+    # returns for another load immediately after selling, not only when purpose is pressing.
+    _directive_base = 0.25 if _directive_active else 0.0
     _collect_score = (
-        (1.0 - _load_fraction) * urgency.get("purpose", 0.0)
+        (1.0 - _load_fraction) * max(urgency.get("purpose", 0.0), _directive_base)
     ) if not _hold_full else 0.0
     if _directive_active and _collect_score > 0:
         _collect_score *= DIRECTIVE_MULTIPLIER
