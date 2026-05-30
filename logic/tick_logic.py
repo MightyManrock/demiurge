@@ -58,6 +58,7 @@ from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
 from logic.civilian_agent_logic import (
     evaluate_civilian_action,
+    _select_local_pop,
     _pop_practice_quality,
     _pop_social_quality,
     LEISURE_BASE_GAIN,
@@ -4946,6 +4947,11 @@ class TickLoop:
 
             if mortal.fatigue > 0.0:
                 mortal.fatigue = max(0.0, mortal.fatigue - 0.1)
+
+            # Zero-cost milieu switch: move among best local pop for pressing social needs
+            _milieu_pop_id = _select_local_pop(mortal, state)
+            if _milieu_pop_id:
+                mortal.pop_milieu = UUID(_milieu_pop_id)
 
             # Observe local pop_location wealth → keep sell quality fact current
             if (kb := mortal.knowledge_base):

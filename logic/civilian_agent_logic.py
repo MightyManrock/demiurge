@@ -44,6 +44,46 @@ def _pop_social_quality(pop_tags: dict[str, float]) -> float:
     return min(1.0, max(0.0, base))
 
 
+def _select_local_pop(
+    mortal: "NotableMortal",
+    state: "SimulationState",
+) -> Optional[str]:
+    """
+    Return the pop_id of the best pop at the mortal's current location for their
+    pressing social needs (leisure + belonging), or None if no social needs are
+    pressing or no pops are present at the location.
+
+    Weighted scoring: leisure pressing → add practice quality; belonging pressing →
+    add social quality. The pop with the highest combined score wins.
+    """
+    cs = mortal.civilian_state
+    if cs is None:
+        return None
+
+    leisure_pressing  = (n := cs.get_need("leisure"))  is not None and n.is_pressing
+    belonging_pressing = (n := cs.get_need("belonging")) is not None and n.is_pressing
+    if not leisure_pressing and not belonging_pressing:
+        return None
+
+    cur_loc_str = str(mortal.current_location)
+    local_pops = [(pid, p) for pid, p in state.pops.items()
+                  if str(p.current_location) == cur_loc_str]
+    if not local_pops:
+        return None
+
+    def _score(item: tuple) -> float:
+        _, pop = item
+        s = 0.0
+        if leisure_pressing:
+            s += _pop_practice_quality(mortal.culture_tags, pop.culture_tags)
+        if belonging_pressing:
+            s += _pop_social_quality(pop.culture_tags)
+        return s
+
+    best_pid, _ = max(local_pops, key=_score)
+    return best_pid
+
+
 def _mortal_is_travelling(mortal: NotableMortal, state: SimulationState) -> bool:
     if mortal.travel_intent is not None:
         return True
