@@ -14,6 +14,11 @@ SOCIALIZE_BASE_GAIN           = 0.30
 LEISURE_SATIATION_HOLD_BASE   = 6
 SOCIALIZE_SATIATION_HOLD_BASE = 5
 
+# Ambient gain applied to leisure/socialize when not pressing but mortal is in transit with crew.
+# Lower than base so ambient social play only wins over idle, never over commerce.
+LEISURE_AMBIENT_GAIN   = 0.20
+SOCIALIZE_AMBIENT_GAIN = 0.15
+
 # Score multiplier applied to sell/collect when a commerce directive is active
 DIRECTIVE_MULTIPLIER = 2.0
 
@@ -143,13 +148,16 @@ def evaluate_civilian_action(
     if cs is None or kb is None:
         return None
 
-    if _mortal_is_travelling(mortal, state):
-        _has_crew_milieu = (
-            mortal.pop_milieu is not None
-            and str(mortal.pop_milieu) in state.pops
-            and getattr(state.pops[str(mortal.pop_milieu)], "asset_crew_for", None) is not None
+    _travelling = _mortal_is_travelling(mortal, state)
+    _in_transit_with_crew = False
+    if _travelling:
+        _milieu_id = str(mortal.pop_milieu) if mortal.pop_milieu is not None else ""
+        _milieu_pop = state.pops.get(_milieu_id)
+        _in_transit_with_crew = (
+            _milieu_pop is not None
+            and getattr(_milieu_pop, "asset_crew_for", None) is not None
         )
-        if not _has_crew_milieu:
+        if not _in_transit_with_crew:
             return "idle"
 
     if mortal.fatigue >= FATIGUE_BLOCK_THRESHOLD:
@@ -165,7 +173,7 @@ def evaluate_civilian_action(
         cs.pending_travel_dest = None
         return f"travel:{dest}"
 
-    if not cs.pressing_needs():
+    if not cs.pressing_needs() and not _in_transit_with_crew:
         return "idle"
 
     current_loc_id = str(mortal.current_location)
@@ -247,23 +255,32 @@ def evaluate_civilian_action(
     else:
         _spend_score = 0.0
 
-    # Leisure: leisure urgency × pop practice quality
+    # Leisure: urgency-based score (pressing) or ambient score (in transit with crew, not full)
     _leisure_u = urgency.get("leisure", 0.0)
-    if _leisure_u > 0 and _local_pop is not None:
+    if _local_pop is not None and (_leisure_u > 0 or _in_transit_with_crew):
         mortal_tags = getattr(mortal, "culture_tags", {}) or {}
-        _leisure_score = _leisure_u * LEISURE_BASE_GAIN * _pop_practice_quality(
-            mortal_tags, _local_pop.culture_tags
-        )
+        _pq = _pop_practice_quality(mortal_tags, _local_pop.culture_tags)
+        if _leisure_u > 0:
+            _leisure_score = _leisure_u * LEISURE_BASE_GAIN * _pq
+        else:
+            _l_need = cs.get_need("leisure")
+            _l_sat = _l_need.satisfaction if _l_need else 1.0
+            _leisure_score = max(0.0, 1.0 - _l_sat) * LEISURE_AMBIENT_GAIN * _pq
     else:
         _leisure_score = 0.0
 
-    # Socialize: belonging urgency × pop social quality
+    # Socialize: urgency-based score (pressing) or ambient score (in transit with crew, not full)
     _belonging_u = urgency.get("belonging", 0.0)
-    _socialize_score = (
-        _belonging_u * SOCIALIZE_BASE_GAIN * _pop_social_quality(_local_pop.culture_tags)
-        if _belonging_u > 0 and _local_pop is not None
-        else 0.0
-    )
+    if _local_pop is not None and (_belonging_u > 0 or _in_transit_with_crew):
+        _sq = _pop_social_quality(_local_pop.culture_tags)
+        if _belonging_u > 0:
+            _socialize_score = _belonging_u * SOCIALIZE_BASE_GAIN * _sq
+        else:
+            _b_need = cs.get_need("belonging")
+            _b_sat = _b_need.satisfaction if _b_need else 1.0
+            _socialize_score = max(0.0, 1.0 - _b_sat) * SOCIALIZE_AMBIENT_GAIN * _sq
+    else:
+        _socialize_score = 0.0
 
     # ── Local candidates ──────────────────────────────────────────────────────
     local_candidates: dict[str, float] = {}
@@ -284,7 +301,7 @@ def evaluate_civilian_action(
     # ── Travel candidates: score = (dest_score − best_local) / ticks_cost ────
     travel_candidates: dict[str, float] = {}
 
-    if not _docked and not _mortal_is_travelling(mortal, state):
+    if not _docked and not _travelling:
         def _try_travel(dest_id: str, dest_score: float) -> None:
             if dest_id == current_loc_id or dest_score <= _best_local:
                 return

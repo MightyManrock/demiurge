@@ -34,10 +34,10 @@ CANONICAL_NEEDS = (
 NEED_DEFAULTS: dict[str, dict[str, float]] = {
     NEED_SUSTENANCE: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     NEED_SAFETY:     {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
-    NEED_BELONGING:  {"decay_rate": 0.02,  "pressing_threshold": 0.65, "urgent_threshold": 0.30},
+    NEED_BELONGING:  {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
     NEED_STATUS:     {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
     NEED_PURPOSE:    {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
-    NEED_LEISURE:    {"decay_rate": 0.02,  "pressing_threshold": 0.65, "urgent_threshold": 0.30},
+    NEED_LEISURE:    {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
 }
 
 # ---------------------------------------------------------------------------
