@@ -65,7 +65,7 @@ from logic.civilian_agent_logic import (
     SOCIALIZE_BASE_GAIN,
     LEISURE_SATIATION_HOLD_BASE,
     SOCIALIZE_SATIATION_HOLD_BASE,
-    CREW_SOCIAL_MULTIPLIER,
+    CREW_LEISURE_MULTIPLIER,
 )
 from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS
 from logic.sim_utils import (
@@ -4963,9 +4963,14 @@ class TickLoop:
                 if pop_loc and hasattr(pop_loc, "wealth") and pop_loc.wealth > 0.0:
                     pop_loc.wealth = max(0.0, pop_loc.wealth - 0.005)
 
+            _was_idle = cs.last_action == "idle"
             for need in cs.needs:
                 if need.satiation_hold > 0:
-                    need.satiation_hold -= 1
+                    # Leisure hold is preserved while the mortal is idle — restful downtime.
+                    if need.name == NEED_LEISURE and _was_idle:
+                        pass
+                    else:
+                        need.satiation_hold -= 1
                 else:
                     need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
 
@@ -5148,7 +5153,7 @@ class TickLoop:
                 pop = state.pops.get(local_pop_id)
                 if pop:
                     quality = _pop_practice_quality(mortal.culture_tags, pop.culture_tags)
-                    _crew_mult = CREW_SOCIAL_MULTIPLIER if getattr(pop, "asset_crew_for", None) else 1.0
+                    _crew_mult = CREW_LEISURE_MULTIPLIER if getattr(pop, "asset_crew_for", None) else 1.0
                     leisure_need = cs.get_need(NEED_LEISURE)
                     if leisure_need:
                         gain = LEISURE_BASE_GAIN * quality * _crew_mult
@@ -5165,12 +5170,11 @@ class TickLoop:
                 pop = state.pops.get(local_pop_id)
                 if pop:
                     quality = _pop_social_quality(pop.culture_tags)
-                    _crew_mult = CREW_SOCIAL_MULTIPLIER if getattr(pop, "asset_crew_for", None) else 1.0
                     belonging_need = cs.get_need(NEED_BELONGING)
                     if belonging_need:
-                        gain = SOCIALIZE_BASE_GAIN * quality * _crew_mult
+                        gain = SOCIALIZE_BASE_GAIN * quality
                         belonging_need.satisfaction = min(1.0, belonging_need.satisfaction + gain)
-                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality * _crew_mult)
+                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality)
                     # Minor Status recognition from being seen by the community
                     _s_gain, _s_hold = _status_recognition_from_pop(
                         mortal, pop, state, strong=False

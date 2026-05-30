@@ -27,9 +27,9 @@ DIRECTIVE_MULTIPLIER = 2.0
 # Social/purpose needs being low should not ground a mortal mid-route.
 _TRAVEL_BLOCKING_NEEDS: frozenset[str] = frozenset({"sustenance", "safety"})
 
-# Score and gain multiplier for leisure/socialize while in transit with a crew pop.
-# Chatting with your crew is real but not genuinely restorative.
-CREW_SOCIAL_MULTIPLIER = 0.05
+# Score and gain multiplier for leisure while in transit with a crew pop.
+# Leisure (culture, entertainment) is diminished on a working ship; socializing is not.
+CREW_LEISURE_MULTIPLIER = 0.10
 
 # Exponent applied to ticks_cost in travel scoring: 1.0 = linear (harsh); 0.5 = square root
 # (gentler — a 12-tick trip divides benefit by ~3.5 instead of 12).
@@ -311,11 +311,12 @@ def evaluate_civilian_action(
             _l_sat = _l_need.satisfaction if _l_need else 1.0
             _leisure_score = max(0.0, 1.0 - _l_sat) * LEISURE_AMBIENT_GAIN * _pq
         if _in_transit_with_crew:
-            _leisure_score *= CREW_SOCIAL_MULTIPLIER
+            _leisure_score *= CREW_LEISURE_MULTIPLIER
     else:
         _leisure_score = 0.0
 
     # Socialize: urgency-based score (pressing) or ambient score (in transit with crew, not full)
+    # No multiplier for crew transit — socializing with your crew is genuinely fulfilling.
     _belonging_u = urgency.get("belonging", 0.0)
     if _local_pop is not None and (_belonging_u > 0 or _in_transit_with_crew):
         _sq = _pop_social_quality(_local_pop.culture_tags)
@@ -325,8 +326,6 @@ def evaluate_civilian_action(
             _b_need = cs.get_need("belonging")
             _b_sat = _b_need.satisfaction if _b_need else 1.0
             _socialize_score = max(0.0, 1.0 - _b_sat) * SOCIALIZE_AMBIENT_GAIN * _sq
-        if _in_transit_with_crew:
-            _socialize_score *= CREW_SOCIAL_MULTIPLIER
     else:
         _socialize_score = 0.0
 
