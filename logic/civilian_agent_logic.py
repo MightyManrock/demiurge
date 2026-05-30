@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+import random
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,6 +34,26 @@ CREW_SOCIAL_MULTIPLIER = 0.05
 # Exponent applied to ticks_cost in travel scoring: 1.0 = linear (harsh); 0.5 = square root
 # (gentler — a 12-tick trip divides benefit by ~3.5 instead of 12).
 TRAVEL_DIST_EXPONENT = 0.5
+
+# "Might as well" factor: per-tick probability that a mortal with an active directive
+# and no pressing needs decides to run their route anyway.
+# Culture tags modulate this probability additively (tag_weight * modifier).
+MIGHT_AS_WELL_BASE_PROB   = 0.15
+MIGHT_AS_WELL_COLLECT_BASE = 0.15   # collect-score baseline injected on a successful roll
+
+_MIGHT_AS_WELL_CULTURE_MODS: dict[str, float] = {
+    "values:tenacity":   +0.15,
+    "values:prowess":    +0.15,
+    "values:prosperity": +0.10,
+    "values:pragmatism": +0.10,
+    "values:indulgence": -0.10,
+    "values:moderation": -0.05,
+}
+
+
+def _might_as_well_prob(culture_tags: dict[str, float]) -> float:
+    mod = sum(culture_tags.get(t, 0.0) * w for t, w in _MIGHT_AS_WELL_CULTURE_MODS.items())
+    return max(0.05, min(0.60, MIGHT_AS_WELL_BASE_PROB + mod))
 
 
 def _need_urgency(need) -> float:
@@ -203,13 +224,18 @@ def evaluate_civilian_action(
     )
 
     _directive_active = bool(kb.directive_facts())
+    _purpose_pressing = any(n.name == "purpose" and n.is_pressing for n in cs.needs)
+    _might_as_well = (
+        _directive_active and not _purpose_pressing
+        and random.random() < _might_as_well_prob(getattr(mortal, "culture_tags", {}))
+    )
     _directive_work_pending = (
         _directive_active and not _hold_full
-        and any(n.name == "purpose" and n.is_pressing for n in cs.needs)
+        and (_purpose_pressing or _might_as_well)
     )
 
     # Gate: idle when nothing is pressing — UNLESS mortal has a full hold to sell
-    # or a directive with an unfilled hold (standing motivation to run the route).
+    # or a directive with pending work (purpose pressing, or "might as well" roll succeeded).
     if not cs.pressing_needs() and not _in_transit_with_crew and _sellable is None and not _directive_work_pending:
         return "idle"
     # Load fraction: ratio when capacity is known; sigmoid (L/(L+1)) otherwise.
@@ -256,9 +282,10 @@ def evaluate_civilian_action(
     if _directive_active and _sell_score > 0:
         _sell_score *= DIRECTIVE_MULTIPLIER
 
-    # Collect: empty-hold follow-through. Only motivating when purpose is pressing.
+    # Collect: purpose urgency drives it; a small baseline fires on a "might as well" roll.
+    _directive_base = MIGHT_AS_WELL_COLLECT_BASE if _might_as_well else 0.0
     _collect_score = (
-        (1.0 - _load_fraction) * urgency.get("purpose", 0.0)
+        (1.0 - _load_fraction) * max(urgency.get("purpose", 0.0), _directive_base)
     ) if not _hold_full else 0.0
     if _directive_active and _collect_score > 0:
         _collect_score *= DIRECTIVE_MULTIPLIER

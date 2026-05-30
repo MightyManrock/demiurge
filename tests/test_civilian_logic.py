@@ -1,8 +1,8 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from core.agent_core import (
     CivilianAgentState, Resource, MortalNeed, KnowledgeBase,
-    RouteFact, LocationQualityFact, ResourceFact,
+    RouteFact, LocationQualityFact, ResourceFact, DirectiveFact,
 )
 from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need
 
@@ -303,3 +303,74 @@ def test_leisure_priority_above_collect():
         0,
     )
     assert result == "leisure"
+
+
+# ── "Might as well" factor ────────────────────────────────────────────────────
+
+def _directive_mortal(resource_loc_id="res-loc", loc_id="res-loc", culture_tags=None):
+    """Mortal with a commerce directive, all needs satisfied (none pressing)."""
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="purpose", satisfaction=0.9, pressing_threshold=0.65)],
+    )
+    kb = KnowledgeBase(facts=[
+        DirectiveFact(directive_id="d1", directive_type="commerce",
+                      satisfying_action="sell", target_pop_location_id="loc-123"),
+        ResourceFact(location_id=resource_loc_id),
+    ])
+    m = MagicMock()
+    m.civilian_state = cs
+    m.knowledge_base = kb
+    m.fatigue = 0.0
+    m.assets = []
+    m.travel_intent = None
+    m.current_location = loc_id
+    m.culture_tags = culture_tags or {}
+    return m
+
+
+def test_might_as_well_roll_succeeds_triggers_collect():
+    """When roll succeeds the mortal collects despite purpose not being pressing."""
+    mortal = _directive_mortal()
+    loc = MagicMock()
+    loc.collectible_resource = MagicMock()
+    loc.location_type = "pop_location"
+    state = MagicMock()
+    state.locations = {"res-loc": loc}
+    state.pops = {}
+    with patch("logic.civilian_agent_logic.random.random", return_value=0.0):  # always succeeds
+        result = evaluate_civilian_action(mortal, state, 0)
+    assert result == "collect"
+
+
+def test_might_as_well_roll_fails_returns_idle():
+    """When roll fails the mortal idles even with an active directive."""
+    mortal = _directive_mortal()
+    state = MagicMock()
+    state.locations = {}
+    state.pops = {}
+    with patch("logic.civilian_agent_logic.random.random", return_value=1.0):  # always fails
+        result = evaluate_civilian_action(mortal, state, 0)
+    assert result == "idle"
+
+
+def test_might_as_well_culture_boosts_prob():
+    """values:tenacity and values:prowess raise probability above base."""
+    from logic.civilian_agent_logic import _might_as_well_prob, MIGHT_AS_WELL_BASE_PROB
+    tags = {"values:tenacity": 1.0, "values:prowess": 1.0}
+    assert _might_as_well_prob(tags) > MIGHT_AS_WELL_BASE_PROB
+
+
+def test_might_as_well_culture_reduces_prob():
+    """values:indulgence and values:moderation lower probability below base."""
+    from logic.civilian_agent_logic import _might_as_well_prob, MIGHT_AS_WELL_BASE_PROB
+    tags = {"values:indulgence": 1.0, "values:moderation": 1.0}
+    assert _might_as_well_prob(tags) < MIGHT_AS_WELL_BASE_PROB
+
+
+def test_might_as_well_prob_clamped():
+    """Probability stays within [0.05, 0.60] regardless of tag extremes."""
+    from logic.civilian_agent_logic import _might_as_well_prob
+    extreme_boost = {t: 10.0 for t in ["values:tenacity", "values:prowess", "values:prosperity", "values:pragmatism"]}
+    extreme_reduce = {t: 10.0 for t in ["values:indulgence", "values:moderation"]}
+    assert _might_as_well_prob(extreme_boost) == pytest.approx(0.60)
+    assert _might_as_well_prob(extreme_reduce) == pytest.approx(0.05)
