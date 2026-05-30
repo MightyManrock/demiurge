@@ -65,7 +65,7 @@ from logic.civilian_agent_logic import (
     LEISURE_SATIATION_HOLD_BASE,
     SOCIALIZE_SATIATION_HOLD_BASE,
 )
-from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE
+from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS
 from logic.sim_utils import (
     resolve_world_id_for as _resolve_world_id_for,
     resolve_world_for as _resolve_world_for,
@@ -945,6 +945,35 @@ def _birthday_fires(old: UniverseAge, new: UniverseAge, month: int, day: int) ->
         if old_t < (y, month, day) <= new_t:
             return True
     return False
+
+
+def _status_recognition_from_pop(
+    mortal: "NotableMortal",
+    local_pop: "Pop",
+    state: "SimulationState",
+    *,
+    strong: bool,
+) -> tuple[float, int]:
+    """
+    Return (status_gain, satiation_hold) granted to a mortal by a pop noticing their contribution.
+    strong=True for sell (commerce); strong=False for socialize (presence).
+    Relationship tiers: own pop > linked pop (link-factor scaled) > stranger.
+    """
+    own_gain,    own_hold    = (0.30, 6) if strong else (0.10, 3)
+    link_scale               = 0.30      if strong else 0.10
+    link_hold                = 4         if strong else 2
+    stranger_gain, str_hold  = (0.05, 2) if strong else (0.02, 0)
+
+    if str(mortal.pop_id) == str(local_pop.id):
+        return own_gain, own_hold
+
+    origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+    if origin_pop and str(local_pop.id) in origin_pop.linked_pop_ids:
+        base = origin_pop.linked_pop_ids[str(local_pop.id)]
+        lf = compute_link_factor(origin_pop, local_pop, base)
+        return link_scale * lf, link_hold
+
+    return stranger_gain, str_hold
 
 
 class TickLoop:
@@ -4969,6 +4998,15 @@ class TickLoop:
                         if _pop_loc and hasattr(_pop_loc, "wealth"):
                             wealth_gain = min(0.05, credits_gained * 0.005)
                             _pop_loc.wealth = min(1.0, _pop_loc.wealth + wealth_gain)
+                        # Pop recognition → Status satisfaction
+                        _s_gain, _s_hold = _status_recognition_from_pop(
+                            mortal, _sell_pop, state, strong=True
+                        )
+                        _status_need = cs.get_need(NEED_STATUS)
+                        if _status_need:
+                            _status_need.satisfaction = min(1.0, _status_need.satisfaction + _s_gain)
+                            if _s_hold and _status_need.satisfaction >= _status_need.pressing_threshold:
+                                _status_need.satiation_hold = _s_hold
                         if kb := mortal.knowledge_base:
                             for _df in kb.directive_facts():
                                 if _df.directive_type == "commerce" and _df.satisfying_action == "sell":
@@ -5049,6 +5087,15 @@ class TickLoop:
                         gain = SOCIALIZE_BASE_GAIN * quality
                         belonging_need.satisfaction = min(1.0, belonging_need.satisfaction + gain)
                         belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality)
+                    # Minor Status recognition from being seen by the community
+                    _s_gain, _s_hold = _status_recognition_from_pop(
+                        mortal, pop, state, strong=False
+                    )
+                    _soc_status = cs.get_need(NEED_STATUS)
+                    if _soc_status:
+                        _soc_status.satisfaction = min(1.0, _soc_status.satisfaction + _s_gain)
+                        if _s_hold and _soc_status.satisfaction >= _soc_status.pressing_threshold:
+                            _soc_status.satiation_hold = _s_hold
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
                     cs.action_cooldowns["socialize"] = current_tick + 3
                     narratives.append(
