@@ -146,6 +146,12 @@ After a successful sell action in `_tick_civilian_agents`:
 
 These two effects are independent: wealth always updates on sell (if a pop is found); Purpose only updates if a matching DirectiveFact exists.
 
+### Directive-awareness in the decision loop
+
+When `purpose` is pressing **and** the mortal's KB contains at least one `DirectiveFact`, the civilian decision loop skips leisure and socialize (priorities 3–4) and falls through directly to the collect/travel/sell chain (Priority 2.5 override in `evaluate_civilian_action`). Community obligation takes precedence over personal time. Once Purpose is satisfied after a sell (+0.35, 8-tick hold), leisure and socialize resume normally.
+
+See [agent-system.md](agent-system.md) for the full priority table.
+
 ---
 
 ## PopLocation Wealth

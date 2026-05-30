@@ -24,12 +24,17 @@ Any `NotableMortal` with a non-None `civilian_state: CivilianAgentState` runs as
 |----------|--------|-----------|
 | 1 | `sell` | Inventory has a resource with `usable_for=["sell"]` above threshold and `converts_to` set |
 | 2 | `spend` | Inventory has credits and a pressing need that spend fills (or any pressing need if `fills_need` is None) |
+| 2.5 | *(override)* | `purpose` need pressing **and** KB has a `DirectiveFact` → skip priorities 3–4 entirely |
 | 3 | `leisure` | `leisure` need pressing, local pop in `state.pops`, cooldown expired |
 | 4 | `socialize` | `belonging` need pressing, local pop in `state.pops`, cooldown expired |
 | 5 | `collect` | Known resource locations in KB, mortal at one, cooldown expired; else travel to best resource location |
 | — | `idle` | No actionable need or resource |
 
 Travel is triggered inside the collect branch when the mortal isn't already at a resource location. The sell/spend branches also trigger travel when the target location is known but not current.
+
+The Priority 2.5 override ensures a mortal with unfulfilled community obligations (Purpose pressing) doesn't stop to relax — they skip leisure and socializing and proceed directly to the collect/travel/sell chain. Once Purpose is satisfied (post-sell, 8-tick hold), priorities 3–4 resume normally.
+
+`CivilianAgentState.last_action: Optional[str]` is set every tick to the action string returned by `evaluate_civilian_action`. Displayed on the mortal detail page for playtest observability.
 
 ### KnowledgeBase
 
