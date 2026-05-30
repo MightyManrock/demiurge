@@ -64,6 +64,7 @@ from logic.sim_utils import (
     pop_domain_receptivity as _pop_domain_receptivity,
     compute_link_factor,
     LINK_DRIFT_RATE, LINK_BREAK_THRESHOLD, LINK_DRIFT_STRIDE,
+    LINK_SPLASH_OWN_POP_SCALE, LINK_SPLASH_WORLD_POP_SCALE, LINK_VISIBILITY_CASCADE_SCALE,
 )
 from logic.essence_generation import process_essence_generation
 from logic.proxius_logic import resolve_proxius_agents
@@ -3148,7 +3149,25 @@ class TickLoop:
                 per_unit_delta=effectiveness * 0.1,
                 note_prefix="Whisper",
             )
-            _, _, discovered_pop_ids = emit_influence_visibility_splash(mutations, state, mortal)
+            _, _, discovered_pop_ids, _vis_boosts = emit_influence_visibility_splash(mutations, state, mortal)
+            for _bpid, _boost in _vis_boosts.items():
+                _bp = state.pops.get(_bpid)
+                if _bp is None or not _bp.linked_pop_ids:
+                    continue
+                for _lid, _lbase in _bp.linked_pop_ids.items():
+                    _lp = state.pops.get(_lid)
+                    if _lp is None or _lp.id == _bp.id:
+                        continue
+                    _lf = compute_link_factor(_bp, _lp, _lbase)
+                    _vis_delta = _boost * _lf * LINK_VISIBILITY_CASCADE_SCALE
+                    if _vis_delta > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_VISIBILITY,
+                            target_id=_lp.id,
+                            field="visibility",
+                            new_value=min(1.0, _lp.visibility + _vis_delta),
+                            note="Linked pop visibility cascade",
+                        ))
             narrative += self._format_pop_discovery_line(mortal.name, discovered_pop_ids, state)
 
         # ── Shape Dream ───────────────────────────────
@@ -3229,7 +3248,25 @@ class TickLoop:
                 per_unit_delta=effectiveness * 0.1,
                 note_prefix="Shape Dream",
             )
-            _, _, discovered_pop_ids = emit_influence_visibility_splash(mutations, state, mortal)
+            _, _, discovered_pop_ids, _vis_boosts = emit_influence_visibility_splash(mutations, state, mortal)
+            for _bpid, _boost in _vis_boosts.items():
+                _bp = state.pops.get(_bpid)
+                if _bp is None or not _bp.linked_pop_ids:
+                    continue
+                for _lid, _lbase in _bp.linked_pop_ids.items():
+                    _lp = state.pops.get(_lid)
+                    if _lp is None or _lp.id == _bp.id:
+                        continue
+                    _lf = compute_link_factor(_bp, _lp, _lbase)
+                    _vis_delta = _boost * _lf * LINK_VISIBILITY_CASCADE_SCALE
+                    if _vis_delta > 1e-5:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_VISIBILITY,
+                            target_id=_lp.id,
+                            field="visibility",
+                            new_value=min(1.0, _lp.visibility + _vis_delta),
+                            note="Linked pop visibility cascade",
+                        ))
 
             ireg = get_imago_registry()
             dom_node = ireg.get_node(dominant_id)
@@ -4580,6 +4617,22 @@ class TickLoop:
                 if pop.id == origin_pop.id:
                     return pop.id
 
+        # Step 1b: linked Pop at destination — pick highest computed link factor.
+        # Runs on unfiltered candidates (FERAL/WILD filter not yet applied);
+        # an explicit link relationship overrides social-class aversions.
+        if origin_pop is not None and origin_pop.linked_pop_ids:
+            best_id: Optional[UUID] = None
+            best_lf = -1.0
+            for pop in candidates:
+                cand_str = str(pop.id)
+                if cand_str in origin_pop.linked_pop_ids:
+                    lf = compute_link_factor(origin_pop, pop, origin_pop.linked_pop_ids[cand_str])
+                    if lf > best_lf:
+                        best_lf = lf
+                        best_id = pop.id
+            if best_id is not None:
+                return best_id
+
         if origin_pop is None:
             return None
 
@@ -5296,6 +5349,66 @@ class TickLoop:
                             f"{note_prefix} culture splash to {sp.stratum} Pop"
                             + (" (own pop)" if is_own else "")
                         ),
+                    ))
+            # Linked-pop belief cascade (Features 1 & 2).
+            cascade_scale = LINK_SPLASH_OWN_POP_SCALE if is_own else LINK_SPLASH_WORLD_POP_SCALE
+            self._emit_linked_pop_belief_cascade(
+                mutations, state, sp,
+                domain_vectors=domain_vectors,
+                culture_vectors=culture_vectors,
+                per_unit_delta=per_unit_delta,
+                cascade_scale=cascade_scale,
+                note_prefix=note_prefix,
+            )
+
+    def _emit_linked_pop_belief_cascade(
+        self,
+        mutations: list,
+        state: "SimulationState",
+        source_pop: "Pop",
+        domain_vectors,
+        culture_vectors,
+        per_unit_delta: float,
+        cascade_scale: float,
+        note_prefix: str,
+    ) -> None:
+        """Cascade belief/culture from a world-splash Pop to its linked Pops.
+
+        Bypasses contact resistance, distance factor, and domain receptivity —
+        the link factor IS the relationship-quality proxy, and cross-world reach
+        is the intended benefit. Depth is structurally bounded to 1: this method
+        only emits StateMutation objects; it never calls _emit_whisper_splash.
+
+        emit_lineage_bleed is deliberately omitted: lineage bleed models
+        within-world heritage; applying it through cross-world links would
+        create spurious cross-world heritage effects.
+        """
+        if not source_pop.linked_pop_ids:
+            return
+        for other_id_str, base_factor in source_pop.linked_pop_ids.items():
+            other_pop = state.pops.get(other_id_str)
+            if other_pop is None or other_pop.id == source_pop.id:
+                continue
+            lf = compute_link_factor(source_pop, other_pop, base_factor)
+            for dv in domain_vectors:
+                delta = dv.direction * per_unit_delta * WHISPER_POP_SPLASH * lf * cascade_scale
+                if abs(delta) > 1e-5:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.POP_BELIEF_SHIFT,
+                        target_id=other_pop.id,
+                        field=dv.domain_tag,
+                        delta=delta,
+                        note=f"{note_prefix} linked cascade to {other_pop.stratum} Pop",
+                    ))
+            for cv in culture_vectors:
+                delta = cv.direction * per_unit_delta * WHISPER_POP_SPLASH * lf * cascade_scale
+                if abs(delta) > 1e-5:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.POP_CULTURE_SHIFT,
+                        target_id=other_pop.id,
+                        field=cv.culture_tag,
+                        delta=delta,
+                        note=f"{note_prefix} linked culture cascade to {other_pop.stratum} Pop",
                     ))
 
     def _summarize_evaluation(

@@ -398,18 +398,21 @@ def emit_influence_visibility_splash(
     mutations: list,
     state: "SimulationState",
     mortal,
-) -> tuple[set, set, set]:
+) -> tuple[set, set, set, dict]:
     """Boost pop visibility from a Whisper / Shape Dream action.
 
     Own Pop receives +0.8; all other Pops on the world receive
     0.6 / (distance_from_core + 1). No floor guard — sub-floor Pops
     can be reached via the mortal vector (discovery by contact).
 
-    Returns (boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids).
+    Returns (boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids, boosted_pop_boosts).
+    boosted_pop_boosts maps each boosted pop ID string to its boost amount, for
+    use by linked-pop visibility cascade callers.
     """
     boosted_pop_ids: set = set()
     boosted_mortal_ids: set = set()
     discovered_pop_ids: set = set()
+    boosted_pop_boosts: dict = {}
 
     if not mortal:
         return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
@@ -437,8 +440,9 @@ def emit_influence_visibility_splash(
             note="Influence visibility splash",
         ))
         boosted_pop_ids.add(pid)
+        boosted_pop_boosts[pid] = boost
         if was_zero and new_vis >= ENTITY_VISIBILITY_FLOOR:
             discovered_pop_ids.add(pid)
 
     emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)
-    return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
+    return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids, boosted_pop_boosts

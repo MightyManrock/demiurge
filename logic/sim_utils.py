@@ -66,6 +66,9 @@ LINK_COSINE_WEIGHT    = 0.20   # max cosine contribution to computed link factor
 LINK_DRIFT_RATE       = 0.008  # per-stride lerp rate (half-life ≈ 87 strides)
 LINK_BREAK_THRESHOLD  = 0.16   # computed factor below this → link dissolves
 LINK_DRIFT_STRIDE     = 17     # ticks between link-drift passes
+LINK_SPLASH_OWN_POP_SCALE     = 0.80  # belief cascade fraction for own-pop's linked pops
+LINK_SPLASH_WORLD_POP_SCALE   = 0.40  # belief cascade fraction for world-splash pops' linked pops
+LINK_VISIBILITY_CASCADE_SCALE = 0.60  # visibility cascade scale
 
 
 def compute_link_factor(pop_a: Pop, pop_b: Pop, base: float) -> float:
