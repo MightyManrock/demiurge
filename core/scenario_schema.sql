@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS locations (
     travel_current_wp     TEXT    NOT NULL DEFAULT '',     -- UUID str of current waypoint
     travel_ticks_rem      INTEGER NOT NULL DEFAULT 0,
     travel_occupants      TEXT    NOT NULL DEFAULT '[]',   -- JSON array of UUID strs
+    travel_pop_ids        TEXT    NOT NULL DEFAULT '[]',   -- JSON array of Pop UUID strs co-travelling
     -- PopLocation addition
     travel_network_ids    TEXT    NOT NULL DEFAULT '[]',   -- JSON array of TravelNetwork UUIDs
     commerce_quality      REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; spend effectiveness multiplier

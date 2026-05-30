@@ -216,6 +216,7 @@ class TravelLocation(Location):
     current_waypoint: str = ""   # UUID str of the leg currently in progress
     ticks_remaining: int = 0
     occupants: list[UUID] = Field(default_factory=list)
+    pop_ids: list[UUID] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────

@@ -4909,6 +4909,28 @@ class TickLoop:
                         mortal.current_location = next_wp_uuid
 
         for lid in to_remove:
+            tl = state.locations.get(lid)
+            if tl is not None and hasattr(tl, "pop_ids"):
+                # Determine destination: last leg key (cost 0) or first leg key as fallback
+                leg_keys = list(tl.legs.keys()) if tl.legs else []
+                dest_loc_id_str = leg_keys[-1] if leg_keys else None
+                dest_loc_uuid = None
+                if dest_loc_id_str:
+                    try:
+                        dest_loc_uuid = UUID(dest_loc_id_str)
+                    except ValueError:
+                        pass
+                if dest_loc_uuid is None:
+                    dest_loc_uuid = tl.id
+                dest_pop_loc = state.locations.get(str(dest_loc_uuid))
+                for pop_id in list(tl.pop_ids):
+                    crew = state.pops.get(str(pop_id))
+                    if crew is None:
+                        continue
+                    crew.current_location = dest_loc_uuid
+                    if dest_pop_loc is not None and hasattr(dest_pop_loc, "pop_ids"):
+                        if pop_id not in dest_pop_loc.pop_ids:
+                            dest_pop_loc.pop_ids.append(pop_id)
             state.locations.pop(lid, None)
 
         return narratives
@@ -5176,7 +5198,7 @@ class TickLoop:
                         mortal.travel_intent = TravelIntent(
                             travel_location_id=tl.id
                         )
-                        # Set crew pop as milieu for the journey so leisure/socialize work in transit
+                        # Move crew pop into TravelLocation and set as milieu
                         _crew_pop = next(
                             (p for p in state.pops.values()
                              if getattr(p, "asset_crew_for", None) is not None
@@ -5184,6 +5206,15 @@ class TickLoop:
                             None,
                         )
                         if _crew_pop:
+                            # Remove from previous PopLocation's pop_ids
+                            _old_crew_loc = state.locations.get(str(_crew_pop.current_location))
+                            if _old_crew_loc is not None and hasattr(_old_crew_loc, "pop_ids"):
+                                try:
+                                    _old_crew_loc.pop_ids.remove(_crew_pop.id)
+                                except ValueError:
+                                    pass
+                            tl.pop_ids.append(_crew_pop.id)
+                            _crew_pop.current_location = tl.id
                             mortal.pop_milieu = _crew_pop.id
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
                         dest_loc = state.locations.get(dest_id)

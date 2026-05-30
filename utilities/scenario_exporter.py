@@ -305,6 +305,7 @@ def _write_locations(conn, state: SimulationState):
         travel_current_wp = ""
         travel_ticks_rem = 0
         travel_occupants = "[]"
+        travel_pop_ids_val = "[]"
 
         if isinstance(loc, System):
             star_type = loc.star_type.value
@@ -335,6 +336,7 @@ def _write_locations(conn, state: SimulationState):
             travel_current_wp = loc.current_waypoint
             travel_ticks_rem  = loc.ticks_remaining
             travel_occupants  = _j([str(oid) for oid in loc.occupants])
+            travel_pop_ids_val = _j([str(pid) for pid in loc.pop_ids])
 
         conn.execute(
             """INSERT INTO locations
@@ -346,7 +348,7 @@ def _write_locations(conn, state: SimulationState):
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
-                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids,
+                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids, travel_network_ids,
                 commerce_quality, collectible_resource, wealth,
                 visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -356,7 +358,7 @@ def _write_locations(conn, state: SimulationState):
                        ?, ?, ?, ?,
                        ?, ?, ?,
                        ?, ?,
-                       ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?, ?, ?,
                        ?, ?, ?,
                        ?, ?, ?)""",
             (
@@ -376,7 +378,7 @@ def _write_locations(conn, state: SimulationState):
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
                 geo_tags, atmo_tags, age,
                 pop_ids, distance_from_core,
-                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_network_ids_val,
+                legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids_val, travel_network_ids_val,
                 commerce_quality, collectible_resource_val, wealth_val,
                 loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),

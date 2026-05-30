@@ -522,6 +522,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 current_waypoint=row.get("travel_current_wp", ""),
                 ticks_remaining=int(row.get("travel_ticks_rem", 0) or 0),
                 occupants=[UUID(x) for x in _j(row.get("travel_occupants", "[]"))],
+                pop_ids=[UUID(x) for x in _j(row.get("travel_pop_ids", "[]"))],
             )
         else:
             # Base Location (galaxies and any freeform locations)
