@@ -226,6 +226,17 @@ def test_leisure_action_when_pressing_at_pop():
     assert result == "leisure"
 
 
+def test_leisure_skipped_when_gain_below_decay_rate():
+    """Leisure is bypassed (→ idle) when expected gain would not cover per-tick decay."""
+    # High decay_rate ensures gain < decay, so leisure is pointless
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="leisure", satisfaction=0.4,
+                          pressing_threshold=0.65, decay_rate=0.99)]
+    )
+    result = evaluate_civilian_action(_mortal_with_pop(cs), _state_with_pop(), 0)
+    assert result == "idle"
+
+
 def test_socialize_action_when_pressing_at_pop():
     cs = CivilianAgentState(needs=[_pressing("belonging")])
     result = evaluate_civilian_action(

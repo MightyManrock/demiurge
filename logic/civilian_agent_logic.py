@@ -299,19 +299,23 @@ def evaluate_civilian_action(
     else:
         _spend_score = 0.0
 
-    # Leisure: urgency-based score (pressing) or ambient score (in transit with crew, not full)
+    # Leisure: urgency-based score (pressing) or ambient score (in transit with crew, not full).
+    # Zeroed out if the expected gain would be less than the per-tick decay — not worth doing.
     _leisure_u = urgency.get("leisure", 0.0)
     if _local_pop is not None and (_leisure_u > 0 or _in_transit_with_crew):
         mortal_tags = getattr(mortal, "culture_tags", {}) or {}
         _pq = _pop_practice_quality(mortal_tags, _local_pop.culture_tags)
+        _crew_mult_lei = CREW_LEISURE_MULTIPLIER if _in_transit_with_crew else 1.0
+        _l_need = cs.get_need("leisure")
+        _l_sat = _l_need.satisfaction if _l_need else 1.0
         if _leisure_u > 0:
-            _leisure_score = _leisure_u * LEISURE_BASE_GAIN * _pq
+            _lei_gain = LEISURE_BASE_GAIN * _pq * _crew_mult_lei
+            _leisure_score = _leisure_u * _lei_gain
         else:
-            _l_need = cs.get_need("leisure")
-            _l_sat = _l_need.satisfaction if _l_need else 1.0
-            _leisure_score = max(0.0, 1.0 - _l_sat) * LEISURE_AMBIENT_GAIN * _pq
-        if _in_transit_with_crew:
-            _leisure_score *= CREW_LEISURE_MULTIPLIER
+            _lei_gain = max(0.0, 1.0 - _l_sat) * LEISURE_AMBIENT_GAIN * _pq * _crew_mult_lei
+            _leisure_score = _lei_gain
+        if _l_need and _lei_gain < _l_need.decay_rate:
+            _leisure_score = 0.0
     else:
         _leisure_score = 0.0
 
