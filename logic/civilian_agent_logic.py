@@ -144,21 +144,28 @@ def evaluate_civilian_action(
                 return f"travel:{best_spend_loc}"
             return "idle"
 
-    # ── Priority 3: leisure ──────────────────────────────────────────────────
-    leisure_need = cs.get_need("leisure")
-    if leisure_need and leisure_need.is_pressing:
-        local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
-        if local_pop_id and local_pop_id in state.pops:
-            if cs.cooldown_expired(LEISURE_COOLDOWN, current_tick):
-                return "leisure"
+    # ── Priority 2.5: directive override ────────────────────────────────────
+    # When Purpose is pressing and the mortal has a commerce directive, skip
+    # leisure/socialize — community obligation takes precedence over personal time.
+    _purpose = cs.get_need("purpose")
+    _directive_active = bool(_purpose and _purpose.is_pressing and kb.directive_facts())
 
-    # ── Priority 4: socialize ────────────────────────────────────────────────
-    belonging_need = cs.get_need("belonging")
-    if belonging_need and belonging_need.is_pressing:
-        local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
-        if local_pop_id and local_pop_id in state.pops:
-            if cs.cooldown_expired(SOCIALIZE_COOLDOWN, current_tick):
-                return "socialize"
+    if not _directive_active:
+        # ── Priority 3: leisure ──────────────────────────────────────────────
+        leisure_need = cs.get_need("leisure")
+        if leisure_need and leisure_need.is_pressing:
+            local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+            if local_pop_id and local_pop_id in state.pops:
+                if cs.cooldown_expired(LEISURE_COOLDOWN, current_tick):
+                    return "leisure"
+
+        # ── Priority 4: socialize ────────────────────────────────────────────
+        belonging_need = cs.get_need("belonging")
+        if belonging_need and belonging_need.is_pressing:
+            local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+            if local_pop_id and local_pop_id in state.pops:
+                if cs.cooldown_expired(SOCIALIZE_COOLDOWN, current_tick):
+                    return "socialize"
 
     # ── Priority 5: collect ──────────────────────────────────────────────────
     resource_locs = kb.known_resource_locations()

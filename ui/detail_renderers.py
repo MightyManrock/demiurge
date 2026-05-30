@@ -825,11 +825,22 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             ticks_word = "tick" if ticks_remaining == 1 else "ticks"
             a(f"  Traveling → {_e(dest_name)} | {ticks_remaining} {ticks_word} remaining")
 
-    # ── Civilian Agent State (temporary debug view) ──────────────────
+    # ── Civilian Agent State ──────────────────────────────────────────
     if m.civilian_state is not None:
         cs = m.civilian_state
         a("")
         a("[bold #4a80b0]CIVILIAN AGENT[/]")
+
+        # Last action
+        if cs.last_action:
+            action_color = {
+                "sell": "#a0d080", "spend": "#a0d080", "collect": "#a0d080",
+                "leisure": "#b0c8e0", "socialize": "#b0c8e0",
+            }.get(cs.last_action, "#888888")
+            a(f"  last action: [{action_color}]{_e(cs.last_action)}[/]")
+        else:
+            a(f"  last action: [#5a7090](none yet)[/]")
+
         a(f"  fatigue:   {m.fatigue:.2f}")
         if m.assets:
             a(f"  assets:    {_e(', '.join(a_.label or a_.asset_type for a_ in m.assets))}")
@@ -856,8 +867,38 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 else:
                     suffix = ""
                 a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{suffix}")
-        if cs.action_cooldowns:
-            a(f"  cooldowns: {_e(str(cs.action_cooldowns))}")
+
+        # KB directive facts (always — drives Purpose/commerce behavior)
+        if m.knowledge_base:
+            df_list = m.knowledge_base.directive_facts()
+            if df_list:
+                a("  directives known:")
+                for df in df_list:
+                    ploc = state.locations.get(df.target_pop_location_id)
+                    loc_name = ploc.name if ploc and ploc.name else df.target_pop_location_id[:8]
+                    loc_link = _location_link(state, df.target_pop_location_id, _e(loc_name)) if ploc else _e(loc_name)
+                    a(f"    {_e(df.directive_type)}: {_e(df.satisfying_action)} → {loc_link}")
+
+        if dev:
+            # Pop's active directives
+            _agent_pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
+            if _agent_pop and _agent_pop.active_directives:
+                a("  pop directives: [#5a7090](dev)[/]")
+                for d_ in _agent_pop.active_directives:
+                    label = d_.label or d_.directive_type
+                    a(f"    [{_e(d_.directive_type)}] {_e(label)}")
+
+            # Home PopLocation wealth
+            if _agent_pop:
+                _home_ploc = state.locations.get(str(_agent_pop.current_location))
+                if _home_ploc and hasattr(_home_ploc, "wealth"):
+                    bar = "█" * int(_home_ploc.wealth * 10) + "░" * (10 - int(_home_ploc.wealth * 10))
+                    a(f"  home wealth: [{bar}] {_home_ploc.wealth:.2f}  [#5a7090](dev)[/]")
+
+            # Cooldowns
+            if cs.action_cooldowns:
+                a(f"  cooldowns: [#5a7090]{_e(str(cs.action_cooldowns))}  (dev)[/]")
+
         tl_loc = state.locations.get(str(m.current_location))
         in_transit = tl_loc is not None and getattr(tl_loc, "location_type", None) == "travel_location"
         if in_transit and tl_loc is not None:

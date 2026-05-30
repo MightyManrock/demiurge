@@ -159,6 +159,7 @@ class CivilianAgentState(BaseModel):
     needs: list[MortalNeed] = Field(default_factory=list)
     inventory: list[Resource] = Field(default_factory=list)
     action_cooldowns: dict[str, int] = Field(default_factory=dict)
+    last_action: Optional[str] = None
 
     def pressing_needs(self) -> list[MortalNeed]:
         return [n for n in self.needs if n.is_pressing]

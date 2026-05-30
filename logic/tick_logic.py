@@ -4948,6 +4948,7 @@ class TickLoop:
                 mortal.fatigue = max(0.0, mortal.fatigue - 0.1)
 
             action = evaluate_civilian_action(mortal, state, current_tick)
+            cs.last_action = action
 
             if action == "collect":
                 loc = state.locations.get(str(mortal.current_location))
