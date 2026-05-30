@@ -961,10 +961,10 @@ def _status_recognition_from_pop(
     strong=True for sell (commerce); strong=False for socialize (presence).
     Relationship tiers: own pop > linked pop (link-factor scaled) > stranger.
     """
-    own_gain,    own_hold    = (0.30, 6) if strong else (0.10, 3)
-    link_scale               = 0.30      if strong else 0.10
-    link_hold                = 4         if strong else 2
-    stranger_gain, str_hold  = (0.05, 2) if strong else (0.02, 0)
+    own_gain,    own_hold    = (0.60, 14) if strong else (0.10, 3)
+    link_scale               = 0.50       if strong else 0.10
+    link_hold                = 10         if strong else 2
+    stranger_gain, str_hold  = (0.12, 6)  if strong else (0.02, 0)
 
     if str(mortal.pop_id) == str(local_pop.id):
         return own_gain, own_hold

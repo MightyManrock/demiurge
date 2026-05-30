@@ -122,4 +122,4 @@ def test_purpose_uses_origin_to_local_direction():
     state = MagicMock()
     state.pops = {str(origin_pop.id): origin_pop}
     gain, hold = _status_recognition_from_pop(mortal, sell_pop, state, strong=True)
-    assert gain == pytest.approx(0.05)  # stranger tier
+    assert gain == pytest.approx(0.12)  # stranger tier

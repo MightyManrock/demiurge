@@ -41,8 +41,8 @@ def test_status_sell_own_pop():
     pop = _pop()
     mortal = _mortal(pop_id=pop.id)
     gain, hold = _status_recognition_from_pop(mortal, pop, _state(), strong=True)
-    assert gain == pytest.approx(0.30)
-    assert hold == 6
+    assert gain == pytest.approx(0.60)
+    assert hold == 14
 
 
 def test_status_socialize_own_pop():
@@ -62,9 +62,9 @@ def test_status_sell_linked_pop():
     mortal = _mortal(pop_id=origin_pop.id)
     state = _state(pops={str(origin_pop.id): origin_pop})
     gain, hold = _status_recognition_from_pop(mortal, local_pop, state, strong=True)
-    # link_scale=0.30, lf ≥ base=1.0 (clamped to 1.0) → gain ≈ 0.30
-    assert 0.0 < gain <= 0.30
-    assert hold == 4
+    # link_scale=0.50, lf ≥ base=1.0 (clamped to 1.0) → gain ≈ 0.50
+    assert 0.0 < gain <= 0.50
+    assert hold == 10
 
 
 def test_status_socialize_linked_pop():
@@ -83,8 +83,8 @@ def test_status_sell_stranger():
     local_pop = _pop()
     mortal = _mortal()  # pop_id has no link to local_pop
     gain, hold = _status_recognition_from_pop(mortal, local_pop, _state(), strong=True)
-    assert gain == pytest.approx(0.05)
-    assert hold == 2
+    assert gain == pytest.approx(0.12)
+    assert hold == 6
 
 
 def test_status_socialize_stranger():
@@ -132,10 +132,10 @@ def test_status_hold_not_set_when_below_pressing_threshold():
     """Hold should not be applied when satisfaction stays below pressing_threshold."""
     pop = _pop()
     mortal = _mortal(pop_id=pop.id)
-    # Start very low; even +0.30 won't cross pressing_threshold=0.60
-    status = MortalNeed(name=NEED_STATUS, satisfaction=0.0, pressing_threshold=0.60)
+    # Start very low; even +0.60 won't exceed pressing_threshold=0.80
+    status = MortalNeed(name=NEED_STATUS, satisfaction=0.0, pressing_threshold=0.80)
     gain, hold = _status_recognition_from_pop(mortal, pop, _state(), strong=True)
-    # gain=0.30, new satisfaction=0.30, still below 0.60
+    # gain=0.60, new satisfaction=0.60, still below 0.80
     new_sat = status.satisfaction + gain
     assert new_sat < status.pressing_threshold
     # The hold guard: only set if new_sat >= pressing_threshold
