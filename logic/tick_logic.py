@@ -65,6 +65,7 @@ from logic.civilian_agent_logic import (
     SOCIALIZE_BASE_GAIN,
     LEISURE_SATIATION_HOLD_BASE,
     SOCIALIZE_SATIATION_HOLD_BASE,
+    CREW_SOCIAL_MULTIPLIER,
 )
 from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS
 from logic.sim_utils import (
@@ -5147,15 +5148,16 @@ class TickLoop:
                 pop = state.pops.get(local_pop_id)
                 if pop:
                     quality = _pop_practice_quality(mortal.culture_tags, pop.culture_tags)
+                    _crew_mult = CREW_SOCIAL_MULTIPLIER if getattr(pop, "asset_crew_for", None) else 1.0
                     leisure_need = cs.get_need(NEED_LEISURE)
                     if leisure_need:
-                        gain = LEISURE_BASE_GAIN * quality
+                        gain = LEISURE_BASE_GAIN * quality * _crew_mult
                         leisure_need.satisfaction = min(1.0, leisure_need.satisfaction + gain)
                         leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality)
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
                     narratives.append(
                         f"{mortal.name} spends time enjoying local culture "
-                        f"(quality {quality:.2f}, +{LEISURE_BASE_GAIN * quality:.2f} leisure)."
+                        f"(quality {quality:.2f}, +{gain:.2f} leisure)."
                     )
 
             elif action == "socialize":
@@ -5163,9 +5165,10 @@ class TickLoop:
                 pop = state.pops.get(local_pop_id)
                 if pop:
                     quality = _pop_social_quality(pop.culture_tags)
+                    _crew_mult = CREW_SOCIAL_MULTIPLIER if getattr(pop, "asset_crew_for", None) else 1.0
                     belonging_need = cs.get_need(NEED_BELONGING)
                     if belonging_need:
-                        gain = SOCIALIZE_BASE_GAIN * quality
+                        gain = SOCIALIZE_BASE_GAIN * quality * _crew_mult
                         belonging_need.satisfaction = min(1.0, belonging_need.satisfaction + gain)
                         belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality)
                     # Minor Status recognition from being seen by the community
@@ -5180,7 +5183,7 @@ class TickLoop:
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
                     narratives.append(
                         f"{mortal.name} socializes with the local community "
-                        f"(quality {quality:.2f}, +{SOCIALIZE_BASE_GAIN * quality:.2f} belonging)."
+                        f"(quality {quality:.2f}, +{gain:.2f} belonging)."
                     )
 
             elif action and action.startswith("travel:"):

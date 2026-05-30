@@ -22,6 +22,14 @@ SOCIALIZE_AMBIENT_GAIN = 0.15
 # Score multiplier applied to sell/collect when a commerce directive is active
 DIRECTIVE_MULTIPLIER = 2.0
 
+# Needs whose urgency can block travel (physical survival only).
+# Social/purpose needs being low should not ground a mortal mid-route.
+_TRAVEL_BLOCKING_NEEDS: frozenset[str] = frozenset({"sustenance", "safety"})
+
+# Score and gain multiplier for leisure/socialize while in transit with a crew pop.
+# Chatting with your crew is real but not genuinely restorative.
+CREW_SOCIAL_MULTIPLIER = 0.15
+
 # Exponent applied to ticks_cost in travel scoring: 1.0 = linear (harsh); 0.5 = square root
 # (gentler — a 12-tick trip divides benefit by ~3.5 instead of 12).
 TRAVEL_DIST_EXPONENT = 0.5
@@ -97,11 +105,14 @@ def _mortal_is_travelling(mortal, state) -> bool:
 
 
 def _trip_too_long_for_urgent_need(cs, kb, dest_id: str) -> bool:
-    """Return True if any urgent need will reach 0 before the trip completes."""
+    """Return True if any survival need will reach 0 before the trip completes.
+    Only sustenance and safety can ground a mortal — social/purpose urgency does not."""
     ticks_cost = kb.route_ticks_to(dest_id)
     if ticks_cost == 0:
         return False
     for need in cs.needs:
+        if need.name not in _TRAVEL_BLOCKING_NEEDS:
+            continue
         if need.is_urgent and need.decay_rate > 0:
             ticks_until_desperate = need.satisfaction / need.decay_rate
             if ticks_cost > ticks_until_desperate:
@@ -271,6 +282,8 @@ def evaluate_civilian_action(
             _l_need = cs.get_need("leisure")
             _l_sat = _l_need.satisfaction if _l_need else 1.0
             _leisure_score = max(0.0, 1.0 - _l_sat) * LEISURE_AMBIENT_GAIN * _pq
+        if _in_transit_with_crew:
+            _leisure_score *= CREW_SOCIAL_MULTIPLIER
     else:
         _leisure_score = 0.0
 
@@ -284,6 +297,8 @@ def evaluate_civilian_action(
             _b_need = cs.get_need("belonging")
             _b_sat = _b_need.satisfaction if _b_need else 1.0
             _socialize_score = max(0.0, 1.0 - _b_sat) * SOCIALIZE_AMBIENT_GAIN * _sq
+        if _in_transit_with_crew:
+            _socialize_score *= CREW_SOCIAL_MULTIPLIER
     else:
         _socialize_score = 0.0
 

@@ -126,8 +126,8 @@ def test_collect_at_resource_location():
 # Trip-length awareness: helper correctly identifies trips that are too long
 
 def test_trip_too_long_for_urgent_need_true():
-    # satisfaction=0.2, decay_rate=0.05 → ticks_until_desperate = 4; trip=12 → too long
-    urgent_need = MortalNeed(name="indulgence", satisfaction=0.2, decay_rate=0.05,
+    # sustenance is a survival need — satisfaction=0.2, decay=0.05 → 4 ticks to zero < 12-tick trip
+    urgent_need = MortalNeed(name="sustenance", satisfaction=0.2, decay_rate=0.05,
                              pressing_threshold=0.65, urgent_threshold=0.35)
     cs = CivilianAgentState(needs=[urgent_need])
     kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])
@@ -167,12 +167,21 @@ def test_spend_skipped_when_target_need_not_pressing():
 
 
 def test_trip_too_long_for_urgent_need_false_when_not_urgent():
-    # satisfaction=0.5 → not urgent
-    need = MortalNeed(name="indulgence", satisfaction=0.5, decay_rate=0.05,
+    # sustenance not yet urgent → no block
+    need = MortalNeed(name="sustenance", satisfaction=0.5, decay_rate=0.05,
                       pressing_threshold=0.65, urgent_threshold=0.35)
     cs = CivilianAgentState(needs=[need])
     kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])
     assert _trip_too_long_for_urgent_need(cs, kb, "neran") is False
+
+
+def test_trip_too_long_non_survival_need_does_not_block():
+    # status urgent → must NOT block travel
+    urgent_need = MortalNeed(name="status", satisfaction=0.1, decay_rate=0.03,
+                             pressing_threshold=0.60, urgent_threshold=0.25)
+    cs = CivilianAgentState(needs=[urgent_need])
+    kb = KnowledgeBase(facts=[RouteFact(from_id="neran", to_id="sethis", ticks_cost=12)])
+    assert _trip_too_long_for_urgent_need(cs, kb, "sethis") is False
 
 
 # ── Leisure and socialize actions ────────────────────────────────────────────
