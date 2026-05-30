@@ -61,7 +61,7 @@ def _state(resource_loc=SETHIS):
 # ── Opportunistic collect before sell-travel ──────────────────────────────────
 
 def test_opportunistic_collect_fires_before_travel():
-    """At resource location with sellable goods, should collect first then travel."""
+    """At resource location with sellable goods and pressing purpose, collect wins by score."""
     cs = _cs(with_sellable=True)
     kb = _kb()
     mortal = _mortal(cs, kb, loc_id=SETHIS)
@@ -69,7 +69,9 @@ def test_opportunistic_collect_fires_before_travel():
 
     result = evaluate_civilian_action(mortal, state, 0)
     assert result == "collect"
-    assert cs.pending_travel_dest == NERAN
+    # pending_travel_dest is set only when travel explicitly beats local collect;
+    # here collect wins naturally, so no intercept is needed.
+    assert cs.pending_travel_dest is None
 
 
 def test_pending_travel_commits_next_tick():
@@ -85,14 +87,25 @@ def test_pending_travel_commits_next_tick():
     assert cs.pending_travel_dest is None
 
 
-def test_opportunistic_collect_always_fires_at_resource_before_sell_travel():
-    """At resource location with sellable goods, collect always fires first (no cooldown gate)."""
-    cs = _cs(with_sellable=True)
+def test_intercept_fires_when_travel_beats_local_collect():
+    """When cargo is heavily loaded, sell-travel score dominates — intercept fires,
+    pending_travel_dest is set, and collect is returned for one final load."""
+    from core.agent_core import MortalNeed
+    cs = CivilianAgentState(needs=[
+        MortalNeed(name="purpose", satisfaction=0.55, pressing_threshold=0.60,
+                   urgent_threshold=0.25, decay_rate=0.03),
+    ])
+    # No cargo cap; large quantity → sigmoid load_fraction≈0.98 → sell_score >> collect_score.
+    # (With a cap, quantity must reach the cap to be sellable; uncapped uses Resource.threshold.)
+    cs.inventory = [Resource(resource_type="ore", quantity=50.0, threshold=2.0,
+                             usable_for=["sell"], converts_to="credits")]
     kb = _kb()
-    mortal = _mortal(cs, kb, loc_id=SETHIS)
+    mortal = _mortal(cs, kb, loc_id=SETHIS)  # cargo_capacity=None (default)
     state = _state(resource_loc=SETHIS)
 
     result = evaluate_civilian_action(mortal, state, 0)
+    # load_fraction≈0.98; sell_score≈1.06; collect_score≈0.0017;
+    # travel:NERAN = (1.06−0.0017)/12 ≈ 0.088 > 0.0017 → intercept fires.
     assert result == "collect"
     assert cs.pending_travel_dest == NERAN
 

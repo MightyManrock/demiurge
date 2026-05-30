@@ -116,7 +116,8 @@ def test_collect_at_resource_location():
     loc = MagicMock()
     loc.collectible_resource = MagicMock()
     loc.location_type = "pop_location"
-    cs = CivilianAgentState(needs=[_pressing_need()])
+    # Collect scores via purpose urgency — mortal collects when purpose is pressing
+    cs = CivilianAgentState(needs=[MortalNeed(name="purpose", satisfaction=0.5, pressing_threshold=0.65)])
     kb = KnowledgeBase(facts=[ResourceFact(location_id=loc_id)])
     result = evaluate_civilian_action(_mortal(cs, kb, loc_id=loc_id), _state({loc_id: loc}), 0)
     assert result == "collect"
@@ -144,7 +145,7 @@ def test_spend_skipped_when_target_need_not_pressing():
     loc.location_type = "pop_location"
     cs = CivilianAgentState(
         needs=[
-            MortalNeed(name="trader", satisfaction=0.5, pressing_threshold=0.65),
+            MortalNeed(name="purpose", satisfaction=0.5, pressing_threshold=0.65),
             MortalNeed(name="indulgence", satisfaction=1.0, pressing_threshold=0.65),
         ],
         inventory=[
