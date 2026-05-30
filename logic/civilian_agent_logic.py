@@ -164,9 +164,20 @@ def evaluate_civilian_action(
 
     current_loc_id = str(mortal.current_location)
 
+    # Cargo capacity from asset (None if no asset defines it)
+    _cargo_cap = next(
+        (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
+        None,
+    )
+    _cargo_load = sum(r.quantity for r in cs.inventory if "sell" in r.usable_for)
+    _hold_full = _cargo_cap is not None and _cargo_load >= _cargo_cap
+
     # ── Priority 1: sell ─────────────────────────────────────────────────────
+    _sell_threshold = _cargo_cap if _cargo_cap is not None else None
     sellable = next(
-        (r for r in cs.inventory if "sell" in r.usable_for and r.quantity >= r.threshold),
+        (r for r in cs.inventory
+         if "sell" in r.usable_for
+         and r.quantity >= (_sell_threshold if _sell_threshold is not None else r.threshold)),
         None,
     )
     if sellable:
@@ -175,19 +186,22 @@ def evaluate_civilian_action(
             if current_loc_id == best_sell_loc:
                 return "sell"
             route = kb.route_to(best_sell_loc)
-            if route and route.vehicle_type:
-                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                    return "idle"
-            # Opportunistic collect before departing to sell
-            _cur_loc = state.locations.get(current_loc_id)
-            if (
-                _cur_loc is not None
-                and getattr(_cur_loc, "collectible_resource", None) is not None
-                and current_loc_id in kb.known_resource_locations()
-            ):
-                cs.pending_travel_dest = best_sell_loc
-                return "collect"
-            return f"travel:{best_sell_loc}"
+            _can_travel = not (route and route.vehicle_type) or any(
+                a.asset_type == route.vehicle_type for a in mortal.assets
+            )
+            if _can_travel:
+                # Opportunistic collect before departing to sell (only if hold has room)
+                _cur_loc = state.locations.get(current_loc_id)
+                if (
+                    not _hold_full
+                    and _cur_loc is not None
+                    and getattr(_cur_loc, "collectible_resource", None) is not None
+                    and current_loc_id in kb.known_resource_locations()
+                ):
+                    cs.pending_travel_dest = best_sell_loc
+                    return "collect"
+                return f"travel:{best_sell_loc}"
+            # no vehicle → fall through to lower priorities
 
     # ── Priority 2: spend ────────────────────────────────────────────────────
     spendable = next(
@@ -208,10 +222,12 @@ def evaluate_civilian_action(
             if current_loc_id == best_spend_loc:
                 return "spend"
             route = kb.route_to(best_spend_loc)
-            if route and route.vehicle_type:
-                if not any(a.asset_type == route.vehicle_type for a in mortal.assets):
-                    return "idle"
-            return f"travel:{best_spend_loc}"
+            _can_travel = not (route and route.vehicle_type) or any(
+                a.asset_type == route.vehicle_type for a in mortal.assets
+            )
+            if _can_travel:
+                return f"travel:{best_spend_loc}"
+            # no vehicle → fall through to lower priorities
 
     # ── Priority 2.5: directive override ────────────────────────────────────
     # When Purpose is pressing and the mortal has a commerce directive, skip
@@ -247,7 +263,12 @@ def evaluate_civilian_action(
     )
 
     if at_resource:
+        if _hold_full:
+            return "idle"
         return "collect"
+
+    if _hold_full:
+        return "idle"
 
     dest = resource_locs[0]
     route = kb.route_to(dest)

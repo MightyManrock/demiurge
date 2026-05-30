@@ -40,7 +40,7 @@ def _mortal(cs, kb, loc_id=SETHIS):
     m.civilian_state = cs
     m.knowledge_base = kb
     m.fatigue = 0.0
-    m.assets = [MagicMock(asset_type="merchant_vessel")]
+    m.assets = [MagicMock(asset_type="merchant_vessel", cargo_capacity=None)]
     m.travel_intent = None
     m.current_location = loc_id
     m.pop_id = None

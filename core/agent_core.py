@@ -129,6 +129,7 @@ class MortalNeed(BaseModel):
 class MortalAsset(BaseModel):
     asset_type: str
     label: str = ""
+    cargo_capacity: Optional[float] = None
 
 
 class CollectibleResource(BaseModel):
