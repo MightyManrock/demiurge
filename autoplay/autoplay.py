@@ -165,7 +165,7 @@ def run(
     print("\nWORLDS:")
     for wid, w in state.worlds.items():
         tags = _format_beliefs(w.domain_expression) or "none"
-        print(f"  {w.name:12s} [{w.condition.value}]  domains: {tags}  age={w.age:.1f}")
+        print(f"  {w.name:12s} [{w.condition.value}]  domains: {tags}  age={w.age.elapsed_years():,}")
 
     proxii = _active_proxii(state)
     print(f"\nACTIVE PROXII: {len(proxii)}")

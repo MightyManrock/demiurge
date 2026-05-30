@@ -12,6 +12,8 @@ import math
 from collections import deque
 from uuid import UUID
 
+from core.universe_core import EntityAge
+
 
 def find_route(state, origin_id: UUID, destination_id: UUID) -> list[UUID] | None:
     """BFS over PopLocations connected by shared TravelNetwork membership.
@@ -159,11 +161,20 @@ def get_or_create_travel_location(state, legs: dict[str, int]):
         dest_name   = dest_loc.name   if dest_loc   else dest_key
         transit_name = f"In transit: {origin_name} → {dest_name}"
 
+    u = state.universe.age
+    creation_date: tuple[int, int, int, int, int, int] = (
+        u.billions, u.millions, u.thousands, u.years, u.month, u.day,
+    )
     tl = TravelLocation(
         name=transit_name,
         legs=legs,
         current_waypoint=first_wp,
         ticks_remaining=legs[first_wp],
+        age=EntityAge(
+            billions=u.billions, millions=u.millions, thousands=u.thousands,
+            years=u.years, month=u.month, day=u.day,
+            formation_date=creation_date,
+        ),
     )
     state.locations[str(tl.id)] = tl
     return tl

@@ -114,7 +114,7 @@ def civ_text_fields(civ: Optional[Civilization] = None) -> list[tuple[str, str, 
     return [
         ("Name",             "name",             civ.name if civ else "New Civilization"),
         ("Description",      "description",      civ.description if civ else ""),
-        ("Age",              "age",              f"{civ.age}" if civ else "0"),
+        ("Age",              "age",              f"{civ.age.elapsed_years()}" if civ else "0"),
         ("Divine awareness (0.0–1.0)", "divine_awareness",
          f"{civ.divine_awareness}" if civ else "0.3"),
         ("Stability",        "stability",        f"{h.stability}"),
@@ -259,7 +259,12 @@ def apply_species_fields(sp: Species, fields: dict[str, str]) -> None:
 def apply_civ_fields(civ: Civilization, fields: dict[str, str]) -> None:
     civ.name = fields["name"].strip()
     civ.description = fields["description"]
-    civ.age = float(fields["age"])
+    from core.universe_core import EntityAge
+    new_elapsed = int(float(fields["age"]))
+    civ.age = EntityAge.from_full_year(
+        civ.age.formation_full_year() + new_elapsed,
+        formation_date=civ.age.formation_date,
+    )
     civ.divine_awareness = float(fields["divine_awareness"])
     civ.health.stability  = float(fields["stability"])
     civ.health.wealth = float(fields["wealth"])

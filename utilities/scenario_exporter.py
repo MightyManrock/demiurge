@@ -126,13 +126,13 @@ def _write_scenario_meta(conn, state: SimulationState, name: str, desc: str):
             state.universe.name,
             state.universe.save_name,
             state.universe.description,
-            state.universe.current_age.to_float_years(),
-            state.universe.current_age.billions,
-            state.universe.current_age.millions,
-            state.universe.current_age.thousands,
-            state.universe.current_age.years,
-            state.universe.current_age.month,
-            state.universe.current_age.day,
+            state.universe.age.to_float_years(),
+            state.universe.age.billions,
+            state.universe.age.millions,
+            state.universe.age.thousands,
+            state.universe.age.years,
+            state.universe.age.month,
+            state.universe.age.day,
             state.tick_number,
             str(state.demiurge.id),
             str(state.pantheon.id),
@@ -294,7 +294,6 @@ def _write_locations(conn, state: SimulationState):
         lf_overt = lf_subtle = lf_proxius = lf_direct = 0.0
         civilization_ids = species_ids = proxius_ids = herald_ids_loc = "[]"
         geo_tags = atmo_tags = "[]"
-        age = 0.0
         pop_ids = "[]"
         distance_from_core = 0
         travel_network_ids_val = "[]"
@@ -322,7 +321,6 @@ def _write_locations(conn, state: SimulationState):
             herald_ids_loc   = _j(loc.herald_ids)
             geo_tags  = _j(loc.geo_tags)
             atmo_tags = _j(loc.atmo_tags)
-            age = loc.age
         elif isinstance(loc, PopLocation):
             domain_expression = _j(loc.domain_expression)
             pop_ids = _j(loc.pop_ids)
@@ -338,6 +336,10 @@ def _write_locations(conn, state: SimulationState):
             travel_occupants  = _j([str(oid) for oid in loc.occupants])
             travel_pop_ids_val = _j([str(pid) for pid in loc.pop_ids])
 
+        # EntityAge fields — same for all location subclasses
+        ea = loc.age
+        fd = ea.formation_date
+
         conn.execute(
             """INSERT INTO locations
                (id, name, description, location_type, subclass, parent_id, child_ids,
@@ -346,7 +348,10 @@ def _write_locations(conn, state: SimulationState):
                 domain_expression,
                 lf_overt_miracles, lf_subtle_influence, lf_proxius_activity, lf_direct_creation,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
-                geo_tags, atmo_tags, age,
+                geo_tags, atmo_tags,
+                age_billions, age_millions, age_thousands, age_years, age_month, age_day,
+                formation_billions, formation_millions, formation_thousands,
+                formation_year, formation_month, formation_day,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids, travel_network_ids,
                 commerce_quality, collectible_resource, wealth,
@@ -356,7 +361,9 @@ def _write_locations(conn, state: SimulationState):
                        ?,
                        ?, ?, ?, ?,
                        ?, ?, ?, ?,
-                       ?, ?, ?,
+                       ?, ?,
+                       ?, ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?, ?, ?,
                        ?, ?,
                        ?, ?, ?, ?, ?, ?,
                        ?, ?, ?,
@@ -376,7 +383,9 @@ def _write_locations(conn, state: SimulationState):
                 domain_expression,
                 lf_overt, lf_subtle, lf_proxius, lf_direct,
                 civilization_ids, species_ids, proxius_ids, herald_ids_loc,
-                geo_tags, atmo_tags, age,
+                geo_tags, atmo_tags,
+                ea.billions, ea.millions, ea.thousands, ea.years, ea.month, ea.day,
+                fd[0], fd[1], fd[2], fd[3], fd[4], fd[5],
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids_val, travel_network_ids_val,
                 commerce_quality, collectible_resource_val, wealth_val,
@@ -418,17 +427,23 @@ def _write_civilizations(conn, state: SimulationState):
         core_locs = list(c.core_locs)
         if not core_locs and c.origin_location_id:
             core_locs = [c.origin_location_id]
+        ea = c.age
+        fd = ea.formation_date
         conn.execute(
             """INSERT INTO civilizations
                (id, name, description, origin_location_id, scale,
                 health_stability, health_wealth, health_cohesion,
                 primary_species_id, dominant_beliefs, established_beliefs, pop_ids,
                 culture_tags, established_culture_tags,
-                theistic, divine_awareness, core_locs, age,
+                theistic, divine_awareness, core_locs,
+                age_billions, age_millions, age_thousands, age_years, age_month, age_day,
                 founding_billions, founding_millions, founding_thousands,
                 founding_year, founding_month, founding_day,
                 visibility, pinned, visibility_stall_remaining)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?, ?, ?,
+                       ?, ?, ?)""",
             (
                 str(c.id),
                 c.name,
@@ -447,13 +462,8 @@ def _write_civilizations(conn, state: SimulationState):
                 int(c.theistic),
                 c.divine_awareness,
                 json.dumps([str(x) for x in core_locs]),
-                c.age,
-                c.founding_date[0],
-                c.founding_date[1],
-                c.founding_date[2],
-                c.founding_date[3],
-                c.founding_date[4],
-                c.founding_date[5],
+                ea.billions, ea.millions, ea.thousands, ea.years, ea.month, ea.day,
+                fd[0], fd[1], fd[2], fd[3], fd[4], fd[5],
                 c.visibility,
                 int(c.pinned),
                 c.visibility_stall_remaining,

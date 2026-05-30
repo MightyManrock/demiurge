@@ -547,7 +547,7 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
 
     a(f"[bold #4a80b0]━━ STATUS ━━[/]")
     a(f"[#3a6090]{_e(state.universe.name)}[/]")
-    a(f"[#2a4a6a]{_short_age_label(state.universe.current_age, state.tick_number)}  ·  Tick {state.tick_number}[/]")
+    a(f"[#2a4a6a]{_short_age_label(state.universe.age, state.tick_number)}  ·  Tick {state.tick_number}[/]")
     a("")
 
     # Essence

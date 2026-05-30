@@ -30,8 +30,9 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe, TravelNetwork, UniverseAge,
+    Universe, TravelNetwork, EntityAge,
 )
+UniverseAge = EntityAge  # backward compat for helpers that still use the old name
 from core.action_core import (
     EssenceStockpile, OngoingAction, TargetType,
     WhisperIntent, OmenIntent, ProbabilityNudgeIntent, DevelopmentIntent,
@@ -64,18 +65,61 @@ _INTENT_CLASSES: dict[str, type] = {
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
 
 
-def _load_universe_age(meta: dict) -> UniverseAge:
-    """Load UniverseAge; prefers 6-component columns, falls back to legacy age_year, then current_age float."""
+def _load_universe_age(meta: dict) -> EntityAge:
+    """Load universe EntityAge; prefers 6-component columns, falls back to legacy age_year, then current_age float."""
     if meta.get("age_billions") is not None:
-        return UniverseAge(
+        return EntityAge(
             billions=meta["age_billions"], millions=meta["age_millions"],
             thousands=meta["age_thousands"], years=meta["age_years"],
             month=meta["age_month"], day=meta["age_day"],
         )
     if meta.get("age_year") is not None:
-        return UniverseAge.from_full_year(meta["age_year"], meta.get("age_month", 1), meta.get("age_day", 1))
+        return EntityAge.from_full_year(meta["age_year"], meta.get("age_month", 1), meta.get("age_day", 1))
     old = float(meta.get("current_age") or 0.0)
-    return UniverseAge.from_full_year(int(old))
+    return EntityAge.from_full_year(int(old))
+
+
+def _load_entity_age(row: dict, universe_age: EntityAge) -> EntityAge:
+    """Build an EntityAge for a Location or Civilization row.
+
+    Current calendar position: use age_* columns when present; fall back to universe_age
+    (correct for old DBs that didn't store per-entity date).
+    Formation date: use formation_* columns when present; fall back to zero (Year 0).
+    Caller is responsible for applying parent-fallback logic afterward."""
+    if row.get("age_billions") is not None:
+        cur = EntityAge(
+            billions=int(row["age_billions"]),
+            millions=int(row["age_millions"]),
+            thousands=int(row["age_thousands"]),
+            years=int(row["age_years"]),
+            month=int(row["age_month"]),
+            day=int(row["age_day"]),
+        )
+    else:
+        cur = EntityAge(
+            billions=universe_age.billions,
+            millions=universe_age.millions,
+            thousands=universe_age.thousands,
+            years=universe_age.years,
+            month=universe_age.month,
+            day=universe_age.day,
+        )
+    if row.get("formation_billions") is not None:
+        formation: tuple[int, int, int, int, int, int] = (
+            int(row["formation_billions"]),
+            int(row["formation_millions"]),
+            int(row["formation_thousands"]),
+            int(row["formation_year"]),
+            int(row["formation_month"]),
+            int(row["formation_day"]),
+        )
+    else:
+        formation = (0, 0, 0, 0, 1, 1)
+    return EntityAge(
+        billions=cur.billions, millions=cur.millions, thousands=cur.thousands,
+        years=cur.years, month=cur.month, day=cur.day,
+        formation_date=formation,
+    )
 
 
 def _derive_founding_date(civ_age: float, universe_age: UniverseAge) -> tuple[int, int, int, int, int, int]:
@@ -84,6 +128,41 @@ def _derive_founding_date(civ_age: float, universe_age: UniverseAge) -> tuple[in
         universe_age.month, universe_age.day,
     )
     return (ua.billions, ua.millions, ua.thousands, ua.years, ua.month, ua.day)
+
+
+def _load_civ_age(row: dict, universe_age: EntityAge) -> EntityAge:
+    """Build an EntityAge for a Civilization row.
+
+    Current calendar position: age_* columns if present, else universe_age.
+    Formation date: founding_* columns if present; fall back to deriving from legacy age REAL."""
+    if row.get("age_billions") is not None:
+        cur_bi, cur_mi, cur_th, cur_yr, cur_mo, cur_dy = (
+            int(row["age_billions"]), int(row["age_millions"]), int(row["age_thousands"]),
+            int(row["age_years"]), int(row["age_month"]), int(row["age_day"]),
+        )
+    else:
+        cur_bi, cur_mi, cur_th, cur_yr = (
+            universe_age.billions, universe_age.millions,
+            universe_age.thousands, universe_age.years,
+        )
+        cur_mo, cur_dy = universe_age.month, universe_age.day
+
+    if row.get("founding_billions") is not None:
+        formation: tuple[int, int, int, int, int, int] = (
+            int(row["founding_billions"]), int(row["founding_millions"]),
+            int(row["founding_thousands"]), int(row["founding_year"]),
+            int(row["founding_month"]), int(row["founding_day"]),
+        )
+    elif row.get("founding_year") is not None:
+        formation = (0, 0, 0, int(row["founding_year"]),
+                     int(row.get("founding_month", 1)), int(row.get("founding_day", 1)))
+    else:
+        formation = _derive_founding_date(float(row.get("age", 0.0)), universe_age)
+
+    return EntityAge(
+        billions=cur_bi, millions=cur_mi, thousands=cur_th, years=cur_yr,
+        month=cur_mo, day=cur_dy, formation_date=formation,
+    )
 
 
 def _derive_birthday(chrono_age: float, universe_age: UniverseAge) -> tuple:
@@ -189,9 +268,9 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
     lums, constraints_by_owner = _load_luminaries(conn)
     pantheon = _load_pantheon(conn, constraints_by_owner)
     rules    = _load_universe_rules(conn)
-    locations = _load_locations(conn)
-    travel_networks = _load_travel_networks(conn)
     universe_age = _load_universe_age(meta)
+    locations = _load_locations(conn, universe_age)
+    travel_networks = _load_travel_networks(conn)
     species  = _load_species(conn)
     civs     = _load_civilizations(conn, universe_age)
     pops     = _load_pops(conn)
@@ -241,7 +320,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         pantheon_id=pantheon.id,
         rules=rules,
         child_ids=galaxy_ids,
-        current_age=_load_universe_age(meta),
+        age=_load_universe_age(meta),
         universe_domain_expression=_jd_str(meta.get("universe_domain_expression", "{}")),
     )
 
@@ -409,7 +488,7 @@ def _load_universe_rules(conn) -> UniverseRules:
     )
 
 
-def _load_locations(conn) -> dict[str, Location]:
+def _load_locations(conn, universe_age: EntityAge) -> dict[str, Location]:
     """Load all locations from the unified locations table."""
     out: dict[str, Location] = {}
     try:
@@ -435,6 +514,7 @@ def _load_locations(conn) -> dict[str, Location]:
             y=row.get("coordinates_y", 0.0),
             z=row.get("coordinates_z", 0.0),
         )
+        entity_age = _load_entity_age(row, universe_age)
 
         if subclass == "system":
             loc = System(
@@ -451,6 +531,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 pinned=pinned,
                 visibility_stall_remaining=visibility_stall_remaining,
                 star_type=StarType(row.get("star_type", "main_sequence")),
+                age=entity_age,
             )
         elif subclass == "significant_location":
             loc = SignificantLocation(
@@ -479,7 +560,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 herald_ids=[UUID(x) for x in _j(row.get("herald_ids_loc", "[]"))],
                 geo_tags=_j(row.get("geo_tags", "[]")),
                 atmo_tags=_j(row.get("atmo_tags", "[]")),
-                age=row.get("age", 0.0),
+                age=entity_age,
             )
         elif subclass == "pop_location":
             loc = PopLocation(
@@ -502,6 +583,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 commerce_quality=float(row.get("commerce_quality") or 0.5),
                 collectible_resource=_load_collectible_resource(row.get("collectible_resource")),
                 wealth=float(row.get("wealth", 0.5) or 0.5),
+                age=entity_age,
             )
         elif subclass == "travel_location":
             from core.universe_core import TravelLocation
@@ -523,6 +605,7 @@ def _load_locations(conn) -> dict[str, Location]:
                 ticks_remaining=int(row.get("travel_ticks_rem", 0) or 0),
                 occupants=[UUID(x) for x in _j(row.get("travel_occupants", "[]"))],
                 pop_ids=[UUID(x) for x in _j(row.get("travel_pop_ids", "[]"))],
+                age=entity_age,
             )
         else:
             # Base Location (galaxies and any freeform locations)
@@ -539,9 +622,30 @@ def _load_locations(conn) -> dict[str, Location]:
                 visibility=visibility,
                 pinned=pinned,
                 visibility_stall_remaining=visibility_stall_remaining,
+                age=entity_age,
             )
 
         out[str(loc.id)] = loc
+
+    # Post-load pass: propagate formation_date from parent for locations that had no
+    # formation data stored (old DBs or newly created blank entries).
+    # Chain: System → SignificantLocation → PopLocation
+    _ZERO_FORMATION = (0, 0, 0, 0, 1, 1)
+    for loc in out.values():
+        if loc.age.formation_date != _ZERO_FORMATION:
+            continue
+        if loc.parent_id is None:
+            continue
+        parent = out.get(str(loc.parent_id))
+        if parent is None:
+            continue
+        if parent.age.formation_date != _ZERO_FORMATION:
+            loc.age = EntityAge(
+                billions=loc.age.billions, millions=loc.age.millions,
+                thousands=loc.age.thousands, years=loc.age.years,
+                month=loc.age.month, day=loc.age.day,
+                formation_date=parent.age.formation_date,
+            )
 
     return out
 
@@ -618,17 +722,7 @@ def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilizati
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
             core_locs=[UUID(x) for x in _j(row.get("core_locs", "[]"))],
-            age=row["age"],
-            founding_date=(
-                (row["founding_billions"], row["founding_millions"], row["founding_thousands"],
-                 row["founding_year"], row["founding_month"], row["founding_day"])
-                if row.get("founding_billions") is not None
-                else (
-                    (0, 0, 0, row["founding_year"], row["founding_month"], row["founding_day"])
-                    if row.get("founding_year") is not None
-                    else _derive_founding_date(row["age"], universe_age)
-                )
-            ),
+            age=_load_civ_age(row, universe_age),
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
             visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),

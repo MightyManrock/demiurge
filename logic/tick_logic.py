@@ -43,7 +43,7 @@ from core.onto_core import (
 )
 from core.universe_core import (
     Universe, Location, System, SignificantLocation, PopLocation, TravelNetwork,
-    Civilization, NotableMortal, UniverseAge,
+    Civilization, NotableMortal, EntityAge,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
     Pop, SocialClass, is_wild_civ,
@@ -739,8 +739,8 @@ class TickResult(BaseModel):
     The event log stores these.
     """
     tick_number: int
-    universe_age_before: UniverseAge
-    universe_age_after:  UniverseAge
+    universe_age_before: EntityAge
+    universe_age_after:  EntityAge
 
     passive_result:     PassiveWorldResult
     action_result:      ActionProcessingResult
@@ -937,7 +937,7 @@ def _is_pending_target_valid(state: SimulationState, pending: "OngoingAction") -
 # TICK LOOP
 # ─────────────────────────────────────────
 
-def _birthday_fires(old: UniverseAge, new: UniverseAge, month: int, day: int) -> bool:
+def _birthday_fires(old: EntityAge, new: EntityAge, month: int, day: int) -> bool:
     """True if (month, day) anniversary falls in the half-open interval (old, new]."""
     old_fy = old.full_year()
     new_fy = new.full_year()
@@ -1009,15 +1009,15 @@ class TickLoop:
         phase_rng = random.Random(seed)
 
         _days_this_tick = max(1, round(cfg.tick_duration * 360))
-        _new_age = state.universe.current_age.advance_days(_days_this_tick)
+        _new_age = state.universe.age.advance_days(_days_this_tick)
         result = TickResult(
             tick_number=state.tick_number,
-            universe_age_before=state.universe.current_age,
+            universe_age_before=state.universe.age,
             universe_age_after=_new_age,
             passive_result=PassiveWorldResult(),
             action_result=ActionProcessingResult(),
             domain_profile=UniverseDomainProfile(
-                timestamp=state.universe.current_age.to_float_years()
+                timestamp=state.universe.age.to_float_years()
             ),
             seed=seed,
         )
@@ -1105,7 +1105,7 @@ class TickLoop:
                 action_definition_id=defn.id,
                 target_type=pending.target_type,
                 target_id=pending.target_id,
-                timestamp=state.universe.current_age.to_float_years(),
+                timestamp=state.universe.age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=pending.proxius_id,
                 intent=pending.intent,
@@ -1372,7 +1372,12 @@ class TickLoop:
             ))
 
         # ── Bookkeeping ────────────────────────────────
-        state.universe.current_age = _new_age
+        state.universe.age = _new_age
+        # Advance EntityAge for all locations and civilizations in lockstep
+        for loc in state.locations.values():
+            loc.age = loc.age.advance_days(_days_this_tick)
+        for civ in state.civilizations.values():
+            civ.age = civ.age.advance_days(_days_this_tick)
         state.previous_domain_profile = profile
         state.tick_number += 1
 
@@ -1387,14 +1392,14 @@ class TickLoop:
         state: SimulationState,
         cfg: TickConfig,
         rng: random.Random,
-        old_age: UniverseAge = None,
-        new_age: UniverseAge = None,
+        old_age: EntityAge = None,
+        new_age: EntityAge = None,
     ) -> PassiveWorldResult:
 
         result = PassiveWorldResult()
 
-        _old_age = old_age or state.universe.current_age
-        _new_age_obj = new_age or state.universe.current_age.advance_days(
+        _old_age = old_age or state.universe.age
+        _new_age_obj = new_age or state.universe.age.advance_days(
             max(1, round(cfg.tick_duration * 360))
         )
 
@@ -1493,15 +1498,12 @@ class TickLoop:
                     in_window=is_in_window(civ),
                 ))
 
-            # Civilization age increments on founding anniversary
-            *_, fm, fd = civ.founding_date
+            # Civilization founding anniversary — detected via elapsed_years crossing
+            *_, fm, fd = civ.age.formation_date
             if _birthday_fires(_old_age, _new_age_obj, fm, fd):
-                result.civilization_mutations.append(StateMutation(
-                    mutation_type=MutationType.CIVILIZATION_STAT,
-                    target_id=UUID(cid),
-                    field="age",
-                    delta=1.0,
-                    note=f"{civ.name} founding anniversary (age {civ.age + 1:.0f})",
+                result.narrative_events.append(NarrativeEvent(
+                    text=f"{civ.name} founding anniversary (year {civ.age.elapsed_years() + 1:,}).",
+                    in_window=is_in_window(civ),
                 ))
 
         # ── Civ → Pop conformity pressure ──────────────
@@ -4093,7 +4095,7 @@ class TickLoop:
 
         if total_weight == 0.0:
             return UniverseDomainProfile(
-                timestamp=state.universe.current_age.to_float_years()
+                timestamp=state.universe.age.to_float_years()
             )
 
         normalized = {
@@ -4102,7 +4104,7 @@ class TickLoop:
         }
 
         return UniverseDomainProfile(
-            timestamp=state.universe.current_age.to_float_years(),
+            timestamp=state.universe.age.to_float_years(),
             scores=normalized,
         )
 
@@ -4314,12 +4316,12 @@ class TickLoop:
                 delta=delta,
                 constraint_evals=constraint_evals,
                 essence_suspicion=essence_suspicion,
-                timestamp=state.universe.current_age.to_float_years(),
+                timestamp=state.universe.age.to_float_years(),
             )
 
             ev = LuminaryEvaluation(
                 luminary_id=luminary.id,
-                timestamp=state.universe.current_age.to_float_years(),
+                timestamp=state.universe.age.to_float_years(),
                 attention_level=attention_level,
                 attention_triggers=attention_triggers,
                 domain_alignment_scores=domain_scores,
@@ -5768,10 +5770,7 @@ class TickLoop:
                         setattr(obj, parts[1], max(0.0, min(1.0, current + (m.delta or 0))))
                     elif len(parts) == 1:
                         current = getattr(state.civilizations[tid], parts[0], 0.0)
-                        new_val = current + (m.delta or 0)
-                        # age is unbounded; health stats are [0, 1]
-                        if parts[0] != "age":
-                            new_val = max(0.0, min(1.0, new_val))
+                        new_val = max(0.0, min(1.0, current + (m.delta or 0)))
                         setattr(state.civilizations[tid], parts[0], new_val)
 
             elif m.mutation_type in (

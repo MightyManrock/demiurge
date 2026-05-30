@@ -144,7 +144,20 @@ CREATE TABLE IF NOT EXISTS locations (
     herald_ids_loc   TEXT NOT NULL DEFAULT '[]',    -- JSON array (disambiguated from luminary herald_ids)
     geo_tags         TEXT NOT NULL DEFAULT '[]',    -- JSON array
     atmo_tags        TEXT NOT NULL DEFAULT '[]',    -- JSON array
-    age              REAL NOT NULL DEFAULT 0.0,
+    -- EntityAge current calendar position (all location types)
+    age_billions     INTEGER NOT NULL DEFAULT 0,
+    age_millions     INTEGER NOT NULL DEFAULT 0,
+    age_thousands    INTEGER NOT NULL DEFAULT 0,
+    age_years        INTEGER NOT NULL DEFAULT 0,
+    age_month        INTEGER NOT NULL DEFAULT 1,
+    age_day          INTEGER NOT NULL DEFAULT 1,
+    -- EntityAge formation date (when this location came into being)
+    formation_billions  INTEGER NOT NULL DEFAULT 0,
+    formation_millions  INTEGER NOT NULL DEFAULT 0,
+    formation_thousands INTEGER NOT NULL DEFAULT 0,
+    formation_year      INTEGER NOT NULL DEFAULT 0,
+    formation_month     INTEGER NOT NULL DEFAULT 1,
+    formation_day       INTEGER NOT NULL DEFAULT 1,
     -- PopLocation-specific (populated for subclass='pop_location')
     pop_ids             TEXT    NOT NULL DEFAULT '[]',  -- JSON array
     distance_from_core  INTEGER NOT NULL DEFAULT 0,     -- 0 = core surface; >0 adds to scry/travel distance
@@ -201,7 +214,14 @@ CREATE TABLE IF NOT EXISTS civilizations (
     theistic            INTEGER NOT NULL DEFAULT 1,  -- bool
     divine_awareness    REAL NOT NULL DEFAULT 0.3,
     core_locs           TEXT    NOT NULL DEFAULT '[]',  -- JSON array of SignificantLocation UUIDs
-    age                 REAL NOT NULL DEFAULT 0.0,
+    -- EntityAge current calendar position
+    age_billions        INTEGER NOT NULL DEFAULT 0,
+    age_millions        INTEGER NOT NULL DEFAULT 0,
+    age_thousands       INTEGER NOT NULL DEFAULT 0,
+    age_years           INTEGER NOT NULL DEFAULT 0,
+    age_month           INTEGER NOT NULL DEFAULT 1,
+    age_day             INTEGER NOT NULL DEFAULT 1,
+    -- EntityAge formation date (founding_* columns kept for backward compat; map to age.formation_date)
     founding_billions   INTEGER NOT NULL DEFAULT 0,
     founding_millions   INTEGER NOT NULL DEFAULT 0,
     founding_thousands  INTEGER NOT NULL DEFAULT 0,

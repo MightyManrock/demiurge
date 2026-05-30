@@ -406,7 +406,7 @@ class BuilderScreen(Screen):
             fields=[
                 ("Scenario name", "name",        u.name),
                 ("Initialism",    "save_name",   u.save_name),
-                ("Current age",   "current_age", f"{u.current_age.to_float_years():.1f}"),
+                ("Current age",   "current_age", f"{u.age.to_float_years():.1f}"),
             ],
             show_back=True,
         ))
@@ -430,10 +430,10 @@ class BuilderScreen(Screen):
                 "Current age cannot be negative."
             ))
             return
-        from core.universe_core import UniverseAge
-        u.name        = name
-        u.save_name   = initialism
-        u.current_age = UniverseAge(year=int(age), month=1, day=1)
+        from core.universe_core import EntityAge
+        u.name     = name
+        u.save_name = initialism
+        u.age      = EntityAge.from_full_year(int(age))
         self.mark_dirty()
         self._refresh_all()
 

@@ -110,7 +110,7 @@ def text_fields_for(kind: str, loc: Optional[Location] = None) -> list[tuple[str
     if kind == "system":
         return [("Name", "name", name_default)]
     if kind == "world":
-        age_default = f"{loc.age}" if isinstance(loc, SignificantLocation) else "0"
+        age_default = f"{loc.age.elapsed_years()}" if isinstance(loc, SignificantLocation) else "0"
         return [
             ("Name",          "name",          name_default),
             ("Location type", "location_type", loc.location_type if loc else "planet"),
@@ -218,7 +218,12 @@ def apply_text_fields(
     loc.name = fields["name"].strip()
     if kind == "world":
         loc.location_type = fields["location_type"].strip() or loc.location_type
-        loc.age = float(fields["age"])
+        from core.universe_core import EntityAge
+        new_elapsed = int(float(fields["age"]))
+        loc.age = EntityAge.from_full_year(
+            loc.age.formation_full_year() + new_elapsed,
+            formation_date=loc.age.formation_date,
+        )
     elif kind == "poploc":
         loc.location_type = fields["location_type"].strip() or loc.location_type
         loc.distance_from_core = int(fields["distance_from_core"])

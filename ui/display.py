@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from rich.markup import escape as _e
 from rich.text import Text
 
-from core.universe_core import MortalRole, MortalStatus, MortalProminence, PopLocation, UniverseAge
+from core.universe_core import MortalRole, MortalStatus, MortalProminence, PopLocation, EntityAge
 from logic.tick_logic import is_in_window, ENTITY_VISIBILITY_FLOOR
 from utilities.domain_registry import get_registry as get_domain_registry
 
@@ -356,7 +356,7 @@ def display_state(state: "SimulationState", dev_mode: bool = False) -> list[str]
     lines = [
         SEP2,
         f"  UNIVERSE: {state.universe.name}",
-        f"  {state.universe.current_age.display()}  |  Tick: {state.tick_number}",
+        f"  {state.universe.age.display()}  |  Tick: {state.tick_number}",
         SEP2,
     ]
     fp = state.demiurge.footprint
@@ -553,7 +553,7 @@ _resolve_pop_sentinels = lambda text: _ENTITY_SENTINEL_RE.sub(
 )
 
 
-def _short_age_label(age: UniverseAge, tick_number: int) -> str:
+def _short_age_label(age: EntityAge, tick_number: int) -> str:
     """Return 'Day D of Month M, Year …NNN' with minimal year suffix.
 
     Shows only the sub-thousands digits (0–999) by default, expanding to
@@ -561,7 +561,7 @@ def _short_age_label(age: UniverseAge, tick_number: int) -> str:
     over since the scenario's first tick.
     """
     elapsed = age.full_year() * 360 + (age.month - 1) * 30 + (age.day - 1)
-    start = UniverseAge.from_full_year(max(0, elapsed - tick_number) // 360)
+    start = EntityAge.from_full_year(max(0, elapsed - tick_number) // 360)
     if age.billions != start.billions:
         year_str = f"{age.billions:,},{age.millions:03d},{age.thousands:03d},{age.years:03d}"
     elif age.millions != start.millions:
@@ -692,7 +692,7 @@ def display_tick_result(result: "TickResult", dev_mode: bool = False) -> str:
 
 
 def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[str]:
-    lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  ({state.universe.current_age.display()})", SEP2, ""]
+    lines = [SEP2, "  SCENARIO BRIEFING", f"  {state.universe.name}  ({state.universe.age.display()})", SEP2, ""]
     pan = state.pantheon
     lines.append(f"PANTHEON: {pan.name}")
     if pan.collective_constraints:
@@ -774,7 +774,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
                 w_vis    = f"  [vis:{world.visibility:.0%}]" if not world.pinned else ""
                 lines.append(
-                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age:,.0f}  {life_str}"
+                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age.elapsed_years():,}  {life_str}"
                 )
                 if world.domain_expression:
                     lines.append(f"{wm}        domain expression: {_format_beliefs(world.domain_expression)}")

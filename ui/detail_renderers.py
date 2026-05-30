@@ -213,7 +213,7 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
 
     a(f"[bold #4a80b0]WORLD: {_e(world.name)}[/]")
     a("")
-    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age:,.0f}")
+    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age.elapsed_years():,}")
     a(f"  visibility: {world.visibility:.0%}")
 
     if world.geo_tags:
@@ -468,7 +468,7 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
     a(f"  cohesion:   {h.cohesion:+.0%}")
 
     if display.DEV_MODE:
-        a(f"  [#5a7090]age: {civ.age:,.0f} years  |  founded: {_format_calendar_date(civ.founding_date)}[/]")
+        a(f"  [#5a7090]age: {civ.age.elapsed_years():,} years  |  founded: {_format_calendar_date(civ.age.formation_date)}[/]")
 
     origin = state.locations.get(str(civ.origin_location_id)) if civ.origin_location_id else None
     if origin:
