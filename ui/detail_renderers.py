@@ -213,7 +213,15 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
 
     a(f"[bold #4a80b0]WORLD: {_e(world.name)}[/]")
     a("")
-    a(f"  condition: \\[{_e(world.condition.value)}]   age: {world.age.elapsed_years():,}")
+    dev = display.DEV_MODE
+    show_age       = dev or world.visibility > 0
+    show_formation = dev or world.visibility >= 1.0
+    cond_str = f"  condition: \\[{_e(world.condition.value)}]"
+    if show_age:
+        cond_str += f"   age: {world.age.elapsed_display()}"
+    a(cond_str)
+    if show_formation:
+        a(f"  formed: {_format_calendar_date(world.age.formation_date)}")
     a(f"  visibility: {world.visibility:.0%}")
 
     if world.geo_tags:
@@ -234,8 +242,6 @@ def render_world_detail(state: "SimulationState", world_id: str) -> Text:
         a("[bold #4a80b0]LOCAL FOOTPRINT[/]")
         a(f"  overt:{fp.overt_miracles:.2f}  subtle:{fp.subtle_influence:.2f}  "
           f"proxii:{fp.proxius_activity:.2f}  create:{fp.direct_creation:.2f}")
-
-    dev = display.DEV_MODE
 
     # Collect in-Window PopLocations that are children of this world, sorted
     # by (distance_from_core, name) so the planet's core surface comes first.
@@ -399,9 +405,17 @@ def render_system_detail(state: "SimulationState", system_id: str) -> Text:
     a = lines.append
 
     star_str = sys_obj.star_type.value if hasattr(sys_obj, "star_type") else "?"
+    dev = display.DEV_MODE
     a(f"[bold #4a80b0]SYSTEM: {_e(sys_obj.name)}[/]")
     a("")
-    a(f"  star type: \\[{_e(star_str)}]")
+    show_age       = dev or sys_obj.visibility > 0
+    show_formation = dev or sys_obj.visibility >= 1.0
+    star_line = f"  star type: \\[{_e(star_str)}]"
+    if show_age:
+        star_line += f"   age: {sys_obj.age.elapsed_display()}"
+    a(star_line)
+    if show_formation:
+        a(f"  formed: {_format_calendar_date(sys_obj.age.formation_date)}")
     a(f"  visibility: {sys_obj.visibility:.0%}")
 
     parent = state.locations.get(str(sys_obj.parent_id)) if sys_obj.parent_id else None
@@ -411,7 +425,6 @@ def render_system_detail(state: "SimulationState", system_id: str) -> Text:
 
     a("")
     a("[bold #4a80b0]WORLDS[/]")
-    dev = display.DEV_MODE
     any_w = False
     for cid in sys_obj.child_ids:
         world = state.worlds.get(str(cid))
@@ -1234,6 +1247,12 @@ def render_galaxy_detail(state: "SimulationState", galaxy_id: str) -> Text:
 
     a(f"[bold #4a80b0]GALAXY: {_e(galaxy.name)}[/]")
     a("")
+    show_age       = dev or galaxy.visibility > 0
+    show_formation = dev or galaxy.visibility >= 1.0
+    if show_age:
+        a(f"  age: {galaxy.age.elapsed_display()}")
+    if show_formation:
+        a(f"  formed: {_format_calendar_date(galaxy.age.formation_date)}")
     a(f"  visibility: {galaxy.visibility:.0%}")
     if galaxy.description:
         a("")
@@ -1283,6 +1302,12 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
 
     a(f"[bold #4a80b0]POPULATED LOCATION: {_e(loc.name)}[/]")
     a("")
+    show_age       = dev or loc.visibility > 0
+    show_formation = dev or loc.visibility >= 1.0
+    if show_age:
+        a(f"  age: {loc.age.elapsed_display()}")
+    if show_formation:
+        a(f"  formed: {_format_calendar_date(loc.age.formation_date)}")
     a(f"  visibility: {loc.visibility:.0%}")
     a(f"  distance from core: [#a0c0e0]{loc.distance_from_core}[/]")
     if loc.description:

@@ -774,7 +774,7 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
                 life_str = f"{n_civs} civilization(s)" if n_civs else "no life"
                 w_vis    = f"  [vis:{world.visibility:.0%}]" if not world.pinned else ""
                 lines.append(
-                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age.elapsed_years():,}  {life_str}"
+                    f"{wm}      {world.name}  [{world.condition.value}]{w_vis}  age:{world.age.elapsed_display()}  {life_str}"
                 )
                 if world.domain_expression:
                     lines.append(f"{wm}        domain expression: {_format_beliefs(world.domain_expression)}")
