@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -103,6 +104,23 @@ def _trip_too_long_for_urgent_need(cs, kb, dest_id: str) -> bool:
     return False
 
 
+def _begin_loading(cs, cur_loc, cargo_cap: Optional[float], cargo_load: float) -> None:
+    """Set collecting_ticks_remaining for a multi-tick load session.
+    Duration = ceil(remaining_capacity / resource_yield) - 1 (this tick is tick 0).
+    Only applied when cargo capacity is known and resource yield is a real number."""
+    if cargo_cap is None or cur_loc is None:
+        return
+    cr = getattr(cur_loc, "collectible_resource", None)
+    if cr is None:
+        return
+    yield_per_tick = getattr(cr, "resource_yield", None)
+    if not isinstance(yield_per_tick, (int, float)) or yield_per_tick <= 0:
+        return
+    remaining = max(0.0, cargo_cap - cargo_load)
+    additional_ticks = max(0, math.ceil(remaining / yield_per_tick) - 1)
+    cs.collecting_ticks_remaining = additional_ticks
+
+
 def evaluate_civilian_action(
     mortal,
     state,
@@ -131,8 +149,12 @@ def evaluate_civilian_action(
     if mortal.fatigue >= FATIGUE_BLOCK_THRESHOLD:
         return "idle"
 
-    # Sticky collect-then-travel: commit unconditionally on the tick after collecting
-    if cs.pending_travel_dest:
+    # While actively loading cargo the freighter is docked — handle personal time only.
+    # pending_travel_dest waits until loading is done; it commits on the next free tick.
+    _docked = cs.collecting_ticks_remaining > 0
+
+    # Sticky collect-then-travel: commit unconditionally on the first free tick after loading
+    if not _docked and cs.pending_travel_dest:
         dest = cs.pending_travel_dest
         cs.pending_travel_dest = None
         return f"travel:{dest}"
@@ -241,7 +263,8 @@ def evaluate_civilian_action(
     local_candidates: dict[str, float] = {}
     if _best_sell_loc  and current_loc_id == _best_sell_loc  and _sell_score    > 0:
         local_candidates["sell"]      = _sell_score
-    if _at_resource    and not _hold_full                     and _collect_score > 0:
+    # Collect and travel are unavailable while the freighter is docked for loading
+    if not _docked and _at_resource and not _hold_full and _collect_score > 0:
         local_candidates["collect"]   = _collect_score
     if _best_spend_loc and current_loc_id == _best_spend_loc and _spend_score   > 0:
         local_candidates["spend"]     = _spend_score
@@ -255,27 +278,28 @@ def evaluate_civilian_action(
     # ── Travel candidates: score = (dest_score − best_local) / ticks_cost ────
     travel_candidates: dict[str, float] = {}
 
-    def _try_travel(dest_id: str, dest_score: float) -> None:
-        if dest_id == current_loc_id or dest_score <= _best_local:
-            return
-        route = kb.route_to(dest_id)
-        can_travel = not (route and route.vehicle_type) or any(
-            a.asset_type == route.vehicle_type for a in mortal.assets
-        )
-        if not can_travel or _trip_too_long_for_urgent_need(cs, kb, dest_id):
-            return
-        ticks = route.ticks_cost if route else 1
-        score = (dest_score - _best_local) / max(1.0, ticks ** TRAVEL_DIST_EXPONENT)
-        if score > 0:
-            travel_candidates[dest_id] = max(travel_candidates.get(dest_id, 0.0), score)
+    if not _docked:
+        def _try_travel(dest_id: str, dest_score: float) -> None:
+            if dest_id == current_loc_id or dest_score <= _best_local:
+                return
+            route = kb.route_to(dest_id)
+            can_travel = not (route and route.vehicle_type) or any(
+                a.asset_type == route.vehicle_type for a in mortal.assets
+            )
+            if not can_travel or _trip_too_long_for_urgent_need(cs, kb, dest_id):
+                return
+            ticks = route.ticks_cost if route else 1
+            score = (dest_score - _best_local) / max(1.0, ticks ** TRAVEL_DIST_EXPONENT)
+            if score > 0:
+                travel_candidates[dest_id] = max(travel_candidates.get(dest_id, 0.0), score)
 
-    if _best_sell_loc:
-        _try_travel(_best_sell_loc, _sell_score)
-    if not _hold_full:
-        for res_loc in kb.known_resource_locations():
-            _try_travel(res_loc, _collect_score)
-    if _best_spend_loc:
-        _try_travel(_best_spend_loc, _spend_score)
+        if _best_sell_loc:
+            _try_travel(_best_sell_loc, _sell_score)
+        if not _hold_full:
+            for res_loc in kb.known_resource_locations():
+                _try_travel(res_loc, _collect_score)
+        if _best_spend_loc:
+            _try_travel(_best_spend_loc, _spend_score)
 
     # ── Pick best action ──────────────────────────────────────────────────────
     all_candidates: dict[str, float] = dict(local_candidates)
@@ -291,9 +315,13 @@ def evaluate_civilian_action(
         return "idle"
 
     # Sticky intercept: if travel wins but mortal is at a resource with cargo room,
-    # collect first and lock in the destination for next tick.
+    # start a loading session and lock in the destination.
     if best_action.startswith("travel:") and _at_resource and not _hold_full and _collect_score > 0:
         cs.pending_travel_dest = best_action[len("travel:"):]
+        _begin_loading(cs, _cur_loc, _cargo_cap, _cargo_load)
         return "collect"
+
+    if best_action == "collect":
+        _begin_loading(cs, _cur_loc, _cargo_cap, _cargo_load)
 
     return best_action

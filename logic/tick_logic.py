@@ -4965,6 +4965,33 @@ class TickLoop:
                             _qf.quality = _obs_loc.wealth
                             break
 
+            # Background loading: auto-collect each tick while a loading session is active.
+            # The freighter is docked; evaluate_civilian_action will return personal time
+            # (leisure / socialize / idle) rather than collect or travel.
+            if cs.collecting_ticks_remaining > 0:
+                _bg_loc = state.locations.get(str(mortal.current_location))
+                _bg_cr  = getattr(_bg_loc, "collectible_resource", None)
+                _bg_cap = next(
+                    (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
+                    None,
+                )
+                _bg_load = sum(r.quantity for r in cs.inventory if "sell" in r.usable_for)
+                if _bg_cap is not None and _bg_load >= _bg_cap:
+                    cs.collecting_ticks_remaining = 0          # hold full — stop loading
+                elif _bg_cr:
+                    _bg_res = cs.get_resource(_bg_cr.resource_type)
+                    if _bg_res is None:
+                        from core.agent_core import Resource as _Resource
+                        _bg_res = _Resource(resource_type=_bg_cr.resource_type)
+                        cs.inventory.append(_bg_res)
+                    _bg_res.quantity += _bg_cr.resource_yield
+                    mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
+                    narratives.append(
+                        f"{mortal.name} loads {_bg_cr.resource_yield} {_bg_cr.resource_type} "
+                        f"(hold: {_bg_res.quantity:.0f}/{_bg_cap:.0f})."
+                    )
+                    cs.collecting_ticks_remaining = max(0, cs.collecting_ticks_remaining - 1)
+
             action = evaluate_civilian_action(mortal, state, current_tick)
             cs.last_action = action
 

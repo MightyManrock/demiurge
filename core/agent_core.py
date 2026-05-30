@@ -162,6 +162,7 @@ class CivilianAgentState(BaseModel):
     action_cooldowns: dict[str, int] = Field(default_factory=dict)
     last_action: Optional[str] = None
     pending_travel_dest: Optional[str] = None
+    collecting_ticks_remaining: int = 0
 
     def pressing_needs(self) -> list[MortalNeed]:
         return [n for n in self.needs if n.is_pressing]
