@@ -56,7 +56,16 @@ from utilities.culture_registry import (
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
-from logic.civilian_agent_logic import evaluate_civilian_action
+from logic.civilian_agent_logic import (
+    evaluate_civilian_action,
+    _pop_practice_quality,
+    _pop_social_quality,
+    LEISURE_BASE_GAIN,
+    SOCIALIZE_BASE_GAIN,
+    LEISURE_SATIATION_HOLD_BASE,
+    SOCIALIZE_SATIATION_HOLD_BASE,
+)
+from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING
 from logic.sim_utils import (
     resolve_world_id_for as _resolve_world_id_for,
     resolve_world_for as _resolve_world_for,
@@ -4882,6 +4891,16 @@ class TickLoop:
             if cs is None:
                 continue
 
+            # Passive restoration for needs that are auto-satisfied by stable conditions
+            loc = state.locations.get(str(mortal.current_location))
+            if loc and getattr(loc, "commerce_quality", 0) > 0:
+                sust = cs.get_need(NEED_SUSTENANCE)
+                if sust and sust.satisfaction < 1.0:
+                    sust.satisfaction = min(1.0, sust.satisfaction + 0.03)
+            safe = cs.get_need(NEED_SAFETY)
+            if safe and safe.satisfaction < 1.0:
+                safe.satisfaction = min(1.0, safe.satisfaction + 0.02)
+
             for need in cs.needs:
                 if need.satiation_hold > 0:
                     need.satiation_hold -= 1
@@ -4978,6 +4997,40 @@ class TickLoop:
                         f"(+{gain_per_need:.2f} satisfaction)."
                     )
                     break
+
+            elif action == "leisure":
+                local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+                pop = state.pops.get(local_pop_id)
+                if pop:
+                    quality = _pop_practice_quality(mortal.culture_tags, pop.culture_tags)
+                    leisure_need = cs.get_need(NEED_LEISURE)
+                    if leisure_need:
+                        gain = LEISURE_BASE_GAIN * quality
+                        leisure_need.satisfaction = min(1.0, leisure_need.satisfaction + gain)
+                        leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality)
+                    mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
+                    cs.action_cooldowns["leisure"] = current_tick + 3
+                    narratives.append(
+                        f"{mortal.name} spends time enjoying local culture "
+                        f"(quality {quality:.2f}, +{LEISURE_BASE_GAIN * quality:.2f} leisure)."
+                    )
+
+            elif action == "socialize":
+                local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+                pop = state.pops.get(local_pop_id)
+                if pop:
+                    quality = _pop_social_quality(pop.culture_tags)
+                    belonging_need = cs.get_need(NEED_BELONGING)
+                    if belonging_need:
+                        gain = SOCIALIZE_BASE_GAIN * quality
+                        belonging_need.satisfaction = min(1.0, belonging_need.satisfaction + gain)
+                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality)
+                    mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
+                    cs.action_cooldowns["socialize"] = current_tick + 3
+                    narratives.append(
+                        f"{mortal.name} socializes with the local community "
+                        f"(quality {quality:.2f}, +{SOCIALIZE_BASE_GAIN * quality:.2f} belonging)."
+                    )
 
             elif action and action.startswith("travel:"):
                 dest_id = action.split(":", 1)[1]

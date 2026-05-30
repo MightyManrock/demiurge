@@ -156,6 +156,9 @@ class CivilianAgentState(BaseModel):
     def get_resource(self, resource_type: str) -> Optional[Resource]:
         return next((r for r in self.inventory if r.resource_type == resource_type), None)
 
+    def get_need(self, name: str) -> Optional[MortalNeed]:
+        return next((n for n in self.needs if n.name == name), None)
+
 
 class TravelIntent(BaseModel):
     travel_location_id: UUID

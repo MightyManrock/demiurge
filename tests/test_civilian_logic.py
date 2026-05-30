@@ -172,3 +172,136 @@ def test_trip_too_long_for_urgent_need_false_when_not_urgent():
     cs = CivilianAgentState(needs=[need])
     kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])
     assert _trip_too_long_for_urgent_need(cs, kb, "neran") is False
+
+
+# ── Leisure and socialize actions ────────────────────────────────────────────
+
+POP_ID = "pop-abc"
+
+
+def _mortal_with_pop(cs, pop_id=POP_ID, pop_milieu=None, fatigue=0.0, loc_id="loc-A"):
+    m = MagicMock()
+    m.civilian_state = cs
+    m.knowledge_base = KnowledgeBase()
+    m.fatigue = fatigue
+    m.assets = []
+    m.travel_intent = None
+    m.current_location = loc_id
+    m.pop_id = pop_id
+    m.pop_milieu = pop_milieu
+    m.culture_tags = {}
+    return m
+
+
+def _state_with_pop(pop_id=POP_ID, pop_tags=None):
+    pop = MagicMock()
+    pop.culture_tags = pop_tags or {"values:solidarity": 0.6, "practice:music": 0.7}
+    s = MagicMock()
+    s.locations = {}
+    s.pops = {pop_id: pop}
+    return s
+
+
+def _pressing(name: str) -> MortalNeed:
+    return MortalNeed(name=name, satisfaction=0.4, pressing_threshold=0.65, urgent_threshold=0.20)
+
+
+def test_leisure_action_when_pressing_at_pop():
+    cs = CivilianAgentState(needs=[_pressing("leisure")])
+    result = evaluate_civilian_action(
+        _mortal_with_pop(cs),
+        _state_with_pop(),
+        0,
+    )
+    assert result == "leisure"
+
+
+def test_socialize_action_when_pressing_at_pop():
+    cs = CivilianAgentState(needs=[_pressing("belonging")])
+    result = evaluate_civilian_action(
+        _mortal_with_pop(cs),
+        _state_with_pop(),
+        0,
+    )
+    assert result == "socialize"
+
+
+def test_leisure_skipped_when_not_pressing():
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="leisure", satisfaction=0.9, pressing_threshold=0.65)]
+    )
+    result = evaluate_civilian_action(
+        _mortal_with_pop(cs),
+        _state_with_pop(),
+        0,
+    )
+    assert result == "idle"
+
+
+def test_socialize_skipped_when_not_pressing():
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="belonging", satisfaction=0.9, pressing_threshold=0.65)]
+    )
+    result = evaluate_civilian_action(
+        _mortal_with_pop(cs),
+        _state_with_pop(),
+        0,
+    )
+    assert result == "idle"
+
+
+def test_leisure_skipped_without_pop_in_state():
+    cs = CivilianAgentState(needs=[_pressing("leisure")])
+    s = MagicMock()
+    s.locations = {}
+    s.pops = {}  # no pop present
+    result = evaluate_civilian_action(_mortal_with_pop(cs), s, 0)
+    assert result == "idle"
+
+
+def test_leisure_uses_pop_milieu_over_pop_id():
+    """pop_milieu takes precedence over pop_id for location lookup."""
+    milieu_id = "pop-milieu-xyz"
+    other_id  = "pop-other"
+    cs = CivilianAgentState(needs=[_pressing("leisure")])
+    mortal = _mortal_with_pop(cs, pop_id=other_id, pop_milieu=milieu_id)
+    pop = MagicMock()
+    pop.culture_tags = {"practice:music": 0.8}
+    s = MagicMock()
+    s.locations = {}
+    s.pops = {milieu_id: pop}  # only milieu is present
+    result = evaluate_civilian_action(mortal, s, 0)
+    assert result == "leisure"
+
+
+def test_leisure_cooldown_blocks():
+    cs = CivilianAgentState(
+        needs=[_pressing("leisure")],
+        action_cooldowns={"leisure": 99},  # expires at tick 99
+    )
+    result = evaluate_civilian_action(
+        _mortal_with_pop(cs),
+        _state_with_pop(),
+        current_tick=0,  # cooldown not expired
+    )
+    assert result == "idle"
+
+
+def test_leisure_priority_above_collect():
+    """Leisure fires before collect when both leisure need is pressing and resource exists."""
+    resource_loc = "resource-loc"
+    cs = CivilianAgentState(
+        needs=[_pressing("leisure")],
+        # no sellable or spendable items, but a known resource location
+    )
+    kb = KnowledgeBase(facts=[ResourceFact(location_id=resource_loc)])
+    mortal = _mortal_with_pop(cs)
+    mortal.knowledge_base = kb
+    loc = MagicMock()
+    loc.collectible_resource = MagicMock()
+    result = evaluate_civilian_action(
+        mortal,
+        _state_with_pop(),
+        0,
+    )
+    assert result == "leisure"

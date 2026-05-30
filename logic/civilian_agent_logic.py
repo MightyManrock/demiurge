@@ -7,10 +7,41 @@ if TYPE_CHECKING:
     from logic.tick_logic import SimulationState
 
 FATIGUE_BLOCK_THRESHOLD = 0.85
-COLLECT_COOLDOWN = "collect"
-SELL_COOLDOWN = "sell"
-SPEND_COOLDOWN = "spend"
-TRAVEL_COOLDOWN = "travel"
+COLLECT_COOLDOWN  = "collect"
+SELL_COOLDOWN     = "sell"
+SPEND_COOLDOWN    = "spend"
+TRAVEL_COOLDOWN   = "travel"
+LEISURE_COOLDOWN  = "leisure"
+SOCIALIZE_COOLDOWN = "socialize"
+
+LEISURE_BASE_GAIN          = 0.35
+SOCIALIZE_BASE_GAIN        = 0.30
+LEISURE_SATIATION_HOLD_BASE  = 6
+SOCIALIZE_SATIATION_HOLD_BASE = 5
+
+
+def _pop_practice_quality(mortal_tags: dict[str, float], pop_tags: dict[str, float]) -> float:
+    """Weighted leisure quality: mortal preference × pop practice level, normalized to [0, 1]."""
+    EXCLUDED = {"practice:ritual", "practice:revelry"}
+    total_weight = total = 0.0
+    for tag, pop_val in pop_tags.items():
+        if not tag.startswith("practice:") or tag in EXCLUDED:
+            continue
+        mortal_pref = max(0.0, mortal_tags.get(tag, 0.2))
+        total_weight += mortal_pref
+        total += mortal_pref * pop_val
+    if total_weight == 0:
+        return 0.3
+    return min(1.0, total / total_weight)
+
+
+def _pop_social_quality(pop_tags: dict[str, float]) -> float:
+    """Belonging quality from socializing: driven by pop solidarity + revelry."""
+    base = (
+        pop_tags.get("values:solidarity", 0.3) * 0.5
+        + pop_tags.get("practice:revelry", 0.3) * 0.5
+    )
+    return min(1.0, max(0.0, base))
 
 
 def _mortal_is_travelling(mortal: NotableMortal, state: SimulationState) -> bool:
@@ -113,7 +144,23 @@ def evaluate_civilian_action(
                 return f"travel:{best_spend_loc}"
             return "idle"
 
-    # ── Priority 3: collect ──────────────────────────────────────────────────
+    # ── Priority 3: leisure ──────────────────────────────────────────────────
+    leisure_need = cs.get_need("leisure")
+    if leisure_need and leisure_need.is_pressing:
+        local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+        if local_pop_id and local_pop_id in state.pops:
+            if cs.cooldown_expired(LEISURE_COOLDOWN, current_tick):
+                return "leisure"
+
+    # ── Priority 4: socialize ────────────────────────────────────────────────
+    belonging_need = cs.get_need("belonging")
+    if belonging_need and belonging_need.is_pressing:
+        local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
+        if local_pop_id and local_pop_id in state.pops:
+            if cs.cooldown_expired(SOCIALIZE_COOLDOWN, current_tick):
+                return "socialize"
+
+    # ── Priority 5: collect ──────────────────────────────────────────────────
     resource_locs = kb.known_resource_locations()
     if not resource_locs:
         return "idle"
