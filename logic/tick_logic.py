@@ -127,7 +127,11 @@ _STRATUM_ORDER: list[SocialClass] = [
 ]
 
 SPLINTER_FRACTION = 0.35
-# Fraction of the parent Pop's size that breaks away into the splinter.
+# Fraction of the parent Pop's actual population that breaks away into the splinter.
+# Applied in log-space: splinter_size = parent_size + log10(SPLINTER_FRACTION)
+#                       parent_size  -= log10(1 - SPLINTER_FRACTION)  (≈ -0.187)
+_SPLINTER_SIZE_DELTA    = math.log10(SPLINTER_FRACTION)          # ≈ -0.456
+_SPLINTER_PARENT_DELTA  = math.log10(1.0 - SPLINTER_FRACTION)   # ≈ -0.187
 
 WHISPER_POP_SPLASH = 0.20
 # Fraction of a whisper's belief delta that ripples to the target mortal's
@@ -1720,7 +1724,7 @@ class TickLoop:
                 wild_stratum=pop.wild_stratum,
                 occupation=pop.occupation,
                 current_location=pop.current_location,
-                size_fractional=pop.size_fractional * SPLINTER_FRACTION,
+                size_fractional=max(0.0, pop.size_fractional + _SPLINTER_SIZE_DELTA),
                 dominant_beliefs=dict(pop.dominant_beliefs),
                 culture_tags=dict(pop.culture_tags),
                 rider_traits=dict(pop.rider_traits),
@@ -6220,10 +6224,9 @@ class TickLoop:
                 parent_pop = state.pops.get(tid) if tid else None
                 splinter: "Pop" = m.new_value  # type: ignore[assignment]
                 if parent_pop is not None and splinter is not None:
-                    splinter_sz = splinter.size_fractional
-                    # Reduce parent size
+                    # Reduce parent by the complement fraction in log-space
                     parent_pop.size_fractional = max(
-                        0.0, parent_pop.size_fractional - splinter_sz
+                        0.0, parent_pop.size_fractional + _SPLINTER_PARENT_DELTA
                     )
                     # Wire lineage
                     splinter_id_str = str(splinter.id)
