@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import random
 from uuid import UUID
 from typing import TYPE_CHECKING
@@ -389,8 +390,10 @@ def resolve_proxius_agents(
                             goal.petition_pending = False
                             goal.petition_pending_ticks = 0
 
-                        size_delta = round(0.05 * (1.0 + goal.effectiveness_bonus), 3)
-                        if pop_a.size_fractional - size_delta <= 0.0:
+                        peel_fraction = 0.05 * (1.0 + goal.effectiveness_bonus)
+                        # Log-space delta for A: A loses peel_fraction of its actual population.
+                        a_delta = math.log10(1.0 - peel_fraction)  # negative
+                        if pop_a.size_fractional + a_delta <= 0.0:
                             # Pop A fully absorbed
                             mutations.append(StateMutation(
                                 mutation_type=MutationType.POP_ABSORBED,
@@ -406,26 +409,29 @@ def resolve_proxius_agents(
                                 f"Directive complete — awaiting new orders."
                             )
                         else:
+                            # B gains the actual people leaving A — conserves population.
+                            people_transferred = (10 ** pop_a.size_fractional) * peel_fraction
+                            b_delta = math.log10(10 ** pop_b.size_fractional + people_transferred) - pop_b.size_fractional
                             mutations.append(StateMutation(
                                 mutation_type=MutationType.POP_SIZE_CHANGE,
                                 target_id=pop_a.id,
                                 field="",
-                                delta=-size_delta,
+                                delta=round(a_delta, 6),
                                 note=f"Members leaving for goal Pop (Proxius {mortal.name})",
                             ))
                             mutations.append(StateMutation(
                                 mutation_type=MutationType.POP_SIZE_CHANGE,
                                 target_id=pop_b.id,
                                 field="",
-                                delta=size_delta,
+                                delta=round(b_delta, 6),
                                 note=f"Members joining goal Pop (Proxius {mortal.name})",
                             ))
                             # Stagnation tracking against last known size
-                            if pop_b.size_fractional + size_delta <= goal.goal_pop_last_size:
+                            if pop_b.size_fractional + b_delta <= goal.goal_pop_last_size:
                                 goal.stagnation_counter = min(10, goal.stagnation_counter + 1)
                             else:
                                 goal.stagnation_counter = max(0, goal.stagnation_counter - 1)
-                            goal.goal_pop_last_size = pop_b.size_fractional + size_delta
+                            goal.goal_pop_last_size = pop_b.size_fractional + b_delta
             else:
                 # ── Legacy civ-level path (goals without source_pop_id) ──
                 target_civ_ids: list[str] = []
