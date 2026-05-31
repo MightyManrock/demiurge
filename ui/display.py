@@ -471,12 +471,16 @@ _LOG_LINK_COLORS: dict[str, str] = {
     "species":  "#80a0b0",
     "location": "#80b0a0",
     "poploc":   "#7090a8",
+    "domain":   "#a0b8d8",
 }
 
 
 def _entity_link(kind: str, eid: str, name: str) -> str:
     if kind == "imago":
         return f"[@click=screen.open_imago_node('{eid}')][#c0ccdc]{_e(name)}[/][/]"
+    if kind == "domain":
+        color = _LOG_LINK_COLORS["domain"]
+        return f"[@click=screen.open_divine_wisdom('{eid}')][{color}]{_e(name)}[/][/]"
     color = _LOG_LINK_COLORS.get(kind, "#c0ccdc")
     return (
         f"[@click=screen.open_detail_by_id('{kind}','{eid}')]"
@@ -526,7 +530,7 @@ def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
     return "".join(parts)
 
 
-_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ|imago)§([^§]+)§([^§]+)§")
+_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ|imago|species|domain)§([^§]+)§([^§]+)§")
 
 
 def _process_narrative(text: str, name_index: dict[str, tuple[str, str]]) -> str:

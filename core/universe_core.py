@@ -493,6 +493,15 @@ class Pop(BaseModel):
     asset_crew_for: Optional[str] = None  # asset_type; marks this as a vessel crew pop
 
 
+def pop_label(pop: "Pop") -> str:
+    """Return the best display name for a Pop: authored name > occupation > stratum."""
+    if pop.name:
+        return pop.name
+    if pop.occupation:
+        return pop.occupation.title()
+    return pop.stratum.title() if pop.stratum else "Pop"
+
+
 # ─────────────────────────────────────────
 # CIVILIZATION
 # ─────────────────────────────────────────

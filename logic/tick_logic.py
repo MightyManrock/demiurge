@@ -46,7 +46,7 @@ from core.universe_core import (
     Civilization, NotableMortal, EntityAge,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
-    Pop, SocialClass, is_wild_civ,
+    Pop, SocialClass, is_wild_civ, pop_label,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import (
@@ -1713,8 +1713,9 @@ class TickLoop:
                 ),
                 default=None,
             )
-            short_tag = top_div_tag.split(":", 1)[-1] if top_div_tag else "unknown"
-            class_label = pop.stratum.title() if pop.stratum else "Pop"
+            short_label = top_div_tag.split(":", 1)[-1].title() if top_div_tag else "Unknown"
+            domain_sentinel = f"§domain§{top_div_tag}§{short_label}§" if top_div_tag else short_label
+            label = pop_label(pop)
 
             splinter = Pop(
                 id=uuid4(),
@@ -1731,19 +1732,14 @@ class TickLoop:
                 parent_pop_id=pop.id,
                 visibility=max(0.0, pop.visibility * 0.75),
                 pinned=False,
+                splinter_cooldown=SPLINTER_COOLDOWN_TICKS,
             )
-            if is_in_window(pop):
-                _parent_sentinel = f"§pop§{pop.id}§{class_label}§"
-                _splinter_sentinel = f"§pop§{splinter.id}§{class_label}§"
-                note = (
-                    f"[Pop splinter] Part of {_parent_sentinel} ({civ.name}) "
-                    f"broke away as {_splinter_sentinel} over {short_tag} (divergence {divergence:.2f})."
-                )
-            else:
-                note = (
-                    f"[Pop splinter] Part of {civ.name} {class_label} "
-                    f"broke away over {short_tag} (divergence {divergence:.2f})."
-                )
+            _parent_sentinel = f"§pop§{pop.id}§{label}§"
+            _splinter_sentinel = f"§pop§{splinter.id}§{label}§"
+            note = (
+                f"[Pop splinter] Part of {_parent_sentinel} ({civ.name}) "
+                f"broke away as {_splinter_sentinel} over {domain_sentinel} (divergence {divergence:.2f})."
+            )
             pop.splinter_cooldown = SPLINTER_COOLDOWN_TICKS
             mutations.append(StateMutation(
                 mutation_type=MutationType.POP_SPLINTER,
@@ -1754,7 +1750,7 @@ class TickLoop:
             ))
             events.append(NarrativeEvent(
                 text=note,
-                in_window=is_in_window(pop) or is_in_window(civ),
+                in_window=is_in_window(pop),
             ))
         return mutations, events
 
