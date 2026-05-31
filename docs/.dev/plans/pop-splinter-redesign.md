@@ -156,11 +156,78 @@ The simplest approach: shrink `parent_pop.size_fractional` directly in `_check_p
 
 ---
 
+---
+
+## Notable mortal redistribution on split
+
+When a splinter occurs, notable mortals belonging to the parent pop are checked against both pops and assigned to whichever they're more similar to. This must happen **after** the parent's belief nudge has been applied — only then do the two pops have meaningfully different beliefs to compare against.
+
+**Order of operations in the mutation handler (`MutationType.POP_SPLINTER`):**
+
+1. Apply parent size reduction
+2. Apply parent belief nudge (shift toward civ established beliefs)
+3. Register splinter into state (civ, PopLocation)
+4. For each mortal UUID in `parent_pop.notable_mortal_ids`:
+   - `sim_parent = cosine_similarity(mortal.dominant_beliefs, parent_pop.dominant_beliefs)`
+   - `sim_splinter = cosine_similarity(mortal.dominant_beliefs, splinter.dominant_beliefs)`
+   - If `sim_splinter > sim_parent`: move mortal to splinter
+     - Remove from `parent_pop.notable_mortal_ids`
+     - Add to `splinter.notable_mortal_ids`
+     - Update `mortal.pop_id` (or whichever field tracks pop membership — confirm at implementation time)
+     - Emit a narrative event if the mortal is in the Window **and** the parent pop is in the Window (or dev mode): `"[mortal sentinel] sided with the splinter faction."`
+
+**No Imago guard** — mortals cannot currently be targeted by Preach Imago directives. If that changes, revisit.
+
+---
+
+## Passive reabsorption
+
+`POP_ABSORBED` currently only fires via Proxius Preach Imago. This plan makes it a passive world mechanic as well, with Proxius emitting it remaining as-is. The Preach Imago guard ensures pops actively targeted by a Proxius directive are never passively reabsorbed mid-process.
+
+### Trigger conditions (checked on same stride as splinter check)
+
+A smaller pop (Pop A) begins draining into a larger pop (Pop B) when all of the following hold:
+
+- Same `stratum` and `occupation` — no cross-class reabsorption
+- Same `current_location`
+- `cosine_similarity(pop_a.dominant_beliefs, pop_b.dominant_beliefs)` is above `REABSORPTION_CONVERGENCE_THRESHOLD` (beliefs are sufficiently similar)
+- Neither pop has `preaching_imago_id` set (not actively a Proxius goal target)
+- Neither pop's `preaching_goal_cooldown_until` is active
+- Pop A is smaller than Pop B
+
+### Target selection
+
+1. If Pop A has `parent_pop_id` set and that parent is alive, in the same location, and meets stratum/occupation/convergence conditions → use the parent as Pop B
+2. Otherwise, find the best-matching pop in the same location: same stratum and occupation, highest cosine similarity to Pop A's beliefs, above convergence threshold
+
+### Drain mechanics
+
+Each stride check, transfer a fixed fraction of Pop A's current population to Pop B (log-space, conserving population):
+
+```python
+REABSORPTION_DRAIN_FRACTION = 0.20   # 20% of Pop A per check → fully drained in ~7-8 checks
+_drain_delta  = math.log10(1.0 - REABSORPTION_DRAIN_FRACTION)   # pop_a shrinks
+_absorb_delta = log_space_add(pop_b.size_fractional, pop_a.size_fractional + math.log10(REABSORPTION_DRAIN_FRACTION)) - pop_b.size_fractional
+```
+
+Emit `POP_SIZE_CHANGE` mutations for both pops. When Pop A's `size_fractional` drops below `SPLINTER_MIN_SIZE`, emit `POP_ABSORBED` for final cleanup.
+
+Narrative: emit a world event (same window/dev-mode rules as splinter events) when drain begins and when the pop is fully absorbed.
+
+### New constant
+
+```python
+REABSORPTION_CONVERGENCE_THRESHOLD = 0.85   # cosine similarity floor to begin draining
+REABSORPTION_DRAIN_FRACTION        = 0.20
+```
+
+---
+
 ## Files affected
 
 | File | Change |
 |---|---|
-| `logic/tick_logic.py` | Replace splinter constants, rewrite `_check_pop_splinters`, update mutation handler |
+| `logic/tick_logic.py` | Replace splinter constants, rewrite `_check_pop_splinters`, update mutation handler, add `_check_pop_reabsorption` |
 
 ---
 
