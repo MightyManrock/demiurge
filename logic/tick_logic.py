@@ -2908,6 +2908,89 @@ class TickLoop:
                         f"Scry of {tgt_name} complete — all entities within scope have been revealed."
                     )
 
+            # ── Incidental discovery pass ─────────────────────────────────
+            _eligible_locs: set[str] = {
+                lid for lid, loc in state.locations.items() if is_in_window(loc)
+            }
+            for _m in mutations:
+                if (
+                    _m.mutation_type == MutationType.ENTITY_VISIBILITY
+                    and _m.new_value is not None
+                    and float(_m.new_value) > ENTITY_VISIBILITY_FLOOR
+                ):
+                    _eligible_locs.add(str(_m.target_id))
+
+            scope_anchor: dict[ScryScope, int] = {
+                ScryScope.WORLD: 3, ScryScope.SYSTEM: 2,
+                ScryScope.GALAXY: 1, ScryScope.UNIVERSE: 0,
+            }
+            _anchor = scope_anchor[scope]
+
+            def _depth_chance(delta: int) -> float:
+                if delta == 0: return 0.85
+                if delta == 1: return 0.55
+                if delta == 2: return 0.30
+                if delta == 3: return 0.06
+                if delta == 4: return 0.02
+                return 0.005
+
+            for lid, loc in state.locations.items():
+                if lid in _primary_loc_ids or getattr(loc, "pinned", False) or is_in_window(loc):
+                    continue
+                depth = (
+                    1 if loc.location_type == "galaxy"
+                    else 2 if loc.location_type == "system"
+                    else 3
+                )
+                if depth > 1 and (loc.parent_id is None or str(loc.parent_id) not in _eligible_locs):
+                    continue
+                delta = abs(depth - _anchor)
+                base = _depth_chance(delta)
+                sf = _spatial_factor(lid)
+                expr_tags = (
+                    list(getattr(loc, "domain_expression", {}).keys())
+                    + list(getattr(loc, "traits", []))
+                )
+                p = max(0.0, min(1.0, (base + _domain_bonus(expr_tags, base)) * sf))
+                if rng.random() < p:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_VISIBILITY,
+                        target_id=UUID(lid), field="visibility",
+                        new_value=max(loc.visibility, base),
+                        note=f"Scry ({scope.value}) incidental: {loc.name} sighted",
+                    ))
+                    discovered_locs.append(f"{loc.name} [incidental]")
+
+            for mid, mortal in state.mortals.items():
+                if mortal.status == MortalStatus.DECEASED or mortal.pinned:
+                    continue
+                if str(mortal.current_location) in _world_pop_loc_ids:
+                    continue
+                if is_in_window(mortal):
+                    continue
+                _milieu_pop = (
+                    state.pops.get(str(mortal.pop_milieu)) if mortal.pop_milieu else None
+                )
+                if _milieu_pop is None or not is_in_window(_milieu_pop):
+                    continue
+                if _milieu_pop.visibility > 0.5:
+                    _m_delta = 1
+                else:
+                    _m_loc = state.locations.get(str(mortal.current_location))
+                    _m_dist = _m_loc.distance_from_core if isinstance(_m_loc, PopLocation) else 0
+                    _m_delta = abs(5 - _anchor) + min(_m_dist, 2)
+                base = _depth_chance(_m_delta)
+                tags = list(mortal.belief_tags.keys()) + mortal.personal_tags
+                p = max(0.0, min(1.0, base + _domain_bonus(tags, base)))
+                if rng.random() < p:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.MORTAL_VISIBILITY,
+                        target_id=UUID(mid), field="visibility",
+                        new_value=max(mortal.visibility, base),
+                        note=f"Scry ({scope.value}) incidental: {mortal.name} sighted via milieu",
+                    ))
+                    discovered_mort.append(f"{mortal.name} [incidental]")
+
             # ── Narrative ─────────────────────────────────────────────────
             if discovered_locs:
                 parts.append(f"Locations sighted: {', '.join(discovered_locs)}.")
