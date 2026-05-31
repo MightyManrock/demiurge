@@ -610,7 +610,7 @@ def display_tick_result_categorized(
     if visible_events:
         out.append(("system", "WORLD EVENTS"))
         for ev in visible_events:
-            text = _linkify(ev.text, _nl)
+            text = _process_narrative(ev.text, _nl)
             if not ev.in_window:
                 out.append(("system", f"  • [dim]{text}[/dim]"))
             else:
@@ -636,7 +636,7 @@ def display_tick_result_categorized(
     if result.mortal_narratives:
         out.append(("mortal", "PINNED MORTALS"))
         for n in result.mortal_narratives:
-            out.append(("mortal", f"  • {_linkify(n, _nl)}"))
+            out.append(("mortal", f"  • {_process_narrative(n, _nl)}"))
         out.append(("mortal", ""))
 
     if result.essence_claimed_by_domain:

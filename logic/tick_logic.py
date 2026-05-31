@@ -1067,9 +1067,10 @@ class TickLoop:
         ]
         for cat_val in stale_cats:
             pa = state.pending_actions.pop(cat_val)
-            result.passive_result.narrative_events.append(
-                f"[Queue] Pending {pa.action_key.replace('_', ' ')} cancelled: target no longer valid."
-            )
+            result.passive_result.narrative_events.append(NarrativeEvent(
+                text=f"[Queue] Pending {pa.action_key.replace('_', ' ')} cancelled: target no longer valid.",
+                in_window=True,
+            ))
 
         # Build fire_queue from pending_actions in category priority order.
         # Cooldown and Essence checks happen here; only actions that can run

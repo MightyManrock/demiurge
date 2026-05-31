@@ -18,3 +18,4 @@ Read /root/demiurge/docs/.dev/TO-PLAN.md and /root/demiurge/docs/.dev/plans/PLAN
 | [human-readable-docs.md](human-readable-docs.md) | `active` | Player-facing guide and system overviews; future Divine Wisdom tab |
 | [actions-redesign-master-plan.md](actions-redesign-master-plan.md) | `active` | Systematic mechanic + UI + DB-prep pass over every action |
 | [belief-propagation.md](belief-propagation.md) | `active` | Extract belief/culture propagation to logic/belief_propagation.py + add strides and stratum weighting |
+| [narrative-formatters.md](narrative-formatters.md) | `parked` | Extract all narrative string-building from tick_logic + civilian_agent_logic into logic/narrative_formatters.py |
