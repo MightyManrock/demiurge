@@ -3016,7 +3016,7 @@ class TickLoop:
             if discovered_mort:
                 parts.append(f"Mortals sighted: {', '.join(discovered_mort)}.")
             if discovered_pops:
-                formatted = self._format_pop_entries_with_links(discovered_pops)
+                formatted = self._format_pop_entries_with_links(discovered_pops, state)
                 parts.append(f"Pops sighted: {', '.join(formatted)}.")
 
             if not (discovered_locs or discovered_civs or discovered_sp or discovered_mort or discovered_pops):
@@ -5507,10 +5507,12 @@ class TickLoop:
     @staticmethod
     def _format_pop_entries_with_links(
         pop_items: "list[tuple[str, Pop, Civilization | None]]",
+        state: "SimulationState | None" = None,
     ) -> "list[str]":
         """Return sentinel-embedded formatted strings for a list of (pid, pop, civ) tuples.
 
         Groups by civ_id; §civ§ link appears only on the first Pop per civ group.
+        For wild-civ pops, a §species§ link prefixes the entry instead.
         Pop label is emitted as §pop§pid§label§ so display.py can resolve it to a clickable link.
         """
         civ_groups: dict[str, list] = {}
@@ -5534,8 +5536,10 @@ class TickLoop:
                     if not is_wild_civ(civ):
                         civ_label = civ.name.removeprefix("The ")
                         entry = f"§civ§{civ.id}§{civ_label}§ {entry}"
-                    # else:
-                    #     entry = f"{pop.}{entry}" # Format line as "(Species Link) (Pop Link)"
+                    elif state is not None and pop.species_id:
+                        sp = state.species.get(str(pop.species_id))
+                        if sp:
+                            entry = f"§species§{sp.id}§{sp.name}§ {entry}"
                 entries.append(entry)
         return entries
 
@@ -5553,7 +5557,7 @@ class TickLoop:
             pop_items.append((pid, pop, civ))
         if not pop_items:
             return ""
-        entries = TickLoop._format_pop_entries_with_links(pop_items)
+        entries = TickLoop._format_pop_entries_with_links(pop_items, state)
         if not entries:
             return ""
         return f" Through {mortal_name}, you have discovered: {', '.join(entries)}."
