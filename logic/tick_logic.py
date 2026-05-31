@@ -2533,8 +2533,395 @@ class TickLoop:
 
             return mutations, narrative
 
-        # ── Scry ─────────────────────────────────────
-        # (ScryIntent handler removed; Task 6 will replace it.)
+        # ── Scry ─────────────────────────────────────────────────────────
+        if isinstance(intent, ScryIntent):
+            scope = intent.scope
+            target_id_str = str(instance.target_id) if instance.target_id else None
+
+            # Momentum: read and update directly on the OngoingAction instance.
+            _own_oa: Optional[OngoingAction] = next(
+                (oa for oa in state.pending_actions.values()
+                 if isinstance(oa.intent, ScryIntent)
+                 and oa.intent.scope == scope
+                 and oa.target_id == instance.target_id),
+                None,
+            )
+            _old_momentum = _own_oa.momentum if _own_oa is not None else 0.0
+            _new_momentum = _old_momentum + (1.0 - _old_momentum) * 0.15
+            if _own_oa is not None:
+                _own_oa.momentum = _new_momentum
+
+            # Footprint cost
+            scope_fp: dict[ScryScope, float] = {
+                ScryScope.WORLD:    0.01 + _new_momentum * 0.09,
+                ScryScope.SYSTEM:   0.10,
+                ScryScope.GALAXY:   0.20,
+                ScryScope.UNIVERSE: 0.35,
+            }
+            mutations.append(StateMutation(
+                mutation_type=MutationType.FOOTPRINT_CHANGE,
+                target_id=state.demiurge.id,
+                field="subtle_influence",
+                delta=scope_fp[scope],
+                note=f"Scry ({scope.value}) footprint",
+            ))
+
+            # Essence cost (galaxy/universe only)
+            scope_essence: dict[ScryScope, float] = {
+                ScryScope.WORLD: 0.0, ScryScope.SYSTEM: 0.0,
+                ScryScope.GALAXY: 3.0, ScryScope.UNIVERSE: 5.0,
+            }
+            if scope_essence[scope] > 0.0:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.ESSENCE_CHANGE,
+                    target_id=state.demiurge.id,
+                    field="actual",
+                    delta=-scope_essence[scope],
+                    note=f"Scry ({scope.value}) essence cost",
+                ))
+
+            # Spatial infrastructure (for incidental pass in Task 7)
+            _GALAXY_SCALE = 1000.0
+            _SPATIAL_SCALE = 8.0
+
+            def _effective_pos(loc_id: str) -> tuple[float, float, float]:
+                loc = state.locations.get(loc_id)
+                if loc is None:
+                    return (0.0, 0.0, 0.0)
+                cx, cy, cz = loc.coordinates.x, loc.coordinates.y, loc.coordinates.z
+                if loc.parent_id is not None:
+                    px, py, pz = _effective_pos(str(loc.parent_id))
+                    return (px * _GALAXY_SCALE + cx, py * _GALAXY_SCALE + cy, pz * _GALAXY_SCALE + cz)
+                return (cx, cy, cz)
+
+            _focus_pos: Optional[tuple[float, float, float]] = None
+            if scope in (ScryScope.WORLD, ScryScope.SYSTEM, ScryScope.GALAXY) and instance.target_id:
+                target_loc = state.locations.get(str(instance.target_id))
+                if target_loc is not None:
+                    if scope == ScryScope.WORLD and target_loc.parent_id is not None:
+                        _focus_pos = _effective_pos(str(target_loc.parent_id))
+                    else:
+                        _focus_pos = _effective_pos(str(instance.target_id))
+
+            def _spatial_factor(candidate_loc_id: str) -> float:
+                if _focus_pos is None:
+                    return 1.0
+                loc = state.locations.get(candidate_loc_id)
+                if loc is None:
+                    return 1.0
+                if loc.location_type not in ("galaxy", "system"):
+                    ref_id = str(loc.parent_id) if loc.parent_id else candidate_loc_id
+                else:
+                    ref_id = candidate_loc_id
+                rx, ry, rz = _effective_pos(ref_id)
+                fx, fy, fz = _focus_pos
+                dist = math.sqrt((rx - fx) ** 2 + (ry - fy) ** 2 + (rz - fz) ** 2)
+                return 1.0 / (1.0 + dist / _SPATIAL_SCALE)
+
+            dreg = self._domain_registry
+            affiliated = state.demiurge.affiliated_domains
+
+            def _domain_bonus(entity_tags: list[str], base: float) -> float:
+                if not dreg or not affiliated or not entity_tags:
+                    return 0.0
+                total = 0.0
+                for etag in entity_tags:
+                    for atag in affiliated:
+                        try:
+                            total += max(0.0, dreg.similarity(etag, atag)) * 0.05
+                        except Exception:
+                            pass
+                bonus_scale = min(1.0, base / 0.55)
+                return min(0.20, total) * bonus_scale
+
+            # Primary sweep helpers
+            _BASE = 0.45
+            _MOM  = 0.35
+
+            def _scry_p(tags: list[str]) -> float:
+                return min(0.95, _BASE + _new_momentum * _MOM + _domain_bonus(tags, _BASE))
+
+            def _scry_new_vis(cur_vis: float) -> float:
+                return max(cur_vis, _BASE + _new_momentum * _MOM)
+
+            # Narrative accumulators
+            discovered_locs: list[str] = []
+            discovered_civs: list[str] = []
+            discovered_sp:   list[str] = []
+            discovered_mort: list[str] = []
+            discovered_pops: list[tuple] = []
+            parts: list[str] = []
+
+            # ── Build primary location set ────────────────────────────────
+            if scope == ScryScope.UNIVERSE:
+                primary_locs = [
+                    (lid, loc) for lid, loc in state.locations.items()
+                    if loc.location_type == "galaxy" and not getattr(loc, "pinned", False)
+                ]
+            elif scope == ScryScope.GALAXY and target_id_str:
+                primary_locs = [
+                    (lid, loc) for lid, loc in state.locations.items()
+                    if loc.location_type == "system"
+                    and str(loc.parent_id) == target_id_str
+                    and not getattr(loc, "pinned", False)
+                ]
+            elif scope == ScryScope.SYSTEM and target_id_str:
+                primary_locs = [
+                    (lid, loc) for lid, loc in state.locations.items()
+                    if loc.location_type not in ("galaxy", "system")
+                    and str(loc.parent_id) == target_id_str
+                    and not getattr(loc, "pinned", False)
+                ]
+            else:
+                primary_locs = []
+
+            _primary_loc_ids: set[str] = {lid for lid, _ in primary_locs}
+
+            # ── Primary location sweep (UNIVERSE / GALAXY / SYSTEM) ───────
+            for lid, loc in primary_locs:
+                tags = (
+                    list(getattr(loc, "domain_expression", {}).keys())
+                    + list(getattr(loc, "traits", []))
+                )
+                p = _scry_p(tags)
+                if is_in_window(loc):
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_VISIBILITY,
+                        target_id=UUID(lid), field="visibility",
+                        new_value=min(1.0, loc.visibility + p * 0.3),
+                        note=f"Scry ({scope.value}): {loc.name} refreshed",
+                    ))
+                elif rng.random() < p:
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.ENTITY_VISIBILITY,
+                        target_id=UUID(lid), field="visibility",
+                        new_value=_scry_new_vis(loc.visibility),
+                        note=f"Scry ({scope.value}): {loc.name} sighted",
+                    ))
+                    discovered_locs.append(loc.name)
+
+            # ── WORLD scope: sweep pops, mortals, civs, species ───────────
+            _world_pop_loc_ids: set[str] = set()
+            _civs_at_world: set[str] = set()
+            if scope == ScryScope.WORLD and target_id_str:
+                _world_pop_loc_ids = {
+                    lid for lid, loc in state.locations.items()
+                    if isinstance(loc, PopLocation)
+                    and str(loc.parent_id) == target_id_str
+                    and not getattr(loc, "pinned", False)
+                }
+                _primary_loc_ids |= _world_pop_loc_ids
+
+                # PopLocations
+                for lid in _world_pop_loc_ids:
+                    loc = state.locations[lid]
+                    p = _scry_p([])
+                    if is_in_window(loc):
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(lid), field="visibility",
+                            new_value=min(1.0, loc.visibility + p * 0.3),
+                            note="Scry (world): PopLocation refreshed",
+                        ))
+                    elif rng.random() < p:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(lid), field="visibility",
+                            new_value=_scry_new_vis(loc.visibility),
+                            note="Scry (world): PopLocation sighted",
+                        ))
+
+                # Pops
+                _PROMINENT = {"elite", "scholar", "warrior"}
+                for pid, pop in state.pops.items():
+                    if pop.pinned or str(pop.current_location) not in _world_pop_loc_ids:
+                        continue
+                    tags = list(pop.dominant_beliefs.keys()) if hasattr(pop, "dominant_beliefs") else []
+                    p = _scry_p(tags)
+                    if pop.social_class and pop.social_class.value in _PROMINENT:
+                        p = min(0.95, p * 1.3)
+                    if is_in_window(pop):
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_VISIBILITY,
+                            target_id=UUID(pid), field="visibility",
+                            new_value=min(1.0, pop.visibility + p * 0.3),
+                            note="Scry (world): Pop refreshed",
+                        ))
+                    elif rng.random() < p:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.POP_VISIBILITY,
+                            target_id=UUID(pid), field="visibility",
+                            new_value=_scry_new_vis(pop.visibility),
+                            note="Scry (world): Pop sighted",
+                        ))
+                        civ = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+                        discovered_pops.append((pid, pop, civ))
+
+                # Mortals
+                for mid, mortal in state.mortals.items():
+                    if mortal.status == MortalStatus.DECEASED or mortal.pinned:
+                        continue
+                    if str(mortal.current_location) not in _world_pop_loc_ids:
+                        continue
+                    tags = list(mortal.belief_tags.keys()) + mortal.personal_tags
+                    p = _scry_p(tags)
+                    if is_in_window(mortal):
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.MORTAL_VISIBILITY,
+                            target_id=UUID(mid), field="visibility",
+                            new_value=min(1.0, mortal.visibility + p * 0.3),
+                            note=f"Scry (world): {mortal.name} refreshed",
+                        ))
+                    elif rng.random() < p:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.MORTAL_VISIBILITY,
+                            target_id=UUID(mid), field="visibility",
+                            new_value=_scry_new_vis(mortal.visibility),
+                            note=f"Scry (world): {mortal.name} sighted",
+                        ))
+                        discovered_mort.append(mortal.name)
+
+                # Civs with pops at this world
+                _civs_at_world = {
+                    str(pop.civilization_id) for pop in state.pops.values()
+                    if pop.civilization_id
+                    and str(pop.current_location) in _world_pop_loc_ids
+                }
+                for cid in _civs_at_world:
+                    civ = state.civilizations.get(cid)
+                    if civ is None or civ.pinned:
+                        continue
+                    if is_wild_civ(civ):
+                        continue
+                    tags = list(civ.dominant_beliefs.keys()) if hasattr(civ, "dominant_beliefs") else []
+                    p = _scry_p(tags)
+                    if is_in_window(civ):
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(cid), field="visibility",
+                            new_value=min(1.0, civ.visibility + p * 0.3),
+                            note=f"Scry (world): {civ.name} refreshed",
+                        ))
+                    elif rng.random() < p:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(cid), field="visibility",
+                            new_value=_scry_new_vis(civ.visibility),
+                            note=f"Scry (world): {civ.name} sighted",
+                        ))
+                        discovered_civs.append(civ.name)
+
+                # Species originating at this world
+                for sid, sp in state.species.items():
+                    if sp.pinned or str(getattr(sp, "origin_world_id", None)) != target_id_str:
+                        continue
+                    tags = list(getattr(sp, "domain_tags", []))
+                    p = _scry_p(tags)
+                    if is_in_window(sp):
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(sid), field="visibility",
+                            new_value=min(1.0, sp.visibility + p * 0.3),
+                            note=f"Scry (world): {sp.name} refreshed",
+                        ))
+                    elif rng.random() < p:
+                        mutations.append(StateMutation(
+                            mutation_type=MutationType.ENTITY_VISIBILITY,
+                            target_id=UUID(sid), field="visibility",
+                            new_value=_scry_new_vis(sp.visibility),
+                            note=f"Scry (world): {sp.name} sighted",
+                        ))
+                        discovered_sp.append(sp.name)
+
+            # ── Termination check ─────────────────────────────────────────
+            _vis_muts: dict[str, float] = {
+                str(m.target_id): float(m.new_value)
+                for m in mutations
+                if m.mutation_type in (
+                    MutationType.ENTITY_VISIBILITY,
+                    MutationType.POP_VISIBILITY,
+                    MutationType.MORTAL_VISIBILITY,
+                )
+                and m.new_value is not None
+            }
+
+            def _will_be_visible(eid: str, cur_vis: float) -> bool:
+                return (
+                    cur_vis > ENTITY_VISIBILITY_FLOOR
+                    or _vis_muts.get(eid, 0.0) > ENTITY_VISIBILITY_FLOOR
+                )
+
+            _has_primary = bool(primary_locs) or bool(_world_pop_loc_ids)
+            _all_visible = _has_primary and all(
+                _will_be_visible(lid, loc.visibility) for lid, loc in primary_locs
+            )
+
+            if _all_visible and scope == ScryScope.WORLD and target_id_str:
+                _all_visible = (
+                    all(
+                        _will_be_visible(lid, state.locations[lid].visibility)
+                        for lid in _world_pop_loc_ids
+                    )
+                    and all(
+                        _will_be_visible(pid, pop.visibility)
+                        for pid, pop in state.pops.items()
+                        if not pop.pinned
+                        and str(pop.current_location) in _world_pop_loc_ids
+                    )
+                    and all(
+                        _will_be_visible(mid, mortal.visibility)
+                        for mid, mortal in state.mortals.items()
+                        if mortal.status != MortalStatus.DECEASED
+                        and not mortal.pinned
+                        and str(mortal.current_location) in _world_pop_loc_ids
+                    )
+                    and all(
+                        _will_be_visible(cid, state.civilizations[cid].visibility)
+                        for cid in _civs_at_world
+                        if cid in state.civilizations
+                        and not state.civilizations[cid].pinned
+                        and not is_wild_civ(state.civilizations[cid])
+                    )
+                    and all(
+                        _will_be_visible(sid, sp.visibility)
+                        for sid, sp in state.species.items()
+                        if not sp.pinned
+                        and str(getattr(sp, "origin_world_id", None)) == target_id_str
+                    )
+                )
+
+            if _all_visible and _own_oa is not None:
+                _own_cat = next(
+                    (k for k, oa in state.pending_actions.items() if oa is _own_oa),
+                    None,
+                )
+                if _own_cat is not None:
+                    _tgt_loc = state.locations.get(target_id_str or "")
+                    tgt_name = _tgt_loc.name if _tgt_loc is not None else scope.value
+                    mutations.append(StateMutation(
+                        mutation_type=MutationType.CLEAR_PENDING_SLOT,
+                        target_id=state.demiurge.id,
+                        field=_own_cat,
+                        note=f"Scry of {tgt_name} complete",
+                    ))
+                    parts.append(
+                        f"Scry of {tgt_name} complete — all entities within scope have been revealed."
+                    )
+
+            # ── Narrative ─────────────────────────────────────────────────
+            if discovered_locs:
+                parts.append(f"Locations sighted: {', '.join(discovered_locs)}.")
+            if discovered_civs:
+                parts.append(f"Civilizations sighted: {', '.join(discovered_civs)}.")
+            if discovered_sp:
+                parts.append(f"Species sighted: {', '.join(discovered_sp)}.")
+            if discovered_mort:
+                parts.append(f"Mortals sighted: {', '.join(discovered_mort)}.")
+            if discovered_pops:
+                formatted = self._format_pop_entries_with_links(discovered_pops)
+                parts.append(f"Pops sighted: {', '.join(formatted)}.")
+
+            return mutations, " ".join(parts)
 
         # ── Change Affiliated Domain ──────────────────
         if isinstance(intent, ChangeAffiliatedDomainsIntent):
