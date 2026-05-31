@@ -745,6 +745,7 @@ class MutationType(str, Enum):
     POP_CULTURE_SHIFT      = "pop_culture_shift"   # field=culture_tag, delta on Pop.culture_tags; clamp 0–1, prune below BELIEF_FLOOR
     MORTAL_POP_AGED_OUT    = "mortal_pop_aged_out" # target_id=mortal UUID; clears pop_id
     DEMIURGE_SCRY_MOMENTUM_UPDATE = "demiurge_scry_momentum_update"  # field=key, new_value=float
+    CLEAR_PENDING_SLOT     = "clear_pending_slot"    # field=category_key; removes slot from pending_actions
 
 
 class StateMutation(BaseModel):

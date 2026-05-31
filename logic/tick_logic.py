@@ -5951,6 +5951,9 @@ class TickLoop:
                 if m.field and m.new_value is not None:
                     state.demiurge.scry_momentum[m.field] = float(m.new_value)
 
+            elif m.mutation_type == MutationType.CLEAR_PENDING_SLOT:
+                state.pending_actions.pop(m.field, None)
+
             elif m.mutation_type == MutationType.AFFILIATED_DOMAIN_CHANGE:
                 val = str(m.new_value) if m.new_value else ""
                 if "→" in val:
