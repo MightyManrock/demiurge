@@ -415,7 +415,8 @@ CREATE TABLE IF NOT EXISTS ongoing_actions (
     executed_ticks         INTEGER NOT NULL DEFAULT 0,
     successful_ticks       INTEGER NOT NULL DEFAULT 0,
     started_at_tick        INTEGER NOT NULL DEFAULT 0,
-    repeating              INTEGER NOT NULL DEFAULT 0
+    repeating              INTEGER NOT NULL DEFAULT 0,
+    momentum               REAL NOT NULL DEFAULT 0.0
 );
 
 -- Repeating actions temporarily displaced by a one-shot override; restored after the override fires.

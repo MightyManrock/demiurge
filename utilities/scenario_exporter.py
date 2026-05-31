@@ -756,8 +756,8 @@ def _write_ongoing_actions(conn, state: SimulationState):
                (category_key, action_key, action_definition_id, target_type,
                 target_id, proxius_id, intent_type, intent_data,
                 ticks_active, executed_ticks, successful_ticks, started_at_tick,
-                repeating)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                repeating, momentum)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cat_val,
                 oa.action_key,
@@ -772,6 +772,7 @@ def _write_ongoing_actions(conn, state: SimulationState):
                 oa.successful_ticks,
                 oa.started_at_tick,
                 int(oa.repeating),
+                oa.momentum,
             ),
         )
 
@@ -785,8 +786,8 @@ def _write_pending_resume(conn, state: SimulationState):
                (category_key, action_key, action_definition_id, target_type,
                 target_id, proxius_id, intent_type, intent_data,
                 ticks_active, executed_ticks, successful_ticks, started_at_tick,
-                repeating)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                repeating, momentum)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cat_val,
                 oa.action_key,
@@ -801,6 +802,7 @@ def _write_pending_resume(conn, state: SimulationState):
                 oa.successful_ticks,
                 oa.started_at_tick,
                 int(oa.repeating),
+                oa.momentum,
             ),
         )
 

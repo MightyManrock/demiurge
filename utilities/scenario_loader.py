@@ -1029,6 +1029,7 @@ def _load_ongoing_actions(conn) -> dict[str, OngoingAction]:
             successful_ticks=row.get("successful_ticks", 0),
             started_at_tick=row["started_at_tick"],
             repeating=bool(row.get("repeating", 0)),
+            momentum=float(row.get("momentum", 0.0)),
         )
     return out
 
@@ -1058,6 +1059,7 @@ def _load_pending_resume(conn) -> dict[str, OngoingAction]:
             successful_ticks=row.get("successful_ticks", 0),
             started_at_tick=row["started_at_tick"],
             repeating=bool(row.get("repeating", 0)),
+            momentum=float(row.get("momentum", 0.0)),
         )
     return out
 

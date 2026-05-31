@@ -690,6 +690,7 @@ class OngoingAction(BaseModel):
     successful_ticks: int = 0
     started_at_tick: int = 0
     repeating: bool = False
+    momentum: float = 0.0
 
 
 # ─────────────────────────────────────────
