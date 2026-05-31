@@ -1732,12 +1732,12 @@ class TickLoop:
                 _parent_sentinel = f"§pop§{pop.id}§{class_label}§"
                 _splinter_sentinel = f"§pop§{splinter.id}§{class_label}§"
                 note = (
-                    f"[Pop splinter] A faction of {_parent_sentinel} ({civ.name}) "
+                    f"[Pop splinter] Part of {_parent_sentinel} ({civ.name}) "
                     f"broke away as {_splinter_sentinel} over {short_tag} (divergence {divergence:.2f})."
                 )
             else:
                 note = (
-                    f"[Pop splinter] A faction within {civ.name}'s {class_label} class "
+                    f"[Pop splinter] Part of {civ.name} {class_label} "
                     f"broke away over {short_tag} (divergence {divergence:.2f})."
                 )
             pop.splinter_cooldown = SPLINTER_COOLDOWN_TICKS
@@ -5530,9 +5530,12 @@ class TickLoop:
                 label = _pop_display_name(pop, civ)
                 pop_sentinel = f"§pop§{pid}§{label}§"
                 entry = f"{pop_sentinel} (sz {pop.size_magnitude})"
-                if i == 0 and civ and not is_wild_civ(civ):
-                    civ_label = civ.name.removeprefix("The ")
-                    entry = f"§civ§{civ.id}§{civ_label}§ {entry}"
+                if i == 0 and civ:
+                    if not is_wild_civ(civ):
+                        civ_label = civ.name.removeprefix("The ")
+                        entry = f"§civ§{civ.id}§{civ_label}§ {entry}"
+                    # else:
+                    #     entry = f"{pop.}{entry}" # Format line as "(Species Link) (Pop Link)"
                 entries.append(entry)
         return entries
 
