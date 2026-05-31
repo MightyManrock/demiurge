@@ -155,6 +155,7 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Proxii, authored splinters, planned agent tiers; civilian agent decision loop | [agent-system.md](docs/.dev/Mechanics/agent-system.md) |
 | Mortal needs, trait profiles, leisure/socialize actions, Directives, PopLocation wealth | [needs-and-directives.md](docs/.dev/Mechanics/needs-and-directives.md) |
 | Linked Pops — data model, link factor, drift, cascade, travel milieu | [linked-pops.md](docs/.dev/Mechanics/linked-pops.md) |
+| Log narrative events — how to emit, sentinel format, entity linking reference | [narrative-events.md](docs/.dev/Mechanics/narrative-events.md) |
 
 ## Extending the system
 
@@ -167,6 +168,8 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 **Adding a new constraint subtype**: (1) define a new `XConstraint(BaseModel)` with `constraint_type: Literal["x"] = "x"` in `core/onto_core.py`; (2) add it to the `Constraint` union; (3) add a dispatch branch in the `scenario_loader.py` constraint loop; (4) handle `isinstance(c, XConstraint)` in `scenario_exporter.py` INSERT; (5) evaluate it in the per-luminary and Pantheon fan-out loops in `tick_logic.py`; (6) add the `constraint_type` value and any new columns to `core/scenario_schema.sql`. See [belief-footprint.md](docs/.dev/Mechanics/belief-footprint.md) for FootprintConstraint as a reference implementation.
 
 **Adding a new autoplay strategy**: create `autoplay/strategies/<name>.py` exporting `decide(loop, state, tick) -> str`.
+
+**Adding a new narrative event**: see [narrative-events.md](docs/.dev/Mechanics/narrative-events.md) for the full reference. Short version: always use `NarrativeEvent(text=..., in_window=...)`, route to the correct list (`passive_result.narrative_events` / `agent_narratives` / `mortal_narratives`), use `pop_label(pop)` for pop display names, and use `§type§id§label§` sentinels for anonymous entities (pops, species, domains) rather than inventing new text formats.
 
 ## Planning framework
 
