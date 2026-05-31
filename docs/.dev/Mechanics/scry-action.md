@@ -1,112 +1,57 @@
-> [← CLAUDE.md](../../CLAUDE.md)
-
 # Scry Action
 
-Four scope levels (`ScryScope.WORLD/SYSTEM/GALAXY/UNIVERSE`), each with progressively higher subtle-influence footprint and lower per-entity discovery probability. WORLD/SYSTEM scopes require a target; GALAXY/UNIVERSE do not.
+Scry is an ongoing action that sweeps its target scope to completion and auto-terminates once every entity within the primary scope is visible.
 
-Discovery is probabilistic, gated by **depth delta** (how far the candidate is below the scry's anchor), **container prerequisite** (the entity's spatial container must already be in the Window), **proximity bonus**, and **domain-affinity bonus** with `Demiurge.affiliated_domains`. Civilizations use scale-aware anchor depth (`_CIV_SCALE_DEPTH`). Discovery cascades within a single scry: a system found mid-pass unlocks its worlds in the same pass.
+## Queuing
 
-Implementation: `_process_scry` in `tick_logic.py`.
+Scry always queues as a repeating ongoing action (`always_persist` tag). The "once or repeat?" prompt is skipped. Cancel explicitly to stop.
 
----
+## Scopes and primary entities
 
-## Footprint cost
-
-| Scope    | Base fp (subtle_influence) | With max momentum |
-|----------|---------------------------|-------------------|
-| WORLD    | 0.01                      | ~0.10             |
-| SYSTEM   | 0.10                      | 0.10 (unchanged)  |
-| GALAXY   | 0.20                      | 0.20 (unchanged)  |
-| UNIVERSE | 0.35                      | 0.35 (unchanged)  |
-
-At WORLD scope the actual footprint charged is `0.01 + momentum * 0.09`, scaling up as the Demiurge scrys the same target repeatedly. All other scopes pay their fixed base regardless of momentum.
-
----
+| Scope | Target | Primary entities (guaranteed sweep) |
+|---|---|---|
+| UNIVERSE | (none) | All Galaxy locations |
+| GALAXY | A galaxy | All System locations in that galaxy |
+| SYSTEM | A system | All non-system child locations in that system |
+| WORLD | A world/SignificantLocation | All PopLocations, Pops, NotableMortals, Civs, and Species at target |
 
 ## Momentum
 
-`Demiurge.scry_momentum` is a `dict[str, float]` keyed by `"{scope}:{target_id_or_None}"` (e.g. `"world:uuid-of-neran"`, `"galaxy:None"`). Values live in `[0, 1]`.
+Each tick the action fires, momentum increases: `new = old + (1 − old) × 0.15`. Momentum resets to 0 if the action is cancelled. Momentum is stored directly on the `OngoingAction` instance.
 
-**Growth** (each firing, inside `_process_scry`):
+## Discovery probability (primary entities)
+
 ```
-new = old + (1 − old) × 0.15
-```
-Asymptotic — approaches 1.0 but never reaches it. ~7 consecutive scrys to reach 0.70, ~15 to reach 0.90.
-
-**Decay** (each tick, before Phase 2 action processing):
-```
-momentum *= 0.95   (pruned if < 0.001)
-```
-~14 ticks of inactivity to halve from 1.0; ~65 ticks to drop below 0.05.
-
-**Discovery bonus** (additive to `base`, capped at 0.95):
-
-| Entity type    | Bonus formula                               |
-|----------------|---------------------------------------------|
-| Location       | `base += momentum × 0.25`                  |
-| Civilization   | `base += momentum × 0.25`                  |
-| Species        | `base += momentum × 0.25`                  |
-| NotableMortal  | `base += momentum × 0.25`                  |
-| Pop            | `world_scry_base *= (1 + momentum × 0.35)` |
-
----
-
-## Parent-visibility cascades
-
-When a parent entity is already visible, child discovery becomes easier.
-
-**Pop → Mortal** (applied after momentum bonus, before spatial factor):
-```
-if mortal.pop_id and parent_pop exists:
-    base = min(0.95, base + parent_pop.visibility × 0.25)
+p = 0.45 + (momentum × 0.35) + domain_bonus
 ```
 
-**Civ → Pop** (applied after momentum `world_scry_base`, before distance factor):
-```
-if pop.civilization_id and parent_civ exists:
-    world_scry_base = min(start_vis, world_scry_base × (1 + parent_civ.visibility × 0.30))
-```
-Capped at `start_vis` so a fully-visible civ cannot make its pops auto-discover.
+- `domain_bonus`: up to +0.20 from similarity between entity tags and Demiurge's affiliated domains; scaled down when base is already high.
+- No depth/delta penalties for entities within primary scope.
+- Already-visible entities receive a boost: `visibility += p × 0.3` (capped at 1.0).
+- On discovery: `visibility = max(current, 0.45 + momentum × 0.35)`.
 
----
+## Termination
 
-## Distance cap (WORLD scope)
+After each tick's sweep, the action checks whether all primary-scope entities are above `ENTITY_VISIBILITY_FLOOR` (including entities just discovered this tick). If all are visible, the action auto-resolves and a log entry fires: "Scry of [Target] complete".
 
-At WORLD scope, a `PopLocation`'s `distance_from_core` contributes at most +2 to the depth delta used for mortal discovery:
-```
-m_dist_eff = min(m_dist, 2)   # only at WORLD scope
-delta = abs(5 − anchor) + m_dist_eff
-```
-At other scopes the raw `distance_from_core` is used unchanged. This prevents peripheral PopLocations from becoming effectively impenetrable to world-scope scrys.
+Newly-spawned entities at the target join the primary set immediately; scry will not complete until they are found.
 
----
+## Incidental discovery
 
-## Probability tables
+A separate pass runs after the primary sweep, finding entities outside the primary scope. Two candidate pools:
 
-`_depth_chance(delta)` baseline (before momentum / cascade / spatial / domain bonuses):
+1. **Relationship-adjacent**: locations whose parent is in-window, and NotableMortals whose `pop_milieu` Pop is visible.
+2. **Coordinate-adjacent**: locations near the target by effective position.
 
-| delta | base chance |
-|-------|-------------|
-| 0     | 0.70        |
-| 1     | 0.50        |
-| 2     | 0.35        |
-| 3     | 0.25        |
-| 4     | 0.18        |
-| 5     | 0.12        |
-| 6+    | 0.08        |
+Incidentals use the old harsh delta math (depth anchor + distance penalty + spatial falloff) with no momentum bonus. A mortal whose `pop_milieu` Pop has visibility > 0.5 is treated as depth-delta 1 (visible crowd).
 
-**Mortal at WORLD scope, dist=0, anchor=5** (delta=0):
+## Footprint costs
 
-| Momentum | Pop vis (parent) | Base after cascade | Notes                         |
-|----------|------------------|--------------------|-------------------------------|
-| 0.0      | 0.0              | 0.70               | cold start                    |
-| 0.5      | 0.0              | 0.825              | momentum bonus +0.125         |
-| 1.0      | 0.0              | 0.95 (cap)         | momentum bonus +0.25          |
-| 0.5      | 0.8              | 0.95 (cap)         | cascade adds +0.20 on top     |
-| 0.0      | 0.8              | 0.90               | cascade alone lifts by +0.20  |
+| Scope | Subtle influence footprint |
+|---|---|
+| WORLD | 0.01 + momentum × 0.09 |
+| SYSTEM | 0.10 |
+| GALAXY | 0.20 |
+| UNIVERSE | 0.35 |
 
----
-
-## Uncharted-galaxy exception
-
-Galaxies without any in-Window systems use a special entry point: `_pick_uncharted_galaxy_entry`. This logic is unchanged by the redesign.
+GALAXY and UNIVERSE also cost 3 and 5 Essence respectively per tick.
