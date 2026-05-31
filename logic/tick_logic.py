@@ -5519,10 +5519,6 @@ class TickLoop:
                 if tag and tag not in state.demiurge.unlocked_domain_tags:
                     state.demiurge.unlocked_domain_tags.append(tag)
 
-            elif m.mutation_type == MutationType.DEMIURGE_SCRY_MOMENTUM_UPDATE:
-                if m.field and m.new_value is not None:
-                    state.demiurge.scry_momentum[m.field] = float(m.new_value)
-
             elif m.mutation_type == MutationType.CLEAR_PENDING_SLOT:
                 state.pending_actions.pop(m.field, None)
 

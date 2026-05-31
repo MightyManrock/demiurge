@@ -590,9 +590,8 @@ def _write_demiurge(conn, state: SimulationState):
             fp_proxius_activity, fp_direct_creation,
             proxius_ids, unlocked_domain_tags, unlocked_imagines,
             affiliated_domains, max_affiliated_domains, tracked_essence_domains,
-            revelation_pools, revealed_imagines, lifetime_revelation,
-            scry_momentum)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            revelation_pools, revealed_imagines, lifetime_revelation)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(d.id),
             d.name,
@@ -610,7 +609,6 @@ def _write_demiurge(conn, state: SimulationState):
             _j(d.revelation_pools),
             d.revealed_imagines,
             d.lifetime_revelation,
-            _j(d.scry_momentum),
         ),
     )
 

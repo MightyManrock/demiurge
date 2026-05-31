@@ -194,5 +194,4 @@ class Demiurge(BaseModel):
     # Running total of all Revelation ever gained (never decremented). Used to compute puissance.
     puissance: float = 0.0
     # Computed each tick: reflects accumulated power [0, 1]. See _compute_puissance() in tick_logic.
-    scry_momentum: dict[str, float] = Field(default_factory=dict)
-    # "{scope}:{target_id_or_None}" → [0, 1] accumulation; decays when scry not active.
+
