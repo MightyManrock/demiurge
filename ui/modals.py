@@ -2222,8 +2222,19 @@ def _compose_entity_list(
                 continue
             pop_obj  = state.pops.get(str(m.pop_id)) if m.pop_id else None
             pop_name = _pop_stratum_label(state, pop_obj) if pop_obj else "?"
+            from core.universe_core import TravelLocation as _TravelLocation
             loc_obj  = state.locations.get(str(m.current_location))
-            loc      = (loc_obj.name or "?") if loc_obj else "?"
+            _loc_hidden = (
+                loc_obj is None
+                or isinstance(loc_obj, _TravelLocation)
+                or getattr(loc_obj, "visibility", 0.0) <= ENTITY_VISIBILITY_FLOOR
+            )
+            if _loc_hidden:
+                _home_pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
+                _home_loc = state.locations.get(str(_home_pop.current_location)) if _home_pop else None
+                loc = (_home_loc.name or "?") if _home_loc else "?"
+            else:
+                loc = loc_obj.name or "?"
             name     = m.name or "?"
             align    = m.alignment if m.alignment is not None else 0.0
             i = len(items)

@@ -479,11 +479,11 @@ def _write_pops(conn, state: SimulationState):
                 social_class, wild_stratum,
                 current_location, size_fractional,
                 dominant_beliefs, culture_tags, rider_traits,
-                notable_mortal_ids, parent_pop_id, child_pop_ids,
+                notable_mortal_ids, parent_pop_id, child_pop_ids, splinter_cooldown,
                 visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until,
                 occupation, linked_pop_ids, active_directives, asset_crew_for)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -500,6 +500,7 @@ def _write_pops(conn, state: SimulationState):
                 _j(p.notable_mortal_ids),
                 str(p.parent_pop_id) if p.parent_pop_id else None,
                 _j(p.child_pop_ids),
+                p.splinter_cooldown,
                 p.visibility,
                 int(p.pinned),
                 p.visibility_stall_remaining,

@@ -102,13 +102,16 @@ from logic.belief_propagation import (
 # POP SPLINTER CONSTANTS
 # ─────────────────────────────────────────
 
-SPLINTER_DIVERGENCE_THRESHOLD = 0.35
+SPLINTER_DIVERGENCE_THRESHOLD = 0.50
 # Cosine distance (1 − similarity) at which a Pop's beliefs are divergent
 # enough from civ.established_beliefs to trigger a population split.
 
 SPLINTER_MIN_SIZE = 4.0
 # Pop must be at least this large (size_fractional) to split.
 # Prevents micro-Pops from fragmenting further.
+
+SPLINTER_COOLDOWN_TICKS = 10
+# After splitting, a Pop cannot split again for this many ticks.
 
 # Stratum order lowest→highest. Used by the arrival milieu algorithm.
 _STRATUM_ORDER: list[SocialClass] = [
@@ -1682,6 +1685,9 @@ class TickLoop:
         mutations: list[StateMutation] = []
         events: list[NarrativeEvent] = []
         for pid, pop in list(state.pops.items()):
+            if pop.splinter_cooldown > 0:
+                pop.splinter_cooldown -= 1
+                continue
             if pop.size_fractional < SPLINTER_MIN_SIZE:
                 continue
             if pop.child_pop_ids:
@@ -1722,10 +1728,19 @@ class TickLoop:
                 visibility=max(0.0, pop.visibility * 0.75),
                 pinned=False,
             )
-            note = (
-                f"[Pop splinter] A faction within {civ.name}'s {class_label} class "
-                f"broke away over {short_tag} (divergence {divergence:.2f})."
-            )
+            if is_in_window(pop):
+                _parent_sentinel = f"§pop§{pop.id}§{class_label}§"
+                _splinter_sentinel = f"§pop§{splinter.id}§{class_label}§"
+                note = (
+                    f"[Pop splinter] A faction of {_parent_sentinel} ({civ.name}) "
+                    f"broke away as {_splinter_sentinel} over {short_tag} (divergence {divergence:.2f})."
+                )
+            else:
+                note = (
+                    f"[Pop splinter] A faction within {civ.name}'s {class_label} class "
+                    f"broke away over {short_tag} (divergence {divergence:.2f})."
+                )
+            pop.splinter_cooldown = SPLINTER_COOLDOWN_TICKS
             mutations.append(StateMutation(
                 mutation_type=MutationType.POP_SPLINTER,
                 target_id=pop.id,
@@ -3003,6 +3018,11 @@ class TickLoop:
             if discovered_pops:
                 formatted = self._format_pop_entries_with_links(discovered_pops)
                 parts.append(f"Pops sighted: {', '.join(formatted)}.")
+
+            if not (discovered_locs or discovered_civs or discovered_sp or discovered_mort or discovered_pops):
+                _tgt_loc2 = state.locations.get(target_id_str or "")
+                _tgt_name2 = _tgt_loc2.name if _tgt_loc2 is not None else scope.value
+                parts.append(f"Scry of {_tgt_name2} refreshed visibility but revealed nothing new.")
 
             return mutations, " ".join(parts)
 
@@ -5061,10 +5081,11 @@ class TickLoop:
                         cs.inventory.append(_bg_res)
                     _bg_res.quantity += _bg_cr.resource_yield
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
-                    narratives.append(
-                        f"{mortal.name} loads {_bg_cr.resource_yield} {_bg_cr.resource_type} "
-                        f"(hold: {_bg_res.quantity:.0f}/{_bg_cap:.0f})."
-                    )
+                    if mortal.pinned:
+                        narratives.append(
+                            f"{mortal.name} loads {_bg_cr.resource_yield} {_bg_cr.resource_type} "
+                            f"(hold: {_bg_res.quantity:.0f}/{_bg_cap:.0f})."
+                        )
                     cs.collecting_ticks_remaining = max(0, cs.collecting_ticks_remaining - 1)
 
             action = evaluate_civilian_action(mortal, state, current_tick)
@@ -5081,10 +5102,11 @@ class TickLoop:
                         cs.inventory.append(res)
                     res.quantity += cr.resource_yield
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
-                    narratives.append(
-                        f"{mortal.name} collects {cr.resource_yield} {cr.resource_type} "
-                        f"(total: {res.quantity:.0f})."
-                    )
+                    if mortal.pinned:
+                        narratives.append(
+                            f"{mortal.name} collects {cr.resource_yield} {cr.resource_type} "
+                            f"(total: {res.quantity:.0f})."
+                        )
 
             elif action == "sell":
                 loc = state.locations.get(str(mortal.current_location))
@@ -5152,10 +5174,13 @@ class TickLoop:
                                             purpose_need.satiation_hold = round(10 * _p_lf)
                                     break
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
-                    narratives.append(
-                        f"{mortal.name} sells {units} {res.resource_type} "
-                        f"for {credits_gained:.0f} credits."
-                    )
+                    if mortal.pinned:
+                        _sell_loc = state.locations.get(str(mortal.current_location))
+                        _sell_loc_str = f" at {_sell_loc.name}" if _sell_loc else ""
+                        narratives.append(
+                            f"{mortal.name} sells {units} {res.resource_type} "
+                            f"for {credits_gained:.0f} credits{_sell_loc_str}."
+                        )
                     break
 
             elif action == "spend":
@@ -5188,10 +5213,11 @@ class TickLoop:
                         if need.satisfaction >= 1.0:
                             need.satiation_hold = hold_ticks
                     need_names = ", ".join(n.name for n in needs_to_fill)
-                    narratives.append(
-                        f"{mortal.name} spends {n_units} credits on {need_names} "
-                        f"(+{gain_per_need:.2f} satisfaction)."
-                    )
+                    if mortal.pinned:
+                        narratives.append(
+                            f"{mortal.name} spends {n_units} credits on {need_names} "
+                            f"(+{gain_per_need:.2f} satisfaction)."
+                        )
                     break
 
             elif action == "leisure":
@@ -5206,10 +5232,11 @@ class TickLoop:
                         leisure_need.satisfaction = min(1.0, leisure_need.satisfaction + gain)
                         leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality * _crew_mult)
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
-                    narratives.append(
-                        f"{mortal.name} spends time enjoying local culture "
-                        f"(quality {quality:.2f}, +{gain:.2f} leisure)."
-                    )
+                    if mortal.pinned:
+                        narratives.append(
+                            f"{mortal.name} spends time enjoying local culture "
+                            f"(quality {quality:.2f}, +{gain:.2f} leisure)."
+                        )
 
             elif action == "socialize":
                 local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
@@ -5231,10 +5258,18 @@ class TickLoop:
                         if _s_hold:
                             _soc_status.satiation_hold = _s_hold
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
-                    narratives.append(
-                        f"{mortal.name} socializes with the local community "
-                        f"(quality {quality:.2f}, +{gain:.2f} belonging)."
-                    )
+                    if mortal.pinned:
+                        from utilities.occupation_registry import pop_display_name as _pdname
+                        _civ_for_pop = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
+                        if pop.visibility > ENTITY_VISIBILITY_FLOOR:
+                            _pop_label = _pdname(pop, _civ_for_pop)
+                            _soc_target = f"§pop§{local_pop_id}§{_pop_label}§"
+                        else:
+                            _soc_target = "the local community"
+                        narratives.append(
+                            f"{mortal.name} socializes with {_soc_target} "
+                            f"(quality {quality:.2f}, +{gain:.2f} belonging)."
+                        )
 
             elif action and action.startswith("travel:"):
                 dest_id = action.split(":", 1)[1]
@@ -5272,7 +5307,8 @@ class TickLoop:
                         mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
                         dest_loc = state.locations.get(dest_id)
                         dest_name = dest_loc.name if dest_loc else dest_id
-                        narratives.append(f"{mortal.name} departs for {dest_name}.")
+                        if mortal.pinned:
+                            narratives.append(f"{mortal.name} departs for {dest_name}.")
                 except (ValueError, Exception):
                     pass
 
@@ -5486,15 +5522,15 @@ class TickLoop:
                 civ_order.append(civ_key)
             civ_groups[civ_key].append((pid, pop, civ))
 
+        from utilities.occupation_registry import pop_display_name as _pop_display_name
+
         entries: list[str] = []
         for civ_key in civ_order:
             for i, (pid, pop, civ) in enumerate(civ_groups[civ_key]):
-                label = pop.name if pop.name else (
-                    f"{pop.stratum.title()} Pop" if pop.stratum else "Pop"
-                )
+                label = _pop_display_name(pop, civ)
                 pop_sentinel = f"§pop§{pid}§{label}§"
                 entry = f"{pop_sentinel} (sz {pop.size_magnitude})"
-                if i == 0 and civ:
+                if i == 0 and civ and not is_wild_civ(civ):
                     civ_label = civ.name.removeprefix("The ")
                     entry = f"§civ§{civ.id}§{civ_label}§ {entry}"
                 entries.append(entry)

@@ -589,13 +589,16 @@ def render_civ_detail(state: "SimulationState", civ_id: str) -> Text:
                         pop_label = f"{pop_stratum_md}  ({sp_md})"
                     else:
                         pop_label = pop_stratum_md
-                    top = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])[:3]
-                    belief_str = "  ".join(
-                        _color_short_tag(t, v) for t, v in top
-                    ) or "[#5a7090]none[/]"
+                    top_beliefs = sorted(pop.dominant_beliefs.items(), key=lambda kv: -kv[1])
+                    top4 = top_beliefs[:4]
+                    belief_chips = "  ".join(_color_short_tag(t, v) for t, v in top4)
+                    extra = len(top_beliefs) - 4
+                    if extra > 0:
+                        belief_chips += f"  [#5a7090](+{extra} more)[/]"
+                    elif not belief_chips:
+                        belief_chips = "[#5a7090]none[/]"
                     vis = f"  \\[vis:{pop.visibility:.0%}]"
-                    a(f"{pop_indent}{pm}↳ {pop_label}  sz:{pop.size_magnitude}{vis}{pe}")
-                    a(f"{pop_indent}    {pm}{belief_str}{pe}")
+                    a(f"{pop_indent}{pm}↳ {pop_label}  sz:{pop.size_magnitude}  {belief_chips}{vis}{pe}")
 
     a("")
     a("[bold #4a80b0]NOTABLE MORTALS[/]")
@@ -1142,7 +1145,7 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
         a("  [#5a7090](none in Window)[/]")
 
     if pop.linked_pop_ids:
-        link_lines: list[str] = []
+        link_entries: list[tuple[str, str, str]] = []  # (loc_name, other_id_str, base)
         for other_id_str, base in pop.linked_pop_ids.items():
             other_pop = state.pops.get(other_id_str)
             if other_pop is None:
@@ -1150,14 +1153,31 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
             both_visible = pop.visibility > 0 and other_pop.visibility > 0
             if not dev and not both_visible:
                 continue
-            label = other_pop.name or f"{other_pop.stratum.title()}:{other_pop.occupation}"
+            other_loc = state.locations.get(str(other_pop.current_location)) if other_pop.current_location else None
+            loc_sort_key = other_loc.name if other_loc else "~"
+            link_entries.append((loc_sort_key, other_id_str, base))
+        link_entries.sort(key=lambda t: t[0])
+        link_lines: list[str] = []
+        for loc_sort_key, other_id_str, base in link_entries:
+            other_pop = state.pops.get(other_id_str)
+            if other_pop is None:
+                continue
+            other_civ = state.civilizations.get(str(other_pop.civilization_id)) if other_pop.civilization_id else None
+            label = _pop_stratum_label(state, other_pop)
             other_link = _click_link("pop", other_id_str, label)
+            other_loc = state.locations.get(str(other_pop.current_location)) if other_pop.current_location else None
+            if other_loc:
+                loc_link = _click_link("poploc", str(other_pop.current_location), _e(other_loc.name))
+                loc_part = f"  ({loc_link})"
+            else:
+                loc_part = ""
+            sz_part = f"  sz:{other_pop.size_magnitude}"
             both_full = pop.visibility >= 1.0 and other_pop.visibility >= 1.0
             if dev or both_full:
                 computed = compute_link_factor(pop, other_pop, base)
-                link_lines.append(f"  ● {other_link}  [#5a7090]link: {computed:.2f} (base {base:.2f})[/]")
+                link_lines.append(f"  ● {other_link}{loc_part}{sz_part}  [#5a7090]link: {computed:.2f} (base {base:.2f})[/]")
             else:
-                link_lines.append(f"  ● {other_link}")
+                link_lines.append(f"  ● {other_link}{loc_part}{sz_part}")
         if link_lines:
             a("")
             a("[bold #4a80b0]LINKED POPS[/]")

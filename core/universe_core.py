@@ -478,6 +478,7 @@ class Pop(BaseModel):
     # Splinter lineage: parent_pop_id set if this Pop was split from another.
     parent_pop_id: Optional[UUID] = None
     child_pop_ids: list[UUID] = Field(default_factory=list)
+    splinter_cooldown: int = 0
 
     visibility: float = 0.0
     pinned: bool = False

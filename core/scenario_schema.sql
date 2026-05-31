@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS pops (
     notable_mortal_ids TEXT NOT NULL DEFAULT '[]',   -- JSON array of NotableMortal UUIDs
     parent_pop_id    TEXT,                           -- UUID of parent Pop if this is a splinter; NULL otherwise
     child_pop_ids    TEXT NOT NULL DEFAULT '[]',     -- JSON array of splinter Pop UUIDs
+    splinter_cooldown INTEGER NOT NULL DEFAULT 0,   -- ticks remaining before this Pop can split again
     visibility       REAL NOT NULL DEFAULT 0.0,
     pinned           INTEGER NOT NULL DEFAULT 0,
     visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
