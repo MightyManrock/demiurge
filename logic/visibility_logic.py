@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from core.universe_core import PopLocation, MortalStatus
+from core.universe_core import PopLocation, TravelLocation, MortalStatus
 from core.action_core import StateMutation, MutationType
 from logic.sim_utils import resolve_world_id_for
 from logic.belief_propagation import pops_on_world
@@ -401,9 +401,9 @@ def emit_influence_visibility_splash(
 ) -> tuple[set, set, set, dict]:
     """Boost pop visibility from a Whisper / Shape Dream action.
 
-    Own Pop receives +0.8; all other Pops on the world receive
-    0.6 / (distance_from_core + 1). No floor guard — sub-floor Pops
-    can be reached via the mortal vector (discovery by contact).
+    Own Pop receives +0.8; all other Pops on the world (or TravelLocation)
+    receive 0.6 / (distance_from_core + 1), or 0.6 flat for co-traveling pops.
+    No floor guard — sub-floor Pops can be reached via the mortal vector.
 
     Returns (boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids, boosted_pop_boosts).
     boosted_pop_boosts maps each boosted pop ID string to its boost amount, for
@@ -417,19 +417,11 @@ def emit_influence_visibility_splash(
     if not mortal:
         return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
 
-    world_id = resolve_world_id_for(state, mortal.current_location)
-    if not world_id:
-        return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids
-
     boosted_mortal_ids.add(str(mortal.id))
     own_pop_id = str(mortal.pop_id) if mortal.pop_id else None
 
-    for pop in pops_on_world(world_id, state):
+    def _apply_pop_boost(pop, boost: float) -> None:
         pid = str(pop.id)
-        ploc = state.locations.get(str(pop.current_location)) if pop.current_location else None
-        if not isinstance(ploc, PopLocation):
-            continue
-        boost = 0.8 if pid == own_pop_id else min(1.0, 0.6 / (ploc.distance_from_core + 1))
         was_zero = pop.visibility == 0.0
         new_vis = min(1.0, pop.visibility + boost)
         mutations.append(StateMutation(
@@ -443,6 +435,24 @@ def emit_influence_visibility_splash(
         boosted_pop_boosts[pid] = boost
         if was_zero and new_vis >= ENTITY_VISIBILITY_FLOOR:
             discovered_pop_ids.add(pid)
+
+    world_id = resolve_world_id_for(state, mortal.current_location)
+    if world_id:
+        for pop in pops_on_world(world_id, state):
+            ploc = state.locations.get(str(pop.current_location)) if pop.current_location else None
+            if not isinstance(ploc, PopLocation):
+                continue
+            boost = 0.8 if str(pop.id) == own_pop_id else min(1.0, 0.6 / (ploc.distance_from_core + 1))
+            _apply_pop_boost(pop, boost)
+    else:
+        travel_loc = state.locations.get(str(mortal.current_location))
+        if isinstance(travel_loc, TravelLocation):
+            for pop_uuid in travel_loc.pop_ids:
+                pop = state.pops.get(str(pop_uuid))
+                if pop is None:
+                    continue
+                boost = 0.8 if str(pop.id) == own_pop_id else 0.6
+                _apply_pop_boost(pop, boost)
 
     emit_upward_visibility_splash(mutations, state, boosted_pop_ids, boosted_mortal_ids)
     return boosted_pop_ids, boosted_mortal_ids, discovered_pop_ids, boosted_pop_boosts
