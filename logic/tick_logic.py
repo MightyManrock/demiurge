@@ -1737,9 +1737,11 @@ class TickLoop:
             )
             _parent_sentinel = f"§pop§{pop.id}§{label}§"
             _splinter_sentinel = f"§pop§{splinter.id}§{label}§"
+            _civ_label = civ.name.removeprefix("The ")
+            _civ_sentinel = f"§civ§{civ.id}§{_civ_label}§"
             note = (
-                f"[Pop splinter] Part of {_parent_sentinel} ({civ.name}) "
-                f"broke away as {_splinter_sentinel} over {domain_sentinel} (divergence {divergence:.2f})."
+                f"[Pop splinter] Part of {_civ_sentinel} {_parent_sentinel} broke away as "
+                f"{_splinter_sentinel} over {domain_sentinel} (divergence {divergence:.2f})."
             )
             pop.splinter_cooldown = SPLINTER_COOLDOWN_TICKS
             mutations.append(StateMutation(
