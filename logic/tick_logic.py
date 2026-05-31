@@ -5588,9 +5588,17 @@ class TickLoop:
         if not mortal or (not domain_vectors and not culture_vectors):
             return
         world_id = _resolve_world_id_for(state, mortal.current_location)
-        if not world_id:
-            return
-        splash_pops = pops_on_world(world_id, state)
+        if world_id:
+            splash_pops = pops_on_world(world_id, state)
+        else:
+            from core.universe_core import TravelLocation as _TL
+            _tloc = state.locations.get(str(mortal.current_location))
+            if not isinstance(_tloc, _TL) or not _tloc.pop_ids:
+                return
+            splash_pops = [
+                p for uid in _tloc.pop_ids
+                if (p := state.pops.get(str(uid))) is not None
+            ]
         if not splash_pops:
             return
 
