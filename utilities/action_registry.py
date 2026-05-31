@@ -339,7 +339,7 @@ _ACTION_SEED: list[dict] = [
         "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
         "essence_cost": 0.0, "concealment_impact": 0.0,
         "requires_proxius": 0,
-        "tags": ["observation", "low_footprint", "intelligence", "can_persist"],
+        "tags": ["observation", "low_footprint", "intelligence", "always_persist"],
     },
     # read_divine_traces — parked pending Herald mechanics. When the Herald
     # entity class lands and divine-trace detection is specified, restore this
