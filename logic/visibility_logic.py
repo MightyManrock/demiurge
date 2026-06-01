@@ -24,6 +24,15 @@ VISIBILITY_STALL_SCENARIO_START = 360  # ticks of stall set during scenario-star
 # Compliant worlds have ≤ proxii_policy.max_per_world active Proxii.
 PROXIUS_COMPLIANCE_FACTOR = 0.3
 
+# Pop visibility: size at which the decay rate is halved (sigmoid denominator).
+# pop size_fractional is typically in [0.1, 20+]; at POP_SIZE_SCALE the size_factor = 0.5.
+POP_SIZE_SCALE = 5.0
+
+# How much a faded parent (civ/world for Pops; pop for mortals) amplifies decay.
+# At 0.5: fully-faded parent doubles the decay rate; fully-visible parent leaves it unchanged.
+POP_FADE_PRESSURE    = 0.5
+MORTAL_POP_FADE_PRESSURE = 0.5
+
 
 def process_visibility_decay(state: "SimulationState", cfg: "TickConfig") -> list[StateMutation]:
     """
@@ -50,7 +59,16 @@ def process_visibility_decay(state: "SimulationState", cfg: "TickConfig") -> lis
         if mortal.visibility_stall_remaining > 0:
             mortal.visibility_stall_remaining -= 1
             continue
-        effective_rate = cfg.mortal_visibility_decay_rate * (1.0 - mortal.prominence)
+        pop_vis = (
+            state.pops[str(mortal.pop_id)].visibility
+            if mortal.pop_id and str(mortal.pop_id) in state.pops
+            else 1.0
+        )
+        effective_rate = (
+            cfg.mortal_visibility_decay_rate
+            * (1.0 - mortal.prominence)
+            * (1.0 + MORTAL_POP_FADE_PRESSURE * (1.0 - pop_vis))
+        )
         new_vis = max(0.0, mortal.visibility - effective_rate)
         if 0.0 < new_vis < ENTITY_VISIBILITY_FLOOR:
             new_vis = 0.0
@@ -147,8 +165,9 @@ def process_visibility_decay(state: "SimulationState", cfg: "TickConfig") -> lis
                 note=f"{sp.name} visibility decay",
             ))
 
-    # ── Pop visibility drift ───────────────────────
-    # Pop visibility converges toward min(civ.visibility, world.visibility).
+    # ── Pop visibility drift / decay ───────────────
+    # Upward: converges toward min(civ.visibility, world.visibility) at drift_rate.
+    # Downward: decays at base_rate * size_factor * parent_mod, independent of baseline.
     _pop_loc_to_world: dict[str, str] = {}
     for wid, world in state.worlds.items():
         for cid in world.child_ids:
@@ -170,18 +189,27 @@ def process_visibility_decay(state: "SimulationState", cfg: "TickConfig") -> lis
         world_obj = state.worlds.get(wid)
         world_vis = world_obj.visibility if world_obj else 0.0
         baseline = min(civ_vis, world_vis)
-        delta = (baseline - pop.visibility) * cfg.pop_visibility_drift_rate
-        if delta < 0:
-            new_pop_vis = pop.visibility + delta
+
+        if baseline > pop.visibility:
+            # Upward drift: pull toward baseline
+            delta = (baseline - pop.visibility) * cfg.pop_visibility_drift_rate
+        else:
+            # Downward decay: size-based, amplified when parents are faded
+            size_factor = 1.0 / (1.0 + getattr(pop, "size_fractional", 1.0) / POP_SIZE_SCALE)
+            parent_mod = 1.0 + POP_FADE_PRESSURE * (1.0 - baseline)
+            decay = cfg.pop_visibility_decay_rate * size_factor * parent_mod
+            new_pop_vis = pop.visibility - decay
             if 0.0 < new_pop_vis < ENTITY_VISIBILITY_FLOOR:
-                delta = -pop.visibility
+                decay = pop.visibility
+            delta = -decay
+
         if abs(delta) > 0.0001:
             mutations.append(StateMutation(
                 mutation_type=MutationType.POP_VISIBILITY,
                 target_id=UUID(pid),
                 field="visibility",
                 delta=delta,
-                note="Pop visibility drift",
+                note="Pop visibility drift" if delta > 0 else "Pop visibility decay",
             ))
 
     # ── Passive Proxius footprint accumulation ────────

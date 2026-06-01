@@ -628,7 +628,10 @@ class TickConfig(BaseModel):
     # Conformity pressure fires every N ticks (not every tick) to reduce churn.
 
     pop_visibility_drift_rate: float = 0.002
-    # Rate at which Pop.visibility converges toward min(civ.visibility, world.visibility).
+    # Rate at which Pop.visibility rises toward min(civ.visibility, world.visibility).
+
+    pop_visibility_decay_rate: float = 0.0003
+    # Base per-tick decay for Pop visibility; modulated by size and parent visibility.
 
     established_drift_base: float = 0.0005
     # Base rate at which civ.established_beliefs drifts toward civ.dominant_beliefs per tick.
