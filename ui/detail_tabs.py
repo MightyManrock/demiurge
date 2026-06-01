@@ -207,14 +207,17 @@ class DetailTabManager:
 
     def refresh_all(self, state: "SimulationState") -> None:
         """Re-render every open detail tab against the current state."""
-        for dt in list(self._panes.values()):
+        to_close: list[str] = []
+        for pane_id, dt in list(self._panes.items()):
+            if dt.kind == "pop" and state.pops.get(dt.entity_id) is None:
+                to_close.append(pane_id)
+                continue
             try:
                 dt.refresh_state(state)
             except Exception:
-                # An entity may have been deleted between ticks; renderer handles
-                # the not-found case. Other exceptions are swallowed defensively
-                # so a bad tab can't block the rest of the refresh.
                 pass
+        for pane_id in to_close:
+            self._close_pane(pane_id)
 
     def close_focused(self) -> bool:
         """Close the currently active detail pane if one is focused."""
