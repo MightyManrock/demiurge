@@ -81,6 +81,36 @@ _SCALE_CONFORMITY: dict[str, float] = {
     "interplanetary": 1.4, "interstellar": 1.6, "intergalactic": 2.0,
 }
 
+# Per-tag-prefix (floor, ceiling) windows for conformity resistance.
+# Below floor: immune (multiplier=0). Above ceiling: full pressure (multiplier=1).
+# Between: d^0.5 asymptotic curve — steeply resistant near floor, releasing near ceiling.
+# practice: tags are excluded from conformity entirely (not routed through this function).
+_CONFORMITY_RESISTANCE_WINDOW: dict[str, tuple[float, float]] = {
+    "religion": (0.08, 0.42),
+    "values":   (0.15, 0.45),
+}
+_CONFORMITY_RESISTANCE_WINDOW_DEFAULT = (0.05, 0.40)  # domain beliefs and unlabelled tags
+
+POP_NOISE_STRIDE = 89  # ticks between cultural noise applications per pop (staggered)
+
+
+def _conformity_resistance_multiplier(dist: float, tag: str) -> float:
+    """Asymptotic conformity pressure multiplier for a single tag.
+
+    Returns [0, 1]: 0 = fully immune (pop already close to established),
+    1 = full pressure (pop far from established). Power-0.5 curve gives
+    steep resistance near the floor and gradual release near the ceiling.
+    practice: tags must never reach this function — exclude them upstream.
+    """
+    prefix = tag.split(":", 1)[0] if ":" in tag else ""
+    floor, ceiling = _CONFORMITY_RESISTANCE_WINDOW.get(prefix, _CONFORMITY_RESISTANCE_WINDOW_DEFAULT)
+    if dist <= floor:
+        return 0.0
+    if dist >= ceiling:
+        return 1.0
+    d_norm = (dist - floor) / (ceiling - floor)
+    return d_norm ** 0.5
+
 
 def belief_inertia(current: float, delta: float) -> float:
     """
@@ -214,15 +244,24 @@ def pop_contact_resistance(
 def process_pop_contact(
     state: SimulationState,
     cfg: TickConfig,
+    tick_number: int = 0,
 ) -> list[StateMutation]:
     """
     Passive belief drift between all co-located Pops.
     For each world, iterates ordered pairs (a→b) and emits POP_BELIEF_SHIFT
     mutations scaled by pop_contact_resistance(). Same-civ pairs are included;
     the resistance function applies cross-civ and cross-stratum factors as appropriate.
+    Staggered per world: each world fires on its own offset within the stride.
     """
+    from uuid import UUID as _UUID
     mutations: list[StateMutation] = []
     for world_id in state.worlds:
+        try:
+            world_offset = _UUID(world_id).int % cfg.pop_contact_stride
+        except (ValueError, AttributeError):
+            world_offset = abs(hash(world_id)) % cfg.pop_contact_stride
+        if (tick_number - world_offset) % cfg.pop_contact_stride != 0:
+            continue
         world_pops = pops_on_world(world_id, state)
         if len(world_pops) < 2:
             continue
@@ -358,10 +397,23 @@ def recompute_civ_culture_tags(state: SimulationState, cfg: TickConfig) -> None:
         }
 
 
-def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[StateMutation]:
+def civ_conformity_pressure(
+    state: SimulationState,
+    cfg: TickConfig,
+    tick_number: int = 0,
+) -> list[StateMutation]:
     """
     For each Pop belonging to a civilization, emit belief and culture mutations
     that nudge Pop values toward civ.established_beliefs / established_culture_tags.
+
+    Staggered per civ: each civilization fires on its own offset within the stride,
+    so different civs exert pressure on different ticks.
+
+    practice: tags are excluded — practices are socially desired to vary between
+    pop groups and belong to future Gov/Faction edict mechanics, not passive conformity.
+
+    Per-tag resistance: tags already close to established values receive reduced or
+    zero pressure (see _conformity_resistance_multiplier).
     """
     mutations: list[StateMutation] = []
     for pop in state.pops.values():
@@ -370,6 +422,12 @@ def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[Sta
         civ = state.civilizations.get(str(pop.civilization_id))
         if civ is None or not civ.established_beliefs:
             continue
+
+        # Per-civ stride stagger: each civ fires on its own offset tick
+        civ_offset = int(civ.id.int) % cfg.civ_conformity_stride
+        if (tick_number - civ_offset) % cfg.civ_conformity_stride != 0:
+            continue
+
         scale_key = civ.scale.value if hasattr(civ.scale, "value") else str(civ.scale)
         conformity_rate = (
             cfg.pop_conformity_base
@@ -384,10 +442,12 @@ def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[Sta
         pop_class = pop.social_class.value if hasattr(pop.social_class, "value") else str(pop.social_class or "")
         susceptibility = _STRATUM_SUSCEPTIBILITY.get(pop_class, 0.0)
         conformity_rate *= max(0.1, 1.0 + susceptibility)
+
         for tag in set(civ.established_beliefs) | set(pop.dominant_beliefs):
             est_val = civ.established_beliefs.get(tag, 0.0)
             pop_val = pop.dominant_beliefs.get(tag, 0.0)
-            delta = (est_val - pop_val) * conformity_rate
+            resistance = _conformity_resistance_multiplier(abs(est_val - pop_val), tag)
+            delta = (est_val - pop_val) * conformity_rate * resistance
             if abs(delta) > 0.0001:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.POP_BELIEF_SHIFT,
@@ -398,12 +458,16 @@ def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[Sta
                     note=f"{civ.name} conformity pressure on Pop ({tag})",
                 ))
 
-        # Culture conformity: nudge Pop culture_tags toward civ.established_culture_tags
+        # Culture conformity: nudge Pop culture_tags toward civ.established_culture_tags.
+        # practice: tags are excluded entirely — see docstring.
         if civ.established_culture_tags:
             for tag in set(civ.established_culture_tags) | set(pop.culture_tags):
+                if tag.startswith("practice:"):
+                    continue
                 est_val = civ.established_culture_tags.get(tag, 0.0)
                 pop_val = pop.culture_tags.get(tag, 0.0)
-                delta = (est_val - pop_val) * conformity_rate
+                resistance = _conformity_resistance_multiplier(abs(est_val - pop_val), tag)
+                delta = (est_val - pop_val) * conformity_rate * resistance
                 if abs(delta) > 0.0001:
                     mutations.append(StateMutation(
                         mutation_type=MutationType.POP_CULTURE_SHIFT,
@@ -412,6 +476,48 @@ def civ_conformity_pressure(state: SimulationState, cfg: TickConfig) -> list[Sta
                         delta=delta,
                         note=f"{civ.name} culture conformity on Pop ({tag})",
                     ))
+    return mutations
+
+
+def process_pop_cultural_noise(
+    state: SimulationState,
+    cfg: TickConfig,
+    rng,
+    tick_number: int,
+) -> list[StateMutation]:
+    """Staggered per-pop periodic noise on beliefs and culture tags.
+
+    Every POP_NOISE_STRIDE ticks (per-pop offset), apply tiny gauss noise to
+    all domain beliefs and culture tags (including practice:). Represents organic
+    cultural drift not captured at the macro level.
+    """
+    mutations: list[StateMutation] = []
+    cap = cfg.pop_noise_cap
+    sigma = cfg.pop_noise_sigma
+    for pop in state.pops.values():
+        pop_offset = int(pop.id.int) % POP_NOISE_STRIDE
+        if (tick_number - pop_offset) % POP_NOISE_STRIDE != 0:
+            continue
+        for tag in list(pop.dominant_beliefs):
+            delta = max(-cap, min(cap, rng.gauss(0, sigma)))
+            if abs(delta) > 0.0001:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_BELIEF_SHIFT,
+                    target_id=pop.id,
+                    field=tag,
+                    delta=delta,
+                    note="cultural noise drift",
+                ))
+        for tag in list(pop.culture_tags):
+            delta = max(-cap, min(cap, rng.gauss(0, sigma)))
+            if abs(delta) > 0.0001:
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_CULTURE_SHIFT,
+                    target_id=pop.id,
+                    field=tag,
+                    delta=delta,
+                    note="cultural noise drift",
+                ))
     return mutations
 
 
@@ -450,12 +556,16 @@ def emit_lineage_bleed(
             ))
 
 
-def process_location_ambient_influence(state: SimulationState, cfg: TickConfig) -> None:
+def process_location_ambient_influence(
+    state: SimulationState,
+    cfg: TickConfig,
+    tick_number: int = 0,
+) -> None:
     """
     Directly mutate Pop.dominant_beliefs based on the domain_expression of their
     current PopLocation and its parent world (SignificantLocation).
-    No mutation queue, no inertia, no skip guards — location influence is subtle
-    but pernicious. Called every cfg.location_ambient_stride ticks.
+    No mutation queue, no inertia — location influence is subtle but pernicious.
+    Staggered per world: each world fires on its own offset within the stride.
     """
     from core.universe_core import SignificantLocation
 
@@ -468,7 +578,15 @@ def process_location_ambient_influence(state: SimulationState, cfg: TickConfig) 
 
         # World-level ambient influence (with distance falloff)
         if pop_loc.parent_id:
+            from uuid import UUID as _UUID
             world = state.locations.get(str(pop_loc.parent_id))
+            if isinstance(world, SignificantLocation):
+                try:
+                    world_offset = _UUID(str(pop_loc.parent_id)).int % cfg.location_ambient_stride
+                except (ValueError, AttributeError):
+                    world_offset = abs(hash(str(pop_loc.parent_id))) % cfg.location_ambient_stride
+                if (tick_number - world_offset) % cfg.location_ambient_stride != 0:
+                    continue
             if isinstance(world, SignificantLocation) and world.domain_expression:
                 dist = pop_loc.distance_from_core
                 falloff = cfg.location_ambient_distance_falloff ** dist

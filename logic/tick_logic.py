@@ -94,6 +94,7 @@ from logic.belief_propagation import (
     recompute_civ_dominant_beliefs, recompute_civ_culture_tags,
     civ_conformity_pressure,
     process_location_ambient_influence,
+    process_pop_cultural_noise,
     emit_lineage_bleed,
 )
 
@@ -664,6 +665,10 @@ class TickConfig(BaseModel):
     # Core-loc weighting for civ aggregate belief/culture recomputation
     peripheral_pop_belief_weight: float = 0.25
     peripheral_pop_culture_weight: float = 0.25
+
+    # Per-pop periodic cultural noise (organic drift not captured at macro level)
+    pop_noise_sigma: float = 0.03   # gauss std dev; most samples near 0, rare events up to cap
+    pop_noise_cap: float = 0.25     # hard clamp on individual noise delta magnitude
 
 
 # ─────────────────────────────────────────
@@ -1593,9 +1598,14 @@ class TickLoop:
                 ))
 
         # ── Civ → Pop conformity pressure ──────────────
-        if state.tick_number % cfg.civ_conformity_stride == 0:
-            for m in civ_conformity_pressure(state, cfg):
-                result.civilization_mutations.append(m)
+        # Staggered per civ; stride gate is inside the function.
+        for m in civ_conformity_pressure(state, cfg, tick_number=state.tick_number):
+            result.civilization_mutations.append(m)
+
+        # ── Per-pop periodic cultural noise ────────────
+        # Staggered per pop (POP_NOISE_STRIDE=89 ticks); gate inside the function.
+        for m in process_pop_cultural_noise(state, cfg, self._rng, state.tick_number):
+            result.civilization_mutations.append(m)
 
         # ── Rider trait → culture tag attrition ───────
         # Culture tags that conflict with a Pop's active rider traits decay passively.
@@ -1743,15 +1753,13 @@ class TickLoop:
 
         # ── Cross-Pop contact (passive cross-civ belief drift) ─────
         # Co-located Pops of different civs slowly drift toward each other's beliefs.
-        # Resistance is applied for cross-civ scale gap, cross-species, and
-        # cross-stratum. Omens are unaffected.
-        if state.tick_number % cfg.pop_contact_stride == 0:
-            for m in process_pop_contact(state, cfg):
-                result.civilization_mutations.append(m)
+        # Staggered per world; stride gate is inside the function.
+        for m in process_pop_contact(state, cfg, tick_number=state.tick_number):
+            result.civilization_mutations.append(m)
 
         # ── Ambient location belief influence ──────────────────────
-        if state.tick_number % cfg.location_ambient_stride == 0:
-            process_location_ambient_influence(state, cfg)
+        # Staggered per world; stride gate is inside the function.
+        process_location_ambient_influence(state, cfg, tick_number=state.tick_number)
 
         # ── Pop splinter and reabsorption checks ────────
         # Both stride-gated on SPLINTER_CHECK_STRIDE; run after conformity pressure
@@ -1764,10 +1772,9 @@ class TickLoop:
         result.narrative_events.extend(reabsorb_events)
 
         # ── Linked-pop base factor drift ────────────────
-        # Co-prime with civ_conformity_stride (10) to avoid tick stacking.
-        if state.tick_number % LINK_DRIFT_STRIDE == 0:
-            link_events = self._process_link_drift(state)
-            result.narrative_events.extend(link_events)
+        # Staggered per pop; stride gate is inside _process_link_drift.
+        link_events = self._process_link_drift(state)
+        result.narrative_events.extend(link_events)
 
         return result
 
@@ -2017,10 +2024,14 @@ class TickLoop:
         return best
 
     def _process_link_drift(self, state: SimulationState) -> list[NarrativeEvent]:
-        """Drift each Pop's base link factors toward cosine similarity and break dissolved links."""
+        """Drift each Pop's base link factors toward cosine similarity and break dissolved links.
+        Staggered per pop: each pop's links drift on their own offset within LINK_DRIFT_STRIDE."""
         events: list[NarrativeEvent] = []
         for pop in state.pops.values():
             if not pop.linked_pop_ids:
+                continue
+            pop_offset = int(pop.id.int) % LINK_DRIFT_STRIDE
+            if (state.tick_number - pop_offset) % LINK_DRIFT_STRIDE != 0:
                 continue
             to_remove: list[str] = []
             for other_id_str, base_factor in list(pop.linked_pop_ids.items()):

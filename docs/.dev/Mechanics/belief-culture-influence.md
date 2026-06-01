@@ -1,6 +1,6 @@
 # Belief & Culture Influence Mechanics
 
-_Last updated: 2026-05-29. All rates reference `TickConfig` defaults in `logic/tick_logic.py`._
+_Last updated: 2026-06-01. All rates reference `TickConfig` defaults in `logic/tick_logic.py`._
 
 ---
 
@@ -52,7 +52,7 @@ delta_per_tag = (dominant_val − established_val) × established_rate
 `civ.established_beliefs` lerps toward `civ.dominant_beliefs` each tick. At cohesion = 1.0, the half-life of a gap is roughly 1,400 ticks (~3.8 years at 1 tick/day). The same rate governs `established_culture_tags` drifting toward `culture_tags`.
 
 ### 3. Civ established beliefs → Pops (conformity pressure, `civ_conformity_pressure`)
-Fires every `civ_conformity_stride` ticks (default **10**).
+Staggered per civilization: each civ fires on its own tick offset within `civ_conformity_stride` (default **10**), computed as `int(civ.id.int) % stride`. Different civs therefore exert pressure on different ticks.
 
 ```
 conformity_rate = pop_conformity_base (0.0003)
@@ -60,9 +60,29 @@ conformity_rate = pop_conformity_base (0.0003)
                 × civ.health.cohesion
                 × stratum_susceptibility_modifier
                 × 0.5  (if pop.preaching_imago_id is set)
-delta_per_tag = (established_val − pop_val) × conformity_rate
+delta_per_tag = (established_val − pop_val) × conformity_rate × resistance_multiplier
 ```
 Applies to both `dominant_beliefs` (using `established_beliefs`) and `culture_tags` (using `established_culture_tags`).
+
+**`practice:` tags are excluded entirely** from conformity pressure. Practices are things a society wants its different population groups to vary in; institutional enforcement of practice conformity belongs to future Gov/Faction edict mechanics.
+
+#### Conformity resistance ("similar enough" gate)
+Each tag's pressure is modulated by a per-tag resistance multiplier based on how close the pop already is to the established value:
+
+```
+d = abs(pop_val − established_val)
+d_norm = clamp((d − floor) / (ceiling − floor), 0, 1)
+resistance_multiplier = d_norm ^ 0.5
+```
+
+| Tag type | floor | ceiling | Effect |
+|---|---|---|---|
+| Domain beliefs | 0.05 | 0.40 | Immune below 0.05; full pressure above 0.40 |
+| `religion:` | 0.08 | 0.42 | Slightly higher immunity zone |
+| `values:` | 0.15 | 0.45 | Widest immunity zone; values resist institutional pull |
+| `practice:` | excluded | — | No conformity pressure at all |
+
+The `^0.5` (square root) exponent gives an asymptotic feel: resistance is still ~71% at the midpoint of the window, rapidly approaching 100% as divergence approaches the floor. The exponent is tunable.
 
 **Stratum susceptibility** (`_STRATUM_SUSCEPTIBILITY`): flat additive modifier to conformity rate.
 | Stratum | Modifier | Effect |
@@ -73,8 +93,17 @@ Applies to both `dominant_beliefs` (using `established_beliefs`) and `culture_ta
 | `warrior` | +0.15 | 15% more resistant |
 | all others | 0.0 | no modifier |
 
-### 4. Pop-to-Pop contact (`process_pop_contact`)
-Passive belief drift between all co-located pops (same SignificantLocation / world). Fires every `pop_contact_stride` ticks (default **7**). Co-prime with `civ_conformity_stride` (10) so the two rarely fire on the same tick.
+### 4. Periodic cultural noise (`process_pop_cultural_noise`)
+Every **89 ticks** (staggered per pop: `int(pop.id.int) % 89`), tiny gaussian noise is applied to all of a pop's `dominant_beliefs` and `culture_tags` (including `practice:` — noise represents organic drift, not institutional pressure).
+
+```
+delta = gauss(0, pop_noise_sigma=0.03) clamped to [−pop_noise_cap, +pop_noise_cap=0.25]
+```
+
+Most samples are near zero; the cap prevents any single noise event from being significant. Belief inertia (`belief_inertia`) still applies to the resulting mutations. Mutation types are `POP_BELIEF_SHIFT` / `POP_CULTURE_SHIFT`.
+
+### 5. Pop-to-Pop contact (`process_pop_contact`)
+Passive belief drift between all co-located pops (same SignificantLocation / world). Staggered per world: each world fires on its own tick offset within `pop_contact_stride` (default **7**), computed from the world's UUID string. Co-prime with `civ_conformity_stride` (10) so the two rarely fire on the same tick for the same world.
 
 ```
 raw_delta = (a_strength − b_strength) × pop_contact_base_rate (0.00003)
@@ -86,6 +115,8 @@ Only affects `dominant_beliefs`, not `culture_tags`.
 **Distance factor** (`_pop_distance_factor`): `0.7 ^ |distance_from_core_A − distance_from_core_B|`. Same `PopLocation` → 1.0; one step apart (e.g. surface ↔ orbital) → 0.49; two steps → 0.34; etc.
 
 **Pops on different SignificantLocations never contact each other.**
+
+Link drift (`_process_link_drift`) is also staggered per pop: each pop's links drift on their own offset within `LINK_DRIFT_STRIDE` (17 ticks), computed from `int(pop.id.int) % 17`.
 
 ---
 
@@ -168,9 +199,9 @@ When a pop's beliefs shift (from whispers, culture shifts, etc.), `LINEAGE_BLEED
 
 | Field | Default | Notes |
 |---|---|---|
-| `pop_conformity_base` | 0.0003 | Civ → Pop belief push rate per tick (before scale and cohesion) |
+| `pop_conformity_base` | 0.0003 | Civ → Pop belief push rate per stride (before scale, cohesion, and resistance) |
 | `established_drift_base` | 0.0005 | Rate at which established_beliefs lerps toward dominant_beliefs |
-| `pop_contact_base_rate` | 0.00003 | Pop-to-Pop direct contact rate per tick |
+| `pop_contact_base_rate` | 0.00003 | Pop-to-Pop direct contact rate per stride |
 | `cross_civ_contact_factor` | 0.15 | Base resistance multiplier for cross-civ contact |
 | `cross_civ_scale_penalty` | 0.08 | Per-rank-step penalty added to cross-civ resistance |
 | `cross_species_contact_factor` | 0.50 | Resistance multiplier for cross-species contact |
@@ -178,8 +209,13 @@ When a pop's beliefs shift (from whispers, culture shifts, etc.), `LINEAGE_BLEED
 | `values_stubbornness_factor` | 0.1 | Extra dampening on `values:*` culture tag changes |
 | `peripheral_pop_belief_weight` | 0.25 | Weight of non-core pops in civ aggregate recomputation |
 | `peripheral_pop_culture_weight` | 0.25 | Same for culture_tags |
-| `civ_conformity_stride` | 10 | Conformity pressure fires every N ticks |
-| `pop_contact_stride` | 7 | Pop contact fires every N ticks |
+| `civ_conformity_stride` | 10 | Conformity pressure stride (staggered per civ) |
+| `pop_contact_stride` | 7 | Pop contact stride (staggered per world) |
+| `location_ambient_stride` | 61 | Location ambient influence stride (staggered per world) |
+| `pop_noise_sigma` | 0.03 | Std dev for per-pop cultural noise gauss distribution |
+| `pop_noise_cap` | 0.25 | Hard clamp on individual noise delta magnitude |
+
+`POP_NOISE_STRIDE = 89` is a module constant (not in TickConfig).
 
 ---
 
