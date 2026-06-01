@@ -50,7 +50,6 @@ from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
     PauseConfig, compute_mortal_alignment_base,
 )
-from utilities.culture_registry import migrate_culture_tags
 
 _INTENT_CLASSES: dict[str, type] = {
     cls.__name__: cls
@@ -717,8 +716,8 @@ def _load_civilizations(conn, universe_age: UniverseAge) -> dict[str, Civilizati
             dominant_beliefs=dominant,
             established_beliefs=established,
             pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
-            culture_tags=migrate_culture_tags(_jd(row.get("culture_tags", "{}"))),
-            established_culture_tags=migrate_culture_tags(_jd(row.get("established_culture_tags", "{}"))),
+            culture_tags=_jd(row.get("culture_tags", "{}")),
+            established_culture_tags=_jd(row.get("established_culture_tags", "{}")),
             theistic=bool(row["theistic"]),
             divine_awareness=row["divine_awareness"],
             core_locs=[UUID(x) for x in _j(row.get("core_locs", "[]"))],
@@ -761,7 +760,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             current_location=UUID(row["current_location"]),
             size_fractional=float(row.get("size_fractional", 6.0)),
             dominant_beliefs=_jd(row.get("dominant_beliefs", "{}")),
-            culture_tags=migrate_culture_tags(_jd(row.get("culture_tags", "{}"))),
+            culture_tags=_jd(row.get("culture_tags", "{}")),
             rider_traits=_jd(row.get("rider_traits", "{}")),
             notable_mortal_ids=[UUID(x) for x in _j(row.get("notable_mortal_ids", "[]"))],
             parent_pop_id=_uuid(row.get("parent_pop_id")),
@@ -799,7 +798,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             belief_tags=_jd(row.get("belief_tags", "{}")),
             personal_tags=_j(row["personal_tags"]),
             status_tags=_j(row.get("status_tags", "[]")),
-            culture_tags=migrate_culture_tags(_jd(row.get("culture_tags", "{}"))),
+            culture_tags=_jd(row.get("culture_tags", "{}")),
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],
