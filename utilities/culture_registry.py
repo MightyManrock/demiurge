@@ -48,12 +48,14 @@ PRACTICE_TAGS: list[str] = [
     "practice:crafts", "practice:culinary",
     # Physical & ceremonial
     "practice:athletics", "practice:combat", "practice:ritual", "practice:revelry",
+    # Commerce
+    "practice:trade",
 ]
 RELATIONS_TAGS: list[str] = [
     "relations:conquest", "relations:isolationism",
     "relations:diplomacy", "relations:imperialism",
     "relations:xenophilia", "relations:xenophobia",
-    "relations:commerce", "relations:protectionism",
+    "relations:protectionism",
 ]
 VALUES_TAGS: list[str] = [
     "values:honesty", "values:adaptability",
@@ -98,64 +100,6 @@ _PREFIX_TO_CATEGORY: dict[str, list[str]] = {
 }
 
 
-# ── Alias map: old tag → list of (canonical_tag, multiplier) ─────────
-# Multiplier of -1.0 means the old tag maps to the *negative* of the new
-# canonical (e.g. xenophobia → -1 × xenophilia).
-CULTURE_TAG_ALIASES: dict[str, list[tuple[str, float]]] = {
-    "values:honesty":           [("values:honor",      1.0)],
-    "values:ambition":          [("values:prowess",    1.0)],
-    "structure:hierarchy":      [("values:hierarchy",  1.0)],
-    "structure:egalitarianism": [("values:hierarchy", -1.0)],
-    "practice:sedentism":       [("values:sedentism",  1.0)],
-    "practice:nomadism":        [("values:sedentism", -1.0)],
-    "relations:xenophilia":     [("values:xenophilia",  1.0)],
-    "relations:xenophobia":     [("values:xenophilia", -1.0)],
-    "techno:science":           [("values:erudition",   1.0)],
-    "techno:industrialism":     [
-        ("values:tenacity",     0.7),
-        ("values:adaptability", 0.7),
-        ("values:moderation",  -0.3),
-    ],
-    "relations:diplomacy":      [
-        ("values:solidarity",   0.5),
-        ("values:honor",        0.5),
-    ],
-}
-
-
-def expand_culture_tag(tag: str, delta: float) -> list[tuple[str, float]]:
-    """Return (canonical_tag, adjusted_delta) pairs for a mutation.
-
-    If `tag` is an alias, fans out to canonical targets with scaled deltas.
-    Otherwise returns [(tag, delta)] unchanged.
-    """
-    if tag in CULTURE_TAG_ALIASES:
-        return [(canonical, delta * mult) for canonical, mult in CULTURE_TAG_ALIASES[tag]]
-    return [(tag, delta)]
-
-
-def migrate_culture_tags(tags: dict[str, float]) -> dict[str, float]:
-    """Convert a culture_tags dict from old keys to canonical new ones.
-
-    Additive: if both old and new keys are present, values are summed and
-    clamped to [-1.0, 1.0] for signed tags or [0.0, 1.0] for unsigned.
-    Call this at load time to keep saves forward-compatible.
-    """
-    if not any(t in CULTURE_TAG_ALIASES for t in tags):
-        return tags
-    result: dict[str, float] = {}
-    for tag, value in tags.items():
-        for canonical, mult in CULTURE_TAG_ALIASES.get(tag, [(tag, 1.0)]):
-            result[canonical] = result.get(canonical, 0.0) + value * mult
-    _s_prefixes = ("values:", "practice:")
-    for k, v in result.items():
-        if k.startswith(_s_prefixes):
-            result[k] = max(-1.0, min(1.0, v))
-        else:
-            result[k] = max(0.0, min(1.0, v))
-    return result
-
-
 def is_culture_tag(tag: str) -> bool:
     return tag in _ALL_TAG_SET
 
@@ -185,7 +129,7 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     ("relations:isolationism",     "relations:protectionism",     0.70),
     ("relations:diplomacy",        "relations:xenophilia",        0.65),
     ("practice:sedentism",         "techno:industrialism",        0.65),
-    ("relations:diplomacy",        "relations:commerce",          0.60),
+    ("relations:diplomacy",        "practice:trade",              0.55),
     ("relations:xenophobia",       "relations:isolationism",      0.60),
     ("techno:science",             "techno:industrialism",        0.60),
     ("religion:luminary_worship",  "religion:demiurge_worship",   0.55),
@@ -194,20 +138,19 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     ("structure:hierarchy",        "practice:slavery",            0.55),
     ("religion:void_worship",      "religion:maltheism",          0.50),
     ("religion:ancestor_worship",  "religion:animism",            0.50),
-    ("relations:xenophilia",       "relations:commerce",          0.50),
+    ("relations:xenophilia",       "practice:trade",              0.50),
     ("values:honesty",             "structure:cooperation",       0.50),
-    ("techno:industrialism",       "relations:commerce",          0.50),
     ("structure:hierarchy",        "practice:sedentism",          0.50),
     ("religion:luminary_worship",  "religion:ancestor_worship",   0.45),
     ("structure:egalitarianism",   "relations:xenophilia",        0.45),
+    ("structure:competition",      "practice:trade",              0.45),
     ("structure:hierarchy",        "relations:conquest",          0.40),
     ("practice:nomadism",          "relations:conquest",          0.40),
     ("practice:nomadism",          "religion:animism",            0.40),
-    ("structure:hierarchy",        "relations:commerce",          0.40),
+    ("structure:hierarchy",        "practice:trade",              0.30),
     ("values:honesty",             "relations:diplomacy",         0.40),
     ("religion:nontheism",         "techno:science",              0.40),
     ("structure:competition",      "relations:conquest",          0.40),
-    ("structure:competition",      "relations:commerce",          0.40),
     ("relations:xenophobia",       "relations:protectionism",     0.40),
     # Negatives — conflicting combinations
     ("religion:luminary_worship",  "religion:maltheism",          -0.90),
@@ -218,7 +161,8 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     ("techno:science",             "techno:luddism",              -0.90),
     ("techno:industrialism",       "techno:conservationism",      -0.80),
     ("practice:sedentism",         "practice:nomadism",           -0.80),
-    ("relations:commerce",         "relations:protectionism",     -0.80),
+    ("practice:trade",             "relations:protectionism",     -0.80),
+    ("practice:trade",             "relations:isolationism",      -0.60),
     ("religion:luminary_worship",  "religion:nontheism",          -0.80),
     ("religion:demiurge_worship",  "religion:nontheism",          -0.80),
     ("structure:cooperation",      "structure:competition",       -0.75),
@@ -299,7 +243,7 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     ("values:humility",            "structure:cooperation",        0.45),
     ("values:ambition",            "structure:competition",        0.55),
     ("values:ambition",            "structure:hierarchy",          0.40),
-    ("values:prosperity",          "relations:commerce",           0.50),
+    ("values:prosperity",          "practice:trade",               0.50),
     ("values:prosperity",          "structure:competition",        0.45),
     ("values:moderation",          "practice:sedentism",           0.35),
     ("values:indulgence",          "practice:polygamy",            0.35),
@@ -309,12 +253,10 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     # ── Values & Virtues — cross-cluster (External Relations) ─────────────
     ("values:honesty",             "relations:xenophilia",         0.40),
     ("values:wit",                 "relations:diplomacy",          0.45),
-    ("values:wit",                 "relations:commerce",           0.40),
     ("values:ambition",            "relations:imperialism",        0.45),
     ("values:ambition",            "relations:conquest",           0.40),
     ("values:idealism",            "relations:diplomacy",          0.45),
     ("values:idealism",            "relations:conquest",          -0.45),
-    ("values:pragmatism",          "relations:commerce",           0.40),
     ("values:adaptability",        "relations:xenophilia",         0.40),
     ("values:adaptability",        "relations:diplomacy",          0.35),
     ("values:prosperity",          "relations:imperialism",        0.35),
@@ -356,7 +298,6 @@ _SYNERGY_DATA: list[tuple[str, str, float]] = [
     # values:xenophilia
     ("values:xenophilia",          "relations:xenophilia",         0.90),
     ("values:xenophilia",          "relations:diplomacy",          0.65),
-    ("values:xenophilia",          "relations:commerce",           0.50),
     ("values:xenophilia",          "structure:egalitarianism",     0.45),
     ("values:xenophilia",          "values:adaptability",          0.40),
     ("values:xenophilia",          "relations:xenophobia",        -0.90),

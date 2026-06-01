@@ -505,3 +505,22 @@ def test_cross_factor_at_negative_xeno_amplifies_penalty():
 
 def test_cross_factor_above_neutral_grants_bonus():
     assert _cross_factor(0.80, 0.30, 1.0) > 1.0
+
+
+from utilities.culture_registry import get_registry as _get_culture_registry, is_culture_tag
+
+def test_practice_trade_is_canonical():
+    assert is_culture_tag("practice:trade")
+
+def test_relations_commerce_is_not_canonical():
+    assert not is_culture_tag("relations:commerce")
+
+def test_practice_trade_has_synergy_with_xenophilia():
+    reg = _get_culture_registry()
+    synergy = reg.synergy("practice:trade", "relations:xenophilia")
+    assert synergy > 0
+
+def test_practice_trade_negative_synergy_with_protectionism():
+    reg = _get_culture_registry()
+    synergy = reg.synergy("practice:trade", "relations:protectionism")
+    assert synergy < 0
