@@ -5515,7 +5515,12 @@ class TickLoop:
                 local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
                 pop = state.pops.get(local_pop_id)
                 if pop:
-                    quality = _pop_social_quality(pop.culture_tags)
+                    quality = _pop_social_quality(
+                        mortal.belief_tags, mortal.culture_tags,
+                        pop.dominant_beliefs, pop.culture_tags,
+                        same_species=(str(mortal.species_id) == str(pop.species_id)) if (mortal.species_id and pop.species_id) else True,
+                        same_civ=True,
+                    )
                     belonging_need = cs.get_need(NEED_BELONGING)
                     if belonging_need:
                         gain = SOCIALIZE_BASE_GAIN * quality
