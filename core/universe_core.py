@@ -479,6 +479,7 @@ class Pop(BaseModel):
     parent_pop_id: Optional[UUID] = None
     child_pop_ids: list[UUID] = Field(default_factory=list)
     splinter_cooldown: int = 0
+    identity_anchor: Optional[dict[str, float]] = None
 
     visibility: float = 0.0
     pinned: bool = False

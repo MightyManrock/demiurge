@@ -766,6 +766,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             parent_pop_id=_uuid(row.get("parent_pop_id")),
             child_pop_ids=[UUID(x) for x in _j(row.get("child_pop_ids", "[]"))],
             splinter_cooldown=int(row.get("splinter_cooldown") or 0),
+            identity_anchor=_jd(row["identity_anchor"]) if row.get("identity_anchor") else None,
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
             visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),

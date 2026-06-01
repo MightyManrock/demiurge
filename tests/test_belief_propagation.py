@@ -395,3 +395,144 @@ def test_pop_noise_delta_within_cap():
     mutations = process_pop_cultural_noise(state, cfg, rng, tick_number=0)
     for m in mutations:
         assert abs(m.delta) <= 0.25, f"Delta {m.delta} exceeds cap"
+
+
+# ── anchor_identity_pull ──────────────────────────────────────────────────────
+
+def _make_anchored_pop(civ_id=None, beliefs=None, culture_tags=None,
+                       anchor=None, cooldown=5):
+    pop = _make_pop(civ_id=civ_id, beliefs=beliefs or {}, culture_tags=culture_tags or {})
+    pop.identity_anchor = anchor
+    pop.splinter_cooldown = cooldown
+    return pop
+
+
+def _make_anchor_state(pop, civ):
+    state = MagicMock()
+    state.pops = {str(pop.id): pop}
+    state.civilizations = {str(civ.id): civ}
+    return state
+
+
+def test_anchor_pull_emits_no_mutations_when_anchor_is_none():
+    from logic.belief_propagation import anchor_identity_pull
+    pop = _make_anchored_pop(anchor=None, cooldown=5)
+    civ = _make_civ(civ_id=pop.civilization_id)
+    state = _make_anchor_state(pop, civ)
+    cfg = _make_cfg()
+    tick = int(civ.id.int) % cfg.civ_conformity_stride
+    mutations = anchor_identity_pull(state, cfg, tick_number=tick)
+    assert mutations == []
+
+
+def test_anchor_pull_emits_no_mutations_when_cooldown_is_zero():
+    from logic.belief_propagation import anchor_identity_pull
+    pop = _make_anchored_pop(
+        anchor={"domain:order": 0.8},
+        cooldown=0,
+    )
+    civ = _make_civ(civ_id=pop.civilization_id)
+    state = _make_anchor_state(pop, civ)
+    cfg = _make_cfg()
+    tick = int(civ.id.int) % cfg.civ_conformity_stride
+    mutations = anchor_identity_pull(state, cfg, tick_number=tick)
+    assert mutations == []
+
+
+def test_anchor_pull_domain_tag_emits_pop_belief_shift():
+    from logic.belief_propagation import anchor_identity_pull
+    from logic.tick_logic import MutationType
+    civ_id = UUID(int=1)
+    pop = _make_anchored_pop(
+        civ_id=civ_id,
+        beliefs={"domain:order": 0.0},
+        anchor={"domain:order": 0.9},
+        cooldown=5,
+    )
+    civ = _make_civ(civ_id=civ_id)
+    state = _make_anchor_state(pop, civ)
+    cfg = _make_cfg()
+    tick = int(civ_id.int) % cfg.civ_conformity_stride
+    mutations = anchor_identity_pull(state, cfg, tick_number=tick)
+    belief_shifts = [m for m in mutations if m.mutation_type == MutationType.POP_BELIEF_SHIFT]
+    assert any(m.field == "domain:order" for m in belief_shifts)
+
+
+def test_anchor_pull_non_domain_tag_emits_pop_culture_shift():
+    from logic.belief_propagation import anchor_identity_pull
+    from logic.tick_logic import MutationType
+    civ_id = UUID(int=1)
+    pop = _make_anchored_pop(
+        civ_id=civ_id,
+        culture_tags={"values:honor": 0.2},
+        anchor={"values:honor": 0.8},
+        cooldown=5,
+    )
+    civ = _make_civ(civ_id=civ_id)
+    state = _make_anchor_state(pop, civ)
+    cfg = _make_cfg()
+    tick = int(civ_id.int) % cfg.civ_conformity_stride
+    mutations = anchor_identity_pull(state, cfg, tick_number=tick)
+    culture_shifts = [m for m in mutations if m.mutation_type == MutationType.POP_CULTURE_SHIFT]
+    assert any(m.field == "values:honor" for m in culture_shifts)
+
+
+def test_anchor_pull_delta_direction_pulls_toward_anchor():
+    from logic.belief_propagation import anchor_identity_pull
+    from logic.tick_logic import MutationType
+    civ_id = UUID(int=1)
+    # Current value below anchor → delta should be positive
+    pop = _make_anchored_pop(
+        civ_id=civ_id,
+        beliefs={"domain:order": 0.2},
+        anchor={"domain:order": 0.9},
+        cooldown=5,
+    )
+    civ = _make_civ(civ_id=civ_id)
+    state = _make_anchor_state(pop, civ)
+    cfg = _make_cfg()
+    tick = int(civ_id.int) % cfg.civ_conformity_stride
+    mutations = anchor_identity_pull(state, cfg, tick_number=tick)
+    order_mut = next(m for m in mutations if m.field == "domain:order")
+    assert order_mut.delta > 0
+
+
+def test_anchor_pull_strength_reduced_in_fade_window():
+    from logic.belief_propagation import anchor_identity_pull
+    from logic.tick_logic import MutationType, TickConfig
+    civ_id = UUID(int=1)
+    anchor = {"domain:order": 0.9}
+
+    def _pull_delta(cooldown):
+        pop = _make_anchored_pop(civ_id=civ_id, beliefs={"domain:order": 0.0},
+                                 anchor=dict(anchor), cooldown=cooldown)
+        civ = _make_civ(civ_id=civ_id)
+        state = _make_anchor_state(pop, civ)
+        cfg = _make_cfg()
+        tick = int(civ_id.int) % cfg.civ_conformity_stride
+        muts = anchor_identity_pull(state, cfg, tick_number=tick)
+        m = next((m for m in muts if m.field == "domain:order"), None)
+        return m.delta if m else 0.0
+
+    delta_full = _pull_delta(cooldown=10)
+    delta_fade = _pull_delta(cooldown=1)
+    assert delta_fade < delta_full
+
+
+def test_anchor_pull_skips_off_stride_ticks():
+    from logic.belief_propagation import anchor_identity_pull
+    civ_id = UUID(int=1)
+    pop = _make_anchored_pop(
+        civ_id=civ_id,
+        beliefs={"domain:order": 0.2},
+        anchor={"domain:order": 0.9},
+        cooldown=5,
+    )
+    civ = _make_civ(civ_id=civ_id)
+    state = _make_anchor_state(pop, civ)
+    cfg = _make_cfg()
+    # Use a tick that is NOT on the civ's stride offset
+    on_tick = int(civ_id.int) % cfg.civ_conformity_stride
+    off_tick = on_tick + 1
+    mutations = anchor_identity_pull(state, cfg, tick_number=off_tick)
+    assert mutations == []

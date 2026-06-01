@@ -479,6 +479,56 @@ def civ_conformity_pressure(
     return mutations
 
 
+def anchor_identity_pull(
+    state: SimulationState,
+    cfg: TickConfig,
+    tick_number: int = 0,
+) -> list[StateMutation]:
+    """
+    For each Pop with identity_anchor set and splinter_cooldown > 0, emit counter-pull
+    mutations toward the anchor values. Pull strength fades over the last
+    cfg.anchor_fade_strides strides of the cooldown window.
+
+    Uses the same per-civ stride stagger as civ_conformity_pressure so the two
+    forces fire on the same ticks for each civilization.
+    """
+    mutations: list[StateMutation] = []
+    for pop in state.pops.values():
+        if pop.identity_anchor is None or pop.splinter_cooldown == 0:
+            continue
+        if not pop.civilization_id:
+            continue
+        civ = state.civilizations.get(str(pop.civilization_id))
+        if civ is None:
+            continue
+
+        civ_offset = int(civ.id.int) % cfg.civ_conformity_stride
+        if (tick_number - civ_offset) % cfg.civ_conformity_stride != 0:
+            continue
+
+        anchor_strength = min(1.0, pop.splinter_cooldown / cfg.anchor_fade_strides)
+
+        for tag, anchor_val in pop.identity_anchor.items():
+            if tag.startswith("domain:"):
+                pop_val = pop.dominant_beliefs.get(tag, 0.0)
+                mut_type = MutationType.POP_BELIEF_SHIFT
+            else:
+                pop_val = pop.culture_tags.get(tag, 0.0)
+                mut_type = MutationType.POP_CULTURE_SHIFT
+
+            delta = (anchor_val - pop_val) * cfg.anchor_pull_rate * anchor_strength
+            if abs(delta) > 0.0001:
+                mutations.append(StateMutation(
+                    mutation_type=mut_type,
+                    target_id=pop.id,
+                    field=tag,
+                    new_value=tag,
+                    delta=delta,
+                    note=f"identity anchor pull ({tag})",
+                ))
+    return mutations
+
+
 def process_pop_cultural_noise(
     state: SimulationState,
     cfg: TickConfig,

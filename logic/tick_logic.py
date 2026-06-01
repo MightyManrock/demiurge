@@ -92,6 +92,7 @@ from logic.belief_propagation import (
     pops_on_world,
     pop_contact_resistance, process_pop_contact,
     recompute_civ_dominant_beliefs, recompute_civ_culture_tags,
+    anchor_identity_pull,
     civ_conformity_pressure,
     process_location_ambient_influence,
     process_pop_cultural_noise,
@@ -627,6 +628,11 @@ class TickConfig(BaseModel):
 
     civ_conformity_stride: int = 10
     # Conformity pressure fires every N ticks (not every tick) to reduce churn.
+
+    anchor_pull_rate: float = 0.0002
+    # Base rate at which splinter Pops are pulled back toward their identity_anchor per stride.
+    anchor_fade_strides: int = 3
+    # Strides before cooldown expiry at which anchor pull strength begins scaling down to zero.
 
     pop_visibility_drift_rate: float = 0.002
     # Rate at which Pop.visibility rises toward min(civ.visibility, world.visibility).
@@ -1601,6 +1607,8 @@ class TickLoop:
         # Staggered per civ; stride gate is inside the function.
         for m in civ_conformity_pressure(state, cfg, tick_number=state.tick_number):
             result.civilization_mutations.append(m)
+        for m in anchor_identity_pull(state, cfg, tick_number=state.tick_number):
+            result.civilization_mutations.append(m)
 
         # ── Per-pop periodic cultural noise ────────────
         # Staggered per pop (POP_NOISE_STRIDE=89 ticks); gate inside the function.
@@ -1793,6 +1801,8 @@ class TickLoop:
                 continue
             if pop.splinter_cooldown > 0:
                 pop.splinter_cooldown -= 1
+                if pop.splinter_cooldown == 0 and pop.identity_anchor is not None:
+                    pop.identity_anchor = None
                 continue
             if pop.size_fractional < SPLINTER_MIN_SIZE:
                 continue
@@ -1847,6 +1857,10 @@ class TickLoop:
                 civ_val = civ.established_culture_tags.get(tag, 0.0)
                 pop.culture_tags[tag] = val + (civ_val - val) * nudge * w
 
+            anchor = {
+                **original_beliefs,
+                **{k: v for k, v in original_culture.items() if not k.startswith("practice:")},
+            }
             splinter = Pop(
                 id=uuid4(),
                 name=f"{pop_label(pop)} Splinter",
@@ -1864,6 +1878,7 @@ class TickLoop:
                 visibility=max(0.0, pop.visibility * 0.75),
                 pinned=False,
                 splinter_cooldown=SPLINTER_COOLDOWN_TICKS,
+                identity_anchor=anchor if anchor else None,
             )
 
             # Redistribute mortals: those more similar to splinter beliefs move over

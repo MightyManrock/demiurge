@@ -507,3 +507,85 @@ def test_divergence_nudged_down_by_matching_culture():
     composite   = 0.9 * belief_div + 0.1 * culture_div
 
     assert composite < belief_div
+
+
+# ── identity_anchor on splinter ───────────────────────────────────────────────
+
+def test_splinter_has_identity_anchor_with_beliefs_and_culture():
+    """Splinter gets identity_anchor containing its beliefs and non-practice culture tags."""
+    parent, splinter = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"values:community": 0.3, "religion:ancestor": 0.5},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"values:community": 0.9, "religion:ancestor": 0.9},
+    )
+    assert splinter.identity_anchor is not None
+    assert "domain:order" in splinter.identity_anchor
+    assert "values:community" in splinter.identity_anchor
+    assert "religion:ancestor" in splinter.identity_anchor
+
+
+def test_splinter_identity_anchor_excludes_practice_tags():
+    """practice: tags are not stored in identity_anchor."""
+    parent, splinter = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"practice:art": 0.6, "values:honor": 0.4},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"practice:art": 0.9, "values:honor": 0.9},
+    )
+    assert splinter.identity_anchor is not None
+    assert "practice:art" not in splinter.identity_anchor
+    assert "values:honor" in splinter.identity_anchor
+
+
+def test_parent_has_no_identity_anchor_after_splinter():
+    """Parent pop does not get an identity_anchor — only the splinter does."""
+    parent, splinter = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"values:community": 0.3},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"values:community": 0.9},
+    )
+    assert parent.identity_anchor is None
+
+
+def test_splinter_identity_anchor_values_match_pre_nudge_beliefs():
+    """Anchor values reflect the splinter's beliefs at split time (pre-nudge)."""
+    parent, splinter = _run_splinter(
+        pop_beliefs={"domain:order": 0.8},
+        pop_culture={"values:community": 0.2},
+        civ_beliefs={"domain:chaos": 0.8},
+        civ_culture={"values:community": 0.9},
+    )
+    assert splinter.identity_anchor is not None
+    assert splinter.identity_anchor.get("domain:order") == pytest.approx(
+        splinter.dominant_beliefs.get("domain:order", 0.0)
+    )
+    assert splinter.identity_anchor.get("values:community") == pytest.approx(
+        splinter.culture_tags.get("values:community", 0.0)
+    )
+
+
+def test_identity_anchor_cleared_when_cooldown_transitions_to_zero():
+    """identity_anchor is set to None when splinter_cooldown transitions from 1 to 0."""
+    from logic.tick_logic import TickLoop, SPLINTER_CHECK_STRIDE
+    from core.universe_core import Pop, SocialClass
+    from uuid import uuid4
+    loop = TickLoop(rng_seed=42)
+    civ_id = uuid4()
+    pop = Pop(
+        social_class=SocialClass.COMMON,
+        occupation="Artist",
+        current_location=uuid4(),
+        size_fractional=6.0,
+        dominant_beliefs={"domain:order": 0.5},
+        civilization_id=civ_id,
+        splinter_cooldown=1,
+        identity_anchor={"domain:order": 0.5, "values:honor": 0.4},
+    )
+    state = MagicMock()
+    state.tick_number = SPLINTER_CHECK_STRIDE
+    state.pops = {str(pop.id): pop}
+    state.civilizations = {}
+    loop._check_pop_splinters(state)
+    assert pop.identity_anchor is None
