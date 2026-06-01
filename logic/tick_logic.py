@@ -162,6 +162,31 @@ def _splinter_fraction(divergence: float) -> float:
     return SPLINTER_MIN_FRACTION + scale * (SPLINTER_MAX_FRACTION - SPLINTER_MIN_FRACTION)
 
 
+def _redistribute_mortals_on_splinter(
+    parent: "Pop",
+    splinter: "Pop",
+    mortals: "dict[str, NotableMortal]",
+) -> list["UUID"]:
+    """Re-assign notable mortals between parent and splinter based on belief similarity.
+
+    Called after the parent's belief nudge so the two pops have meaningfully
+    different beliefs. Returns UUIDs of mortals that moved to the splinter.
+    """
+    moved: list["UUID"] = []
+    for mid in list(parent.notable_mortal_ids):
+        mortal = mortals.get(str(mid))
+        if mortal is None:
+            continue
+        sim_parent   = cosine_similarity(mortal.belief_tags, parent.dominant_beliefs)
+        sim_splinter = cosine_similarity(mortal.belief_tags, splinter.dominant_beliefs)
+        if sim_splinter > sim_parent:
+            parent.notable_mortal_ids.remove(mid)
+            splinter.notable_mortal_ids.append(mid)
+            mortal.pop_id = splinter.id
+            moved.append(mid)
+    return moved
+
+
 WHISPER_POP_SPLASH = 0.20
 # Fraction of a whisper's belief delta that ripples to the target mortal's
 # Pop(s) on the same world.
@@ -1785,6 +1810,19 @@ class TickLoop:
                 pinned=False,
                 splinter_cooldown=SPLINTER_COOLDOWN_TICKS,
             )
+
+            # Redistribute mortals: those more similar to splinter beliefs move over
+            moved_mortal_ids = _redistribute_mortals_on_splinter(
+                pop, splinter, state.mortals
+            )
+            for mid in moved_mortal_ids:
+                mortal = state.mortals.get(str(mid))
+                if mortal and is_in_window(mortal) and is_in_window(pop):
+                    _m_sentinel = f"§mortal§{mortal.id}§{mortal.name}§"
+                    events.append(NarrativeEvent(
+                        text=f"[Pop splinter] {_m_sentinel} sided with the splinter faction.",
+                        in_window=True,
+                    ))
 
             _parent_sentinel  = f"§pop§{pop.id}§{label}§"
             _splinter_sentinel = f"§pop§{splinter.id}§{label}§"

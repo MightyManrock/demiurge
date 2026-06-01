@@ -72,3 +72,66 @@ def test_splinter_check_runs_on_stride():
     state.civilizations = {}
     mutations, events = loop._check_pop_splinters(state)
     assert mutations == []  # no pops → nothing to do
+
+
+# ── _redistribute_mortals_on_splinter ─────────────────────────────────────
+
+from uuid import uuid4 as _uuid4
+
+def _make_pop_for_redistrib(beliefs, occupation="Artist"):
+    from core.universe_core import Pop, SocialClass
+    return Pop(
+        social_class=SocialClass.COMMON,
+        occupation=occupation,
+        current_location=_uuid4(),
+        size_fractional=6.0,
+        dominant_beliefs=beliefs,
+        civilization_id=_uuid4(),
+    )
+
+def _make_mortal_for_redistrib(beliefs, pop_id):
+    from core.universe_core import NotableMortal
+    loc = _uuid4()
+    return NotableMortal(name="Test Mortal", pop_id=pop_id, belief_tags=beliefs,
+                         home_location=loc, current_location=loc)
+
+def test_mortal_stays_with_parent_when_more_similar():
+    parent   = _make_pop_for_redistrib({"domain:order": 0.6, "domain:change": 0.2})
+    splinter = _make_pop_for_redistrib({"domain:order": 0.1, "domain:change": 0.8})
+    mortal   = _make_mortal_for_redistrib({"domain:order": 0.55, "domain:change": 0.25}, pop_id=parent.id)
+    parent.notable_mortal_ids = [mortal.id]
+    splinter.notable_mortal_ids = []
+
+    from logic.tick_logic import _redistribute_mortals_on_splinter
+    moved = _redistribute_mortals_on_splinter(parent, splinter, {str(mortal.id): mortal})
+
+    assert mortal.id not in moved
+    assert mortal.pop_id == parent.id
+    assert mortal.id in parent.notable_mortal_ids
+    assert mortal.id not in splinter.notable_mortal_ids
+
+def test_mortal_moves_to_splinter_when_more_similar():
+    parent   = _make_pop_for_redistrib({"domain:order": 0.6, "domain:change": 0.2})
+    splinter = _make_pop_for_redistrib({"domain:order": 0.1, "domain:change": 0.8})
+    mortal   = _make_mortal_for_redistrib({"domain:order": 0.15, "domain:change": 0.75}, pop_id=parent.id)
+    parent.notable_mortal_ids = [mortal.id]
+    splinter.notable_mortal_ids = []
+
+    from logic.tick_logic import _redistribute_mortals_on_splinter
+    moved = _redistribute_mortals_on_splinter(parent, splinter, {str(mortal.id): mortal})
+
+    assert mortal.id in moved
+    assert mortal.pop_id == splinter.id
+    assert mortal.id in splinter.notable_mortal_ids
+    assert mortal.id not in parent.notable_mortal_ids
+
+def test_redistribute_skips_missing_mortals():
+    from uuid import uuid4
+    parent   = _make_pop_for_redistrib({"domain:order": 0.6})
+    splinter = _make_pop_for_redistrib({"domain:order": 0.1})
+    missing_id = uuid4()
+    parent.notable_mortal_ids = [missing_id]
+
+    from logic.tick_logic import _redistribute_mortals_on_splinter
+    moved = _redistribute_mortals_on_splinter(parent, splinter, {})
+    assert moved == []
