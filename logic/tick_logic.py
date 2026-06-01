@@ -1285,13 +1285,14 @@ class TickLoop:
                 _cap   = _compute_revelation_cap(state, _tag)
                 _pool  = state.demiurge.revelation_pools.get(_tag, 0.0)
                 _short = _tag.split(":", 1)[1].title() if ":" in _tag else _tag.title()
+                _domain_link = f"§domain§{_tag}§{_short}§"
 
                 if _cap == 0.0 or _pool >= _cap:
                     del state.pending_actions[_sr_key]
                     _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
                     result.passive_result.narrative_events.append(NarrativeEvent(
                         text=(
-                            f"[Revelation] Explore Beliefs on {_short} stopped: pool full "
+                            f"[Revelation] Explore Beliefs on {_domain_link} stopped: pool full "
                             f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imago to internalize Imagines."
                         )
                     ))
@@ -1322,7 +1323,7 @@ class TickLoop:
                                 _assign_category_cooldown(state, _AC.SELF_REFINEMENT)
                                 result.passive_result.narrative_events.append(NarrativeEvent(
                                     text=(
-                                        f"[Revelation] Explore Beliefs on {_short} paused: "
+                                        f"[Revelation] Explore Beliefs on {_domain_link} paused: "
                                         f"enough Revelation to reveal {_label} Imago "
                                         f"({_pool:.2f} ≥ {_threshold})."
                                     )
@@ -3355,13 +3356,14 @@ class TickLoop:
         if isinstance(intent, ExploreBeliefIntent):
             tag = intent.domain_tag
             short = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+            domain_link = f"§domain§{tag}§{short}§"
             cap = _compute_revelation_cap(state, tag)
             if cap == 0.0:
                 return mutations, f"All Imagines in {short} are already revealed — there is nothing left to research here."
             pool = state.demiurge.revelation_pools.get(tag, 0.0)
             if pool >= cap:
                 return mutations, (
-                    f"You have accumulated maximum Revelation for {short} ({pool:.2f} / {cap:.2f}). "
+                    f"You have accumulated maximum Revelation for {domain_link} ({pool:.2f} / {cap:.2f}). "
                     f"Use Reveal Imago to unlock Imagines before continuing."
                 )
             base_rate = 10.0
@@ -3382,7 +3384,7 @@ class TickLoop:
             ireg = get_imago_registry()
             tree = tag.split(":", 1)[1] if ":" in tag else tag
             unlocked_set = set(state.demiurge.unlocked_imagines)
-            newly_affordable: list[str] = []
+            newly_affordable_links: list[str] = []
             for node in ireg.nodes_for_tree(tree):
                 if node.node_id in unlocked_set:
                     continue
@@ -3390,11 +3392,10 @@ class TickLoop:
                     continue
                 cost = _revelation_adjusted_cost(node.tier, state.demiurge.revealed_imagines)
                 if pool < cost <= new_pool:
-                    newly_affordable.append(node.name)
-            narrative = f"+{actual_gain} Revelation for {short} ({new_pool:.2f} / {cap:.2f})."
-            if newly_affordable:
-                names = ", ".join(newly_affordable)
-                narrative += f" You have enough Revelation in {short} to reveal: {names}."
+                    newly_affordable_links.append(f"§imago§{node.node_id}§{node.name}§")
+            narrative = f"+{actual_gain} Revelation for {domain_link} ({new_pool:.2f} / {cap:.2f})."
+            if newly_affordable_links:
+                narrative += f" You have enough Revelation in {domain_link} to reveal: {', '.join(newly_affordable_links)}."
             return mutations, narrative
 
         # ── Reveal Imago ──────────────────────────────
@@ -3402,6 +3403,7 @@ class TickLoop:
             tag = intent.domain_tag
             node_id = intent.node_id
             short = tag.split(":", 1)[1].title() if ":" in tag else tag.title()
+            domain_link = f"§domain§{tag}§{short}§"
             ireg = get_imago_registry()
             node = ireg.get_node(node_id)
             if node is None or node.tree != (tag.split(":", 1)[1] if ":" in tag else tag):
@@ -3439,9 +3441,10 @@ class TickLoop:
                 note=f"Demiurge revealed Imago: {node_id}",
             ))
             tier_names = {1: "Tier-1", 2: "Tier-2", 3: "Tier-3", 4: "Apex"}
+            imago_link = f"§imago§{node_id}§{node.name}§"
             return mutations, (
-                f"You have internalized {node.name}, a {tier_names.get(node.tier, 'Tier')} Imago "
-                f"of {short}. {cost} Revelation spent."
+                f"You have internalized {imago_link}, a {tier_names.get(node.tier, 'Tier')} Imago "
+                f"of {domain_link}. {cost} Revelation spent."
             )
 
         # ── Commission Inquiry ────────────────────────

@@ -222,6 +222,11 @@ class DomainSquare(Widget):
             super().__init__()
             self.tag = tag
 
+    class Blurred(Message):
+        def __init__(self, tag: str) -> None:
+            super().__init__()
+            self.tag = tag
+
     def __init__(self, tag: str, icon: str, name: str, affiliated: bool, accessible: bool, eligible_reveal: bool = False) -> None:
         classes = []
         if affiliated and accessible:
@@ -243,6 +248,12 @@ class DomainSquare(Widget):
 
     def on_enter(self) -> None:
         self.post_message(self.Focused(self._tag))
+
+    def on_leave(self) -> None:
+        self.post_message(self.Blurred(self._tag))
+
+    def on_blur(self) -> None:
+        self.post_message(self.Blurred(self._tag))
 
     def on_click(self) -> None:
         if not self.disabled:
@@ -272,6 +283,11 @@ class ImagoCell(Widget):
             super().__init__()
             self.node_id = node_id
 
+    class Blurred(Message):
+        def __init__(self, node_id: str) -> None:
+            super().__init__()
+            self.node_id = node_id
+
     def __init__(self, node: "ImagoNode", unlocked: bool, approval_class: str) -> None:
         classes = [approval_class] if (unlocked and approval_class) else []
         if not unlocked:
@@ -288,6 +304,12 @@ class ImagoCell(Widget):
 
     def on_enter(self) -> None:
         self.post_message(self.Focused(self._node.node_id))
+
+    def on_leave(self) -> None:
+        self.post_message(self.Blurred(self._node.node_id))
+
+    def on_blur(self) -> None:
+        self.post_message(self.Blurred(self._node.node_id))
 
     def on_click(self) -> None:
         if self._unlocked:
@@ -469,6 +491,11 @@ class ImagoRevealCell(Widget):
             super().__init__()
             self.node_id = node_id
 
+    class Blurred(Message):
+        def __init__(self, node_id: str) -> None:
+            super().__init__()
+            self.node_id = node_id
+
     def __init__(self, node: "ImagoNode", state: "SimulationState", cost: int) -> None:
         unlocked = node.node_id in state.demiurge.unlocked_imagines
         pool = state.demiurge.revelation_pools.get(f"domain:{node.tree}", 0.0)
@@ -507,6 +534,12 @@ class ImagoRevealCell(Widget):
 
     def on_enter(self) -> None:
         self.post_message(self.Focused(self._node.node_id))
+
+    def on_leave(self) -> None:
+        self.post_message(self.Blurred(self._node.node_id))
+
+    def on_blur(self) -> None:
+        self.post_message(self.Blurred(self._node.node_id))
 
     def on_click(self) -> None:
         if not self.disabled:

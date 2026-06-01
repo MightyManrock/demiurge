@@ -538,6 +538,7 @@ class ExploreBeliefsModal(ModalScreen):
         self._lum_info       = lum_info
         self._fellow_tags    = fellow_tags
         self._accessible_set = accessible_set
+        self._selected_domain_widget: "DomainSquare | None" = None
 
         first_tag = initial[0] if initial else next(iter(sorted(accessible_set)), None)
         self._initial_tree = first_tag.split(":", 1)[1] if first_tag and ":" in first_tag else "fire"
@@ -580,6 +581,7 @@ class ExploreBeliefsModal(ModalScreen):
             for sq in self.query(DomainSquare):
                 if sq._tag == tag and not sq.disabled:
                     sq.focus()
+                    self._mark_domain_selected(sq)
                     break
             for cb_id, val in [
                 ("#stop-t1-one",  t1_one),
@@ -681,12 +683,12 @@ class ExploreBeliefsModal(ModalScreen):
                 sq.focus()
                 return
 
-    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
-        tag = event.tag
-        self._selected_tag = tag
-        btn = self.query_one("#confirm-btn", Button)
-        btn.disabled = False
-        btn.add_class("continue-ready")
+    def _render_domain_preview(self, tag: str | None) -> None:
+        if tag is None:
+            self.query_one("#domain-label", Static).update("Domain: —")
+            self.query_one("#lum-panel", Static).update("")
+            self.query_one("#imago-ref-pool", Static).update("")
+            return
         name  = _domain_display_name(tag)
         pool  = self._state.demiurge.revelation_pools.get(tag, 0.0)
         cap   = _compute_revelation_cap(self._state, tag)
@@ -707,8 +709,7 @@ class ExploreBeliefsModal(ModalScreen):
                 parts.append(f"[{col}]{_e(lum.name[:10])}: {v:+.0%}[/]")
         self.query_one("#lum-panel", Static).update("  ".join(parts))
         self._update_checkbox_states(tag)
-        tree = tag.split(":", 1)[1] if ":" in tag else tag
-        pool  = self._state.demiurge.revelation_pools.get(tag, 0.0)
+        tree  = tag.split(":", 1)[1] if ":" in tag else tag
         rcap  = _compute_revelation_cap(self._state, tag)
         cap_s = f"{rcap:.0f}" if rcap > 0.0 else "∞"
         self.query_one("#imago-ref-pool", Static).update(
@@ -716,6 +717,27 @@ class ExploreBeliefsModal(ModalScreen):
         )
         self.query_one(ImagoTreeGrid).load_tree(tree)
         self.query_one("#imago-ref-tooltip", Static).update("")
+
+    def _mark_domain_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_domain_widget is not None:
+            self._selected_domain_widget.remove_class("selected-active")
+        self._selected_domain_widget = sq
+        sq.add_class("selected-active")
+
+    def _check_confirm(self) -> None:
+        btn = self.query_one("#confirm-btn", Button)
+        if self._selected_tag:
+            btn.disabled = False
+            btn.add_class("continue-ready")
+        else:
+            btn.disabled = True
+            btn.remove_class("continue-ready")
+
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
+        self._render_domain_preview(event.tag)
+
+    def on_domain_square_blurred(self, event: DomainSquare.Blurred) -> None:
+        self._render_domain_preview(self._selected_tag)
 
     def _update_checkbox_states(self, tag: str) -> None:
         ireg = get_imago_registry()
@@ -762,6 +784,10 @@ class ExploreBeliefsModal(ModalScreen):
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         self._selected_tag = event.tag
+        sq = next((s for s in self.query(DomainSquare) if s._tag == event.tag), None)
+        if sq:
+            self._mark_domain_selected(sq)
+        self._check_confirm()
         self.query_one("#confirm-btn", Button).focus()
 
     def _do_confirm(self) -> None:
@@ -1187,6 +1213,8 @@ class RevealImagoConfigModal(ModalScreen):
             if _compute_revelation_cap(state, tag) > 0.0
         }
         self._eligible_reveal_tags = _eligible_reveal_domain_tags(state)
+        self._selected_domain_widget: "DomainSquare | None"      = None
+        self._selected_imago_widget:  "ImagoRevealCell | None"   = None
 
     def compose(self) -> "ComposeResult":
         with Vertical(classes="reveal-imago-modal"):
@@ -1260,11 +1288,20 @@ class RevealImagoConfigModal(ModalScreen):
                     f"Domain: {_domain_display_name(tag)}"
                 )
                 self.query_one("#imago-label", Label).update("Imāgō: —")
+                if self._selected_imago_widget is not None:
+                    self._selected_imago_widget.remove_class("selected-active")
+                    self._selected_imago_widget = None
+                self._mark_domain_selected(focused)
                 self._check_confirm()
                 self._load_reveal_tree(tag, focus_first=True)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoRevealCell):
                 self.query_one("#back-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "cancel-btn":
+                confirm = self.query_one("#confirm-btn", Button)
+                if not confirm.disabled:
+                    confirm.focus()
                 event.prevent_default(); event.stop()
             elif isinstance(focused, Button) and focused.id == "confirm-btn":
                 squares = list(self.query(DomainSquare))
@@ -1288,10 +1325,32 @@ class RevealImagoConfigModal(ModalScreen):
                     target.focus()
                 event.prevent_default(); event.stop()
 
+    def _mark_domain_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_domain_widget is not None:
+            self._selected_domain_widget.remove_class("selected-active")
+        self._selected_domain_widget = sq
+        sq.add_class("selected-active")
+
+    def _mark_imago_selected(self, cell: "ImagoRevealCell") -> None:
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+        self._selected_imago_widget = cell
+        cell.add_class("selected-active")
+
     def on_domain_square_focused(self, event: "DomainSquare.Focused") -> None:
         self.query_one("#domain-label", Label).update(
             f"Domain: {_domain_display_name(event.tag)}"
         )
+        self._load_reveal_tree(event.tag)
+
+    def on_domain_square_blurred(self, event: "DomainSquare.Blurred") -> None:
+        if self._domain_tag:
+            self.query_one("#domain-label", Label).update(
+                f"Domain: {_domain_display_name(self._domain_tag)}"
+            )
+            self._load_reveal_tree(self._domain_tag)
+        else:
+            self.query_one("#domain-label", Label).update("Domain: —")
 
     def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
         tag              = event.tag
@@ -1301,6 +1360,10 @@ class RevealImagoConfigModal(ModalScreen):
             f"Domain: {_domain_display_name(tag)}"
         )
         self.query_one("#imago-label", Label).update("Imāgō: —")
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+            self._selected_imago_widget = None
+        self._mark_domain_selected(event._sender)
         self._check_confirm()
         self._load_reveal_tree(tag)
 
@@ -1310,12 +1373,22 @@ class RevealImagoConfigModal(ModalScreen):
         name = node.name if node else event.node_id
         self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
 
+    def on_imago_reveal_cell_blurred(self, event: "ImagoRevealCell.Blurred") -> None:
+        if self._node_id:
+            ireg = get_imago_registry()
+            node = ireg.get_node(self._node_id)
+            name = node.name if node else self._node_id
+            self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        else:
+            self.query_one("#imago-label", Label).update("Imāgō: —")
+
     def on_imago_reveal_cell_selected(self, event: "ImagoRevealCell.Selected") -> None:
         self._node_id = event.node_id
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)
         name = node.name if node else event.node_id
         self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        self._mark_imago_selected(event._sender)
         self._check_confirm()
 
     def _check_confirm(self) -> None:
@@ -1506,6 +1579,8 @@ class ChangeAffiliatedDomainModal(ModalScreen):
 
         affiliated_set = set(self._affiliated)
         self._accessible_new: "set[str]" = set(self._dreg.all_tags) - affiliated_set
+        self._selected_old_widget: "DomainSquare | None" = None
+        self._selected_new_widget: "DomainSquare | None" = None
 
     def compose(self) -> "ComposeResult":
         with Vertical(classes="change-affiliated-modal"):
@@ -1545,29 +1620,63 @@ class ChangeAffiliatedDomainModal(ModalScreen):
         for sq in self.query(DomainSquare):
             if sq._tag == self._old_tag:
                 sq.focus()
+                self._mark_old_selected(sq)
                 break
 
     def action_nav_new(self, direction: str) -> None:
-        affiliated_set = set(self._affiliated)
-        squares = [sq for sq in self.query(DomainSquare) if sq._tag not in affiliated_set]
+        # Use all squares from the new-domain grid (including disabled) so positions
+        # match the visual 4-column layout and disabled-skip works correctly.
+        squares = list(self.query_one("#new-domain-grid", Grid).query(DomainSquare))
         if any(sq.has_focus for sq in squares):
             _nav_domain_grid(squares, direction, cols=4)
 
     def on_key(self, event) -> None:
         focused = self.focused
         affiliated_set = set(self._affiliated)
-        if event.key == "tab":
+        aff_squares = [sq for sq in self.query(DomainSquare) if sq._tag in affiliated_set]
+
+        if event.key in ("left", "right") and isinstance(focused, DomainSquare) and focused._tag in affiliated_set:
+            dc = 1 if event.key == "right" else -1
+            idx = next((i for i, sq in enumerate(aff_squares) if sq.has_focus), -1)
+            if idx != -1:
+                target_idx = (idx + dc) % len(aff_squares)
+                aff_squares[target_idx].focus()
+            event.prevent_default(); event.stop()
+
+        elif event.key == "enter" and isinstance(focused, DomainSquare) and focused._tag not in affiliated_set and not focused.disabled:
+            self._new_tag = focused._tag
+            self._mark_new_selected(focused)
+            self.query_one("#new-label", Label).update(
+                f"New Domain: {_domain_display_name(focused._tag)}"
+            )
+            self._check_confirm()
+            if self._old_tag and self._new_tag:
+                self.dismiss((self._old_tag, self._new_tag))
+            event.prevent_default(); event.stop()
+
+        elif event.key == "tab":
             if isinstance(focused, DomainSquare) and focused._tag in affiliated_set:
-                new_squares = [sq for sq in self.query(DomainSquare) if sq._tag not in affiliated_set]
+                self._old_tag = focused._tag
+                self._mark_old_selected(focused)
+                self.query_one("#old-label", Label).update(
+                    f"Domain to Replace: {_domain_display_name(focused._tag)}"
+                )
+                new_squares = list(self.query_one("#new-domain-grid", Grid).query(DomainSquare))
                 target = next((sq for sq in new_squares if not sq.disabled), None)
                 if target:
                     target.focus()
                 event.prevent_default(); event.stop()
-            elif isinstance(focused, DomainSquare):
+            elif isinstance(focused, DomainSquare) and focused._tag not in affiliated_set:
+                if not focused.disabled:
+                    self._new_tag = focused._tag
+                    self._mark_new_selected(focused)
+                    self.query_one("#new-label", Label).update(
+                        f"New Domain: {_domain_display_name(focused._tag)}"
+                    )
+                    self._check_confirm()
                 self.query_one("#back-btn", Button).focus()
                 event.prevent_default(); event.stop()
             elif isinstance(focused, Button) and focused.id == "confirm-btn":
-                aff_squares = [sq for sq in self.query(DomainSquare) if sq._tag in affiliated_set]
                 if aff_squares:
                     aff_squares[0].focus()
                 event.prevent_default(); event.stop()
@@ -1576,21 +1685,31 @@ class ChangeAffiliatedDomainModal(ModalScreen):
                 self.query_one("#confirm-btn", Button).focus()
                 event.prevent_default(); event.stop()
             elif isinstance(focused, Button) and focused.id == "back-btn":
-                new_squares = [sq for sq in self.query(DomainSquare) if sq._tag not in affiliated_set]
+                new_squares = list(self.query_one("#new-domain-grid", Grid).query(DomainSquare))
                 target = next((sq for sq in new_squares if not sq.disabled), None)
                 if target:
                     target.focus()
                 event.prevent_default(); event.stop()
-            elif isinstance(focused, DomainSquare):
-                aff_squares = [sq for sq in self.query(DomainSquare) if sq._tag in affiliated_set]
+            elif isinstance(focused, DomainSquare) and focused._tag not in affiliated_set:
                 if aff_squares:
                     aff_squares[0].focus()
                 event.prevent_default(); event.stop()
 
+    def _mark_old_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_old_widget is not None:
+            self._selected_old_widget.remove_class("selected-active")
+        self._selected_old_widget = sq
+        sq.add_class("selected-active")
+
+    def _mark_new_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_new_widget is not None:
+            self._selected_new_widget.remove_class("selected-active")
+        self._selected_new_widget = sq
+        sq.add_class("selected-active")
+
     def on_domain_square_focused(self, event: "DomainSquare.Focused") -> None:
         tag = event.tag
         if tag in set(self._affiliated):
-            self._old_tag = tag
             self.query_one("#old-label", Label).update(
                 f"Domain to Replace: {_domain_display_name(tag)}"
             )
@@ -1599,15 +1718,26 @@ class ChangeAffiliatedDomainModal(ModalScreen):
                 f"New Domain: {_domain_display_name(tag)}"
             )
 
+    def on_domain_square_blurred(self, event: "DomainSquare.Blurred") -> None:
+        tag = event.tag
+        if tag in set(self._affiliated):
+            label = _domain_display_name(self._old_tag) if self._old_tag else "—"
+            self.query_one("#old-label", Label).update(f"Domain to Replace: {label}")
+        else:
+            label = _domain_display_name(self._new_tag) if self._new_tag else "—"
+            self.query_one("#new-label", Label).update(f"New Domain: {label}")
+
     def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
         tag = event.tag
         if tag in set(self._affiliated):
             self._old_tag = tag
+            self._mark_old_selected(event._sender)
             self.query_one("#old-label", Label).update(
                 f"Domain to Replace: {_domain_display_name(tag)}"
             )
         else:
             self._new_tag = tag
+            self._mark_new_selected(event._sender)
             self.query_one("#new-label", Label).update(
                 f"New Domain: {_domain_display_name(tag)}"
             )
@@ -2389,6 +2519,8 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         self._eligible_tags  = _eligible_domain_tags(state)
         self._mortals        = _compose_entity_list(state, "mortal", "mortal")
         self._mortal_ids     = [mid for mid, _ in self._mortals]
+        self._selected_domain_widget: "DomainSquare | None" = None
+        self._selected_imago_widget:  "ImagoCell | None"    = None
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="whisper-config-modal"):
@@ -2469,6 +2601,10 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 self._imago_node_id = None
                 self.query_one("#domain-label", Label).update(f"Domain: {_domain_display_name(tag)}")
                 self.query_one("#imago-label",  Label).update("Imāgō: —")
+                if self._selected_imago_widget is not None:
+                    self._selected_imago_widget.remove_class("selected-active")
+                    self._selected_imago_widget = None
+                self._mark_domain_selected(focused)
                 self._check_continue()
                 self._swap_imago_tree("whisper-tree-container", tag, focus_first=True)
                 event.prevent_default(); event.stop()
@@ -2492,6 +2628,12 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 self._imago_node_id = None
                 self.query_one("#domain-label", Label).update("Domain: —")
                 self.query_one("#imago-label",  Label).update("Imāgō: —")
+                if self._selected_domain_widget is not None:
+                    self._selected_domain_widget.remove_class("selected-active")
+                    self._selected_domain_widget = None
+                if self._selected_imago_widget is not None:
+                    self._selected_imago_widget.remove_class("selected-active")
+                    self._selected_imago_widget = None
                 self._check_continue()
                 self._clear_domain_tree()
                 squares = list(self.query(DomainSquare))
@@ -2511,8 +2653,24 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
             self.query_one("#mortal-label", Label).update(f"Mortal: {m.name}")
         self._check_continue()
 
+    def _mark_domain_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_domain_widget is not None:
+            self._selected_domain_widget.remove_class("selected-active")
+        self._selected_domain_widget = sq
+        sq.add_class("selected-active")
+
+    def _mark_imago_selected(self, cell: "ImagoCell") -> None:
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+        self._selected_imago_widget = cell
+        cell.add_class("selected-active")
+
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         self.query_one("#domain-label", Label).update(f"Domain: {_domain_display_name(event.tag)}")
+
+    def on_domain_square_blurred(self, event: DomainSquare.Blurred) -> None:
+        label = _domain_display_name(self._domain_tag) if self._domain_tag else "—"
+        self.query_one("#domain-label", Label).update(f"Domain: {label}")
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         tag = event.tag
@@ -2520,16 +2678,29 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         self._imago_node_id = None
         self.query_one("#domain-label", Label).update(f"Domain: {_domain_display_name(tag)}")
         self.query_one("#imago-label",  Label).update("Imāgō: —")
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+            self._selected_imago_widget = None
+        sq = next((s for s in self.query(DomainSquare) if s._tag == tag), None)
+        if sq:
+            self._mark_domain_selected(sq)
         self._check_continue()
         self._swap_imago_tree("whisper-tree-container", tag)
 
     def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
-        self._imago_node_id = event.node_id
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)
         name = node.name if node else event.node_id
         self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
-        self._check_continue()
+
+    def on_imago_cell_blurred(self, event: ImagoCell.Blurred) -> None:
+        if self._imago_node_id:
+            ireg = get_imago_registry()
+            node = ireg.get_node(self._imago_node_id)
+            name = node.name if node else self._imago_node_id
+            self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        else:
+            self.query_one("#imago-label", Label).update("Imāgō: —")
 
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
         self._imago_node_id = event.node_id
@@ -2537,9 +2708,10 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         node = ireg.get_node(event.node_id)
         name = node.name if node else event.node_id
         self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+        cell = next((c for c in self.query(ImagoCell) if c._node.node_id == event.node_id), None)
+        if cell:
+            self._mark_imago_selected(cell)
         self._check_continue()
-        if self._mortal_id and self._domain_tag and self._imago_node_id:
-            self.dismiss((self._mortal_id, self._domain_tag, self._imago_node_id))
 
     @on(Button.Pressed, "#continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
@@ -2604,6 +2776,10 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             self._imago_b   = None
             self._domain_a  = None
             self._domain_b  = None
+        self._selected_domain_a: "DomainSquare | None" = None
+        self._selected_domain_b: "DomainSquare | None" = None
+        self._selected_imago_a:  "ImagoCell | None"    = None
+        self._selected_imago_b:  "ImagoCell | None"    = None
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="shape-dream-modal"):
@@ -2805,6 +2981,11 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                     prev_a = self._domain_a
                     self._domain_a = None
                     self._imago_a  = None
+                    for attr in ("_selected_domain_a", "_selected_imago_a"):
+                        w = getattr(self, attr)
+                        if w is not None:
+                            w.remove_class("selected-active")
+                            setattr(self, attr, None)
                     self.query_one("#sd-domain-label-a", Label).update("Domain: —")
                     self.query_one("#sd-imago-label-a",  Label).update("Imāgō: —")
                     self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
@@ -2818,6 +2999,11 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                     prev_b = self._domain_b
                     self._domain_b = None
                     self._imago_b  = None
+                    for attr in ("_selected_domain_b", "_selected_imago_b"):
+                        w = getattr(self, attr)
+                        if w is not None:
+                            w.remove_class("selected-active")
+                            setattr(self, attr, None)
                     self.query_one("#sd-domain-label-b", Label).update("Domain: —")
                     self.query_one("#sd-imago-label-b",  Label).update("Imāgō: —")
                     self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
@@ -2846,12 +3032,33 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             self.query_one("#sd-mortal-label", Label).update(f"Mortal: {m.name}")
         self._check_continue()
 
+    def _mark_sd_domain_selected(self, slot: str, sq: "DomainSquare") -> None:
+        prev = getattr(self, f"_selected_domain_{slot}")
+        if prev is not None:
+            prev.remove_class("selected-active")
+        setattr(self, f"_selected_domain_{slot}", sq)
+        sq.add_class("selected-active")
+
+    def _mark_sd_imago_selected(self, slot: str, cell: "ImagoCell") -> None:
+        prev = getattr(self, f"_selected_imago_{slot}")
+        if prev is not None:
+            prev.remove_class("selected-active")
+        setattr(self, f"_selected_imago_{slot}", cell)
+        cell.add_class("selected-active")
+
     def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
         grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
         slot   = "a" if grid_a in event._sender.ancestors_with_self else "b"
         self.query_one(f"#sd-domain-label-{slot}", Label).update(
             f"Domain: {_domain_display_name(event.tag)}"
         )
+
+    def on_domain_square_blurred(self, event: DomainSquare.Blurred) -> None:
+        grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
+        slot   = "a" if grid_a in event._sender.ancestors_with_self else "b"
+        committed = getattr(self, f"_domain_{slot}")
+        label = _domain_display_name(committed) if committed else "—"
+        self.query_one(f"#sd-domain-label-{slot}", Label).update(f"Domain: {label}")
 
     def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
         grid_a   = self.query_one("#shape-dream-domain-grid-a", Grid)
@@ -2861,12 +3068,18 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
         prev = getattr(self, f"_domain_{slot}")
         setattr(self, f"_domain_{slot}", event.tag)
         setattr(self, f"_imago_{slot}", None)
+        # Clear imago selection marker for this slot
+        prev_imago_widget = getattr(self, f"_selected_imago_{slot}")
+        if prev_imago_widget is not None:
+            prev_imago_widget.remove_class("selected-active")
+            setattr(self, f"_selected_imago_{slot}", None)
         self.query_one(f"#sd-domain-label-{slot}", Label).update(
             f"Domain: {_domain_display_name(event.tag)}"
         )
         self.query_one(f"#sd-imago-label-{slot}", Label).update("Imāgō: —")
         self.query_one("#sd-tabs", TabbedContent).get_tab(f"sd-tab-{slot}").label = \
             self._tab_label(slot_num, event.tag, None)
+        self._mark_sd_domain_selected(slot, event._sender)
         self._set_domain_excluded(f"shape-dream-domain-grid-{other}", event.tag, prev)
         self._swap_imago_tree(f"shape-dream-tree-container-{slot}", event.tag)
         self._check_continue()
@@ -2877,40 +3090,38 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)
         name = node.name if node else event.node_id
-        if in_tab_a:
-            self._imago_a = event.node_id
-            self.query_one("#sd-imago-label-a", Label).update(f"Imāgō: {name}")
-            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
-                self._tab_label("1", self._domain_a, self._imago_a)
+        slot_label = "a" if in_tab_a else "b"
+        self.query_one(f"#sd-imago-label-{slot_label}", Label).update(f"Imāgō: {name}")
+
+    def on_imago_cell_blurred(self, event: ImagoCell.Blurred) -> None:
+        container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+        in_tab_a = container_a in event._sender.ancestors_with_self
+        slot = "a" if in_tab_a else "b"
+        committed = getattr(self, f"_imago_{slot}")
+        if committed:
+            ireg = get_imago_registry()
+            node = ireg.get_node(committed)
+            name = node.name if node else committed
+            self.query_one(f"#sd-imago-label-{slot}", Label).update(f"Imāgō: {name}")
         else:
-            self._imago_b = event.node_id
-            self.query_one("#sd-imago-label-b", Label).update(f"Imāgō: {name}")
-            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
-                self._tab_label("2", self._domain_b, self._imago_b)
-        self._check_continue()
+            self.query_one(f"#sd-imago-label-{slot}", Label).update("Imāgō: —")
 
     def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
         container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
         in_tab_a = container_a in event._sender.ancestors_with_self
+        slot     = "a" if in_tab_a else "b"
+        slot_num = "1" if in_tab_a else "2"
 
         ireg = get_imago_registry()
         node = ireg.get_node(event.node_id)
         name = node.name if node else event.node_id
 
-        if in_tab_a:
-            self._imago_a = event.node_id
-            self.query_one("#sd-imago-label-a", Label).update(f"Imāgō: {name}")
-            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-a").label = \
-                self._tab_label("1", self._domain_a, self._imago_a)
-        else:
-            self._imago_b = event.node_id
-            self.query_one("#sd-imago-label-b", Label).update(f"Imāgō: {name}")
-            self.query_one("#sd-tabs", TabbedContent).get_tab("sd-tab-b").label = \
-                self._tab_label("2", self._domain_b, self._imago_b)
-
+        setattr(self, f"_imago_{slot}", event.node_id)
+        self.query_one(f"#sd-imago-label-{slot}", Label).update(f"Imāgō: {name}")
+        self.query_one("#sd-tabs", TabbedContent).get_tab(f"sd-tab-{slot}").label = \
+            self._tab_label(slot_num, getattr(self, f"_domain_{slot}"), event.node_id)
+        self._mark_sd_imago_selected(slot, event._sender)
         self._check_continue()
-        if self._mortal_id and self._imago_a and self._imago_b:
-            self.dismiss((self._mortal_id, self._imago_a, self._imago_b))
 
     @on(Button.Pressed, "#sd-continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
