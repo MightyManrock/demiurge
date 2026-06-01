@@ -530,7 +530,7 @@ def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
     return "".join(parts)
 
 
-_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ|imago|species|domain)§([^§]+)§([^§]+)§")
+_ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ|imago|species|domain|mortal)§([^§]+)§([^§]+)§")
 
 
 def _process_narrative(text: str, name_index: dict[str, tuple[str, str]]) -> str:

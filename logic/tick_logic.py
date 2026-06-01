@@ -1721,12 +1721,15 @@ class TickLoop:
         if state.tick_number % cfg.location_ambient_stride == 0:
             process_location_ambient_influence(state, cfg)
 
-        # ── Pop splinter check ─────────────────────────
-        # A Pop splits when its beliefs diverge too far from civ.established_beliefs.
-        # Runs after conformity pressure so we react to this tick's final belief state.
+        # ── Pop splinter and reabsorption checks ────────
+        # Both stride-gated on SPLINTER_CHECK_STRIDE; run after conformity pressure
+        # so we react to this tick's final belief state.
         splinter_mutations, splinter_events = self._check_pop_splinters(state)
         result.entity_mutations.extend(splinter_mutations)
         result.narrative_events.extend(splinter_events)
+        reabsorb_mutations, reabsorb_events = self._check_pop_reabsorption(state)
+        result.entity_mutations.extend(reabsorb_mutations)
+        result.narrative_events.extend(reabsorb_events)
 
         # ── Linked-pop base factor drift ────────────────
         # Co-prime with civ_conformity_stride (10) to avoid tick stacking.
