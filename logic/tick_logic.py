@@ -1293,7 +1293,7 @@ class TickLoop:
                     result.passive_result.narrative_events.append(NarrativeEvent(
                         text=(
                             f"[Revelation] Explore Beliefs on {_domain_link} stopped: pool full "
-                            f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imago to internalize Imagines."
+                            f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imāgō to internalize Imagines."
                         )
                     ))
                     result.pause_events.append(PauseEvent(
@@ -1324,7 +1324,7 @@ class TickLoop:
                                 result.passive_result.narrative_events.append(NarrativeEvent(
                                     text=(
                                         f"[Revelation] Explore Beliefs on {_domain_link} paused: "
-                                        f"enough Revelation to reveal {_label} Imago "
+                                        f"enough Revelation to reveal {_label} Imāgō "
                                         f"({_pool:.2f} ≥ {_threshold})."
                                     )
                                 ))
@@ -3364,7 +3364,7 @@ class TickLoop:
             if pool >= cap:
                 return mutations, (
                     f"You have accumulated maximum Revelation for {domain_link} ({pool:.2f} / {cap:.2f}). "
-                    f"Use Reveal Imago to unlock Imagines before continuing."
+                    f"Use Reveal Imāgō to unlock Imagines before continuing."
                 )
             base_rate = 10.0
             affinity_bonus = 7.0 if tag in state.demiurge.affiliated_domains else 0.0
@@ -3407,7 +3407,7 @@ class TickLoop:
             ireg = get_imago_registry()
             node = ireg.get_node(node_id)
             if node is None or node.tree != (tag.split(":", 1)[1] if ":" in tag else tag):
-                return mutations, f"Invalid Imago node '{node_id}' for domain {tag}."
+                return mutations, f"Invalid Imāgō node '{node_id}' for domain {tag}."
             unlocked_set = set(state.demiurge.unlocked_imagines)
             if node_id in unlocked_set:
                 return mutations, f"{node.name} is already unlocked."
@@ -3443,7 +3443,7 @@ class TickLoop:
             tier_names = {1: "Tier-1", 2: "Tier-2", 3: "Tier-3", 4: "Apex"}
             imago_link = f"§imago§{node_id}§{node.name}§"
             return mutations, (
-                f"You have internalized {imago_link}, a {tier_names.get(node.tier, 'Tier')} Imago "
+                f"You have internalized {imago_link}, a {tier_names.get(node.tier, 'Tier')} Imāgō "
                 f"of {domain_link}. {cost} Revelation spent."
             )
 
