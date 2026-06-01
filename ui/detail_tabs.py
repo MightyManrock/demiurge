@@ -215,6 +215,8 @@ class DetailTabManager:
             try:
                 dt.refresh_state(state)
             except Exception:
+                # Other exceptions are swallowed defensively so a bad tab
+                # can't block the rest of the refresh.
                 pass
         for pane_id in to_close:
             self._close_pane(pane_id)
