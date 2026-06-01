@@ -1292,7 +1292,8 @@ class RevealImagoConfigModal(ModalScreen):
                 )
                 self.query_one("#imago-label", Label).update("Imāgō: —")
                 if self._selected_imago_widget is not None:
-                    self._selected_imago_widget.remove_class("selected-active")
+                    if self._selected_imago_widget.parent is not None:
+                        self._selected_imago_widget.remove_class("selected-active")
                     self._selected_imago_widget = None
                 self._mark_domain_selected(focused)
                 self._check_confirm()
@@ -1377,7 +1378,8 @@ class RevealImagoConfigModal(ModalScreen):
         )
         self.query_one("#imago-label", Label).update("Imāgō: —")
         if self._selected_imago_widget is not None:
-            self._selected_imago_widget.remove_class("selected-active")
+            if self._selected_imago_widget.parent is not None:
+                self._selected_imago_widget.remove_class("selected-active")
             self._selected_imago_widget = None
         self._mark_domain_selected(event._sender)
         self._check_confirm()
