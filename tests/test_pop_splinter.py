@@ -135,3 +135,90 @@ def test_redistribute_skips_missing_mortals():
     from logic.tick_logic import _redistribute_mortals_on_splinter
     moved = _redistribute_mortals_on_splinter(parent, splinter, {})
     assert moved == []
+
+
+# ── _check_pop_reabsorption ───────────────────────────────────────────────
+
+from uuid import uuid4 as _uuid4r
+
+def _make_loop_r():
+    from logic.tick_logic import TickLoop
+    return TickLoop(rng_seed=42)
+
+def _make_pop_r(beliefs, size, location_id, civ_id, occupation="Artist", social_class_str="common"):
+    from core.universe_core import Pop, SocialClass
+    sc = SocialClass(social_class_str)
+    return Pop(
+        social_class=sc,
+        occupation=occupation,
+        current_location=location_id,
+        size_fractional=size,
+        dominant_beliefs=dict(beliefs),
+        civilization_id=civ_id,
+    )
+
+def _make_reabsorb_state(pops_dict, tick=10):
+    s = MagicMock()
+    s.tick_number = tick
+    s.pops = pops_dict
+    s.civilizations = {}
+    s.locations = {}
+    s.mortals = {}
+    return s
+
+def test_reabsorption_skips_vessel_crew():
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE
+    loc = _uuid4r(); civ = _uuid4r()
+    crew = _make_pop_r({"domain:order": 0.6}, size=4.5, location_id=loc, civ_id=civ)
+    crew.asset_crew_for = "ship"
+    loop = _make_loop_r()
+    state = _make_reabsorb_state({str(crew.id): crew}, tick=SPLINTER_CHECK_STRIDE)
+    mutations, events = loop._check_pop_reabsorption(state)
+    assert mutations == []
+
+def test_reabsorption_skips_off_stride():
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE
+    loc = _uuid4r(); civ = _uuid4r()
+    source = _make_pop_r({"domain:order": 0.6}, size=4.5, location_id=loc, civ_id=civ)
+    loop = _make_loop_r()
+    state = _make_reabsorb_state({str(source.id): source}, tick=1)
+    mutations, events = loop._check_pop_reabsorption(state)
+    assert mutations == []
+
+def test_reabsorption_drains_source_into_parent():
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE, REABSORPTION_DRAIN_FRACTION, MutationType
+    loc = _uuid4r(); civ = _uuid4r()
+    beliefs = {"domain:order": 0.6, "domain:change": 0.3}
+    parent = _make_pop_r(beliefs, size=6.0, location_id=loc, civ_id=civ)
+    source = _make_pop_r(beliefs, size=4.5, location_id=loc, civ_id=civ)
+    source.parent_pop_id = parent.id
+
+    loop = _make_loop_r()
+    state = _make_reabsorb_state(
+        {str(parent.id): parent, str(source.id): source},
+        tick=SPLINTER_CHECK_STRIDE,
+    )
+    mutations, events = loop._check_pop_reabsorption(state)
+
+    size_changes = [m for m in mutations if m.mutation_type == MutationType.POP_SIZE_CHANGE]
+    assert len(size_changes) == 2
+    source_mut = next(m for m in size_changes if str(m.target_id) == str(source.id))
+    parent_mut = next(m for m in size_changes if str(m.target_id) == str(parent.id))
+    assert source_mut.delta < 0
+    assert parent_mut.delta > 0
+
+def test_reabsorption_skips_when_not_convergent():
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE
+    loc = _uuid4r(); civ = _uuid4r()
+    # Use orthogonal belief vectors so cosine similarity is well below threshold
+    parent = _make_pop_r({"domain:order": 0.9, "domain:change": 0.0}, size=6.0, location_id=loc, civ_id=civ)
+    source = _make_pop_r({"domain:order": 0.0, "domain:change": 0.9}, size=4.5, location_id=loc, civ_id=civ)
+    source.parent_pop_id = parent.id
+
+    loop = _make_loop_r()
+    state = _make_reabsorb_state(
+        {str(parent.id): parent, str(source.id): source},
+        tick=SPLINTER_CHECK_STRIDE,
+    )
+    mutations, events = loop._check_pop_reabsorption(state)
+    assert mutations == []  # beliefs too different (orthogonal vectors → similarity ≈ 0)

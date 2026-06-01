@@ -1845,6 +1845,122 @@ class TickLoop:
             ))
         return mutations, events
 
+    def _check_pop_reabsorption(
+        self,
+        state: SimulationState,
+    ) -> tuple[list[StateMutation], list[NarrativeEvent]]:
+        """Gradually drain small converged splinter pops back into a larger compatible pop.
+        Stride-gated to run on the same ticks as _check_pop_splinters."""
+        mutations: list[StateMutation] = []
+        events: list[NarrativeEvent] = []
+        if state.tick_number % SPLINTER_CHECK_STRIDE != 0:
+            return mutations, events
+
+        for pid, pop in list(state.pops.items()):
+            if pop.asset_crew_for is not None:
+                continue
+            if pop.preaching_imago_id is not None:
+                continue
+            # Only drain pops that are small (at or near minimum size)
+            if pop.size_fractional >= SPLINTER_MIN_SIZE + 1.0:
+                continue
+
+            target = self._find_reabsorption_target(pop, state)
+            if target is None:
+                continue
+
+            sim = cosine_similarity(pop.dominant_beliefs, target.dominant_beliefs)
+            if sim < REABSORPTION_CONVERGENCE_THRESHOLD:
+                continue
+
+            # Drain fraction of source into target (log-space, population-conserving)
+            transferred = (10 ** pop.size_fractional) * REABSORPTION_DRAIN_FRACTION
+            new_target_size = math.log10(10 ** target.size_fractional + transferred)
+            new_source_size = pop.size_fractional + math.log10(1.0 - REABSORPTION_DRAIN_FRACTION)
+
+            delta_source = new_source_size - pop.size_fractional   # negative
+            delta_target = new_target_size - target.size_fractional  # positive
+
+            mutations.append(StateMutation(
+                mutation_type=MutationType.POP_SIZE_CHANGE,
+                target_id=pop.id,
+                field="size_fractional",
+                delta=delta_source,
+            ))
+            mutations.append(StateMutation(
+                mutation_type=MutationType.POP_SIZE_CHANGE,
+                target_id=target.id,
+                field="size_fractional",
+                delta=delta_target,
+            ))
+
+            in_win = is_in_window(pop) or is_in_window(target)
+            if new_source_size < SPLINTER_MIN_SIZE:
+                # Schedule full cleanup once drained below minimum
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_ABSORBED,
+                    target_id=pop.id,
+                    field="pops",
+                    new_value=str(target.id),
+                    note=f"[Pop reabsorption] {pop_label(pop)} fully reintegrated into {pop_label(target)}.",
+                ))
+                if in_win:
+                    events.append(NarrativeEvent(
+                        text=(
+                            f"[Pop reabsorption] §pop§{pop.id}§{pop_label(pop)}§ "
+                            f"fully reintegrated into §pop§{target.id}§{pop_label(target)}§."
+                        ),
+                        in_window=in_win,
+                    ))
+            else:
+                if in_win:
+                    events.append(NarrativeEvent(
+                        text=(
+                            f"[Pop reabsorption] §pop§{pop.id}§{pop_label(pop)}§ "
+                            f"is drifting back into §pop§{target.id}§{pop_label(target)}§."
+                        ),
+                        in_window=in_win,
+                    ))
+
+        return mutations, events
+
+    def _find_reabsorption_target(
+        self,
+        pop: "Pop",
+        state: SimulationState,
+    ) -> "Optional[Pop]":
+        """Return the best reabsorption target: parent first, then best local match.
+
+        Target must share stratum, occupation, and location; be larger than source;
+        and not be a vessel crew or Preach Imago goal.
+        """
+        def _eligible(p: "Pop") -> bool:
+            return (
+                p.id != pop.id
+                and p.asset_crew_for is None
+                and p.preaching_imago_id is None
+                and p.stratum == pop.stratum
+                and p.occupation == pop.occupation
+                and p.current_location == pop.current_location
+                and p.size_fractional >= pop.size_fractional
+            )
+
+        if pop.parent_pop_id is not None:
+            parent = state.pops.get(str(pop.parent_pop_id))
+            if parent is not None and _eligible(parent):
+                return parent
+
+        best: "Optional[Pop]" = None
+        best_sim: float = -1.0
+        for other in state.pops.values():
+            if not _eligible(other):
+                continue
+            sim = cosine_similarity(pop.dominant_beliefs, other.dominant_beliefs)
+            if sim > best_sim:
+                best_sim = sim
+                best = other
+        return best
+
     def _process_link_drift(self, state: SimulationState) -> list[NarrativeEvent]:
         """Drift each Pop's base link factors toward cosine similarity and break dissolved links."""
         events: list[NarrativeEvent] = []
