@@ -216,6 +216,7 @@ class GameScreen(Screen):
         self._pending_clear: set[str] = set()
         self._auto_advance: bool = False
         self._auto_advance_delay_s: float = 0.2
+        self._modal_paused: bool = False
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -661,6 +662,19 @@ class GameScreen(Screen):
             panel.refresh_speed_label(self._auto_advance_delay_s)
         except Exception:
             pass
+
+    def on_screen_suspend(self) -> None:
+        if self._auto_advance:
+            self._auto_advance = False
+            self._modal_paused = True
+            self._refresh_rtwp_ui()
+
+    def on_screen_resume(self) -> None:
+        if self._modal_paused:
+            self._modal_paused = False
+            self._auto_advance = True
+            self._refresh_rtwp_ui()
+            self._advance_tick_work()
 
     def action_toggle_auto_advance(self) -> None:
         self._auto_advance = not self._auto_advance
