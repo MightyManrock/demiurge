@@ -1817,8 +1817,9 @@ class TickLoop:
             fraction = _splinter_fraction(divergence)
             original_size = pop.size_fractional
 
-            # Capture deviant beliefs before nudging parent
+            # Capture deviant beliefs and culture before nudging parent
             original_beliefs = dict(pop.dominant_beliefs)
+            original_culture = dict(pop.culture_tags)
 
             # Shrink parent and nudge beliefs toward civ
             pop.size_fractional = max(0.0, original_size + math.log10(1.0 - fraction))
@@ -1826,6 +1827,15 @@ class TickLoop:
             for tag, val in list(pop.dominant_beliefs.items()):
                 civ_val = civ.established_beliefs.get(tag, 0.0)
                 pop.dominant_beliefs[tag] = val + (civ_val - val) * nudge
+
+            # Nudge parent culture (values:/religion: only) toward established_culture_tags
+            for tag, val in list(pop.culture_tags.items()):
+                prefix = tag.split(":", 1)[0]
+                w = _CULTURE_DIVERGENCE_WEIGHTS.get(prefix)
+                if w is None:
+                    continue
+                civ_val = civ.established_culture_tags.get(tag, 0.0)
+                pop.culture_tags[tag] = val + (civ_val - val) * nudge * w
 
             splinter = Pop(
                 id=uuid4(),
@@ -1837,7 +1847,7 @@ class TickLoop:
                 current_location=pop.current_location,
                 size_fractional=max(0.0, original_size + math.log10(fraction)),
                 dominant_beliefs=original_beliefs,
-                culture_tags=dict(pop.culture_tags),
+                culture_tags=original_culture,
                 rider_traits=dict(pop.rider_traits),
                 parent_pop_id=pop.id,
                 visibility=max(0.0, pop.visibility * 0.75),

@@ -260,6 +260,110 @@ def test_reabsorption_full_transfer_on_final_absorption():
     assert abs(size_changes[0].delta - expected_delta) < 1e-9
 
 
+# ── culture tag nudge on parent after splinter ────────────────────────────
+
+def _make_splinter_state(pop_beliefs, pop_culture, civ_beliefs, civ_culture):
+    """Build a minimal SimulationState that will fire a splinter on the first stride tick."""
+    from uuid import uuid4
+    from core.universe_core import Pop, SocialClass
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE
+    civ_id = uuid4()
+    pop = Pop(
+        social_class=SocialClass.COMMON,
+        occupation="Artist",
+        current_location=uuid4(),
+        size_fractional=7.0,
+        dominant_beliefs=dict(pop_beliefs),
+        culture_tags=dict(pop_culture),
+        civilization_id=civ_id,
+    )
+    civ = MagicMock()
+    civ.established_beliefs = dict(civ_beliefs)
+    civ.established_culture_tags = dict(civ_culture)
+    civ.scale.value = "continental"
+    civ.pop_ids = []
+    state = MagicMock()
+    state.tick_number = SPLINTER_CHECK_STRIDE
+    state.pops = {str(pop.id): pop}
+    state.civilizations = {str(civ_id): civ}
+    state.mortals = {}
+    return state, pop
+
+
+def _run_splinter(pop_beliefs, pop_culture, civ_beliefs, civ_culture):
+    """Run _check_pop_splinters and assert a splinter fired. Returns (parent_pop, splinter_pop)."""
+    from logic.tick_logic import TickLoop, MutationType
+    state, pop = _make_splinter_state(pop_beliefs, pop_culture, civ_beliefs, civ_culture)
+    loop = TickLoop(rng_seed=42)
+    mutations, _ = loop._check_pop_splinters(state)
+    pop_created = [m for m in mutations if m.mutation_type == MutationType.POP_SPLINTER]
+    assert pop_created, "Expected a splinter to fire — check divergence setup"
+    splinter = pop_created[0].new_value
+    return pop, splinter
+
+
+# Orthogonal beliefs → max divergence → guaranteed splinter with seed 42.
+_BELIEFS_A = {"domain:order": 1.0}
+_BELIEFS_B = {"domain:chaos": 1.0}
+
+
+def test_culture_values_tag_nudged_toward_civ_after_splinter():
+    parent, _ = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"values:community": 0.1},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"values:community": 0.9},
+    )
+    # Parent should have moved toward civ value of 0.9
+    assert parent.culture_tags["values:community"] > 0.1
+
+
+def test_culture_religion_tag_nudged_toward_civ_after_splinter():
+    parent, _ = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"religion:ancestor": 0.1},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"religion:ancestor": 0.9},
+    )
+    assert parent.culture_tags["religion:ancestor"] > 0.1
+
+
+def test_culture_religion_nudged_more_than_values_after_splinter():
+    """religion: tags shift more than values: tags (1.1× weight)."""
+    parent, _ = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"values:community": 0.1, "religion:ancestor": 0.1},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"values:community": 0.9, "religion:ancestor": 0.9},
+    )
+    delta_values   = parent.culture_tags["values:community"]  - 0.1
+    delta_religion = parent.culture_tags["religion:ancestor"] - 0.1
+    assert delta_religion > delta_values
+
+
+def test_culture_practice_tag_not_nudged_after_splinter():
+    parent, _ = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"practice:art": 0.1},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"practice:art": 0.9},
+    )
+    assert parent.culture_tags["practice:art"] == pytest.approx(0.1)
+
+
+def test_splinter_gets_pre_nudge_culture_tags():
+    """Splinter should carry the parent's original culture, not the nudged version."""
+    parent, splinter = _run_splinter(
+        pop_beliefs=_BELIEFS_A,
+        pop_culture={"values:community": 0.1},
+        civ_beliefs=_BELIEFS_B,
+        civ_culture={"values:community": 0.9},
+    )
+    # Parent moved toward civ; splinter retains original
+    assert splinter.culture_tags["values:community"] == pytest.approx(0.1)
+    assert parent.culture_tags["values:community"] > splinter.culture_tags["values:community"]
+
+
 # ── _culture_divergence ────────────────────────────────────────────────────
 
 def test_culture_divergence_zero_with_no_tags():
