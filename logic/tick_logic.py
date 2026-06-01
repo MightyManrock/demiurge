@@ -149,6 +149,35 @@ _CIV_SCALE_SPLINTER_OFFSET: dict[str, float] = {
 }
 
 
+_CULTURE_DIVERGENCE_WEIGHTS: dict[str, float] = {
+    "values":   1.0,
+    "religion": 1.1,
+}
+# practice: and other prefixes are intentionally absent — excluded from divergence.
+
+
+def _culture_divergence(pop_tags: dict[str, float], civ_tags: dict[str, float]) -> float:
+    """Cosine distance on culture tags, restricted to values: and religion: prefixes.
+
+    religion: entries are weighted 1.1× relative to values: (1.0×) before the
+    cosine computation, making religious disagreement slightly more destabilising.
+    Returns 0.0 if either side has no relevant tags after filtering.
+    """
+    def _weighted(tags: dict[str, float]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for k, v in tags.items():
+            w = _CULTURE_DIVERGENCE_WEIGHTS.get(k.split(":", 1)[0])
+            if w is not None:
+                out[k] = v * w
+        return out
+
+    pop_w = _weighted(pop_tags)
+    civ_w = _weighted(civ_tags)
+    if not pop_w or not civ_w:
+        return 0.0
+    return 1.0 - cosine_similarity(pop_w, civ_w)
+
+
 def _splinter_probability(divergence: float, effective_midpoint: float) -> float:
     """Sigmoid P(split) given divergence and the civ-scale-adjusted midpoint."""
     x = SPLINTER_PROB_STEEPNESS * (divergence - effective_midpoint)
@@ -1762,7 +1791,9 @@ class TickLoop:
             civ = state.civilizations.get(str(pop.civilization_id))
             if civ is None or not civ.established_beliefs:
                 continue
-            divergence = 1.0 - cosine_similarity(pop.dominant_beliefs, civ.established_beliefs)
+            belief_div   = 1.0 - cosine_similarity(pop.dominant_beliefs, civ.established_beliefs)
+            culture_div  = _culture_divergence(pop.culture_tags, civ.established_culture_tags)
+            divergence   = 0.9 * belief_div + 0.1 * culture_div
             if divergence < SPLINTER_DIVERGENCE_THRESHOLD:
                 continue
 

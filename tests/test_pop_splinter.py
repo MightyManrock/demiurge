@@ -258,3 +258,106 @@ def test_reabsorption_full_transfer_on_final_absorption():
     full_transferred = 10 ** source_size
     expected_delta = math.log10(10 ** 6.0 + full_transferred) - 6.0
     assert abs(size_changes[0].delta - expected_delta) < 1e-9
+
+
+# ── _culture_divergence ────────────────────────────────────────────────────
+
+def test_culture_divergence_zero_with_no_tags():
+    from logic.tick_logic import _culture_divergence
+    assert _culture_divergence({}, {}) == 0.0
+
+def test_culture_divergence_zero_with_one_side_empty():
+    from logic.tick_logic import _culture_divergence
+    assert _culture_divergence({"values:community": 0.8}, {}) == 0.0
+    assert _culture_divergence({}, {"values:community": 0.8}) == 0.0
+
+def test_culture_divergence_ignores_practice_tags():
+    from logic.tick_logic import _culture_divergence
+    # Totally different practice: tags — should produce no divergence
+    result = _culture_divergence({"practice:art": 0.9}, {"practice:ritual": 0.9})
+    assert result == 0.0
+
+def test_culture_divergence_zero_for_identical_values_tags():
+    from logic.tick_logic import _culture_divergence
+    tags = {"values:community": 0.8, "values:honor": 0.4}
+    assert _culture_divergence(tags, tags) < 0.001
+
+def test_culture_divergence_zero_for_identical_religion_tags():
+    from logic.tick_logic import _culture_divergence
+    tags = {"religion:ancestor_worship": 0.7}
+    assert _culture_divergence(tags, tags) < 0.001
+
+def test_culture_divergence_max_for_orthogonal_values_vectors():
+    from logic.tick_logic import _culture_divergence
+    # Completely different values: keys → orthogonal → cosine distance = 1.0
+    result = _culture_divergence({"values:community": 1.0}, {"values:honor": 1.0})
+    assert abs(result - 1.0) < 0.001
+
+def test_culture_divergence_religion_mismatch_exceeds_values_mismatch():
+    from logic.tick_logic import _culture_divergence
+    # Both cases: one dimension matches, one differs.
+    # religion mismatch should produce higher divergence than values mismatch
+    # because religion tags are weighted 1.1x.
+    div_religion_mismatch = _culture_divergence(
+        {"religion:A": 1.0, "values:X": 1.0},
+        {"religion:B": 1.0, "values:X": 1.0},  # religion differs, values same
+    )
+    div_values_mismatch = _culture_divergence(
+        {"religion:A": 1.0, "values:X": 1.0},
+        {"religion:A": 1.0, "values:Y": 1.0},  # values differs, religion same
+    )
+    assert div_religion_mismatch > div_values_mismatch
+
+def test_culture_divergence_mixed_tags_ignores_practice():
+    from logic.tick_logic import _culture_divergence
+    # practice: keys present on both sides but shouldn't affect result
+    result_with_practice = _culture_divergence(
+        {"values:honor": 0.8, "practice:art": 0.9},
+        {"values:honor": 0.8, "practice:ritual": 0.9},
+    )
+    result_without_practice = _culture_divergence(
+        {"values:honor": 0.8},
+        {"values:honor": 0.8},
+    )
+    assert abs(result_with_practice - result_without_practice) < 0.001
+
+
+# ── divergence formula includes culture contribution ───────────────────────
+
+def _make_civ_for_divergence(beliefs, culture_tags):
+    from unittest.mock import MagicMock
+    from core.universe_core import CivilizationScale
+    civ = MagicMock()
+    civ.established_beliefs = beliefs
+    civ.established_culture_tags = culture_tags
+    civ.scale.value = "continental"
+    return civ
+
+def test_divergence_nudged_up_by_mismatched_culture():
+    """Culture disagreement pushes composite divergence above belief-only value."""
+    from logic.tick_logic import _culture_divergence
+    from logic.sim_utils import cosine_similarity
+    beliefs_pop = {"domain:order": 0.55}
+    beliefs_civ = {"domain:order": 0.60}
+    culture_pop = {"values:community": 0.9}
+    culture_civ = {"values:honor":     0.9}  # orthogonal — max culture divergence
+
+    belief_div  = 1.0 - cosine_similarity(beliefs_pop, beliefs_civ)
+    culture_div = _culture_divergence(culture_pop, culture_civ)
+    composite   = 0.9 * belief_div + 0.1 * culture_div
+
+    assert composite > belief_div
+
+def test_divergence_nudged_down_by_matching_culture():
+    """Culture agreement pulls composite divergence below belief-only value."""
+    from logic.tick_logic import _culture_divergence
+    from logic.sim_utils import cosine_similarity
+    beliefs_pop = {"domain:order": 0.9, "domain:change": 0.1}
+    beliefs_civ = {"domain:order": 0.1, "domain:change": 0.9}
+    culture_tags = {"values:community": 0.8}  # identical → zero culture divergence
+
+    belief_div  = 1.0 - cosine_similarity(beliefs_pop, beliefs_civ)
+    culture_div = _culture_divergence(culture_tags, culture_tags)
+    composite   = 0.9 * belief_div + 0.1 * culture_div
+
+    assert composite < belief_div
