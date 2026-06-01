@@ -1102,7 +1102,10 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     else:
         stratum_text = pop.stratum.title() if pop.stratum else "—"
     a(f"  stratum: {stratum_text}")
-    a(f"  size: {pop.size_magnitude} ({_size_magnitude_word(pop.size_magnitude)})")
+    if dev:
+        a(f"  size: {pop.size_magnitude}  [#606060]{pop.size_fractional:.2f}[/]")
+    else:
+        a(f"  size: {pop.size_magnitude} ({_size_magnitude_word(pop.size_magnitude)})")
     a(f"  visibility: {pop.visibility:.0%}")
 
     if sp_in_win:
