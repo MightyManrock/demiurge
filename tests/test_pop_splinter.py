@@ -412,6 +412,48 @@ def test_culture_divergence_religion_mismatch_exceeds_values_mismatch():
     )
     assert div_religion_mismatch > div_values_mismatch
 
+def test_splinter_pop_gets_name_from_parent_label():
+    """Splinter Pop should have name = '<parent label> Splinter'."""
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE, SPLINTER_DIVERGENCE_THRESHOLD
+    from core.universe_core import Pop, SocialClass, Civilization, CivilizationScale
+    from uuid import uuid4
+    loop = _make_loop()
+
+    civ_id = uuid4()
+    loc_id = uuid4()
+    civ = Civilization(
+        id=civ_id,
+        name="Test Civ",
+        scale=CivilizationScale.CITY_STATE,
+        established_beliefs={"domain:change": 0.9},
+    )
+    parent = Pop(
+        social_class=SocialClass.COMMON,
+        occupation="Merchant",
+        current_location=loc_id,
+        size_fractional=6.0,
+        dominant_beliefs={"domain:order": 0.9},
+        civilization_id=civ_id,
+        visibility=1.0,
+    )
+
+    state = MagicMock()
+    state.tick_number = SPLINTER_CHECK_STRIDE
+    state.pops = {str(parent.id): parent}
+    state.civilizations = {str(civ_id): civ}
+    state.mortals = {}
+
+    # Force divergence above threshold and rng to always trigger
+    import unittest.mock as mock
+    with mock.patch.object(loop, '_rng') as rng_mock:
+        rng_mock.random.return_value = 0.0  # always splinter
+        mutations, _ = loop._check_pop_splinters(state)
+
+    assert len(mutations) == 1
+    splinter_pop = mutations[0].new_value
+    assert splinter_pop.name == "Merchant Splinter"
+
+
 def test_culture_divergence_mixed_tags_ignores_practice():
     from logic.tick_logic import _culture_divergence
     # practice: keys present on both sides but shouldn't affect result

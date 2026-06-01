@@ -1849,6 +1849,7 @@ class TickLoop:
 
             splinter = Pop(
                 id=uuid4(),
+                name=f"{pop_label(pop)} Splinter",
                 civilization_id=pop.civilization_id,
                 species_id=pop.species_id,
                 social_class=pop.social_class,
