@@ -156,6 +156,7 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Mortal needs, trait profiles, leisure/socialize actions, Directives, PopLocation wealth | [needs-and-directives.md](docs/.dev/Mechanics/needs-and-directives.md) |
 | Linked Pops — data model, link factor, drift, cascade, travel milieu | [linked-pops.md](docs/.dev/Mechanics/linked-pops.md) |
 | Log narrative events — how to emit, sentinel format, entity linking reference | [narrative-events.md](docs/.dev/Mechanics/narrative-events.md) |
+| Pop splitting and reabsorption — divergence check, probabilistic gate, civ-scale modifier, mortal redistribution, passive drain | [pop-splinter-absorption.md](docs/.dev/Mechanics/pop-splinter-absorption.md) |
 
 ## Extending the system
 

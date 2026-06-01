@@ -1,4 +1,4 @@
-> status: parked | last updated: 2026-05-31
+> status: complete | last updated: 2026-05-31
 
 # Pop Splinter Redesign: Probabilistic, Divergence-Scaled Schisms
 

@@ -19,4 +19,4 @@ Read /root/demiurge/docs/.dev/TO-PLAN.md and /root/demiurge/docs/.dev/plans/PLAN
 | [actions-redesign-master-plan.md](actions-redesign-master-plan.md) | `active` | Systematic mechanic + UI + DB-prep pass over every action |
 | [belief-propagation.md](belief-propagation.md) | `active` | Extract belief/culture propagation to logic/belief_propagation.py + add strides and stratum weighting |
 | [narrative-formatters.md](narrative-formatters.md) | `parked` | Extract all narrative string-building from tick_logic + civilian_agent_logic into logic/narrative_formatters.py |
-| [pop-splinter-redesign.md](pop-splinter-redesign.md) | `parked` | Probabilistic stride-gated splinter check, divergence-scaled fraction, post-split belief nudge, civ-scale threshold modifier |
+| [pop-splinter-redesign.md](pop-splinter-redesign.md) | `complete` | Probabilistic stride-gated splinter check, divergence-scaled fraction, post-split belief nudge, civ-scale threshold modifier |
