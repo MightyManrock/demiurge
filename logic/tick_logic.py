@@ -150,7 +150,7 @@ _CIV_SCALE_SPLINTER_OFFSET: dict[str, float] = {
 
 
 def _splinter_probability(divergence: float, effective_midpoint: float) -> float:
-    """Sigmoid P(split): near-zero at threshold, near-certain above ~0.88."""
+    """Sigmoid P(split) given divergence and the civ-scale-adjusted midpoint."""
     x = SPLINTER_PROB_STEEPNESS * (divergence - effective_midpoint)
     return 1.0 / (1.0 + math.exp(-x))
 
@@ -1755,7 +1755,7 @@ class TickLoop:
                 wild_stratum=pop.wild_stratum,
                 occupation=pop.occupation,
                 current_location=pop.current_location,
-                size_fractional=max(0.0, pop.size_fractional + math.log10(0.35)),
+                size_fractional=max(0.0, pop.size_fractional + math.log10(0.35)),  # temporary — replaced with _splinter_fraction() in next task
                 dominant_beliefs=dict(pop.dominant_beliefs),
                 culture_tags=dict(pop.culture_tags),
                 rider_traits=dict(pop.rider_traits),
@@ -6254,7 +6254,7 @@ class TickLoop:
                 if parent_pop is not None and splinter is not None:
                     # Reduce parent by the complement fraction in log-space
                     parent_pop.size_fractional = max(
-                        0.0, parent_pop.size_fractional + math.log10(1.0 - 0.35)
+                        0.0, parent_pop.size_fractional + math.log10(1.0 - 0.35)  # temporary — replaced with _splinter_fraction() in next task
                     )
                     # Wire lineage
                     splinter_id_str = str(splinter.id)
