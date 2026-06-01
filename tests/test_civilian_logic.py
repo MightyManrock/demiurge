@@ -4,7 +4,7 @@ from core.agent_core import (
     CivilianAgentState, Resource, MortalNeed, KnowledgeBase,
     RouteFact, LocationQualityFact, ResourceFact, DirectiveFact,
 )
-from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need
+from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need, _cross_factor, _pop_social_quality
 
 
 def _mortal(cs, kb=None, fatigue=0.0, assets=None, travel_intent=None, loc_id="loc-A"):
@@ -418,3 +418,90 @@ def test_pop_social_quality_new_signature_accepted():
         same_civ=True,
     )
     assert 0.0 <= score <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Xenophilia curve and cross-group factor behavioral tests
+# ---------------------------------------------------------------------------
+
+def _mortal_same(xeno=0.0):
+    return {"domain:fire": 0.7}, {"values:honor": 0.6, "values:xenophilia": xeno}
+
+def _pop_same():
+    return {"domain:fire": 0.7}, {"values:honor": 0.6, "values:solidarity": 0.5, "practice:revelry": 0.5}
+
+def _pop_different():
+    return {"domain:water": 0.7}, {"values:solidarity": 0.8, "practice:revelry": 0.7}
+
+def test_social_quality_xeno_zero_identical_pop_scores_high():
+    mb, mc = _mortal_same(xeno=0.0)
+    pb, pc = _pop_same()
+    score = _pop_social_quality(mb, mc, pb, pc, same_species=True, same_civ=True)
+    assert score > 0.8
+
+def test_social_quality_xeno_zero_different_pop_scores_lower_than_identical():
+    mb, mc = _mortal_same(xeno=0.0)
+    pb_same, pc_same = _pop_same()
+    pb_diff, pc_diff = _pop_different()
+    score_same = _pop_social_quality(mb, mc, pb_same, pc_same, same_species=True, same_civ=True)
+    score_diff = _pop_social_quality(mb, mc, pb_diff, pc_diff, same_species=True, same_civ=True)
+    assert score_same > score_diff
+
+def test_social_quality_xeno_half_returns_near_neutral():
+    mb, mc = _mortal_same(xeno=0.5)
+    pb_same, pc_same = _pop_same()
+    pb_diff, pc_diff = _pop_different()
+    score_same = _pop_social_quality(mb, mc, pb_same, pc_same, same_species=True, same_civ=True)
+    score_diff = _pop_social_quality(mb, mc, pb_diff, pc_diff, same_species=True, same_civ=True)
+    assert abs(score_same - score_diff) < 0.20
+
+def test_social_quality_high_xeno_prefers_different_pop():
+    mb, mc = _mortal_same(xeno=0.9)
+    pb_same, pc_same = _pop_same()
+    pb_diff, pc_diff = _pop_different()
+    score_same = _pop_social_quality(mb, mc, pb_same, pc_same, same_species=True, same_civ=True)
+    score_diff = _pop_social_quality(mb, mc, pb_diff, pc_diff, same_species=True, same_civ=True)
+    assert score_diff >= score_same
+
+def test_social_quality_negative_xeno_reduces_score():
+    mb, mc = _mortal_same(xeno=0.0)
+    mb_neg, mc_neg = _mortal_same(xeno=-0.6)
+    pb, pc = _pop_same()
+    score_neutral = _pop_social_quality(mb, mc, pb, pc, same_species=True, same_civ=True)
+    score_neg = _pop_social_quality(mb_neg, mc_neg, pb, pc, same_species=True, same_civ=True)
+    assert score_neutral > score_neg
+
+def test_social_quality_cross_species_applies_penalty_at_xeno_zero():
+    mb, mc = _mortal_same(xeno=0.0)
+    pb, pc = _pop_same()
+    score_same = _pop_social_quality(mb, mc, pb, pc, same_species=True, same_civ=True)
+    score_diff = _pop_social_quality(mb, mc, pb, pc, same_species=False, same_civ=True)
+    assert score_same > score_diff
+
+def test_social_quality_cross_civ_applies_penalty_at_xeno_zero():
+    mb, mc = _mortal_same(xeno=0.0)
+    pb, pc = _pop_same()
+    score_same = _pop_social_quality(mb, mc, pb, pc, same_species=True, same_civ=True)
+    score_diff = _pop_social_quality(mb, mc, pb, pc, same_species=True, same_civ=False)
+    assert score_same > score_diff
+
+def test_social_quality_high_xeno_neutralizes_cross_species_penalty():
+    mb, mc = _mortal_same(xeno=0.5)
+    pb, pc = _pop_same()
+    score_same_species = _pop_social_quality(mb, mc, pb, pc, same_species=True, same_civ=True)
+    score_diff_species = _pop_social_quality(mb, mc, pb, pc, same_species=False, same_civ=True)
+    assert score_diff_species >= score_same_species * 0.95
+
+def test_cross_factor_at_zero_xeno_returns_base():
+    assert _cross_factor(0.80, 0.30, 0.0) == pytest.approx(0.80)
+
+def test_cross_factor_at_neutral_xeno_returns_one():
+    assert _cross_factor(0.80, 0.30, 0.30) == pytest.approx(1.0, abs=0.001)
+
+def test_cross_factor_at_negative_xeno_amplifies_penalty():
+    f_zero = _cross_factor(0.80, 0.30, 0.0)
+    f_neg = _cross_factor(0.80, 0.30, -0.5)
+    assert f_neg < f_zero
+
+def test_cross_factor_above_neutral_grants_bonus():
+    assert _cross_factor(0.80, 0.30, 1.0) > 1.0
