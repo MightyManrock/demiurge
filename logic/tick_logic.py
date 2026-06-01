@@ -387,6 +387,20 @@ _REVELATION_BASE_COSTS: dict[int, int] = {1: 60, 2: 100, 3: 200, 4: 400}
 # considered "full expression" at this denominator value for normalization.
 _REVELATION_EXPRESSION_FULL: float = 3.0
 
+# Per-scale weights for civ belief contribution to universal domain expression.
+# Ordered so inherent location weight (3.0) always exceeds even max-scale civ (1.60).
+_CIV_SCALE_ESSENCE_MULT: dict[str, float] = {
+    "nascent":        0.05,
+    "tribal":         0.10,
+    "city_state":     0.20,
+    "regional":       0.35,
+    "continental":    0.50,
+    "planetary":      0.70,
+    "interplanetary": 0.90,
+    "interstellar":   1.20,
+    "intergalactic":  1.60,
+}
+
 # ─────────────────────────────────────────
 # PUISSANCE CONSTANTS
 # ─────────────────────────────────────────
