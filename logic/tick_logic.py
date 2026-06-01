@@ -1884,22 +1884,17 @@ class TickLoop:
             delta_source = new_source_size - pop.size_fractional   # negative
             delta_target = new_target_size - target.size_fractional  # positive
 
-            mutations.append(StateMutation(
-                mutation_type=MutationType.POP_SIZE_CHANGE,
-                target_id=pop.id,
-                field="size_fractional",
-                delta=delta_source,
-            ))
-            mutations.append(StateMutation(
-                mutation_type=MutationType.POP_SIZE_CHANGE,
-                target_id=target.id,
-                field="size_fractional",
-                delta=delta_target,
-            ))
-
             in_win = is_in_window(pop) or is_in_window(target)
             if new_source_size < SPLINTER_MIN_SIZE:
-                # Schedule full cleanup once drained below minimum
+                # Final absorption: transfer ALL remaining population to target, then clean up
+                full_transferred = 10 ** pop.size_fractional
+                delta_target_final = math.log10(10 ** target.size_fractional + full_transferred) - target.size_fractional
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_SIZE_CHANGE,
+                    target_id=target.id,
+                    field="size_fractional",
+                    delta=delta_target_final,
+                ))
                 mutations.append(StateMutation(
                     mutation_type=MutationType.POP_ABSORBED,
                     target_id=pop.id,
@@ -1916,6 +1911,19 @@ class TickLoop:
                         in_window=in_win,
                     ))
             else:
+                # Partial drain: transfer only the drain fraction
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_SIZE_CHANGE,
+                    target_id=pop.id,
+                    field="size_fractional",
+                    delta=delta_source,
+                ))
+                mutations.append(StateMutation(
+                    mutation_type=MutationType.POP_SIZE_CHANGE,
+                    target_id=target.id,
+                    field="size_fractional",
+                    delta=delta_target,
+                ))
                 if in_win:
                     events.append(NarrativeEvent(
                         text=(
@@ -6505,9 +6513,10 @@ class TickLoop:
                     pop_loc = state.locations.get(str(pop_a.current_location))
                     if pop_loc and hasattr(pop_loc, "pop_ids") and pop_a.id in pop_loc.pop_ids:
                         pop_loc.pop_ids.remove(pop_a.id)
-                    # End goal target status on Pop B; unpin; start cooldown
-                    pop_b.preaching_imago_id = None
-                    pop_b.pinned = False
-                    pop_b.preaching_goal_cooldown_until = state.tick_number + 10
+                    # End goal target status on Pop B; unpin; start cooldown (only if preaching was active)
+                    if pop_b.preaching_imago_id is not None:
+                        pop_b.preaching_imago_id = None
+                        pop_b.pinned = False
+                        pop_b.preaching_goal_cooldown_until = state.tick_number + 10
 
         return state

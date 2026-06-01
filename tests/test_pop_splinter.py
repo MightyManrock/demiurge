@@ -222,3 +222,39 @@ def test_reabsorption_skips_when_not_convergent():
     )
     mutations, events = loop._check_pop_reabsorption(state)
     assert mutations == []  # beliefs too different (orthogonal vectors → similarity ≈ 0)
+
+def test_reabsorption_full_transfer_on_final_absorption():
+    """When source drops below SPLINTER_MIN_SIZE, full remaining population is transferred."""
+    import math
+    from logic.tick_logic import (
+        TickLoop, SPLINTER_CHECK_STRIDE, SPLINTER_MIN_SIZE,
+        REABSORPTION_DRAIN_FRACTION, MutationType, REABSORPTION_CONVERGENCE_THRESHOLD,
+    )
+    loc = _uuid4r(); civ = _uuid4r()
+    beliefs = {"domain:order": 0.6, "domain:change": 0.3}
+    parent = _make_pop_r(beliefs, size=6.0, location_id=loc, civ_id=civ)
+    # Source just above min size so one drain puts it below
+    source_size = SPLINTER_MIN_SIZE + 0.05
+    source = _make_pop_r(beliefs, size=source_size, location_id=loc, civ_id=civ)
+    source.parent_pop_id = parent.id
+
+    loop = _make_loop_r()
+    state = _make_reabsorb_state(
+        {str(parent.id): parent, str(source.id): source},
+        tick=SPLINTER_CHECK_STRIDE,
+    )
+    mutations, events = loop._check_pop_reabsorption(state)
+
+    # Should get: one POP_SIZE_CHANGE for target (full transfer) + one POP_ABSORBED
+    size_changes = [m for m in mutations if m.mutation_type == MutationType.POP_SIZE_CHANGE]
+    absorbed = [m for m in mutations if m.mutation_type == MutationType.POP_ABSORBED]
+    # No POP_SIZE_CHANGE for source (absorbed instead), one for parent (full amount)
+    assert len(size_changes) == 1
+    assert str(size_changes[0].target_id) == str(parent.id)
+    assert size_changes[0].delta > 0
+    assert len(absorbed) == 1
+
+    # Verify population conservation: parent gains exactly what source had
+    full_transferred = 10 ** source_size
+    expected_delta = math.log10(10 ** 6.0 + full_transferred) - 6.0
+    assert abs(size_changes[0].delta - expected_delta) < 1e-9
