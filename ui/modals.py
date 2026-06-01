@@ -1428,6 +1428,7 @@ class RevealImagoConfigModal(ModalScreen):
             by_tier[n.tier].append(n)
 
         container = self.query_one("#reveal-tree-container", ScrollableContainer)
+        self._selected_imago_widget = None
         await container.remove_children()
 
         cells_and_spacers: list = []
@@ -1453,6 +1454,11 @@ class RevealImagoConfigModal(ModalScreen):
         grid = Grid(classes="imago-tree-inner-grid")
         await container.mount(grid)
         await grid.mount(*cells_and_spacers)
+
+        if tag == self._domain_tag and self._node_id:
+            matched = [c for c in self.query(ImagoRevealCell) if c._node.node_id == self._node_id]
+            if matched:
+                self._mark_imago_selected(matched[0])
 
         if initial_node_id:
             matched = [c for c in self.query(ImagoRevealCell) if c._node.node_id == initial_node_id]
