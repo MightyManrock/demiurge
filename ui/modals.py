@@ -3011,8 +3011,8 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 node_id     = focused._node.node_id
                 if getattr(self, f"_imago_{other}") and self._mortal_id:
                     self.dismiss((self._mortal_id,
-                                  self._imago_a if in_slot_a else node_id,
-                                  node_id if in_slot_a else self._imago_b))
+                                  node_id if in_slot_a else self._imago_a,
+                                  self._imago_b if in_slot_a else node_id))
                 event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
             if isinstance(focused, ListView):
