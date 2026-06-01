@@ -881,7 +881,11 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
         if mortal.bio_age != mortal.chrono_age:
             age_str += f"(bio:{mortal.bio_age:,.0f})"
         sp_obj   = state.species.get(str(mortal.species_id)) if mortal.species_id else None
-        sp_note  = f"  [{sp_obj.name}]" if sp_obj else ""
+        if sp_obj:
+            sp_name = sp_obj.name if (is_in_window(sp_obj) or dev_mode) else "Unknown"
+            sp_note = f"  [{sp_name}]"
+        else:
+            sp_note = ""
         prom_str = _prominence_label(mortal)
         vis_note = f"  vis:{mortal.visibility:.0%}" if not mortal.pinned else ""
         lines.append(

@@ -100,6 +100,20 @@ def _format_location_chain(state: "SimulationState", location_id) -> "str | None
 
 
 # ─────────────────────────────────────────
+# Out-of-Window warning
+# ─────────────────────────────────────────
+
+_OOW_BUG_MSG = (
+    "[bold red]⚠ THIS IS OUTSIDE OF THE VISIBILITY WINDOW AND SHOULD NOT APPEAR "
+    "— REPORT BUG.[/]"
+)
+
+
+def _oow_warning_lines() -> list[str]:
+    return ["", _OOW_BUG_MSG, ""]
+
+
+# ─────────────────────────────────────────
 # Species-presence helpers
 # ─────────────────────────────────────────
 
@@ -635,6 +649,11 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     lines: list[str] = []
     a = lines.append
 
+    if not is_in_window(m):
+        lines.extend(_oow_warning_lines())
+        if not display.DEV_MODE:
+            return Text.from_markup("\n".join(lines))
+
     role_str = m.role.value.upper() if m.role != MortalRole.OTHER else "mortal"
     status_str = m.status.value.upper()
 
@@ -656,7 +675,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
     a(f"  {_e(_prominence_label(m))}")
 
     sp_obj = state.species.get(str(m.species_id)) if m.species_id else None
-    if sp_obj:
+    if sp_obj and (is_in_window(sp_obj) or display.DEV_MODE):
         sp_md = _click_link("species", str(sp_obj.id), f"{_e(sp_obj.name)}")
         a(f"  species: {sp_md}")
 
@@ -695,7 +714,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         stratum = _pop_stratum_label(state, pop)
         sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
         pop_md = _click_link("pop", str(pop.id), f"{_e(stratum)}")
-        if sp_obj:
+        if sp_obj and (is_in_window(sp_obj) or dev):
             sp_md = _click_link("species", str(sp_obj.id), _e(sp_obj.name))
             _gated(pop, f"pop:      {pop_md} ({sp_md})  sz:{pop.size_magnitude}")
         else:
@@ -1056,17 +1075,24 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     if not pop:
         return _not_found(f"Pop {pop_id}")
 
+    dev = display.DEV_MODE
     lines: list[str] = []
     a = lines.append
 
+    if not is_in_window(pop):
+        lines.extend(_oow_warning_lines())
+        if not dev:
+            return Text.from_markup("\n".join(lines))
+
     stratum = _pop_stratum_label(state, pop)
     sp_obj = state.species.get(str(pop.species_id)) if pop.species_id else None
+    sp_in_win = sp_obj is not None and (is_in_window(sp_obj) or dev)
     # Header uses Title Case even for the "wild" no-stratum fallback.
     if pop.is_wild and stratum == "wild":
         header = "Wild"
     else:
         header = stratum
-    if sp_obj:
+    if sp_in_win:
         header += f" ({_e(sp_obj.name)})"
     a(f"[bold #4a80b0]POP: {header}[/]")
     a("")
@@ -1079,7 +1105,7 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
     a(f"  size: {pop.size_magnitude} ({_size_magnitude_word(pop.size_magnitude)})")
     a(f"  visibility: {pop.visibility:.0%}")
 
-    if sp_obj:
+    if sp_in_win:
         sp_link = _click_link("species", str(sp_obj.id), f"{_e(sp_obj.name)}")
         a(f"  species: {sp_link}")
 
@@ -1124,7 +1150,6 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
         a("")
         a(f"  [#c09030]goal target of Preach Imāgō: {_e(imago_label)}[/]")
 
-    dev = display.DEV_MODE
     a("")
     a("[bold #4a80b0]NOTABLE MORTALS[/]")
     any_m = False
@@ -1197,6 +1222,11 @@ def render_species_detail(state: "SimulationState", species_id: str) -> Text:
 
     lines: list[str] = []
     a = lines.append
+
+    if not is_in_window(sp):
+        lines.extend(_oow_warning_lines())
+        if not display.DEV_MODE:
+            return Text.from_markup("\n".join(lines))
 
     a(f"[bold #4a80b0]SPECIES: {_e(sp.name)}[/]")
     a("")
