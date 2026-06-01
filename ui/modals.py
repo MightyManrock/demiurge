@@ -642,6 +642,9 @@ class ExploreBeliefsModal(ModalScreen):
             focused_sq = next((sq for sq in self.query(DomainSquare) if sq.has_focus), None)
             if focused_sq is not None:
                 event.prevent_default(); event.stop()
+                self._selected_tag = focused_sq._tag
+                self._mark_domain_selected(focused_sq)
+                self._check_confirm()
                 self._focus_first_checkbox()
                 return
             focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
@@ -1295,7 +1298,15 @@ class RevealImagoConfigModal(ModalScreen):
                 self._check_confirm()
                 self._load_reveal_tree(tag, focus_first=True)
                 event.prevent_default(); event.stop()
-            elif isinstance(focused, ImagoRevealCell):
+            elif isinstance(focused, ImagoRevealCell) and not focused.disabled:
+                node_id = focused._node.node_id
+                self._node_id = node_id
+                ireg = get_imago_registry()
+                node = ireg.get_node(node_id)
+                name = node.name if node else node_id
+                self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+                self._mark_imago_selected(focused)
+                self._check_confirm()
                 self.query_one("#back-btn", Button).focus()
                 event.prevent_default(); event.stop()
             elif isinstance(focused, Button) and focused.id == "cancel-btn":
@@ -1308,6 +1319,12 @@ class RevealImagoConfigModal(ModalScreen):
                 target  = next((sq for sq in squares if not sq.disabled), None)
                 if target:
                     target.focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "enter":
+            if isinstance(focused, ImagoRevealCell) and not focused.disabled:
+                node_id = focused._node.node_id
+                if self._domain_tag:
+                    self.dismiss((self._domain_tag, node_id))
                 event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
             if isinstance(focused, DomainSquare):
@@ -1348,7 +1365,6 @@ class RevealImagoConfigModal(ModalScreen):
             self.query_one("#domain-label", Label).update(
                 f"Domain: {_domain_display_name(self._domain_tag)}"
             )
-            self._load_reveal_tree(self._domain_tag)
         else:
             self.query_one("#domain-label", Label).update("Domain: —")
 
@@ -1400,7 +1416,7 @@ class RevealImagoConfigModal(ModalScreen):
         else:
             btn.remove_class("continue-ready")
 
-    @work
+    @work(exclusive=True)
     async def _load_reveal_tree(self, tag: str, *, focus_first: bool = False, initial_node_id: "str | None" = None) -> None:
         tree      = tag.split(":", 1)[1]
         ireg      = get_imago_registry()
@@ -2609,10 +2625,25 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                 self._swap_imago_tree("whisper-tree-container", tag, focus_first=True)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
+                if focused._unlocked:
+                    node_id = focused._node.node_id
+                    self._imago_node_id = node_id
+                    ireg = get_imago_registry()
+                    node = ireg.get_node(node_id)
+                    name = node.name if node else node_id
+                    self.query_one("#imago-label", Label).update(f"Imāgō: {name}")
+                    self._mark_imago_selected(focused)
+                    self._check_continue()
                 self.query_one("#back-btn", Button).focus()
                 event.prevent_default(); event.stop()
             elif isinstance(focused, Button) and focused.id == "continue-btn":
                 self.query_one("#mortal-list", ListView).focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "enter":
+            if isinstance(focused, ImagoCell) and focused._unlocked:
+                node_id = focused._node.node_id
+                if self._mortal_id and self._domain_tag:
+                    self.dismiss((self._mortal_id, self._domain_tag, node_id))
                 event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
             if isinstance(focused, ListView):
@@ -2946,7 +2977,21 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
                 container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
-                if container_a in focused.ancestors_with_self:
+                in_slot_a = container_a in focused.ancestors_with_self
+                slot = "a" if in_slot_a else "b"
+                if focused._unlocked:
+                    node_id = focused._node.node_id
+                    ireg = get_imago_registry()
+                    node = ireg.get_node(node_id)
+                    name = node.name if node else node_id
+                    setattr(self, f"_imago_{slot}", node_id)
+                    slot_num = "1" if in_slot_a else "2"
+                    self.query_one(f"#sd-imago-label-{slot}", Label).update(f"Imāgō: {name}")
+                    self.query_one("#sd-tabs", TabbedContent).get_tab(f"sd-tab-{slot}").label = \
+                        self._tab_label(slot_num, getattr(self, f"_domain_{slot}"), node_id)
+                    self._mark_sd_imago_selected(slot, focused)
+                    self._check_continue()
+                if in_slot_a:
                     self.query_one("#sd-tabs", TabbedContent).active = "sd-tab-b"
                     squares_b = [sq for sq in self.query_one("#shape-dream-domain-grid-b", Grid).query(DomainSquare) if not sq.disabled]
                     if squares_b:
@@ -2956,6 +3001,18 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                 event.prevent_default(); event.stop()
             elif isinstance(focused, Button) and focused.id == "sd-continue-btn":
                 self.query_one("#sd-mortal-list", ListView).focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "enter":
+            if isinstance(focused, ImagoCell) and focused._unlocked:
+                container_a = self.query_one("#shape-dream-tree-container-a", ScrollableContainer)
+                in_slot_a   = container_a in focused.ancestors_with_self
+                slot        = "a" if in_slot_a else "b"
+                other       = "b" if in_slot_a else "a"
+                node_id     = focused._node.node_id
+                if getattr(self, f"_imago_{other}") and self._mortal_id:
+                    self.dismiss((self._mortal_id,
+                                  self._imago_a if in_slot_a else node_id,
+                                  node_id if in_slot_a else self._imago_b))
                 event.prevent_default(); event.stop()
         elif event.key == "shift+tab":
             if isinstance(focused, ListView):
