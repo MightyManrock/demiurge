@@ -126,12 +126,41 @@ _STRATUM_ORDER: list[SocialClass] = [
     SocialClass.ELITE,
 ]
 
-SPLINTER_FRACTION = 0.35
-# Fraction of the parent Pop's actual population that breaks away into the splinter.
-# Applied in log-space: splinter_size = parent_size + log10(SPLINTER_FRACTION)
-#                       parent_size  -= log10(1 - SPLINTER_FRACTION)  (≈ -0.187)
-_SPLINTER_SIZE_DELTA    = math.log10(SPLINTER_FRACTION)          # ≈ -0.456
-_SPLINTER_PARENT_DELTA  = math.log10(1.0 - SPLINTER_FRACTION)   # ≈ -0.187
+SPLINTER_CHECK_STRIDE        = 10     # ticks between splinter/reabsorption checks
+SPLINTER_MIN_FRACTION        = 0.10   # smallest possible splinter (at threshold divergence)
+SPLINTER_MAX_FRACTION        = 0.45   # largest possible splinter (at max divergence)
+SPLINTER_BELIEF_NUDGE_FACTOR = 0.50   # how far parent nudges toward civ per split
+SPLINTER_PROB_MIDPOINT       = 0.70   # divergence at which P(split) = 50%
+SPLINTER_PROB_STEEPNESS      = 15.0   # sigmoid steepness
+
+REABSORPTION_CONVERGENCE_THRESHOLD = 0.85   # cosine similarity floor to begin drain
+REABSORPTION_DRAIN_FRACTION        = 0.20   # fraction of source drained per check
+
+_CIV_SCALE_SPLINTER_OFFSET: dict[str, float] = {
+    "nascent":         +0.20,
+    "tribal":          +0.15,
+    "city_state":      +0.08,
+    "regional":        +0.03,
+    "continental":      0.00,
+    "planetary":       -0.03,
+    "interplanetary":  -0.06,
+    "interstellar":    -0.10,
+    "intergalactic":   -0.15,
+}
+
+
+def _splinter_probability(divergence: float, effective_midpoint: float) -> float:
+    """Sigmoid P(split): near-zero at threshold, near-certain above ~0.88."""
+    x = SPLINTER_PROB_STEEPNESS * (divergence - effective_midpoint)
+    return 1.0 / (1.0 + math.exp(-x))
+
+
+def _splinter_fraction(divergence: float) -> float:
+    """Fraction of parent that breaks away, scaled linearly with divergence magnitude."""
+    span  = divergence - SPLINTER_DIVERGENCE_THRESHOLD
+    scale = span / (1.0 - SPLINTER_DIVERGENCE_THRESHOLD)
+    return SPLINTER_MIN_FRACTION + scale * (SPLINTER_MAX_FRACTION - SPLINTER_MIN_FRACTION)
+
 
 WHISPER_POP_SPLASH = 0.20
 # Fraction of a whisper's belief delta that ripples to the target mortal's
@@ -1726,7 +1755,7 @@ class TickLoop:
                 wild_stratum=pop.wild_stratum,
                 occupation=pop.occupation,
                 current_location=pop.current_location,
-                size_fractional=max(0.0, pop.size_fractional + _SPLINTER_SIZE_DELTA),
+                size_fractional=max(0.0, pop.size_fractional + math.log10(0.35)),
                 dominant_beliefs=dict(pop.dominant_beliefs),
                 culture_tags=dict(pop.culture_tags),
                 rider_traits=dict(pop.rider_traits),
@@ -6225,7 +6254,7 @@ class TickLoop:
                 if parent_pop is not None and splinter is not None:
                     # Reduce parent by the complement fraction in log-space
                     parent_pop.size_fractional = max(
-                        0.0, parent_pop.size_fractional + _SPLINTER_PARENT_DELTA
+                        0.0, parent_pop.size_fractional + math.log10(1.0 - 0.35)
                     )
                     # Wire lineage
                     splinter_id_str = str(splinter.id)
