@@ -533,18 +533,34 @@ def _linkify(text: str, name_index: dict[str, tuple[str, str]]) -> str:
 _ENTITY_SENTINEL_RE = re.compile(r"§(pop|civ|imago|species|domain|mortal)§([^§]+)§([^§]+)§")
 
 
-def _process_narrative(text: str, name_index: dict[str, tuple[str, str]]) -> str:
+def _process_narrative(
+    text: str,
+    name_index: dict[str, tuple[str, str]],
+    state: "SimulationState | None" = None,
+    dev_mode: bool = False,
+) -> str:
     """Resolve §type§uuid§label§ sentinels, then linkify remaining plain text.
 
     Must split on sentinels BEFORE linkifying: _linkify would otherwise match
     entity names embedded inside sentinel tokens and corrupt the token format.
+
+    When state is provided and dev_mode is False, §civ§ and §species§ sentinels
+    for entities outside the Window are rendered as plain "Unknown" (no link).
     """
     parts: list[str] = []
     last = 0
     for m in _ENTITY_SENTINEL_RE.finditer(text):
         if m.start() > last:
             parts.append(_linkify(text[last:m.start()], name_index))
-        parts.append(_entity_link(m.group(1), m.group(2), m.group(3)))
+        kind, eid, label = m.group(1), m.group(2), m.group(3)
+        if state is not None and not dev_mode and kind in ("civ", "species"):
+            lookup = state.civilizations if kind == "civ" else state.species
+            entity = lookup.get(eid)
+            if entity is not None and not is_in_window(entity):
+                parts.append("Unknown")
+                last = m.end()
+                continue
+        parts.append(_entity_link(kind, eid, label))
         last = m.end()
     if last < len(text):
         parts.append(_linkify(text[last:], name_index))
@@ -610,7 +626,7 @@ def display_tick_result_categorized(
     if visible_events:
         out.append(("system", "WORLD EVENTS"))
         for ev in visible_events:
-            text = _process_narrative(ev.text, _nl)
+            text = _process_narrative(ev.text, _nl, state, dev_mode)
             if not ev.in_window:
                 out.append(("system", f"  • [dim]{text}[/dim]"))
             else:
@@ -623,20 +639,20 @@ def display_tick_result_categorized(
         for entry in visible_action_entries:
             out.append((
                 "actions",
-                f"  \\[{entry.outcome.value.upper()}] {_process_narrative(entry.narrative, _nl)}",
+                f"  \\[{entry.outcome.value.upper()}] {_process_narrative(entry.narrative, _nl, state, dev_mode)}",
             ))
         out.append(("actions", ""))
 
     if result.agent_narratives:
         out.append(("proxius", "PROXIUS REPORTS"))
         for n in result.agent_narratives:
-            out.append(("proxius", f"  • {_process_narrative(n, _nl)}"))
+            out.append(("proxius", f"  • {_process_narrative(n, _nl, state, dev_mode)}"))
         out.append(("proxius", ""))
 
     if result.mortal_narratives:
         out.append(("mortal", "PINNED MORTALS"))
         for n in result.mortal_narratives:
-            out.append(("mortal", f"  • {_process_narrative(n, _nl)}"))
+            out.append(("mortal", f"  • {_process_narrative(n, _nl, state, dev_mode)}"))
         out.append(("mortal", ""))
 
     if result.essence_claimed_by_domain:
