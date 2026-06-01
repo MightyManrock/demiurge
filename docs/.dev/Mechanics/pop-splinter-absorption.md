@@ -83,6 +83,41 @@ After the split, each `NotableMortal` in the parent's `notable_mortal_ids` is ch
 
 ---
 
+## Identity anchor (`anchor_identity_pull`)
+
+When a Pop splinters, the new splinter receives an `identity_anchor`: a snapshot of its beliefs and non-`practice:` culture tags frozen at the moment of schism. This anchor counters the conformity pressure that would otherwise push the splinter straight back toward the civ's established beliefs during its cooldown window.
+
+### How it works
+
+`anchor_identity_pull` (in `logic/belief_propagation.py`) fires on every conformity stride for each Pop that has both `identity_anchor` set and `splinter_cooldown > 0`. It uses the same per-civ stride stagger as `civ_conformity_pressure`, so the two forces always fire on the same ticks and the net effect is legible.
+
+For each tag in the anchor, the function emits a `POP_BELIEF_SHIFT` or `POP_CULTURE_SHIFT` mutation that nudges the splinter's current value back toward the anchor value:
+
+```
+delta = (anchor_val - pop_val) × anchor_pull_rate × anchor_strength
+```
+
+`anchor_strength` fades linearly from 1.0 to 0.0 over the last `anchor_fade_strides` strides of the cooldown window:
+
+```
+anchor_strength = min(1.0, splinter_cooldown / anchor_fade_strides)
+```
+
+At cooldown expiry, the anchor is cleared (`identity_anchor = None`).
+
+### Effect
+
+The anchor gives a splinter breathing room to remain distinct. Without it, `civ_conformity_pressure` would immediately nudge the splinter back toward `established_beliefs`, causing rapid reabsorption even when the splinter's divergence was genuine. With the anchor active, conformity pressure and anchor pull partially cancel out — the splinter drifts slowly rather than snapping back — and only after the cooldown expires does the civ's pressure go unopposed.
+
+### Configuration (`TickConfig`)
+
+| Field | Default | Meaning |
+|---|---|---|
+| `anchor_pull_rate` | `0.0002` | Base per-stride nudge toward anchor values |
+| `anchor_fade_strides` | `3` | Strides before cooldown expiry at which strength begins scaling to 0 |
+
+---
+
 ## Reabsorption check (`_check_pop_reabsorption`)
 
 ### When it runs
@@ -140,6 +175,8 @@ When `new_source_size < SPLINTER_MIN_SIZE`, the source is fully absorbed on that
 | `SPLINTER_BELIEF_NUDGE_FACTOR` | 0.50 | Parent nudge strength toward civ beliefs |
 | `REABSORPTION_CONVERGENCE_THRESHOLD` | 0.85 | Cosine similarity required to begin drain |
 | `REABSORPTION_DRAIN_FRACTION` | 0.20 | Fraction of source drained per check |
+| `anchor_pull_rate` (TickConfig) | 0.0002 | Base per-stride nudge toward identity anchor values |
+| `anchor_fade_strides` (TickConfig) | 3 | Strides before cooldown expiry at which anchor strength begins fading |
 
 ---
 

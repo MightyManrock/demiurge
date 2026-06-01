@@ -156,7 +156,7 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Mortal needs, trait profiles, leisure/socialize actions, Directives, PopLocation wealth | [needs-and-directives.md](docs/.dev/Mechanics/needs-and-directives.md) |
 | Linked Pops — data model, link factor, drift, cascade, travel milieu | [linked-pops.md](docs/.dev/Mechanics/linked-pops.md) |
 | Log narrative events — how to emit, sentinel format, entity linking reference | [narrative-events.md](docs/.dev/Mechanics/narrative-events.md) |
-| Pop splitting and reabsorption — divergence check, probabilistic gate, civ-scale modifier, mortal redistribution, passive drain | [pop-splinter-absorption.md](docs/.dev/Mechanics/pop-splinter-absorption.md) |
+| Pop splitting and reabsorption — divergence check, probabilistic gate, civ-scale modifier, mortal redistribution, passive drain, identity anchor | [pop-splinter-absorption.md](docs/.dev/Mechanics/pop-splinter-absorption.md) |
 
 ## Extending the system
 
@@ -180,6 +180,12 @@ Active implementation plans live in [`docs/.dev/plans/PLANS.md`](docs/.dev/plans
 - `docs/.dev/Brainstorming/` — design explorations not yet committed to a plan
 - `docs/.dev/superpowers/plans/` — agentic implementation plans for recent feature work
 - `docs/` — reserved for future player-facing documentation
+
+## UI behaviors
+
+- **Auto-pause on modal open**: `GameScreen.on_screen_suspend` fires whenever any modal is pushed in front of it. If auto-advance is running, it is paused and `_modal_paused` is set. `GameScreen.on_screen_resume` fires when the screen stack returns to `GameScreen` and restores auto-advance. This covers all modals automatically — no per-modal handling needed.
+- **Modal keyboard conventions**: Tab from a focused widget commits that selection before moving focus to the next section. Enter on a terminal selection widget (ImagoCell, ImagoRevealCell) advances directly to the confirmation screen when all parameters are set. Hover over Domain buttons previews labels and (in Reveal Imāgō) the Imāgō Tree without committing selection; mouse-off snaps back to the committed selection.
+- **Splinter Pop naming**: New splinter Pops are seeded with a name derived from the parent Pop's label (e.g. "Farmers Splinter"). This is the initial name only; it can be overwritten by authored splinter mechanics.
 
 ## Known issues
 
