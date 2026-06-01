@@ -183,13 +183,23 @@ def _select_local_pop(mortal, state) -> Optional[str]:
                   if str(p.current_location) == cur_loc_str]
     if not local_pops:
         return None
+    _mortal_home_pop = state.pops.get(str(mortal.pop_milieu or mortal.pop_id or ""))
+    _mortal_civ = str(_mortal_home_pop.civilization_id) if _mortal_home_pop and _mortal_home_pop.civilization_id else None
+
     def _score(item: tuple) -> float:
         _, pop = item
         s = 0.0
         if leisure_pressing:
             s += _pop_practice_quality(mortal.culture_tags, pop.culture_tags)
         if belonging_pressing:
-            s += _pop_social_quality(pop.culture_tags)
+            _same_species = (str(mortal.species_id) == str(pop.species_id)) if (mortal.species_id and pop.species_id) else True
+            _same_civ = (_mortal_civ == str(pop.civilization_id)) if (_mortal_civ and pop.civilization_id) else True
+            s += _pop_social_quality(
+                mortal.belief_tags, mortal.culture_tags,
+                pop.dominant_beliefs, pop.culture_tags,
+                same_species=_same_species,
+                same_civ=_same_civ,
+            )
         return s
     best_pid, _ = max(local_pops, key=_score)
     return best_pid
@@ -400,7 +410,12 @@ def evaluate_civilian_action(
     # No multiplier for crew transit — socializing with your crew is genuinely fulfilling.
     _belonging_u = urgency.get("belonging", 0.0)
     if _local_pop is not None and (_belonging_u > 0 or _in_transit_with_crew):
-        _sq = _pop_social_quality(_local_pop.culture_tags)
+        _sq = _pop_social_quality(
+            mortal.belief_tags, mortal.culture_tags,
+            _local_pop.dominant_beliefs, _local_pop.culture_tags,
+            same_species=(str(mortal.species_id) == str(_local_pop.species_id)) if (mortal.species_id and _local_pop.species_id) else True,
+            same_civ=True,  # mortal socialises with their milieu pop — treat as same-civ
+        )
         if _belonging_u > 0:
             _socialize_score = _belonging_u * SOCIALIZE_BASE_GAIN * _sq
         else:
