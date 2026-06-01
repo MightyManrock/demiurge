@@ -385,3 +385,36 @@ def test_might_as_well_prob_clamped():
     extreme_reduce = {t: 10.0 for t in ["values:indulgence", "values:moderation"]}
     assert _might_as_well_prob(extreme_boost) == pytest.approx(0.60)
     assert _might_as_well_prob(extreme_reduce) == pytest.approx(0.05)
+
+
+# ── Cosine similarity and new _pop_social_quality signature tests ──────────────
+
+from logic.civilian_agent_logic import _cosine_sim, _pop_social_quality
+
+
+def test_cosine_sim_identical_vectors():
+    v = {"domain:fire": 0.8, "values:honor": 0.5}
+    assert _cosine_sim(v, v) == pytest.approx(1.0, abs=0.01)
+
+
+def test_cosine_sim_empty_returns_neutral():
+    assert _cosine_sim({}, {}) == pytest.approx(0.5)
+    assert _cosine_sim({"a": 0.5}, {}) == pytest.approx(0.5)
+
+
+def test_cosine_sim_orthogonal_vectors():
+    a = {"domain:fire": 0.8}
+    b = {"domain:water": 0.8}
+    assert _cosine_sim(a, b) == pytest.approx(0.5)  # no overlap → normalized 0.5
+
+
+def test_pop_social_quality_new_signature_accepted():
+    score = _pop_social_quality(
+        mortal_beliefs={"domain:fire": 0.7},
+        mortal_culture={"values:honor": 0.6},
+        pop_beliefs={"domain:fire": 0.7},
+        pop_culture={"values:honor": 0.6, "values:solidarity": 0.8, "practice:revelry": 0.7},
+        same_species=True,
+        same_civ=True,
+    )
+    assert 0.0 <= score <= 1.0

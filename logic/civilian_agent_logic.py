@@ -66,6 +66,24 @@ def _need_urgency(need) -> float:
     return base
 
 
+
+def _cosine_sim(a: dict[str, float], b: dict[str, float]) -> float:
+    """Cosine similarity between two float-valued tag vectors, normalized to [0, 1].
+
+    Returns 0.5 (neutral) if either vector is empty or zero-magnitude.
+    Maps raw cosine [-1, 1] to [0, 1] via (raw + 1) / 2.
+    """
+    if not a or not b:
+        return 0.5
+    keys = set(a) | set(b)
+    dot = sum(a.get(k, 0.0) * b.get(k, 0.0) for k in keys)
+    mag_a = sum(v * v for v in a.values()) ** 0.5
+    mag_b = sum(v * v for v in b.values()) ** 0.5
+    if mag_a == 0.0 or mag_b == 0.0:
+        return 0.5
+    raw = dot / (mag_a * mag_b)
+    return max(0.0, min(1.0, (raw + 1.0) / 2.0))
+
 def _pop_practice_quality(mortal_tags: dict[str, float], pop_tags: dict[str, float]) -> float:
     """Weighted leisure quality: mortal preference × pop practice level, normalized to [0, 1]."""
     EXCLUDED = {"practice:ritual", "practice:revelry"}
@@ -81,13 +99,72 @@ def _pop_practice_quality(mortal_tags: dict[str, float], pop_tags: dict[str, flo
     return min(1.0, total / total_weight)
 
 
-def _pop_social_quality(pop_tags: dict[str, float]) -> float:
-    """Belonging quality from socializing: driven by pop solidarity + revelry."""
-    base = (
-        pop_tags.get("values:solidarity", 0.3) * 0.5
-        + pop_tags.get("practice:revelry", 0.3) * 0.5
-    )
-    return min(1.0, max(0.0, base))
+# ── Social quality constants (tunable) ───────────────────────────────────────
+_CROSS_SPECIES_BASE = 0.80
+_CROSS_CIV_BASE = 0.70
+_CROSS_SPECIES_XENO_NEUTRAL = 0.30
+_CROSS_CIV_XENO_NEUTRAL = 0.40
+_CROSS_MAX_BONUS = 0.20
+_NEG_XENO_MIN = 0.30
+_SOLIDARITY_BONUS_WEIGHT = 0.15
+_REVELRY_BONUS_WEIGHT = 0.15
+
+
+def _cross_factor(base: float, xeno_neutral: float, xeno: float) -> float:
+    """Compatibility multiplier for a cross-group barrier (species or civ).
+
+    base: factor at xeno=0 (e.g. 0.80 → 20% penalty)
+    xeno_neutral: xenophilia value where factor reaches 1.0 (no penalty)
+    xeno: mortal's values:xenophilia in [-1, 1]
+    """
+    if xeno < 0.0:
+        return max(_NEG_XENO_MIN, base + xeno * (1.0 - base))
+    elif xeno <= xeno_neutral:
+        return base + (1.0 - base) * (xeno / xeno_neutral)
+    else:
+        excess = (xeno - xeno_neutral) / max(0.001, 1.0 - xeno_neutral)
+        return min(1.0 + _CROSS_MAX_BONUS, 1.0 + _CROSS_MAX_BONUS * excess)
+
+
+def _pop_social_quality(
+    mortal_beliefs: dict[str, float],
+    mortal_culture: dict[str, float],
+    pop_beliefs: dict[str, float],
+    pop_culture: dict[str, float],
+    same_species: bool = True,
+    same_civ: bool = True,
+) -> float:
+    """Belonging quality score [0, 1] for a mortal socialising with a pop.
+
+    Drives the 'belonging' need. Components:
+    - Cosine similarity of beliefs + non-practice culture (xenophilia-modulated)
+    - Cross-species and cross-civ penalties (weighted more heavily by xenophilia)
+    - Small additive bonus from pop solidarity and revelry
+    """
+    xeno = mortal_culture.get("values:xenophilia", 0.0)
+
+    def _profile(beliefs: dict, culture: dict) -> dict:
+        v = dict(beliefs)
+        v.update({t: val for t, val in culture.items() if not t.startswith("practice:")})
+        return v
+
+    sim = _cosine_sim(_profile(mortal_beliefs, mortal_culture), _profile(pop_beliefs, pop_culture))
+
+    if 0.0 < xeno <= 0.5:
+        adj_sim = sim + (0.5 - sim) * (xeno / 0.5)
+    elif xeno > 0.5:
+        adj_sim = 0.5 + (0.5 - sim) * ((xeno - 0.5) / 0.5)
+    else:
+        adj_sim = sim
+
+    species_f = _cross_factor(_CROSS_SPECIES_BASE, _CROSS_SPECIES_XENO_NEUTRAL, xeno) if not same_species else 1.0
+    civ_f = _cross_factor(_CROSS_CIV_BASE, _CROSS_CIV_XENO_NEUTRAL, xeno) if not same_civ else 1.0
+    neg_f = max(_NEG_XENO_MIN, 1.0 + xeno * (1.0 - _NEG_XENO_MIN)) if xeno < 0.0 else 1.0
+
+    base = adj_sim * species_f * civ_f * neg_f
+    solidarity = pop_culture.get("values:solidarity", 0.3) * _SOLIDARITY_BONUS_WEIGHT
+    revelry = pop_culture.get("practice:revelry", 0.3) * _REVELRY_BONUS_WEIGHT
+    return min(1.0, max(0.0, base + solidarity + revelry))
 
 
 def _select_local_pop(mortal, state) -> Optional[str]:
