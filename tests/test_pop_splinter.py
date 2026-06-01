@@ -45,3 +45,30 @@ def test_splinter_fraction_midpoint():
     f = _splinter_fraction(mid_div)
     expected = (SPLINTER_MIN_FRACTION + SPLINTER_MAX_FRACTION) / 2.0
     assert abs(f - expected) < 0.01
+
+
+# ── _check_pop_splinters stride gate ──────────────────────────────────────
+
+def _make_loop():
+    from logic.tick_logic import TickLoop
+    return TickLoop(rng_seed=42)
+
+def test_splinter_check_returns_empty_off_stride():
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE
+    loop = _make_loop()
+    state = MagicMock()
+    state.tick_number = 1  # not on stride
+    state.pops = {}
+    mutations, events = loop._check_pop_splinters(state)
+    assert mutations == []
+    assert events == []
+
+def test_splinter_check_runs_on_stride():
+    from logic.tick_logic import SPLINTER_CHECK_STRIDE
+    loop = _make_loop()
+    state = MagicMock()
+    state.tick_number = SPLINTER_CHECK_STRIDE
+    state.pops = {}
+    state.civilizations = {}
+    mutations, events = loop._check_pop_splinters(state)
+    assert mutations == []  # no pops → nothing to do

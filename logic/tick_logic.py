@@ -1715,17 +1715,20 @@ class TickLoop:
         self,
         state: SimulationState,
     ) -> tuple[list[StateMutation], list[NarrativeEvent]]:
-        """Check every eligible Pop for belief divergence and emit splinter mutations."""
+        """Check every eligible Pop for belief divergence and emit splinter mutations.
+        Stride-gated (SPLINTER_CHECK_STRIDE); probabilistic gate per pop."""
         mutations: list[StateMutation] = []
         events: list[NarrativeEvent] = []
+        if state.tick_number % SPLINTER_CHECK_STRIDE != 0:
+            return mutations, events
         for pid, pop in list(state.pops.items()):
+            if pop.asset_crew_for is not None:
+                continue
             if pop.splinter_cooldown > 0:
                 pop.splinter_cooldown -= 1
                 continue
             if pop.size_fractional < SPLINTER_MIN_SIZE:
                 continue
-            if pop.child_pop_ids:
-                continue  # already has children; prevent cascade in one tick
             if not pop.civilization_id:
                 continue
             civ = state.civilizations.get(str(pop.civilization_id))
@@ -1733,6 +1736,11 @@ class TickLoop:
                 continue
             divergence = 1.0 - cosine_similarity(pop.dominant_beliefs, civ.established_beliefs)
             if divergence < SPLINTER_DIVERGENCE_THRESHOLD:
+                continue
+
+            scale_offset = _CIV_SCALE_SPLINTER_OFFSET.get(civ.scale.value, 0.0)
+            effective_midpoint = SPLINTER_PROB_MIDPOINT + scale_offset
+            if self._rng.random() >= _splinter_probability(divergence, effective_midpoint):
                 continue
 
             top_div_tag = max(
@@ -1747,6 +1755,19 @@ class TickLoop:
             domain_sentinel = f"§domain§{top_div_tag}§{short_label}§" if top_div_tag else short_label
             label = pop_label(pop)
 
+            fraction = _splinter_fraction(divergence)
+            original_size = pop.size_fractional
+
+            # Capture deviant beliefs before nudging parent
+            original_beliefs = dict(pop.dominant_beliefs)
+
+            # Shrink parent and nudge beliefs toward civ
+            pop.size_fractional = max(0.0, original_size + math.log10(1.0 - fraction))
+            nudge = fraction * SPLINTER_BELIEF_NUDGE_FACTOR
+            for tag, val in list(pop.dominant_beliefs.items()):
+                civ_val = civ.established_beliefs.get(tag, 0.0)
+                pop.dominant_beliefs[tag] = val + (civ_val - val) * nudge
+
             splinter = Pop(
                 id=uuid4(),
                 civilization_id=pop.civilization_id,
@@ -1755,8 +1776,8 @@ class TickLoop:
                 wild_stratum=pop.wild_stratum,
                 occupation=pop.occupation,
                 current_location=pop.current_location,
-                size_fractional=max(0.0, pop.size_fractional + math.log10(0.35)),  # temporary — replaced with _splinter_fraction() in next task
-                dominant_beliefs=dict(pop.dominant_beliefs),
+                size_fractional=max(0.0, original_size + math.log10(fraction)),
+                dominant_beliefs=original_beliefs,
                 culture_tags=dict(pop.culture_tags),
                 rider_traits=dict(pop.rider_traits),
                 parent_pop_id=pop.id,
@@ -1764,13 +1785,13 @@ class TickLoop:
                 pinned=False,
                 splinter_cooldown=SPLINTER_COOLDOWN_TICKS,
             )
-            _parent_sentinel = f"§pop§{pop.id}§{label}§"
+
+            _parent_sentinel  = f"§pop§{pop.id}§{label}§"
             _splinter_sentinel = f"§pop§{splinter.id}§{label}§"
-            _civ_label = civ.name.removeprefix("The ")
-            _civ_sentinel = f"§civ§{civ.id}§{_civ_label}§"
             note = (
-                f"[Pop splinter] Part of {_civ_sentinel} {_parent_sentinel} broke away as "
-                f"{_splinter_sentinel} over {domain_sentinel} (divergence {divergence:.2f})."
+                f"[Pop splinter] Part of {_parent_sentinel} ({civ.name}) "
+                f"broke away as {_splinter_sentinel} over {domain_sentinel} "
+                f"(divergence {divergence:.2f})."
             )
             pop.splinter_cooldown = SPLINTER_COOLDOWN_TICKS
             mutations.append(StateMutation(
@@ -6252,10 +6273,6 @@ class TickLoop:
                 parent_pop = state.pops.get(tid) if tid else None
                 splinter: "Pop" = m.new_value  # type: ignore[assignment]
                 if parent_pop is not None and splinter is not None:
-                    # Reduce parent by the complement fraction in log-space
-                    parent_pop.size_fractional = max(
-                        0.0, parent_pop.size_fractional + math.log10(1.0 - 0.35)  # temporary — replaced with _splinter_fraction() in next task
-                    )
                     # Wire lineage
                     splinter_id_str = str(splinter.id)
                     parent_pop.child_pop_ids.append(splinter.id)
