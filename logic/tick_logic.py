@@ -51,7 +51,6 @@ from core.universe_core import (
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import (
     CultureRegistry, get_registry as get_culture_registry, peer_culture_tags,
-    expand_culture_tag,
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
@@ -61,6 +60,7 @@ from logic.civilian_agent_logic import (
     _select_local_pop,
     _pop_practice_quality,
     _pop_social_quality,
+    _effective_commerce_quality,
     LEISURE_BASE_GAIN,
     SOCIALIZE_BASE_GAIN,
     LEISURE_SATIATION_HOLD_BASE,
@@ -5284,7 +5284,7 @@ class TickLoop:
 
             # Passive restoration for needs that are auto-satisfied by stable conditions
             loc = state.locations.get(str(mortal.current_location))
-            if loc and getattr(loc, "commerce_quality", 0) > 0:
+            if loc and _effective_commerce_quality(loc, state) > 0:
                 sust = cs.get_need(NEED_SUSTENANCE)
                 if sust and sust.satisfaction < 1.0:
                     sust.satisfaction = min(1.0, sust.satisfaction + 0.03)
@@ -5383,7 +5383,7 @@ class TickLoop:
 
             elif action == "sell":
                 loc = state.locations.get(str(mortal.current_location))
-                quality = getattr(loc, "commerce_quality", 0.5)
+                quality = _effective_commerce_quality(loc, state) if loc else 0.5
                 for res in cs.inventory:
                     if "sell" not in res.usable_for or res.quantity < res.threshold:
                         continue
@@ -5458,7 +5458,7 @@ class TickLoop:
 
             elif action == "spend":
                 loc = state.locations.get(str(mortal.current_location))
-                quality = getattr(loc, "commerce_quality", 0.5)
+                quality = _effective_commerce_quality(loc, state) if loc else 0.5
                 for res in cs.inventory:
                     if "spend" not in res.usable_for or res.quantity < res.threshold:
                         continue
@@ -6427,21 +6427,20 @@ class TickLoop:
                 tag = str(m.new_value) if m.new_value else m.field
                 if tid and tid in state.mortals and tag and m.delta is not None:
                     culture = state.mortals[tid].culture_tags
-                    for resolved_tag, resolved_delta in expand_culture_tag(tag, m.delta):
-                        current = culture.get(resolved_tag, 0.0)
-                        _s = resolved_tag.startswith(("values:", "practice:"))
-                        delta = resolved_delta * belief_inertia(abs(current) if _s else current, resolved_delta)
-                        if resolved_tag.startswith("values:"):
-                            delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
-                        if _s:
-                            new_strength = max(-1.0, min(1.0, current + delta))
-                        else:
-                            cap = BELIEF_CAP if delta > 0 else 1.0
-                            new_strength = max(0.0, min(cap, current + delta))
-                        if abs(new_strength) > 1e-5:
-                            culture[resolved_tag] = new_strength
-                        elif resolved_tag in culture:
-                            del culture[resolved_tag]
+                    current = culture.get(tag, 0.0)
+                    _s = tag.startswith(("values:", "practice:"))
+                    delta = m.delta * belief_inertia(abs(current) if _s else current, m.delta)
+                    if tag.startswith("values:"):
+                        delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
+                    if _s:
+                        new_strength = max(-1.0, min(1.0, current + delta))
+                    else:
+                        cap = BELIEF_CAP if delta > 0 else 1.0
+                        new_strength = max(0.0, min(cap, current + delta))
+                    if abs(new_strength) > 1e-5:
+                        culture[tag] = new_strength
+                    elif tag in culture:
+                        del culture[tag]
 
             elif m.mutation_type == MutationType.POP_VISIBILITY:
                 if tid and tid in state.pops:
@@ -6472,21 +6471,20 @@ class TickLoop:
                 tag = str(m.new_value) if m.new_value else m.field
                 if tid and tid in state.civilizations and tag and m.delta is not None:
                     est_cult = state.civilizations[tid].established_culture_tags
-                    for resolved_tag, resolved_delta in expand_culture_tag(tag, m.delta):
-                        current = est_cult.get(resolved_tag, 0.0)
-                        _s = resolved_tag.startswith(("values:", "practice:"))
-                        delta = resolved_delta * belief_inertia(abs(current) if _s else current, resolved_delta)
-                        if resolved_tag.startswith("values:"):
-                            delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
-                        if _s:
-                            new_strength = max(-1.0, min(1.0, current + delta))
-                        else:
-                            cap = BELIEF_CAP if delta > 0 else 1.0
-                            new_strength = max(0.0, min(cap, current + delta))
-                        if abs(new_strength) > CULTURE_FLOOR:
-                            est_cult[resolved_tag] = new_strength
-                        elif resolved_tag in est_cult:
-                            del est_cult[resolved_tag]
+                    current = est_cult.get(tag, 0.0)
+                    _s = tag.startswith(("values:", "practice:"))
+                    delta = m.delta * belief_inertia(abs(current) if _s else current, m.delta)
+                    if tag.startswith("values:"):
+                        delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
+                    if _s:
+                        new_strength = max(-1.0, min(1.0, current + delta))
+                    else:
+                        cap = BELIEF_CAP if delta > 0 else 1.0
+                        new_strength = max(0.0, min(cap, current + delta))
+                    if abs(new_strength) > CULTURE_FLOOR:
+                        est_cult[tag] = new_strength
+                    elif tag in est_cult:
+                        del est_cult[tag]
 
             elif m.mutation_type == MutationType.POP_SPLINTER:
                 # m.target_id = parent Pop UUID; m.new_value = splinter Pop object
@@ -6526,25 +6524,24 @@ class TickLoop:
                 tag = m.field
                 if tid and tid in state.pops and tag and m.delta is not None:
                     pop = state.pops[tid]
-                    for resolved_tag, resolved_delta in expand_culture_tag(tag, m.delta):
-                        current = pop.culture_tags.get(resolved_tag, 0.0)
-                        _s = resolved_tag.startswith(("values:", "practice:"))
-                        delta = resolved_delta * belief_inertia(abs(current) if _s else current, resolved_delta)
-                        if resolved_tag.startswith("values:"):
-                            delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
-                        if _s:
-                            new_val = max(-1.0, min(1.0, current + delta))
-                        else:
-                            cap = BELIEF_CAP if delta > 0 else 1.0
-                            new_val = max(0.0, min(cap, current + delta))
-                        # Sub-floor accumulation (lever C, culture variant): allow
-                        # entries to persist below CULTURE_FLOOR within a tick so
-                        # repeated splashes can compound. `_prune_weak_beliefs`
-                        # clears entries still under floor at the next passive phase.
-                        if abs(new_val) > 1e-5:
-                            pop.culture_tags[resolved_tag] = new_val
-                        elif resolved_tag in pop.culture_tags:
-                            del pop.culture_tags[resolved_tag]
+                    current = pop.culture_tags.get(tag, 0.0)
+                    _s = tag.startswith(("values:", "practice:"))
+                    delta = m.delta * belief_inertia(abs(current) if _s else current, m.delta)
+                    if tag.startswith("values:"):
+                        delta *= max(0.05, 1.0 - state.config.values_stubbornness_factor)
+                    if _s:
+                        new_val = max(-1.0, min(1.0, current + delta))
+                    else:
+                        cap = BELIEF_CAP if delta > 0 else 1.0
+                        new_val = max(0.0, min(cap, current + delta))
+                    # Sub-floor accumulation (lever C, culture variant): allow
+                    # entries to persist below CULTURE_FLOOR within a tick so
+                    # repeated splashes can compound. `_prune_weak_beliefs`
+                    # clears entries still under floor at the next passive phase.
+                    if abs(new_val) > 1e-5:
+                        pop.culture_tags[tag] = new_val
+                    elif tag in pop.culture_tags:
+                        del pop.culture_tags[tag]
 
             elif m.mutation_type == MutationType.POP_ABSORBED:
                 # target_id = Pop A UUID, new_value = Pop B UUID string

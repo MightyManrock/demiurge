@@ -167,6 +167,27 @@ def _pop_social_quality(
     return min(1.0, max(0.0, base + solidarity + revelry))
 
 
+_TRADE_QUALITY_WEIGHT = 0.30  # max bonus contribution from practice:trade pops
+
+
+def _effective_commerce_quality(loc, state) -> float:
+    """Authored commerce_quality + size-weighted pop practice:trade contribution."""
+    base = getattr(loc, "commerce_quality", 0.5)
+    pop_ids = getattr(loc, "pop_ids", [])
+    if not pop_ids:
+        return base
+    pops = [state.pops[str(pid)] for pid in pop_ids if str(pid) in state.pops]
+    if not pops:
+        return base
+    total_size = sum(p.size_fractional for p in pops)
+    if total_size == 0.0:
+        return base
+    trade_activity = sum(
+        p.culture_tags.get("practice:trade", 0.0) * p.size_fractional for p in pops
+    ) / total_size
+    return min(1.0, base + trade_activity * _TRADE_QUALITY_WEIGHT)
+
+
 def _select_local_pop(mortal, state) -> Optional[str]:
     """Return pop_id of the best pop at mortal's location for pressing social needs,
     or None if no social needs are pressing or no pops are co-located.

@@ -524,3 +524,41 @@ def test_practice_trade_negative_synergy_with_protectionism():
     reg = _get_culture_registry()
     synergy = reg.synergy("practice:trade", "relations:protectionism")
     assert synergy < 0
+
+
+from logic.civilian_agent_logic import _effective_commerce_quality
+
+def _make_loc_and_state(commerce_quality, pop_trade_vals):
+    from core.universe_core import PopLocation
+    from uuid import uuid4
+    from unittest.mock import MagicMock
+    loc = MagicMock(spec=PopLocation)
+    loc.commerce_quality = commerce_quality
+    loc.pop_ids = []
+    state = MagicMock()
+    state.pops = {}
+    for trade_val, size in pop_trade_vals:
+        pid = uuid4()
+        pop = MagicMock()
+        pop.culture_tags = {"practice:trade": trade_val} if trade_val > 0 else {}
+        pop.size_fractional = size
+        loc.pop_ids.append(pid)
+        state.pops[str(pid)] = pop
+    return loc, state
+
+def test_effective_commerce_no_pops_returns_base():
+    loc, state = _make_loc_and_state(0.7, [])
+    assert _effective_commerce_quality(loc, state) == pytest.approx(0.7)
+
+def test_effective_commerce_trader_pop_adds_bonus():
+    loc, state = _make_loc_and_state(0.5, [(0.8, 5.0)])
+    result = _effective_commerce_quality(loc, state)
+    assert result > 0.5
+
+def test_effective_commerce_clamped_to_one():
+    loc, state = _make_loc_and_state(0.9, [(1.0, 10.0)])
+    assert _effective_commerce_quality(loc, state) <= 1.0
+
+def test_effective_commerce_size_weighted():
+    loc_large, state_large = _make_loc_and_state(0.5, [(0.8, 10.0), (0.0, 1.0)])
+    assert _effective_commerce_quality(loc_large, state_large) > 0.5
