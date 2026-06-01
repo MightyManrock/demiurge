@@ -1365,10 +1365,10 @@ class DivineWisdomTab(ContentTab):
         lines: list[str] = []
         a = lines.append
         a("[bold #4a80b0]━━ DIVINE WISDOM ━━[/]")
-        a("[#5a7090]Conceptual frameworks (Imagines) revealed and yet to be revealed,[/]")
+        a("[#5a7090]Conceptual frameworks (Imāginēs) revealed and yet to be revealed,[/]")
         a("[#5a7090]organized by Domain. Click a Domain to explore its tree.[/]")
         a("")
-        a(f"[#5a7090]revealed Imagines:[/] [bold]{len(unlocked)}[/]   "
+        a(f"[#5a7090]revealed Imāginēs:[/] [bold]{len(unlocked)}[/]   "
           f"[#5a7090]affiliated domains:[/] "
           + ", ".join(_short_tag(t) for t in state.demiurge.affiliated_domains))
         a("")

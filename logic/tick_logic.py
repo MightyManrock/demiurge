@@ -439,7 +439,7 @@ def _revelation_adjusted_cost(tier: int, revealed_count: int) -> int:
 
 
 def _compute_revelation_cap(state: "SimulationState", domain_tag: str) -> float:
-    """Sum of adjusted costs for all unrevealed Imagines in the Domain's tree."""
+    """Sum of adjusted costs for all unrevealed Imāginēs in the Domain's tree."""
     ireg = get_imago_registry()
     tree = domain_tag.split(":", 1)[1] if ":" in domain_tag else domain_tag
     revealed_count = state.demiurge.revealed_imagines
@@ -1293,7 +1293,7 @@ class TickLoop:
                     result.passive_result.narrative_events.append(NarrativeEvent(
                         text=(
                             f"[Revelation] Explore Beliefs on {_domain_link} stopped: pool full "
-                            f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imāgō to internalize Imagines."
+                            f"({_pool:.2f} / {_cap:.2f}). Use Reveal Imāgō to internalize Imāginēs."
                         )
                     ))
                     result.pause_events.append(PauseEvent(
@@ -3359,12 +3359,12 @@ class TickLoop:
             domain_link = f"§domain§{tag}§{short}§"
             cap = _compute_revelation_cap(state, tag)
             if cap == 0.0:
-                return mutations, f"All Imagines in {short} are already revealed — there is nothing left to research here."
+                return mutations, f"All Imāginēs in {short} are already revealed — there is nothing left to research here."
             pool = state.demiurge.revelation_pools.get(tag, 0.0)
             if pool >= cap:
                 return mutations, (
                     f"You have accumulated maximum Revelation for {domain_link} ({pool:.2f} / {cap:.2f}). "
-                    f"Use Reveal Imāgō to unlock Imagines before continuing."
+                    f"Use Reveal Imāgō to unlock Imāginēs before continuing."
                 )
             base_rate = 10.0
             affinity_bonus = 7.0 if tag in state.demiurge.affiliated_domains else 0.0
@@ -3460,10 +3460,10 @@ class TickLoop:
                 return mutations, f"{proxius.name} is already conducting research into {proxius.active_goal.research_domain}."
             cap = _compute_revelation_cap(state, tag)
             if cap == 0.0:
-                return mutations, f"All Imagines in {short} are already revealed — no research needed."
+                return mutations, f"All Imāginēs in {short} are already revealed — no research needed."
             pool = state.demiurge.revelation_pools.get(tag, 0.0)
             if pool >= cap:
-                return mutations, f"Revelation for {short} is already at its cap. Reveal Imagines before commissioning further research."
+                return mutations, f"Revelation for {short} is already at its cap. Reveal Imāginēs before commissioning further research."
             goal = ProxiusGoal(
                 imago_node_id="",
                 target_location_id=proxius.current_location,
