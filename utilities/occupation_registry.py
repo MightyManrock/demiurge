@@ -72,7 +72,7 @@ OCCUPATION_ALIASES: dict[str, dict[CivilizationScale, Optional[str]]] = {
     "dispossessed": _row(None, None, None,     "Beggar", "Beggar", "Destitute", "Destitute", "",          "",          ""),
 
     # --- Common ---
-    "producer":     _row(None, "Hunter-Gatherer", "Farmer", "Peasant", "Peasant", "Farmer", "Farmer", "Farmer", "Agrispecialist", "Nutrispecialist"),
+    "producer":     _row(None, "Forager", "Herder", "Peasant", "Peasant", "Farmer", "Farmer", "Farmer", "Agrispecialist", "Nutrispecialist"),
     "laborer":      _row(None, "Porter",          "Worker", "Worker",  "Worker",  "",       "",       "",       "",               ""),
     "service":      _row(None, None,              None,     "Seller",  "Seller",  "Vendor", "",       "",       "",               ""),
     "transport":    _row(None, None,              None,     "Carter",  "Teamster","Driver", "Freight","Freight","Freight",        "Freight"),
