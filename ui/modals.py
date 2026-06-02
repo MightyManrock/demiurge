@@ -3480,7 +3480,7 @@ class ScryConfigModal(ModalScreen):
         if isinstance(focused, ScopeChip):
             self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
             if self._scope == ScryScope.UNIVERSE:
-                self._focus_stop_radio()
+                self.call_later(self._focus_stop_radio)
             else:
                 self._pending_focus = "galaxy-list"
 
@@ -3511,43 +3511,44 @@ class ScryConfigModal(ModalScreen):
                 self._trigger_repopulate()
                 self._pending_focus = "world-list"
             else:
-                self._focus_stop_radio()
+                self.call_later(self._focus_stop_radio)
 
         elif isinstance(focused, RadioButton):
             focused.value = True   # select the currently focused option
-            self.query_one("#back-btn", Button).focus()
+            self.call_later(self.query_one("#back-btn", Button).focus)
 
         elif getattr(focused, "id", None) == "continue-btn":
-            self.query_one("#chip-universe", ScopeChip).focus()
+            self.call_later(self.query_one("#chip-universe", ScopeChip).focus)
 
     def action_tab_backward(self) -> None:
         focused = self.focused
 
         if getattr(focused, "id", None) == "back-btn":
-            self._focus_stop_radio()
+            self.call_later(self._focus_stop_radio)
 
         elif isinstance(focused, RadioButton):
             if self._scope == ScryScope.WORLD:
-                self.query_one("#world-list", LoopingListView).focus()
+                self.call_later(self.query_one("#world-list", LoopingListView).focus)
             elif self._scope == ScryScope.SYSTEM:
-                self.query_one("#system-list", LoopingListView).focus()
+                self.call_later(self.query_one("#system-list", LoopingListView).focus)
             elif self._scope == ScryScope.GALAXY:
-                self.query_one("#galaxy-list", LoopingListView).focus()
+                self.call_later(self.query_one("#galaxy-list", LoopingListView).focus)
             else:
-                self._focus_active_chip()
+                self.call_later(self._focus_active_chip)
 
         elif isinstance(focused, LoopingListView):
             lid = focused.id
             if lid == "world-list":
-                self.query_one("#system-list", LoopingListView).focus()
+                self.call_later(self.query_one("#system-list", LoopingListView).focus)
             elif lid == "system-list":
-                self.query_one("#galaxy-list", LoopingListView).focus()
+                self.call_later(self.query_one("#galaxy-list", LoopingListView).focus)
             else:
-                self._focus_active_chip()
+                self.call_later(self._focus_active_chip)
 
         elif isinstance(focused, ScopeChip):
             btn = self.query_one("#continue-btn", Button)
-            (btn if not btn.disabled else self.query_one("#cancel-btn", Button)).focus()
+            target = btn if not btn.disabled else self.query_one("#cancel-btn", Button)
+            self.call_later(target.focus)
 
     # ── Scope chip handling ────────────────────────
 
