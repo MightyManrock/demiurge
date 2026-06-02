@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Iterable
 from rich.markup import escape as _e
 from rich.text import Text
 from textual import on, work
+from textual.binding import Binding
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
@@ -3289,10 +3290,10 @@ class ScryConfigModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",    "cancel",       "Cancel"),
-        ("backspace", "back",         "Back"),
-        ("tab",       "tab_forward",  ""),
-        ("shift+tab", "tab_backward", ""),
+        Binding("escape",    "cancel",       "Cancel"),
+        Binding("backspace", "back",         "Back"),
+        Binding("tab",       "tab_forward",  "", priority=True),
+        Binding("shift+tab", "tab_backward", "", priority=True),
     ]
 
     def __init__(
