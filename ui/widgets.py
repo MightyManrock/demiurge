@@ -14,6 +14,7 @@ Tab body widgets (Phase 1):
 Each has refresh_state(state) which redraws from the current SimulationState.
 """
 from __future__ import annotations
+import random
 from typing import TYPE_CHECKING
 
 from rich.color import Color
