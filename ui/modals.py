@@ -3417,9 +3417,9 @@ class ScryConfigModal(ModalScreen):
             self.query_one("#stop-full", RadioButton).value = True
         if self._scope is not None:
             self._apply_scope(self._scope, restore=True)
-            self._focus_active_chip()
+            self.call_after_refresh(self._focus_active_chip)
         else:
-            self.query_one("#chip-universe", ScopeChip).focus()
+            self.call_after_refresh(self.query_one("#chip-universe", ScopeChip).focus)
 
     # ── Keyboard navigation ───────────────────────
 
