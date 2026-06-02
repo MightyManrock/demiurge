@@ -3432,6 +3432,10 @@ class ScryConfigModal(ModalScreen):
                 return
         self.query_one("#chip-universe", ScopeChip).focus()
 
+    def _focus_stop_radio(self) -> None:
+        btn_id = "stop-full" if self._stop_when == "full" else "stop-visible"
+        self.query_one(f"#{btn_id}", RadioButton).focus()
+
     def _can_continue(self) -> bool:
         if self._scope == ScryScope.UNIVERSE: return True
         if self._scope == ScryScope.GALAXY:   return self._galaxy_id is not None
@@ -3470,7 +3474,7 @@ class ScryConfigModal(ModalScreen):
                 event.prevent_default()
                 self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
                 if self._scope == ScryScope.UNIVERSE:
-                    self.query_one("#stop-radio", RadioSet).focus()
+                    self._focus_stop_radio()
                 else:
                     # Lists are repopulating asynchronously; defer focus.
                     self._pending_focus = "galaxy-list"
@@ -3503,7 +3507,7 @@ class ScryConfigModal(ModalScreen):
                     self._trigger_repopulate()
                     self._pending_focus = "world-list"
                 else:
-                    self.query_one("#stop-radio", RadioSet).focus()
+                    self._focus_stop_radio()
             elif isinstance(focused, (RadioButton, RadioSet)):
                 event.prevent_default()
                 self.query_one("#back-btn", Button).focus()
@@ -3516,7 +3520,7 @@ class ScryConfigModal(ModalScreen):
         if key == "shift+tab":
             if getattr(focused, "id", None) == "back-btn":
                 event.prevent_default()
-                self.query_one("#stop-radio", RadioSet).focus()
+                self._focus_stop_radio()
             elif isinstance(focused, (RadioButton, RadioSet)):
                 event.prevent_default()
                 if self._scope == ScryScope.WORLD:
@@ -3679,7 +3683,7 @@ class ScryConfigModal(ModalScreen):
                 if has_content:
                     self.query_one(f"#{target}").focus()
                 else:
-                    self.query_one("#stop-radio", RadioSet).focus()
+                    self._focus_stop_radio()
             except Exception:
                 pass
 
