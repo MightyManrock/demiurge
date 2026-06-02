@@ -19,6 +19,7 @@ from textual.widgets import (
     RadioButton, RadioSet, RichLog, Static,
     TabbedContent, Tab, TabPane,
 )
+from textual_slider import Slider as _Slider
 
 from core.action_core import (
     ActionCategory, ActionDefinition, OngoingAction, compute_cooldown,
@@ -3887,6 +3888,10 @@ class HarvestEssenceConfigModal(ModalScreen):
         text-style: bold;
         margin-bottom: 1;
     }
+    HarvestEssenceConfigModal Slider {
+        width: 1fr;
+        margin-bottom: 0;
+    }
     HarvestEssenceConfigModal #preview {
         margin: 0 0 1 0;
         color: $text-muted;
@@ -3915,8 +3920,8 @@ class HarvestEssenceConfigModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("Harvest Essence from Underreal", id="modal-title")
-            yield Label("Concealment priority")
-            yield Input(value="0.7", id="conc_slider", placeholder="0.0 risky → 1.0 safe")
+            yield Label("Concealment priority  (0 = max yield / max leak → 100 = min yield / no leak)")
+            yield _Slider(min=0, max=100, step=5, value=70, id="conc_slider")
             yield Label("", id="preview")
             yield Label(
                 "Auto-stop conditions (leave unchecked to harvest indefinitely):",
@@ -3968,12 +3973,8 @@ class HarvestEssenceConfigModal(ModalScreen):
             f"Expected yield: ~{yield_val:.2f}  |  Suspicious leak: ~{leak_val:.2f}  (per tick, on success)"
         )
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id == "conc_slider":
-            try:
-                self._update_preview(max(0.0, min(1.0, float(event.value))))
-            except ValueError:
-                pass
+    def on_slider_changed(self, event: _Slider.Changed) -> None:
+        self._update_preview(event.value / 100.0)
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         mapping = {
@@ -4002,10 +4003,7 @@ class HarvestEssenceConfigModal(ModalScreen):
             return None
 
     def _build_result(self) -> dict:
-        try:
-            conc = max(0.0, min(1.0, float(self.query_one("#conc_slider", Input).value)))
-        except ValueError:
-            conc = 0.7
+        conc = self.query_one("#conc_slider", _Slider).value / 100.0
         stop_suspicious = self._parse_optional_float("inp_suspicious", "chk_suspicious")
         stop_stockpile  = self._parse_optional_float("inp_stockpile",  "chk_stockpile")
         # Integrity input is in % (0–100); store as fraction
