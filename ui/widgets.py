@@ -16,7 +16,9 @@ Each has refresh_state(state) which redraws from the current SimulationState.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from rich.color import Color
 from rich.markup import escape as _e
+from rich.style import Style
 from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
@@ -1184,6 +1186,101 @@ class UniverseTab(ContentTab):
         return Text.from_markup("\n".join(lines))
 
 
+class LuminaryPresenceBanner(Widget):
+    """Animated domain-symbol field shown at the top of a Luminary detail page.
+
+    Fills the full tab width at a fixed height of 6 rows. Symbol pool and
+    animation speed are derived from the Luminary's domain affinities via the
+    domain registry. Starts hidden; LuminariesTab shows/hides it on mode switch.
+    """
+
+    BANNER_H = 6
+    BUFFER_W = 120  # wider than any realistic terminal; render trims to widget width
+
+    _SPEED_PARAMS: dict[str, dict] = {
+        "fast":   {"interval": 100,  "rate": 0.32},
+        "medium": {"interval": 210,  "rate": 0.22},
+        "slow":   {"interval": 420,  "rate": 0.11},
+    }
+
+    DEFAULT_CSS = """
+    LuminaryPresenceBanner {
+        height: 6;
+        width: 1fr;
+        background: #04080d;
+        display: none;
+    }
+    """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._pool: list[dict] = [{"symbols": [" "], "rgb": (0x11, 0x11, 0x11)}]
+        self._speed: dict = self._SPEED_PARAMS["medium"]
+        self._cells: list[dict] = [
+            {"char": " ", "rgb": (0x11, 0x11, 0x11)}
+            for _ in range(self.BUFFER_W * self.BANNER_H)
+        ]
+
+    def on_mount(self) -> None:
+        self._schedule_tick()
+
+    def set_affs(self, domains: "dict[str, float]") -> None:
+        """Re-seed the field for a new Luminary's domain affinities."""
+        self._pool  = self._build_pool(domains)
+        self._speed = self._get_speed(domains)
+        self._cells = [self._pick() for _ in range(self.BUFFER_W * self.BANNER_H)]
+        self.refresh()
+
+    def _build_pool(self, domains: "dict[str, float]") -> list[dict]:
+        reg  = get_domain_registry()
+        pool: list[dict] = []
+        for tag, aff in domains.items():
+            if aff < 0.05:
+                continue
+            syms  = reg.symbols(tag)
+            hex_c = reg.color(tag)
+            if not syms or not hex_c:
+                continue
+            rgb = (int(hex_c[1:3], 16), int(hex_c[3:5], 16), int(hex_c[5:7], 16))
+            for _ in range(max(1, round(aff * 14))):
+                pool.append({"symbols": syms, "rgb": rgb})
+        return pool or [{"symbols": [" "], "rgb": (0x11, 0x11, 0x11)}]
+
+    def _get_speed(self, domains: "dict[str, float]") -> dict:
+        if not domains:
+            return self._SPEED_PARAMS["medium"]
+        top = max(domains, key=domains.get)  # type: ignore[arg-type]
+        return self._SPEED_PARAMS.get(
+            get_domain_registry().speed(top), self._SPEED_PARAMS["medium"]
+        )
+
+    def _pick(self) -> dict:
+        e = random.choice(self._pool)
+        return {"char": random.choice(e["symbols"]), "rgb": e["rgb"]}
+
+    def _schedule_tick(self) -> None:
+        self.set_timer(self._speed["interval"] / 1000.0, self._tick)
+
+    def _tick(self) -> None:
+        count = max(1, round(self.BUFFER_W * self.BANNER_H * self._speed["rate"]))
+        cells = self._cells
+        for _ in range(count):
+            cells[random.randrange(self.BUFFER_W * self.BANNER_H)] = self._pick()
+        self.refresh()
+        self._schedule_tick()
+
+    def render(self) -> Text:
+        w    = min(self.size.width or self.BUFFER_W, self.BUFFER_W)
+        text = Text(no_wrap=True)
+        for r in range(self.BANNER_H):
+            for c in range(w):
+                cell = self._cells[r * self.BUFFER_W + c]
+                text.append(cell["char"], style=Style(color=Color.from_rgb(*cell["rgb"])))
+            if r < self.BANNER_H - 1:
+                text.append("\n")
+        return text
+
+
 class LuminariesTab(ContentTab):
     """Right-panel tab: list of Luminaries + per-Luminary detail view.
 
@@ -1199,6 +1296,10 @@ class LuminariesTab(ContentTab):
         self._lum_id: str | None = None
         self._last_tick: int = -1
 
+    def compose(self) -> ComposeResult:
+        yield LuminaryPresenceBanner(id="lum-banner")
+        yield TabBodyStatic(classes="tab-body", expand=True)
+
     # Public navigation methods invoked from GameScreen click handlers.
 
     def show_list(self) -> None:
@@ -1211,13 +1312,25 @@ class LuminariesTab(ContentTab):
         self._lum_id = str(lum_id)
         self._refresh_self()
 
+    def _sync_banner(self) -> None:
+        banner = self.query_one(LuminaryPresenceBanner)
+        if self._mode == "detail" and self._lum_id and self._state:
+            lum = self._state.luminaries.get(self._lum_id)
+            if lum:
+                banner.set_affs(lum.domains)
+                banner.display = True
+                return
+        banner.display = False
+
     def _refresh_self(self) -> None:
         if self._state is not None:
             self.query_one(Static).update(self._render_body(self._state))
+            self._sync_banner()
 
     def refresh_state(self, state: "SimulationState") -> None:
         self._state = state
-        super().refresh_state(state)
+        self.query_one(Static).update(self._render_body(state))
+        self._sync_banner()
 
     def _render_body(self, state: "SimulationState") -> Text:
         # Tick advance → revert to list view.
