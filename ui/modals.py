@@ -3878,7 +3878,7 @@ class HarvestEssenceConfigModal(ModalScreen):
         align: center middle;
     }
     HarvestEssenceConfigModal > Vertical {
-        width: 64;
+        width: 90;
         height: auto;
         padding: 1 2;
         background: $surface;
