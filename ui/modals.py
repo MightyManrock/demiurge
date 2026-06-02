@@ -3260,21 +3260,28 @@ class ScryPickerList(LoopingListView):
     """
     LoopingListView that intercepts Tab/Shift+Tab at widget level (before any
     binding or screen-level handler) and posts a message for the modal to act on.
+    The picker's ID and current index are embedded in the message payload so the
+    handler never needs to rely on _sender.
     """
 
     class TabForward(Message):
-        pass
+        def __init__(self, picker_id: str, index: "int | None") -> None:
+            super().__init__()
+            self.picker_id = picker_id
+            self.index     = index
 
     class TabBackward(Message):
-        pass
+        def __init__(self, picker_id: str) -> None:
+            super().__init__()
+            self.picker_id = picker_id
 
     def on_key(self, event) -> None:
         if event.key == "tab":
             event.prevent_default()
-            self.post_message(self.TabForward())
+            self.post_message(self.TabForward(self.id, self.index))
         elif event.key == "shift+tab":
             event.prevent_default()
-            self.post_message(self.TabBackward())
+            self.post_message(self.TabBackward(self.id))
 
 
 def _scry_chip_label(scope: ScryScope, cooldown: int) -> Text:
@@ -3539,10 +3546,11 @@ class ScryConfigModal(ModalScreen):
 
     # ── Picker Tab/Shift+Tab (widget-level, fires before all bindings) ─
 
-    def _picker_tab_confirm(self, picker: "ScryPickerList") -> None:
-        """Read current index and update selection state before navigating away."""
-        lid = picker.id
-        idx = picker.index
+    @on(ScryPickerList.TabForward)
+    def _on_picker_tab_forward(self, event: ScryPickerList.TabForward) -> None:
+        lid = event.picker_id
+        idx = event.index
+        # Confirm the current selection from the embedded index.
         if lid == "galaxy-list" and idx is not None and idx < len(self._galaxies):
             new_gid = self._galaxies[idx][0]
             if new_gid != self._galaxy_id:
@@ -3556,12 +3564,7 @@ class ScryConfigModal(ModalScreen):
                 self._world_id  = None
         elif lid == "world-list" and idx is not None and idx < len(self._shown_worlds):
             self._world_id = self._shown_worlds[idx][0]
-
-    @on(ScryPickerList.TabForward)
-    def _on_picker_tab_forward(self, event: ScryPickerList.TabForward) -> None:
-        picker = event._sender
-        self._picker_tab_confirm(picker)
-        lid = picker.id
+        # Navigate forward.
         if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
             self._trigger_repopulate()
             self._pending_focus = "system-list"
@@ -3573,7 +3576,7 @@ class ScryConfigModal(ModalScreen):
 
     @on(ScryPickerList.TabBackward)
     def _on_picker_tab_backward(self, event: ScryPickerList.TabBackward) -> None:
-        lid = event._sender.id
+        lid = event.picker_id
         if lid == "world-list":
             self.call_later(self.query_one("#system-list", ScryPickerList).focus)
         elif lid == "system-list":
