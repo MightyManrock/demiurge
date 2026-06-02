@@ -1196,7 +1196,7 @@ class LuminaryPresenceBanner(Widget):
     """
 
     BANNER_H = 6
-    BUFFER_W = 120  # wider than any realistic terminal; render trims to widget width
+    BUFFER_W = 150  # wider than any realistic terminal; render trims to widget width
 
     _SPEED_PARAMS: dict[str, dict] = {
         "fast":   {"interval": 100,  "rate": 0.32},
