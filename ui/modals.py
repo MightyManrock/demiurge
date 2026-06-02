@@ -3477,20 +3477,31 @@ class ScryConfigModal(ModalScreen):
             elif isinstance(focused, LoopingListView):
                 event.prevent_default()
                 lid = focused.id
+                idx = focused.index
+
+                # Confirm the highlighted item now; Highlighted may have been
+                # suppressed during population so _galaxy_id/_system_id might
+                # not yet reflect the current cursor position.
+                if lid == "galaxy-list" and idx is not None and idx < len(self._galaxies):
+                    new_gid = self._galaxies[idx][0]
+                    if new_gid != self._galaxy_id:
+                        self._galaxy_id = new_gid
+                        self._system_id = None
+                        self._world_id  = None
+                elif lid == "system-list" and idx is not None and idx < len(self._shown_systems):
+                    new_sid = self._shown_systems[idx][0]
+                    if new_sid != self._system_id:
+                        self._system_id = new_sid
+                        self._world_id  = None
+                elif lid == "world-list" and idx is not None and idx < len(self._shown_worlds):
+                    self._world_id = self._shown_worlds[idx][0]
+
                 if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
-                    if self._repopulating:
-                        self._pending_focus = "system-list"
-                    elif self._shown_systems:
-                        self.query_one("#system-list", LoopingListView).focus()
-                    else:
-                        self.query_one("#stop-radio", RadioSet).focus()
+                    self._trigger_repopulate()
+                    self._pending_focus = "system-list"
                 elif lid == "system-list" and self._scope == ScryScope.WORLD:
-                    if self._repopulating:
-                        self._pending_focus = "world-list"
-                    elif self._shown_worlds:
-                        self.query_one("#world-list", LoopingListView).focus()
-                    else:
-                        self.query_one("#stop-radio", RadioSet).focus()
+                    self._trigger_repopulate()
+                    self._pending_focus = "world-list"
                 else:
                     self.query_one("#stop-radio", RadioSet).focus()
             elif isinstance(focused, (RadioButton, RadioSet)):
@@ -3612,10 +3623,8 @@ class ScryConfigModal(ModalScreen):
                 for i, (gid, label) in enumerate(self._galaxies):
                     await lst.append(ListItem(Label(label), id=f"gal-{i}"))
                     if gen != self._repopulate_gen: return
-                if self._galaxy_id is not None:
-                    idx = next((i for i, (gid, _) in enumerate(self._galaxies) if gid == self._galaxy_id), None)
-                    if idx is not None:
-                        lst.index = idx
+                saved = next((i for i, (gid, _) in enumerate(self._galaxies) if gid == self._galaxy_id), None) if self._galaxy_id else None
+                lst.index = saved if saved is not None else 0
             else:
                 await lst.append(ListItem(Label("None in scope!"), id="gal-none", disabled=True))
         if gen != self._repopulate_gen: return
@@ -3632,10 +3641,8 @@ class ScryConfigModal(ModalScreen):
                 for i, (sid, label) in enumerate(filtered):
                     await lst.append(ListItem(Label(label), id=f"sys-{i}"))
                     if gen != self._repopulate_gen: return
-                if self._system_id is not None:
-                    idx = next((i for i, (sid, _) in enumerate(filtered) if sid == self._system_id), None)
-                    if idx is not None:
-                        lst.index = idx
+                saved = next((i for i, (sid, _) in enumerate(filtered) if sid == self._system_id), None) if self._system_id else None
+                lst.index = saved if saved is not None else 0
             else:
                 await lst.append(ListItem(Label("None in scope!"), id="sys-none", disabled=True))
         if gen != self._repopulate_gen: return
@@ -3652,10 +3659,8 @@ class ScryConfigModal(ModalScreen):
                 for i, (wid, label) in enumerate(filtered):
                     await lst.append(ListItem(Label(label), id=f"wld-{i}"))
                     if gen != self._repopulate_gen: return
-                if self._world_id is not None:
-                    idx = next((i for i, (wid, _) in enumerate(filtered) if wid == self._world_id), None)
-                    if idx is not None:
-                        lst.index = idx
+                saved = next((i for i, (wid, _) in enumerate(filtered) if wid == self._world_id), None) if self._world_id else None
+                lst.index = saved if saved is not None else 0
             else:
                 await lst.append(ListItem(Label("None in scope!"), id="wld-none", disabled=True))
 
