@@ -1236,7 +1236,7 @@ class RevealImagoConfigModal(ModalScreen):
                     eligible_reveal_tags=self._eligible_reveal_tags,
                 )
             yield Label("Imāgō: —", id="imago-label")
-            yield ImagoTreeGrid(self._state, self._initial_tree, readonly=True, id="preview-tree")
+            yield ImagoTreeGrid(self._state, self._initial_tree, readonly=True)
             with ScrollableContainer(id="reveal-tree-container"):
                 pass
             with Horizontal(classes="btn-row"):
@@ -1247,7 +1247,7 @@ class RevealImagoConfigModal(ModalScreen):
     def on_mount(self) -> None:
         if self._initial:
             domain_tag, node_id = self._initial
-            self.query_one("#preview-tree", ImagoTreeGrid).display = False
+            self.query_one(ImagoTreeGrid).display = False
             self.query_one("#domain-label", Label).update(
                 f"Domain: {_domain_display_name(domain_tag)}"
             )
@@ -1355,7 +1355,7 @@ class RevealImagoConfigModal(ModalScreen):
                 event.prevent_default(); event.stop()
 
     def _switch_to_interactive(self) -> None:
-        preview = self.query_one("#preview-tree", ImagoTreeGrid)
+        preview = self.query_one(ImagoTreeGrid)
         if preview.display:
             preview.display = False
             self.query_one("#reveal-tree-container", ScrollableContainer).display = True
@@ -1378,7 +1378,7 @@ class RevealImagoConfigModal(ModalScreen):
         )
         if self._domain_tag is None:
             tree = event.tag.split(":", 1)[1] if ":" in event.tag else event.tag
-            self.query_one("#preview-tree", ImagoTreeGrid).load_tree(tree)
+            self.query_one(ImagoTreeGrid).load_tree(tree)
 
     def on_domain_square_blurred(self, event: "DomainSquare.Blurred") -> None:
         if self._domain_tag:
@@ -1387,7 +1387,7 @@ class RevealImagoConfigModal(ModalScreen):
             )
         else:
             self.query_one("#domain-label", Label).update("Domain: —")
-            self.query_one("#preview-tree", ImagoTreeGrid).load_tree(self._initial_tree)
+            self.query_one(ImagoTreeGrid).load_tree(self._initial_tree)
 
     def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
         tag              = event.tag

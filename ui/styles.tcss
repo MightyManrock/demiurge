@@ -740,7 +740,7 @@ Button.continue-ready {
     margin: 0 0 1 0;
 }
 
-#preview-tree {
+.reveal-imago-modal ImagoTreeGrid {
     height: 1fr;
     border: solid $border;
     padding: 0 1;
