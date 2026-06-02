@@ -3881,7 +3881,6 @@ class HarvestEssenceConfigModal(ModalScreen):
         width: 90;
         height: auto;
         padding: 1 2;
-        background: $bg-panel;
         border: solid $primary;
     }
     HarvestEssenceConfigModal #modal-title {

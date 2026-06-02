@@ -703,6 +703,10 @@ LoadScreen {
     padding: 1 2;
 }
 
+HarvestEssenceConfigModal > Vertical {
+    background: $bg-panel;
+}
+
 .load-title {
     color: $accent;
     text-style: bold;
