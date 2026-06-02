@@ -3289,8 +3289,10 @@ class ScryConfigModal(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape",    "cancel", "Cancel"),
-        ("backspace", "back",   "Back"),
+        ("escape",    "cancel",       "Cancel"),
+        ("backspace", "back",         "Back"),
+        ("tab",       "tab_forward",  ""),
+        ("shift+tab", "tab_backward", ""),
     ]
 
     def __init__(
@@ -3468,87 +3470,84 @@ class ScryConfigModal(ModalScreen):
                 self.query_one(f"#{target}", ScopeChip).focus()
             return
 
-        # ── Tab forward ───────────────────────────────────────────
-        if key == "tab":
-            if isinstance(focused, ScopeChip):
-                event.prevent_default()
-                self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
-                if self._scope == ScryScope.UNIVERSE:
-                    self._focus_stop_radio()
-                else:
-                    # Lists are repopulating asynchronously; defer focus.
-                    self._pending_focus = "galaxy-list"
-            elif isinstance(focused, LoopingListView):
-                event.prevent_default()
-                lid = focused.id
-                idx = focused.index
-
-                # Confirm the highlighted item now; Highlighted may have been
-                # suppressed during population so _galaxy_id/_system_id might
-                # not yet reflect the current cursor position.
-                if lid == "galaxy-list" and idx is not None and idx < len(self._galaxies):
-                    new_gid = self._galaxies[idx][0]
-                    if new_gid != self._galaxy_id:
-                        self._galaxy_id = new_gid
-                        self._system_id = None
-                        self._world_id  = None
-                elif lid == "system-list" and idx is not None and idx < len(self._shown_systems):
-                    new_sid = self._shown_systems[idx][0]
-                    if new_sid != self._system_id:
-                        self._system_id = new_sid
-                        self._world_id  = None
-                elif lid == "world-list" and idx is not None and idx < len(self._shown_worlds):
-                    self._world_id = self._shown_worlds[idx][0]
-
-                if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
-                    self._trigger_repopulate()
-                    self._pending_focus = "system-list"
-                elif lid == "system-list" and self._scope == ScryScope.WORLD:
-                    self._trigger_repopulate()
-                    self._pending_focus = "world-list"
-                else:
-                    self._focus_stop_radio()
-            elif isinstance(focused, (RadioButton, RadioSet)):
-                event.prevent_default()
-                self.query_one("#back-btn", Button).focus()
-            elif getattr(focused, "id", None) == "continue-btn":
-                event.prevent_default()
-                self.query_one("#chip-universe", ScopeChip).focus()
-            return
-
-        # ── Shift+Tab backward ────────────────────────────────────
-        if key == "shift+tab":
-            if getattr(focused, "id", None) == "back-btn":
-                event.prevent_default()
-                self._focus_stop_radio()
-            elif isinstance(focused, (RadioButton, RadioSet)):
-                event.prevent_default()
-                if self._scope == ScryScope.WORLD:
-                    self.query_one("#world-list", LoopingListView).focus()
-                elif self._scope == ScryScope.SYSTEM:
-                    self.query_one("#system-list", LoopingListView).focus()
-                elif self._scope == ScryScope.GALAXY:
-                    self.query_one("#galaxy-list", LoopingListView).focus()
-                else:
-                    self._focus_active_chip()
-            elif isinstance(focused, LoopingListView):
-                event.prevent_default()
-                lid = focused.id
-                if lid == "world-list":
-                    self.query_one("#system-list", LoopingListView).focus()
-                elif lid == "system-list":
-                    self.query_one("#galaxy-list", LoopingListView).focus()
-                else:
-                    self._focus_active_chip()
-            elif isinstance(focused, ScopeChip):
-                event.prevent_default()
-                btn = self.query_one("#continue-btn", Button)
-                (btn if not btn.disabled else self.query_one("#cancel-btn", Button)).focus()
-            return
-
         # ── Enter on auto-stop when all choices are made → advance ─
         if key == "enter" and isinstance(focused, RadioButton) and self._can_continue():
             self.call_later(self._dismiss_with_result)
+
+    def action_tab_forward(self) -> None:
+        focused = self.focused
+
+        if isinstance(focused, ScopeChip):
+            self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
+            if self._scope == ScryScope.UNIVERSE:
+                self._focus_stop_radio()
+            else:
+                self._pending_focus = "galaxy-list"
+
+        elif isinstance(focused, LoopingListView):
+            lid = focused.id
+            idx = focused.index
+
+            # Confirm the highlighted item; Highlighted may have been suppressed
+            # during population so _galaxy_id/_system_id might not be current.
+            if lid == "galaxy-list" and idx is not None and idx < len(self._galaxies):
+                new_gid = self._galaxies[idx][0]
+                if new_gid != self._galaxy_id:
+                    self._galaxy_id = new_gid
+                    self._system_id = None
+                    self._world_id  = None
+            elif lid == "system-list" and idx is not None and idx < len(self._shown_systems):
+                new_sid = self._shown_systems[idx][0]
+                if new_sid != self._system_id:
+                    self._system_id = new_sid
+                    self._world_id  = None
+            elif lid == "world-list" and idx is not None and idx < len(self._shown_worlds):
+                self._world_id = self._shown_worlds[idx][0]
+
+            if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
+                self._trigger_repopulate()
+                self._pending_focus = "system-list"
+            elif lid == "system-list" and self._scope == ScryScope.WORLD:
+                self._trigger_repopulate()
+                self._pending_focus = "world-list"
+            else:
+                self._focus_stop_radio()
+
+        elif isinstance(focused, RadioButton):
+            focused.value = True   # select the currently focused option
+            self.query_one("#back-btn", Button).focus()
+
+        elif getattr(focused, "id", None) == "continue-btn":
+            self.query_one("#chip-universe", ScopeChip).focus()
+
+    def action_tab_backward(self) -> None:
+        focused = self.focused
+
+        if getattr(focused, "id", None) == "back-btn":
+            self._focus_stop_radio()
+
+        elif isinstance(focused, RadioButton):
+            if self._scope == ScryScope.WORLD:
+                self.query_one("#world-list", LoopingListView).focus()
+            elif self._scope == ScryScope.SYSTEM:
+                self.query_one("#system-list", LoopingListView).focus()
+            elif self._scope == ScryScope.GALAXY:
+                self.query_one("#galaxy-list", LoopingListView).focus()
+            else:
+                self._focus_active_chip()
+
+        elif isinstance(focused, LoopingListView):
+            lid = focused.id
+            if lid == "world-list":
+                self.query_one("#system-list", LoopingListView).focus()
+            elif lid == "system-list":
+                self.query_one("#galaxy-list", LoopingListView).focus()
+            else:
+                self._focus_active_chip()
+
+        elif isinstance(focused, ScopeChip):
+            btn = self.query_one("#continue-btn", Button)
+            (btn if not btn.disabled else self.query_one("#cancel-btn", Button)).focus()
 
     # ── Scope chip handling ────────────────────────
 
