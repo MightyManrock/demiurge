@@ -868,7 +868,7 @@ Button.continue-ready {
 }
 
 .scry-scope-row-1 {
-    height: 5;
+    height: 4;
 }
 
 .scry-scope-row-1 > * {
@@ -881,7 +881,7 @@ Button.continue-ready {
 }
 
 .scry-scope-row-2 {
-    height: 5;
+    height: 4;
 }
 
 .scry-scope-row-2 ScopeChip {
@@ -892,8 +892,8 @@ Button.continue-ready {
 .scope-chip {
     background: $bg;
     border: solid $border;
-    height: 5;
-    content-align: center middle;
+    height: 4;
+    text-align: center;
 }
 
 .scope-chip--active {
