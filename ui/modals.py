@@ -3509,12 +3509,6 @@ class ScryConfigModal(ModalScreen):
                     self._pending_focus = "galaxy-list"
             elif isinstance(focused, (RadioButton, RadioSet)):
                 event.prevent_default()
-                rb = focused if isinstance(focused, RadioButton) else next(
-                    (b for b in self.query_one("#stop-radio", RadioSet).query(RadioButton) if b.has_focus),
-                    None,
-                )
-                if rb is not None:
-                    rb.value = True
                 self.call_later(self.query_one("#back-btn", Button).focus)
             elif getattr(focused, "id", None) == "continue-btn":
                 event.prevent_default()
