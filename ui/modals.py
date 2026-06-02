@@ -3507,9 +3507,10 @@ class ScryConfigModal(ModalScreen):
                     self.call_later(self._focus_stop_radio)
                 else:
                     self._pending_focus = "galaxy-list"
-            elif isinstance(focused, RadioButton):
+            elif isinstance(focused, (RadioButton, RadioSet)):
                 event.prevent_default()
-                focused.value = True
+                if isinstance(focused, RadioButton) and not focused.value:
+                    focused.action_toggle()
                 self.call_later(self.query_one("#back-btn", Button).focus)
             elif getattr(focused, "id", None) == "continue-btn":
                 event.prevent_default()
@@ -3521,7 +3522,7 @@ class ScryConfigModal(ModalScreen):
             if getattr(focused, "id", None) == "back-btn":
                 event.prevent_default()
                 self.call_later(self._focus_stop_radio)
-            elif isinstance(focused, RadioButton):
+            elif isinstance(focused, (RadioButton, RadioSet)):
                 event.prevent_default()
                 if self._scope == ScryScope.WORLD:
                     self.call_later(self.query_one("#world-list", ScryPickerList).focus)
