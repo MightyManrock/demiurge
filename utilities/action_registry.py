@@ -525,7 +525,7 @@ _ACTION_SEED: list[dict] = [
         "fp_proxius_activity": 0.0, "fp_direct_creation": 0.0,
         "essence_cost": -3.0, "concealment_impact": 0.2,
         "requires_proxius": 0,
-        "tags": ["underreal", "essence_source", "high_risk", "conceal", "can_persist"],
+        "tags": ["underreal", "essence_source", "high_risk", "conceal", "always_persist"],
     },
     {
         "action_key": "salvage_concept",
