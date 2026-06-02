@@ -21,16 +21,16 @@ from dataclasses import dataclass
 class EssenceStockpile(BaseModel):
     """
     Divine Essence — raw conceptual power drawn primarily
-    from the Underreal. Split into actual vs. apparent
+    from the Underreal. Split into actual vs. suspicious
     because concealment is an active, maintained gap
     between the two.
 
-    Luminaries evaluate apparent, not actual.
+    Luminaries evaluate suspicious, not actual.
     The player manages both.
     """
     actual: float = Field(ge=0.0, default=0.0)
-    apparent: float = Field(ge=0.0, default=0.0)
-    # apparent <= actual always; enforced on mutation
+    suspicious: float = Field(ge=0.0, default=0.0)
+    # suspicious <= actual always; enforced on mutation
 
     concealment_integrity: float = Field(ge=0.0, le=1.0, default=1.0)
     # 1.0 = perfectly hidden; 0.0 = fully exposed
@@ -39,12 +39,12 @@ class EssenceStockpile(BaseModel):
 
     def hidden_amount(self) -> float:
         """How much is successfully concealed."""
-        return self.actual - self.apparent
+        return self.actual - self.suspicious
 
     def exposure_risk(self) -> float:
         """
         Rough probability a Luminary audit reveals
-        more than apparent. Rises as concealment degrades
+        more than suspicious. Rises as concealment degrades
         and hidden amount grows.
         """
         if self.actual == 0.0:

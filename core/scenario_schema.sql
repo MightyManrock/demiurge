@@ -335,7 +335,7 @@ CREATE TABLE IF NOT EXISTS demiurge (
 CREATE TABLE IF NOT EXISTS essence (
     -- One row per scenario.
     actual                  REAL NOT NULL DEFAULT 0.0,
-    apparent                REAL NOT NULL DEFAULT 0.0,
+    suspicious              REAL NOT NULL DEFAULT 0.0,
     concealment_integrity   REAL NOT NULL DEFAULT 1.0
 );
 

@@ -619,8 +619,8 @@ def _write_demiurge(conn, state: SimulationState):
 def _write_essence(conn, state: SimulationState):
     e = state.essence
     conn.execute(
-        "INSERT INTO essence (actual, apparent, concealment_integrity) VALUES (?, ?, ?)",
-        (e.actual, e.apparent, e.concealment_integrity),
+        "INSERT INTO essence (actual, suspicious, concealment_integrity) VALUES (?, ?, ?)",
+        (e.actual, e.suspicious, e.concealment_integrity),
     )
 
 

@@ -938,7 +938,7 @@ def _load_essence(conn) -> EssenceStockpile:
     row = dict(conn.execute("SELECT * FROM essence").fetchone())
     return EssenceStockpile(
         actual=row["actual"],
-        apparent=row["apparent"],
+        suspicious=float(row["suspicious"] if "suspicious" in row else row.get("apparent", 0.0)),
         concealment_integrity=row["concealment_integrity"],
     )
 
