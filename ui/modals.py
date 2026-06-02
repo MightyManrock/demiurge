@@ -3881,7 +3881,6 @@ class HarvestEssenceConfigModal(ModalScreen):
         width: 90;
         height: auto;
         padding: 1 2;
-        background: $surface;
         border: solid $primary;
     }
     HarvestEssenceConfigModal #modal-title {
@@ -3970,7 +3969,7 @@ class HarvestEssenceConfigModal(ModalScreen):
         yield_val = self._BASE_YIELD * (1.0 - conc * 0.5)
         leak_val  = self._BASE_YIELD * (1.0 - conc) * 0.5
         self.query_one("#preview", Label).update(
-            f"Expected yield: ~{yield_val:.2f}  |  Suspicious leak: ~{leak_val:.2f}  (per tick, on success)"
+            f"Expected yield: ~{yield_val:.2f}  |  Suspicious leak: ~{leak_val:.2f}  (per harvest, on success)"
         )
 
     def on_slider_changed(self, event: _Slider.Changed) -> None:
