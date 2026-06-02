@@ -6165,6 +6165,21 @@ class TickLoop:
                 # Enforce suspicious <= actual
                 if state.essence.suspicious > state.essence.actual:
                     state.essence.suspicious = state.essence.actual
+                # Laundering: spending actual Essence passively drains suspicious.
+                # Fraction drained ≈ (suspicious / pre-spend actual) with mild noise.
+                if (
+                    m.field == "actual"
+                    and (m.delta or 0) < 0
+                    and state.essence.actual > 0.0
+                    and state.essence.suspicious > 0.0
+                ):
+                    spend = abs(m.delta)
+                    pre_spend_actual = state.essence.actual + spend  # actual before the deduction
+                    ratio = state.essence.suspicious / pre_spend_actual
+                    noise = self._rng.uniform(-0.15, 0.15)
+                    drain = spend * ratio * (1.0 + noise)
+                    drain = max(0.0, min(drain, state.essence.suspicious))
+                    state.essence.suspicious = max(0.0, state.essence.suspicious - drain)
 
             elif m.mutation_type == MutationType.CONCEALMENT_CHANGE:
                 current = getattr(state.essence, m.field, 0.0)
