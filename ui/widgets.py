@@ -1272,9 +1272,10 @@ class LuminaryPresenceBanner(Widget):
         self._schedule_tick()
 
     def render(self) -> Text:
+        w    = min(self.size.width or self.BUFFER_W, self.BUFFER_W)
         text = Text(no_wrap=True)
         for r in range(self.BANNER_H):
-            for c in range(self.BUFFER_W):
+            for c in range(w):
                 cell = self._cells[r * self.BUFFER_W + c]
                 text.append(cell["char"], style=Style(color=Color.from_rgb(*cell["rgb"])))
             if r < self.BANNER_H - 1:
