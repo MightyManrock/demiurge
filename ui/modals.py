@@ -1479,12 +1479,12 @@ class RevealImagoConfigModal(ModalScreen):
         await grid.mount(*cells_and_spacers)
 
         if tag == self._domain_tag and self._node_id:
-            matched = [c for c in self.query(ImagoRevealCell) if c._node.node_id == self._node_id]
+            matched = [c for c in container.query(ImagoRevealCell) if c._node.node_id == self._node_id]
             if matched:
                 self._mark_imago_selected(matched[0])
 
         if initial_node_id:
-            matched = [c for c in self.query(ImagoRevealCell) if c._node.node_id == initial_node_id]
+            matched = [c for c in container.query(ImagoRevealCell) if c._node.node_id == initial_node_id]
             if matched:
                 self._node_id = initial_node_id
                 ireg = get_imago_registry()
@@ -1494,7 +1494,7 @@ class RevealImagoConfigModal(ModalScreen):
                 self._check_confirm()
                 matched[0].focus()
         elif focus_first:
-            cells = [c for c in self.query(ImagoRevealCell) if not c.disabled]
+            cells = [c for c in container.query(ImagoRevealCell) if not c.disabled]
             if cells:
                 cells[0].focus()
 

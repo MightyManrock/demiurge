@@ -438,7 +438,7 @@ class ImagoTreeGrid(Widget):
         if not self._readonly:
             self._focus_first_unlocked()
 
-    @work
+    @work(exclusive=True)
     async def load_tree(self, tree: str) -> None:
         """Swap to a different domain tree in place."""
         self._tree = tree
