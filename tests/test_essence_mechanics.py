@@ -1,8 +1,12 @@
 import random
 from unittest.mock import MagicMock, patch
 import pytest
-from core.action_core import EssenceStockpile, MutationType, StateMutation
-from logic.tick_logic import TickLoop
+from core.action_core import (
+    EssenceStockpile, MutationType, StateMutation,
+    EssenceHarvestIntent, ActionInstance, TargetType, OngoingAction,
+    ActionCategory,
+)
+from logic.tick_logic import TickLoop, ActionOutcome, SimulationState
 
 
 def _make_state(actual, suspicious, integrity=1.0):
@@ -67,3 +71,107 @@ def test_suspicious_field_mutation_does_not_trigger_launder():
     _apply_essence_mutation(state, "suspicious", +3.0)
     assert state.essence.suspicious == pytest.approx(8.0)
     assert state.essence.actual == pytest.approx(20.0)
+
+
+# ── Auto-stop condition tests ──────────────────────────────────────────────────
+
+def _harvest_handler_setup(
+    concealment=0.7,
+    stop_suspicious=None,
+    stop_integrity=None,
+    stop_stockpile=None,
+    actual=10.0,
+    suspicious=0.0,
+    integrity=1.0,
+):
+    """
+    Build the minimal objects needed to call _resolve_intent_mutations
+    for an EssenceHarvestIntent.
+    """
+    loop = TickLoop.__new__(TickLoop)
+    loop._rng = random.Random(42)
+
+    intent = EssenceHarvestIntent(
+        concealment_priority=concealment,
+        stop_at_suspicious=stop_suspicious,
+        stop_at_integrity_below=stop_integrity,
+        stop_at_stockpile=stop_stockpile,
+    )
+
+    instance = MagicMock()
+    instance.intent = intent
+
+    defn = MagicMock()
+    defn.category = ActionCategory.UNDERREAL
+    defn.name = "Harvest Essence from Underreal"
+
+    state = MagicMock()
+    state.essence = EssenceStockpile(
+        actual=actual, suspicious=suspicious, concealment_integrity=integrity
+    )
+    from uuid import uuid4
+    state.pending_actions = {
+        ActionCategory.UNDERREAL.value: OngoingAction(
+            action_key="harvest_essence",
+            action_definition_id=uuid4(),
+            target_type=TargetType.WORLD,
+            repeating=True,
+        )
+    }
+    state.demiurge = MagicMock()
+    state.demiurge.id = uuid4()
+    state.last_harvest_amount = 0.0
+    state.last_harvest_tick = 0
+    state.tick_number = 5
+
+    return loop, instance, defn, state
+
+
+def test_stop_at_suspicious_cancels_repeat():
+    """When suspicious >= stop_at_suspicious, harvest pauses and repeating=False."""
+    loop, instance, defn, state = _harvest_handler_setup(
+        suspicious=15.0, stop_suspicious=10.0
+    )
+    mutations, narrative = loop._resolve_intent_mutations(
+        instance, defn, state, ActionOutcome.SUCCESS, loop._rng
+    )
+    assert state.pending_actions[ActionCategory.UNDERREAL.value].repeating is False
+    assert mutations == []
+    assert "paused" in narrative.lower()
+
+
+def test_stop_at_integrity_cancels_repeat():
+    """When integrity < stop_at_integrity_below, harvest pauses."""
+    loop, instance, defn, state = _harvest_handler_setup(
+        integrity=0.3, stop_integrity=0.5
+    )
+    mutations, narrative = loop._resolve_intent_mutations(
+        instance, defn, state, ActionOutcome.SUCCESS, loop._rng
+    )
+    assert state.pending_actions[ActionCategory.UNDERREAL.value].repeating is False
+    assert mutations == []
+
+
+def test_stop_at_stockpile_cancels_repeat():
+    """When actual >= stop_at_stockpile, harvest pauses."""
+    loop, instance, defn, state = _harvest_handler_setup(
+        actual=50.0, stop_stockpile=40.0
+    )
+    mutations, narrative = loop._resolve_intent_mutations(
+        instance, defn, state, ActionOutcome.SUCCESS, loop._rng
+    )
+    assert state.pending_actions[ActionCategory.UNDERREAL.value].repeating is False
+    assert mutations == []
+
+
+def test_no_stop_condition_proceeds_normally():
+    """When all stop conditions are unmet, harvest proceeds and yields mutations."""
+    loop, instance, defn, state = _harvest_handler_setup(
+        actual=10.0, suspicious=2.0, integrity=0.9,
+        stop_suspicious=20.0, stop_integrity=0.2, stop_stockpile=100.0,
+    )
+    mutations, narrative = loop._resolve_intent_mutations(
+        instance, defn, state, ActionOutcome.SUCCESS, loop._rng
+    )
+    assert state.pending_actions[ActionCategory.UNDERREAL.value].repeating is True
+    assert any(m.field == "actual" for m in mutations)

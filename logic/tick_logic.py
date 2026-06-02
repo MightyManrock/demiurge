@@ -3830,6 +3830,28 @@ class TickLoop:
 
         # ── Essence Harvest ───────────────────────────
         elif isinstance(intent, EssenceHarvestIntent):
+            # ── Auto-stop checks ──────────────────────────────────────────
+            stop_reason = None
+            if (intent.stop_at_suspicious is not None
+                    and state.essence.suspicious >= intent.stop_at_suspicious):
+                stop_reason = f"suspicious Essence reached {state.essence.suspicious:.2f}"
+            elif (intent.stop_at_integrity_below is not None
+                    and state.essence.concealment_integrity < intent.stop_at_integrity_below):
+                stop_reason = (
+                    f"concealment integrity at "
+                    f"{state.essence.concealment_integrity:.0%}"
+                )
+            elif (intent.stop_at_stockpile is not None
+                    and state.essence.actual >= intent.stop_at_stockpile):
+                stop_reason = f"Essence stockpile reached {state.essence.actual:.2f}"
+
+            if stop_reason:
+                cat_key = defn.category.value
+                pending = state.pending_actions.get(cat_key)
+                if pending:
+                    pending.repeating = False
+                return [], f"Harvest paused: {stop_reason}."
+
             if outcome == ActionOutcome.FAILURE:
                 return mutations, "The Underreal offered nothing this time."
 
