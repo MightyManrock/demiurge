@@ -3313,6 +3313,8 @@ class ScryConfigModal(ModalScreen):
         # Highlighted handlers ignore programmatic events.
         self._repopulate_gen: int = 0
         self._repopulating:   bool = False
+        # Widget ID to focus once _repopulate_all finishes; None = no pending focus.
+        self._pending_focus:  str | None = None
 
         # Precompute all visible locations
         self._galaxies: list[tuple[str, str]] = []
@@ -3470,14 +3472,25 @@ class ScryConfigModal(ModalScreen):
                 if self._scope == ScryScope.UNIVERSE:
                     self.query_one("#stop-radio", RadioSet).focus()
                 else:
-                    self.query_one("#galaxy-list", LoopingListView).focus()
+                    # Lists are repopulating asynchronously; defer focus.
+                    self._pending_focus = "galaxy-list"
             elif isinstance(focused, LoopingListView):
                 event.prevent_default()
                 lid = focused.id
                 if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
-                    self.query_one("#system-list", LoopingListView).focus()
+                    if self._repopulating:
+                        self._pending_focus = "system-list"
+                    elif self._shown_systems:
+                        self.query_one("#system-list", LoopingListView).focus()
+                    else:
+                        self.query_one("#stop-radio", RadioSet).focus()
                 elif lid == "system-list" and self._scope == ScryScope.WORLD:
-                    self.query_one("#world-list", LoopingListView).focus()
+                    if self._repopulating:
+                        self._pending_focus = "world-list"
+                    elif self._shown_worlds:
+                        self.query_one("#world-list", LoopingListView).focus()
+                    else:
+                        self.query_one("#stop-radio", RadioSet).focus()
                 else:
                     self.query_one("#stop-radio", RadioSet).focus()
             elif isinstance(focused, (RadioButton, RadioSet)):
@@ -3648,6 +3661,22 @@ class ScryConfigModal(ModalScreen):
 
         self._repopulating = False
         self._check_continue()
+        # Resolve any focus jump that was deferred while lists were being built.
+        if self._pending_focus:
+            target = self._pending_focus
+            self._pending_focus = None
+            has_content = (
+                target != "system-list" or bool(self._shown_systems)
+            ) and (
+                target != "world-list" or bool(self._shown_worlds)
+            )
+            try:
+                if has_content:
+                    self.query_one(f"#{target}").focus()
+                else:
+                    self.query_one("#stop-radio", RadioSet).focus()
+            except Exception:
+                pass
 
     # ── List selection events ─────────────────────
 
