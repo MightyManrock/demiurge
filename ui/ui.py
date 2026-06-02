@@ -1672,8 +1672,8 @@ class GameScreen(Screen):
         elif cat == ActionCategory.UNDERREAL:
             if action_key == "harvest_essence":
                 result = await app.push_screen_wait(HarvestEssenceConfigModal())
-                if result is None:
-                    return None
+                if result is None or result is BACK:
+                    return result
                 return EssenceHarvestIntent(
                     concealment_priority=result["concealment"],
                     stop_at_suspicious=result["stop_suspicious"],

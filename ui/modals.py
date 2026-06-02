@@ -3881,6 +3881,7 @@ class HarvestEssenceConfigModal(ModalScreen):
         width: 90;
         height: auto;
         padding: 1 2;
+        background: $bg-panel;
         border: solid $primary;
     }
     HarvestEssenceConfigModal #modal-title {
@@ -3913,6 +3914,8 @@ class HarvestEssenceConfigModal(ModalScreen):
         align: center middle;
     }
     """
+
+    BINDINGS = [("backspace", "back", "Back")]
 
     _BASE_YIELD = 3.0
 
@@ -3959,8 +3962,9 @@ class HarvestEssenceConfigModal(ModalScreen):
                     classes="stop-input",
                 )
             with Horizontal(id="buttons"):
-                yield Button("✕ Cancel", id="cancel", variant="default")
-                yield Button("Confirm", id="confirm", variant="primary")
+                yield Button("← Back",   id="back-btn")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
+                yield Button("Confirm",  id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
         self._update_preview(0.7)
@@ -3985,11 +3989,15 @@ class HarvestEssenceConfigModal(ModalScreen):
         if inp_id:
             self.query_one(f"#{inp_id}", Input).disabled = not event.value
 
+    def action_back(self) -> None:
+        self.dismiss(BACK)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "cancel":
+        if event.button.id == "back-btn":
+            self.dismiss(BACK)
+        elif event.button.id == "cancel-btn":
             self.dismiss(None)
-            return
-        if event.button.id == "confirm":
+        elif event.button.id == "confirm-btn":
             self.dismiss(self._build_result())
 
     def _parse_optional_float(self, input_id: str, checkbox_id: str) -> Optional[float]:
