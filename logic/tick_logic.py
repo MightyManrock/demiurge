@@ -3862,7 +3862,7 @@ class TickLoop:
                 base_yield *= 0.5
             concealment_factor = intent.concealment_priority
             actual_yield = base_yield * (0.5 + concealment_factor * 0.5)
-            apparent_leak = base_yield * (1.0 - concealment_factor) * 0.5
+            suspicious_leak = base_yield * (1.0 - concealment_factor) * 0.5
 
             mutations.append(StateMutation(
                 mutation_type=MutationType.ESSENCE_CHANGE,
@@ -3871,12 +3871,12 @@ class TickLoop:
                 delta=actual_yield,
                 note="Essence harvested from Underreal",
             ))
-            if apparent_leak > 0.0:
+            if suspicious_leak > 0.0:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.ESSENCE_CHANGE,
                     target_id=state.demiurge.id,
                     field="suspicious",
-                    delta=apparent_leak,
+                    delta=suspicious_leak,
                     note="Essence concealment leak during harvest",
                 ))
 
@@ -3885,7 +3885,7 @@ class TickLoop:
 
             narrative = (
                 f"Harvested {actual_yield:.2f} Essence from the Underreal. "
-                f"Suspicious Essence added: {apparent_leak:.2f}. "
+                f"Suspicious Essence added: {suspicious_leak:.2f}. "
                 f"Concealment integrity held at {intent.concealment_priority:.0%} priority."
             )
 
