@@ -897,7 +897,9 @@ Button.scope-chip {
     content-align: center middle;
 }
 
-Button.scope-chip--active {
+Button.scope-chip--active,
+Button.scope-chip--active:focus,
+Button.scope-chip--active:hover {
     background: $bg;
     border: solid $accent;
 }
