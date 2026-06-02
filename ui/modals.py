@@ -3933,9 +3933,9 @@ class HarvestEssenceConfigModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         e = self._essence
-        suspicious_default = f"{e.suspicious * 1.5:.1f}"
+        suspicious_default = f"{(e.suspicious + 2.0 if e.suspicious < 2.0 else e.suspicious * 1.5):.1f}"
         integrity_default  = f"{max(0.0, (e.concealment_integrity - 0.10) * 100):.0f}"
-        stockpile_default  = f"{e.actual * 2.0:.1f}"
+        stockpile_default  = f"{(e.actual + 5.0 if e.actual < 5.0 else e.actual * 2.0):.1f}"
 
         with Vertical():
             yield Label("Harvest Essence from Underreal", id="modal-title")
