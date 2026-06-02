@@ -3321,8 +3321,8 @@ class ScryConfigModal(ModalScreen):
     BINDINGS = [
         Binding("escape",    "cancel",       "Cancel"),
         Binding("backspace", "back",         "Back"),
-        Binding("tab",       "tab_forward",  "", priority=True),
-        Binding("shift+tab", "tab_backward", "", priority=True),
+        Binding("tab",       "tab_forward",  ""),
+        Binding("shift+tab", "tab_backward", ""),
     ]
 
     def __init__(
