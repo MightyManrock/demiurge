@@ -12,8 +12,6 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
-from textual.message import Message
-from textual.widget import Widget
 from textual.widgets import (
     Button, Checkbox, Input, Label, ListItem, ListView,
     RadioButton, RadioSet, RichLog, Static,
@@ -37,7 +35,7 @@ from utilities.imago_registry import get_registry as get_imago_registry, ImagoNo
 
 from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag, _pop_stratum_label
 
-from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, ImagoTreeGrid, LoopingListView
+from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, ImagoTreeGrid, LoopingListView, ScopeChip
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
 
 from core.universe_core import MortalRole, MortalStatus
@@ -3254,31 +3252,6 @@ _SCOPE_TARGET_TYPE: dict[ScryScope, TargetType] = {
     ScryScope.SYSTEM:   TargetType.SYSTEM,
     ScryScope.WORLD:    TargetType.WORLD,
 }
-
-
-class ScopeChip(Widget):
-    """Scope selector chip — plain Widget so Textual's Button styling never interferes."""
-
-    can_focus = True
-
-    class Pressed(Message):
-        def __init__(self, chip_id: str) -> None:
-            super().__init__()
-            self.chip_id = chip_id
-
-    def __init__(self, label: Text, chip_id: str) -> None:
-        super().__init__(id=chip_id, classes="scope-chip")
-        self._label   = label
-        self._chip_id = chip_id
-
-    def render(self) -> Text:
-        return self._label
-
-    def on_click(self) -> None:
-        self.post_message(self.Pressed(self._chip_id))
-
-    def key_enter(self) -> None:
-        self.post_message(self.Pressed(self._chip_id))
 
 
 def _scry_chip_label(scope: ScryScope, cooldown: int) -> Text:

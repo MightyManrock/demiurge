@@ -3,6 +3,7 @@ Custom Textual widgets, the status-bar renderer, and tab body widgets.
 
 LoopingListView   — ListView with wrap-around cursor + Home/End keys.
 DomainSquare      — clickable domain cell in the picker grid.
+ScopeChip         — clickable chip for scope selection (e.g. Scry modal).
 ImagoCell         — clickable cell in the Imago tree picker.
 ImagoRevealCell   — clickable cell in the Imago reveal picker (cost + eligibility).
 StatusPanel       — Static widget that hosts the Status tab body.
@@ -266,6 +267,35 @@ class DomainSquare(Widget):
     def key_enter(self) -> None:
         if not self.disabled:
             self.post_message(self.Selected(self._tag))
+
+
+# ─────────────────────────────────────────
+# Scope chip (generic clickable chip widget)
+# ─────────────────────────────────────────
+
+class ScopeChip(Widget):
+    """Clickable chip for scope/mode selection. Plain Widget — no Button styling."""
+
+    can_focus = True
+
+    class Pressed(Message):
+        def __init__(self, chip_id: str) -> None:
+            super().__init__()
+            self.chip_id = chip_id
+
+    def __init__(self, label: "Text", chip_id: str) -> None:
+        super().__init__(id=chip_id, classes="scope-chip")
+        self._label   = label
+        self._chip_id = chip_id
+
+    def render(self) -> "Text":
+        return self._label
+
+    def on_click(self) -> None:
+        self.post_message(self.Pressed(self._chip_id))
+
+    def key_enter(self) -> None:
+        self.post_message(self.Pressed(self._chip_id))
 
 
 # ─────────────────────────────────────────
