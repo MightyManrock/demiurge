@@ -713,6 +713,7 @@ HarvestEssenceConfigModal Slider {
 
 HarvestEssenceConfigModal Checkbox {
     background: $bg-panel;
+    border: none;
 }
 
 HarvestEssenceConfigModal .stop-row {

@@ -1671,7 +1671,7 @@ class GameScreen(Screen):
         # ── UNDERREAL ────────────────────────────────────
         elif cat == ActionCategory.UNDERREAL:
             if action_key == "harvest_essence":
-                result = await app.push_screen_wait(HarvestEssenceConfigModal())
+                result = await app.push_screen_wait(HarvestEssenceConfigModal(state.essence))
                 if result is None or result is BACK:
                     return result
                 return EssenceHarvestIntent(

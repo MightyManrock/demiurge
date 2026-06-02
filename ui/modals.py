@@ -22,7 +22,7 @@ from textual.widgets import (
 from textual_slider import Slider as _Slider
 
 from core.action_core import (
-    ActionCategory, ActionDefinition, OngoingAction, compute_cooldown,
+    ActionCategory, ActionDefinition, EssenceStockpile, OngoingAction, compute_cooldown,
     RevealImagoIntent, ChangeAffiliatedDomainsIntent,
     ScryScope, TargetType, CATEGORY_BASE_COOLDOWNS,
 )
@@ -3921,6 +3921,10 @@ class HarvestEssenceConfigModal(ModalScreen):
 
     _BASE_YIELD = 3.0
 
+    def __init__(self, essence: EssenceStockpile) -> None:
+        super().__init__()
+        self._essence = essence
+
     def action_back(self) -> None:
         self.dismiss(BACK)
 
@@ -3928,6 +3932,11 @@ class HarvestEssenceConfigModal(ModalScreen):
         self.dismiss(None)
 
     def compose(self) -> ComposeResult:
+        e = self._essence
+        suspicious_default = f"{e.suspicious * 1.5:.1f}"
+        integrity_default  = f"{max(0.0, (e.concealment_integrity - 0.10) * 100):.0f}"
+        stockpile_default  = f"{e.actual * 2.0:.1f}"
+
         with Vertical():
             yield Label("Harvest Essence from Underreal", id="modal-title")
             yield Label("Concealment priority  (0 = max yield / max leak → 100 = min yield / no leak)")
@@ -3942,7 +3951,7 @@ class HarvestEssenceConfigModal(ModalScreen):
                     "Stop when suspicious Essence ≥", id="chk_suspicious", value=False
                 )
                 yield Input(
-                    placeholder="e.g. 20",
+                    value=suspicious_default,
                     id="inp_suspicious",
                     disabled=True,
                     classes="stop-input",
@@ -3954,7 +3963,7 @@ class HarvestEssenceConfigModal(ModalScreen):
                     value=False,
                 )
                 yield Input(
-                    placeholder="e.g. 40",
+                    value=integrity_default,
                     id="inp_integrity",
                     disabled=True,
                     classes="stop-input",
@@ -3964,7 +3973,7 @@ class HarvestEssenceConfigModal(ModalScreen):
                     "Stop when Essence stockpile ≥", id="chk_stockpile", value=False
                 )
                 yield Input(
-                    placeholder="e.g. 50",
+                    value=stockpile_default,
                     id="inp_stockpile",
                     disabled=True,
                     classes="stop-input",
