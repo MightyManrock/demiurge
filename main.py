@@ -26,7 +26,15 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
+import traceback
 from pathlib import Path
+
+def _crash_logger(exc_type, exc_value, exc_tb):
+    with open("/tmp/demiurge_crash.log", "w") as f:
+        traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _crash_logger
 
 
 def _list_strategies() -> list[tuple[str, str]]:
