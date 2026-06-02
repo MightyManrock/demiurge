@@ -74,7 +74,7 @@ from ui.modals import (
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
     ShapeDreamConfigModal, ShapeDreamConfirmModal,
     ExploreBeliefConfirmModal, RevealImagoConfirmModal, ChangeAffiliatedDomainConfirmModal,
-    ScryConfigModal, ScryConfirmModal,
+    ScryConfigModal, ScryConfirmModal, HarvestEssenceConfigModal,
 )
 
 
@@ -1671,24 +1671,14 @@ class GameScreen(Screen):
         # ── UNDERREAL ────────────────────────────────────
         elif cat == ActionCategory.UNDERREAL:
             if action_key == "harvest_essence":
-                form = await app.push_screen_wait(
-                    TextFormModal(
-                        "Harvest Essence",
-                        [
-                            ("Target concept type (optional)", "concept", ""),
-                            ("Concealment priority  0.0 risky → 1.0 safe", "conc", "0.7"),
-                        ],
-                        show_back=True,
-                    )
-                )
-                if form is None: return None
-                if form == BACK: return BACK
-                try:
-                    conc = max(0.0, min(1.0, float(form["conc"] or 0.7)))
-                except ValueError:
-                    conc = 0.7
+                result = await app.push_screen_wait(HarvestEssenceConfigModal())
+                if result is None:
+                    return None
                 return EssenceHarvestIntent(
-                    concealment_priority=conc,
+                    concealment_priority=result["concealment"],
+                    stop_at_suspicious=result["stop_suspicious"],
+                    stop_at_integrity_below=result["stop_integrity"],
+                    stop_at_stockpile=result["stop_stockpile"],
                 )
             if action_key == "salvage_concept":
                 step = 0; form_data = None; world_id = None
