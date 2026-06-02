@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from core.action_core import StateMutation, MutationType
 from core.agent_core import AgentActionChoice
 from core.universe_core import MortalRole, MortalStatus
-from logic.belief_propagation import emit_lineage_bleed, belief_inertia, BELIEF_CAP
+from logic.belief_propagation import emit_lineage_bleed, belief_inertia, BELIEF_CAP, BELIEF_FLOOR, CULTURE_FLOOR
 from logic.sim_utils import pop_domain_receptivity, resolve_world_id_for as _resolve_world_id_for
 from utilities.imago_registry import get_registry as get_imago_registry
 
