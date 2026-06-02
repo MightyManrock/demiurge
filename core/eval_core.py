@@ -176,8 +176,8 @@ class EssenceSuspicion(BaseModel):
     """
     luminary_id: UUID
 
-    apparent_stockpile_reading: float = 0.0
-    # What they see — matches EssenceStockpile.apparent
+    suspicious_stockpile_reading: float = 0.0
+    # What they see — matches EssenceStockpile.suspicious
     # unless Herald investigation has revealed more
 
     suspicion_level: float = Field(ge=0.0, le=1.0, default=0.0)
@@ -619,7 +619,7 @@ class EvaluationEngine:
     @staticmethod
     def evaluate_essence_suspicion(
         luminary_id: UUID,
-        apparent_stockpile: float,
+        suspicious_stockpile: float,
         concealment_integrity: float,
         recent_underreal_actions: int,
         attention_level: AttentionLevel,
@@ -634,10 +634,10 @@ class EvaluationEngine:
         triggers = []
         suspicion = 0.0
 
-        # Apparent stockpile is always visible
-        if apparent_stockpile > 0.1:
-            suspicion += apparent_stockpile * 0.3
-            triggers.append("apparent_essence_detected")
+        # Suspicious stockpile is always visible
+        if suspicious_stockpile > 0.1:
+            suspicion += suspicious_stockpile * 0.3
+            triggers.append("suspicious_essence_detected")
 
         # Concealment degradation raises suspicion at high attention
         if concealment_integrity < 0.8:
@@ -677,7 +677,7 @@ class EvaluationEngine:
 
         return EssenceSuspicion(
             luminary_id=luminary_id,
-            apparent_stockpile_reading=apparent_stockpile,
+            suspicious_stockpile_reading=suspicious_stockpile,
             suspicion_level=suspicion,
             suspicion_triggers=triggers,
             disposition_delta=disp_delta,

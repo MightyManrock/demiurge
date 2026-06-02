@@ -2274,7 +2274,7 @@ class TickLoop:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.CONCEALMENT_CHANGE,
                     target_id=state.demiurge.id,
-                    field="apparent",
+                    field="suspicious",
                     delta=apparent_leak,
                     note=f"{defn.name}: concealment leak",
                 ))
@@ -3853,7 +3853,7 @@ class TickLoop:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.ESSENCE_CHANGE,
                     target_id=state.demiurge.id,
-                    field="apparent",
+                    field="suspicious",
                     delta=apparent_leak,
                     note="Essence concealment leak during harvest",
                 ))
@@ -3863,7 +3863,7 @@ class TickLoop:
 
             narrative = (
                 f"Harvested {actual_yield:.2f} Essence from the Underreal. "
-                f"Apparent leak: {apparent_leak:.2f}. "
+                f"Suspicious Essence added: {apparent_leak:.2f}. "
                 f"Concealment integrity held at {intent.concealment_priority:.0%} priority."
             )
 
@@ -4608,7 +4608,7 @@ class TickLoop:
             )
             essence_suspicion = engine.evaluate_essence_suspicion(
                 luminary_id=luminary.id,
-                apparent_stockpile=state.essence.apparent,
+                suspicious_stockpile=state.essence.suspicious,
                 concealment_integrity=state.essence.concealment_integrity,
                 recent_underreal_actions=recent_underreal,
                 attention_level=attention_level,
@@ -6162,9 +6162,9 @@ class TickLoop:
             elif m.mutation_type == MutationType.ESSENCE_CHANGE:
                 current = getattr(state.essence, m.field, 0.0)
                 setattr(state.essence, m.field, max(0.0, current + (m.delta or 0)))
-                # Enforce apparent <= actual
-                if state.essence.apparent > state.essence.actual:
-                    state.essence.apparent = state.essence.actual
+                # Enforce suspicious <= actual
+                if state.essence.suspicious > state.essence.actual:
+                    state.essence.suspicious = state.essence.actual
 
             elif m.mutation_type == MutationType.CONCEALMENT_CHANGE:
                 current = getattr(state.essence, m.field, 0.0)

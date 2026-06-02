@@ -128,7 +128,7 @@ def run(
                 print(f"  ♦ {name} updated: res={res:+.2f} meth={meth:+.2f}")
 
         print(f"  {fmt_disposition(state)}")
-        print(f"  Ess: actual={state.essence.actual:.2f} apparent={state.essence.apparent:.2f} "
+        print(f"  Ess: actual={state.essence.actual:.2f} suspicious={state.essence.suspicious:.2f} "
               f"conceal={state.essence.concealment_integrity:.2f}")
 
         if result.terminal.triggered:
@@ -152,7 +152,7 @@ def run(
     print(visible_mortal_summary(state))
 
     print("\nESSENCE:")
-    print(f"  actual={state.essence.actual:.2f}  apparent={state.essence.apparent:.2f}  "
+    print(f"  actual={state.essence.actual:.2f}  suspicious={state.essence.suspicious:.2f}  "
           f"concealment={state.essence.concealment_integrity:.2f}")
 
     print("\nLUMINARY DISPOSITIONS:")

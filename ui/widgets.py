@@ -624,7 +624,7 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     ci_col = "#50b870" if ci > 0.6 else ("#c09030" if ci > 0.3 else "#b04050")
     committed = _committed_essence(state, loop)
     a("[bold #4a80b0]ESSENCE[/]")
-    a(f"  actual [bold]{es.actual:.2f}[/]  apparent [bold]{es.apparent:.2f}[/]")
+    a(f"  actual [bold]{es.actual:.2f}[/]  suspicious [bold]{es.suspicious:.2f}[/]")
     if committed > 0.0:
         free = max(0.0, es.actual - committed)
         a(f"  committed [#c09030]{committed:.2f}[/]  free [bold]{free:.2f}[/]")
