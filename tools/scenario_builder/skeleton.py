@@ -116,7 +116,7 @@ def build_skeleton_state(scenario_name: str, initialism: str) -> SimulationState
     return SimulationState(
         universe=universe,
         demiurge=demiurge,
-        essence=EssenceStockpile(actual=1.0, apparent=0.0, concealment_integrity=1.0),
+        essence=EssenceStockpile(actual=1.0, suspicious=0.0, concealment_integrity=1.0),
         pantheon=pantheon,
         luminaries={str(luminary.id): luminary},
         locations=locations,
