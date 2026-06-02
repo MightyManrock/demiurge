@@ -3278,6 +3278,10 @@ class ScryConfigModal(ModalScreen):
         self._stop_when: str = "visible"
         self._shown_systems: list[tuple[str, str]] = []
         self._shown_worlds:  list[tuple[str, str]] = []
+        # Counters to suppress Highlighted events during programmatic list updates
+        self._populating_galaxy: int = 0
+        self._populating_system: int = 0
+        self._populating_world:  int = 0
 
         # Precompute all visible locations
         self._galaxies: list[tuple[str, str]] = []
@@ -3432,75 +3436,89 @@ class ScryConfigModal(ModalScreen):
             self._apply_scope(scope)
 
     # ── List population ───────────────────────────
+    # Each worker holds a per-column counter while it runs so that
+    # auto-fired ListView.Highlighted events during clear()/append() are
+    # ignored by the selection handlers. User-driven Highlighted events
+    # (counter == 0) still update state normally.
 
     @work(exclusive=True)
     async def _populate_galaxy_list(self) -> None:
-        lst = self.query_one("#galaxy-list", ListView)
-        lst.disabled = self._scope not in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD)
-        await lst.clear()
-        if not lst.disabled:
-            for i, (gid, label) in enumerate(self._galaxies):
-                await lst.append(ListItem(Label(label), id=f"gal-{i}"))
-            if self._galaxy_id is not None:
-                idx = next((i for i, (gid, _) in enumerate(self._galaxies) if gid == self._galaxy_id), None)
-                if idx is not None:
-                    lst.index = idx
+        self._populating_galaxy += 1
+        try:
+            lst = self.query_one("#galaxy-list", ListView)
+            lst.disabled = self._scope not in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD)
+            await lst.clear()
+            if not lst.disabled:
+                for i, (gid, label) in enumerate(self._galaxies):
+                    await lst.append(ListItem(Label(label), id=f"gal-{i}"))
+                if self._galaxy_id is not None:
+                    idx = next((i for i, (gid, _) in enumerate(self._galaxies) if gid == self._galaxy_id), None)
+                    if idx is not None:
+                        lst.index = idx
+        finally:
+            self._populating_galaxy -= 1
         self._check_continue()
 
     @work(exclusive=True)
     async def _populate_system_list(self) -> None:
-        lst = self.query_one("#system-list", ListView)
-        ph  = self.query_one("#system-placeholder", Static)
-        uses_system = self._scope in (ScryScope.SYSTEM, ScryScope.WORLD)
-        lst.disabled = not uses_system
-        await lst.clear()
-        ph.update("")
-        if not uses_system or self._galaxy_id is None:
-            self._check_continue()
-            return
-        filtered = [(sid, label) for sid, label, gid in self._systems if gid == self._galaxy_id]
-        if not filtered:
-            ph.update("None in scope!")
-            self._check_continue()
-            return
-        self._shown_systems = filtered
-        for i, (sid, label) in enumerate(filtered):
-            await lst.append(ListItem(Label(label), id=f"sys-{i}"))
-        if self._system_id is not None:
-            idx = next((i for i, (sid, _) in enumerate(filtered) if sid == self._system_id), None)
-            if idx is not None:
-                lst.index = idx
+        self._populating_system += 1
+        try:
+            lst = self.query_one("#system-list", ListView)
+            ph  = self.query_one("#system-placeholder", Static)
+            uses_system = self._scope in (ScryScope.SYSTEM, ScryScope.WORLD)
+            lst.disabled = not uses_system
+            await lst.clear()
+            ph.update("")
+            if not uses_system or self._galaxy_id is None:
+                return
+            filtered = [(sid, label) for sid, label, gid in self._systems if gid == self._galaxy_id]
+            if not filtered:
+                ph.update("None in scope!")
+                return
+            self._shown_systems = filtered
+            for i, (sid, label) in enumerate(filtered):
+                await lst.append(ListItem(Label(label), id=f"sys-{i}"))
+            if self._system_id is not None:
+                idx = next((i for i, (sid, _) in enumerate(filtered) if sid == self._system_id), None)
+                if idx is not None:
+                    lst.index = idx
+        finally:
+            self._populating_system -= 1
         self._check_continue()
 
     @work(exclusive=True)
     async def _populate_world_list(self) -> None:
-        lst = self.query_one("#world-list", ListView)
-        ph  = self.query_one("#world-placeholder", Static)
-        lst.disabled = self._scope != ScryScope.WORLD
-        await lst.clear()
-        ph.update("")
-        if self._scope != ScryScope.WORLD or self._system_id is None:
-            self._check_continue()
-            return
-        filtered = [(wid, label) for wid, label, sid in self._worlds if sid == self._system_id]
-        if not filtered:
-            ph.update("None in scope!")
-            self._check_continue()
-            return
-        self._shown_worlds = filtered
-        for i, (wid, label) in enumerate(filtered):
-            await lst.append(ListItem(Label(label), id=f"wld-{i}"))
-        if self._world_id is not None:
-            idx = next((i for i, (wid, _) in enumerate(filtered) if wid == self._world_id), None)
-            if idx is not None:
-                lst.index = idx
+        self._populating_world += 1
+        try:
+            lst = self.query_one("#world-list", ListView)
+            ph  = self.query_one("#world-placeholder", Static)
+            lst.disabled = self._scope != ScryScope.WORLD
+            await lst.clear()
+            ph.update("")
+            if self._scope != ScryScope.WORLD or self._system_id is None:
+                return
+            filtered = [(wid, label) for wid, label, sid in self._worlds if sid == self._system_id]
+            if not filtered:
+                ph.update("None in scope!")
+                return
+            self._shown_worlds = filtered
+            for i, (wid, label) in enumerate(filtered):
+                await lst.append(ListItem(Label(label), id=f"wld-{i}"))
+            if self._world_id is not None:
+                idx = next((i for i, (wid, _) in enumerate(filtered) if wid == self._world_id), None)
+                if idx is not None:
+                    lst.index = idx
+        finally:
+            self._populating_world -= 1
         self._check_continue()
 
     # ── List selection events ─────────────────────
 
     @on(ListView.Highlighted, "#galaxy-list")
     def _on_galaxy_highlighted(self, event: ListView.Highlighted) -> None:
-        if event.item is None or self._scope not in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD):
+        if self._populating_galaxy > 0 or event.item is None:
+            return
+        if self._scope not in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD):
             return
         idx = int(event.item.id.rsplit("-", 1)[1])
         if idx < len(self._galaxies):
@@ -3515,7 +3533,9 @@ class ScryConfigModal(ModalScreen):
 
     @on(ListView.Highlighted, "#system-list")
     def _on_system_highlighted(self, event: ListView.Highlighted) -> None:
-        if event.item is None or self._scope not in (ScryScope.SYSTEM, ScryScope.WORLD):
+        if self._populating_system > 0 or event.item is None:
+            return
+        if self._scope not in (ScryScope.SYSTEM, ScryScope.WORLD):
             return
         idx = int(event.item.id.rsplit("-", 1)[1])
         if idx < len(self._shown_systems):
@@ -3528,7 +3548,9 @@ class ScryConfigModal(ModalScreen):
 
     @on(ListView.Highlighted, "#world-list")
     def _on_world_highlighted(self, event: ListView.Highlighted) -> None:
-        if event.item is None or self._scope != ScryScope.WORLD:
+        if self._populating_world > 0 or event.item is None:
+            return
+        if self._scope != ScryScope.WORLD:
             return
         idx = int(event.item.id.rsplit("-", 1)[1])
         if idx < len(self._shown_worlds):
