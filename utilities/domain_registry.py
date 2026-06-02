@@ -64,7 +64,7 @@ _DOMAIN_VISUAL: dict[str, dict] = {
     "domain:order":     {"color": "#90b4f0", "symbols": ["═","║","╔","╗","╚","╝","┼","─","┤","├","╠","╣","╦","╩"], "speed": "slow"},
     "domain:silence":   {"color": "#7a8fa6", "symbols": ["◯","·","∘","○","◌","⊹","‥","∙","⋯","⊸"],               "speed": "slow"},
     "domain:truth":     {"color": "#b8b8cc", "symbols": ["◈","✦","⊕","✧","⊗","⋄","⟐","◇","◆","⊞"],               "speed": "medium"},
-    "domain:conflict":  {"color": "#ff6b6b", "symbols": ["✖","╳","✕","×","▲","⚡","▶","◀","▼","⟆"],               "speed": "fast"},
+    "domain:conflict":  {"color": "#ff6b6b", "symbols": ["✖","╳","✕","×","▲","↯","▶","◀","▼","⟆"],               "speed": "fast"},
     "domain:change":    {"color": "#5fcca8", "symbols": ["↺","↻","⟳","≈","~","⌀","⇌","⇄","↯","⇅"],               "speed": "fast"},
     "domain:fire":      {"color": "#ff9f40", "symbols": ["▲","△","▴","∧","^","⟨","▵","⋀","∆","ʌ"],               "speed": "fast"},
     "domain:water":     {"color": "#4ecdc4", "symbols": ["≋","≈","∿","~","⌇","⌊","∼","⌣","⏜","⌢"],               "speed": "medium"},
