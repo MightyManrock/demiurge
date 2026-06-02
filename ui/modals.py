@@ -10,6 +10,7 @@ from rich.markup import escape as _e
 from rich.text import Text
 from textual import on, work
 from textual.binding import Binding
+from textual.message import Message
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
@@ -3255,6 +3256,27 @@ _SCOPE_TARGET_TYPE: dict[ScryScope, TargetType] = {
 }
 
 
+class ScryPickerList(LoopingListView):
+    """
+    LoopingListView that intercepts Tab/Shift+Tab at widget level (before any
+    binding or screen-level handler) and posts a message for the modal to act on.
+    """
+
+    class TabForward(Message):
+        pass
+
+    class TabBackward(Message):
+        pass
+
+    def on_key(self, event) -> None:
+        if event.key == "tab":
+            event.prevent_default()
+            self.post_message(self.TabForward())
+        elif event.key == "shift+tab":
+            event.prevent_default()
+            self.post_message(self.TabBackward())
+
+
 def _scry_chip_label(scope: ScryScope, cooldown: int) -> Text:
     """Build the two-line chip label for a Scry scope button."""
     fp = SCRY_FP_BASE[scope]
@@ -3398,13 +3420,13 @@ class ScryConfigModal(ModalScreen):
             with Horizontal(classes="scry-pickers"):
                 with Vertical(id="galaxy-col", classes="scry-picker-col picker-col--dull"):
                     yield Label("Galaxy", classes="scry-picker-header")
-                    yield LoopingListView(id="galaxy-list")
+                    yield ScryPickerList(id="galaxy-list")
                 with Vertical(id="system-col", classes="scry-picker-col picker-col--dull"):
                     yield Label("System", classes="scry-picker-header")
-                    yield LoopingListView(id="system-list")
+                    yield ScryPickerList(id="system-list")
                 with Vertical(id="world-col", classes="scry-picker-col picker-col--dull"):
                     yield Label("World", classes="scry-picker-header")
-                    yield LoopingListView(id="world-list")
+                    yield ScryPickerList(id="world-list")
 
             # ── Auto-stop + buttons ──
             with Vertical(classes="scry-stop-panel"):
@@ -3476,6 +3498,7 @@ class ScryConfigModal(ModalScreen):
             self.call_later(self._dismiss_with_result)
 
     def action_tab_forward(self) -> None:
+        """Handles Tab for non-picker widgets; pickers use ScryPickerList.on_key."""
         focused = self.focused
 
         if isinstance(focused, ScopeChip):
@@ -3485,43 +3508,15 @@ class ScryConfigModal(ModalScreen):
             else:
                 self._pending_focus = "galaxy-list"
 
-        elif isinstance(focused, LoopingListView):
-            lid = focused.id
-            idx = focused.index
-
-            # Confirm the highlighted item; Highlighted may have been suppressed
-            # during population so _galaxy_id/_system_id might not be current.
-            if lid == "galaxy-list" and idx is not None and idx < len(self._galaxies):
-                new_gid = self._galaxies[idx][0]
-                if new_gid != self._galaxy_id:
-                    self._galaxy_id = new_gid
-                    self._system_id = None
-                    self._world_id  = None
-            elif lid == "system-list" and idx is not None and idx < len(self._shown_systems):
-                new_sid = self._shown_systems[idx][0]
-                if new_sid != self._system_id:
-                    self._system_id = new_sid
-                    self._world_id  = None
-            elif lid == "world-list" and idx is not None and idx < len(self._shown_worlds):
-                self._world_id = self._shown_worlds[idx][0]
-
-            if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
-                self._trigger_repopulate()
-                self._pending_focus = "system-list"
-            elif lid == "system-list" and self._scope == ScryScope.WORLD:
-                self._trigger_repopulate()
-                self._pending_focus = "world-list"
-            else:
-                self.call_later(self._focus_stop_radio)
-
         elif isinstance(focused, RadioButton):
-            focused.value = True   # select the currently focused option
+            focused.value = True
             self.call_later(self.query_one("#back-btn", Button).focus)
 
         elif getattr(focused, "id", None) == "continue-btn":
             self.call_later(self.query_one("#chip-universe", ScopeChip).focus)
 
     def action_tab_backward(self) -> None:
+        """Handles Shift+Tab for non-picker widgets; pickers use ScryPickerList.on_key."""
         focused = self.focused
 
         if getattr(focused, "id", None) == "back-btn":
@@ -3529,20 +3524,11 @@ class ScryConfigModal(ModalScreen):
 
         elif isinstance(focused, RadioButton):
             if self._scope == ScryScope.WORLD:
-                self.call_later(self.query_one("#world-list", LoopingListView).focus)
+                self.call_later(self.query_one("#world-list", ScryPickerList).focus)
             elif self._scope == ScryScope.SYSTEM:
-                self.call_later(self.query_one("#system-list", LoopingListView).focus)
+                self.call_later(self.query_one("#system-list", ScryPickerList).focus)
             elif self._scope == ScryScope.GALAXY:
-                self.call_later(self.query_one("#galaxy-list", LoopingListView).focus)
-            else:
-                self.call_later(self._focus_active_chip)
-
-        elif isinstance(focused, LoopingListView):
-            lid = focused.id
-            if lid == "world-list":
-                self.call_later(self.query_one("#system-list", LoopingListView).focus)
-            elif lid == "system-list":
-                self.call_later(self.query_one("#galaxy-list", LoopingListView).focus)
+                self.call_later(self.query_one("#galaxy-list", ScryPickerList).focus)
             else:
                 self.call_later(self._focus_active_chip)
 
@@ -3550,6 +3536,50 @@ class ScryConfigModal(ModalScreen):
             btn = self.query_one("#continue-btn", Button)
             target = btn if not btn.disabled else self.query_one("#cancel-btn", Button)
             self.call_later(target.focus)
+
+    # ── Picker Tab/Shift+Tab (widget-level, fires before all bindings) ─
+
+    def _picker_tab_confirm(self, picker: "ScryPickerList") -> None:
+        """Read current index and update selection state before navigating away."""
+        lid = picker.id
+        idx = picker.index
+        if lid == "galaxy-list" and idx is not None and idx < len(self._galaxies):
+            new_gid = self._galaxies[idx][0]
+            if new_gid != self._galaxy_id:
+                self._galaxy_id = new_gid
+                self._system_id = None
+                self._world_id  = None
+        elif lid == "system-list" and idx is not None and idx < len(self._shown_systems):
+            new_sid = self._shown_systems[idx][0]
+            if new_sid != self._system_id:
+                self._system_id = new_sid
+                self._world_id  = None
+        elif lid == "world-list" and idx is not None and idx < len(self._shown_worlds):
+            self._world_id = self._shown_worlds[idx][0]
+
+    @on(ScryPickerList.TabForward)
+    def _on_picker_tab_forward(self, event: ScryPickerList.TabForward) -> None:
+        picker = event._sender
+        self._picker_tab_confirm(picker)
+        lid = picker.id
+        if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
+            self._trigger_repopulate()
+            self._pending_focus = "system-list"
+        elif lid == "system-list" and self._scope == ScryScope.WORLD:
+            self._trigger_repopulate()
+            self._pending_focus = "world-list"
+        else:
+            self.call_later(self._focus_stop_radio)
+
+    @on(ScryPickerList.TabBackward)
+    def _on_picker_tab_backward(self, event: ScryPickerList.TabBackward) -> None:
+        lid = event._sender.id
+        if lid == "world-list":
+            self.call_later(self.query_one("#system-list", ScryPickerList).focus)
+        elif lid == "system-list":
+            self.call_later(self.query_one("#galaxy-list", ScryPickerList).focus)
+        else:
+            self.call_later(self._focus_active_chip)
 
     # ── Scope chip handling ────────────────────────
 
@@ -3619,7 +3649,7 @@ class ScryConfigModal(ModalScreen):
         uses_world  = self._scope == ScryScope.WORLD
 
         # ── Galaxy ──
-        lst = self.query_one("#galaxy-list", ListView)
+        lst = self.query_one("#galaxy-list", ScryPickerList)
         lst.disabled = not uses_galaxy
         await lst.clear()
         if gen != self._repopulate_gen: return
@@ -3635,7 +3665,7 @@ class ScryConfigModal(ModalScreen):
         if gen != self._repopulate_gen: return
 
         # ── System ──
-        lst = self.query_one("#system-list", ListView)
+        lst = self.query_one("#system-list", ScryPickerList)
         lst.disabled = not uses_system
         await lst.clear()
         if gen != self._repopulate_gen: return
@@ -3653,7 +3683,7 @@ class ScryConfigModal(ModalScreen):
         if gen != self._repopulate_gen: return
 
         # ── World ──
-        lst = self.query_one("#world-list", ListView)
+        lst = self.query_one("#world-list", ScryPickerList)
         lst.disabled = not uses_world
         await lst.clear()
         if gen != self._repopulate_gen: return
