@@ -16,7 +16,7 @@ from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Checkbox, Input, Label, ListItem, ListView,
-    RadioButton, RadioSet, RichLog, Slider, Static,
+    RadioButton, RadioSet, RichLog, Static,
     TabbedContent, Tab, TabPane,
 )
 
@@ -3916,7 +3916,7 @@ class HarvestEssenceConfigModal(ModalScreen):
         with Vertical():
             yield Label("Harvest Essence from Underreal", id="modal-title")
             yield Label("Concealment priority")
-            yield Slider(min=0.0, max=1.0, step=0.05, value=0.7, id="conc_slider")
+            yield Input(value="0.7", id="conc_slider", placeholder="0.0 risky → 1.0 safe")
             yield Label("", id="preview")
             yield Label(
                 "Auto-stop conditions (leave unchecked to harvest indefinitely):",
@@ -3968,8 +3968,12 @@ class HarvestEssenceConfigModal(ModalScreen):
             f"Expected yield: ~{yield_val:.2f}  |  Suspicious leak: ~{leak_val:.2f}  (per tick, on success)"
         )
 
-    def on_slider_changed(self, event: Slider.Changed) -> None:
-        self._update_preview(float(event.value))
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "conc_slider":
+            try:
+                self._update_preview(max(0.0, min(1.0, float(event.value))))
+            except ValueError:
+                pass
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         mapping = {
@@ -3998,7 +4002,10 @@ class HarvestEssenceConfigModal(ModalScreen):
             return None
 
     def _build_result(self) -> dict:
-        conc = float(self.query_one("#conc_slider", Slider).value)
+        try:
+            conc = max(0.0, min(1.0, float(self.query_one("#conc_slider", Input).value)))
+        except ValueError:
+            conc = 0.7
         stop_suspicious = self._parse_optional_float("inp_suspicious", "chk_suspicious")
         stop_stockpile  = self._parse_optional_float("inp_stockpile",  "chk_stockpile")
         # Integrity input is in % (0–100); store as fraction
