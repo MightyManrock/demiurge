@@ -74,6 +74,7 @@ from ui.modals import (
     ActionBrowserModal, CategoryPendingModal, WhisperConfigModal,
     ShapeDreamConfigModal, ShapeDreamConfirmModal,
     ExploreBeliefConfirmModal, RevealImagoConfirmModal, ChangeAffiliatedDomainConfirmModal,
+    ScryConfigModal, ScryConfirmModal,
 )
 
 
@@ -1180,37 +1181,21 @@ class GameScreen(Screen):
                 intent=None,
             )
 
-        # ── Scry: scope → target picker loop ──
+        # ── Scry: unified config + confirm ──
         if action_key == "scry":
-            scope_items = [
-                (ScryScope.WORLD.value,    "World       — deep mortal/civ detail  (0.05 subtle)"),
-                (ScryScope.SYSTEM.value,   "System      — reveals worlds & civs   (0.10 subtle)"),
-                (ScryScope.GALAXY.value,   "Galaxy      — broad survey            (0.20 subtle  0.3 Ess)"),
-                (ScryScope.UNIVERSE.value, "Universe    — cosmos-wide sweep       (0.35 subtle  0.5 Ess)"),
-            ]
-            target_id = None
+            prefill = None
             while True:
-                picked_scope = await app.push_screen_wait(
-                    PickerModal("Scry Scope", scope_items, show_back=True)
+                result = await app.push_screen_wait(ScryConfigModal(state, prefill=prefill))
+                if result is None: return None
+                if result == BACK: return BACK
+                chosen_scope, target_id, target_type, stop_when = result
+                confirmed = await app.push_screen_wait(
+                    ScryConfirmModal(chosen_scope, target_id, target_type, stop_when, state)
                 )
-                if picked_scope is None: return None
-                if picked_scope == BACK: return BACK
-                chosen_scope = ScryScope(picked_scope)
-                if chosen_scope == ScryScope.WORLD:
-                    target_id, target_type = await self._pick_world(state)
-                    if target_id is None: return None
-                    if target_id == BACK: continue
-                elif chosen_scope == ScryScope.SYSTEM:
-                    target_id, target_type = await self._pick_system(state)
-                    if target_id is None: return None
-                    if target_id == BACK: continue
-                elif chosen_scope == ScryScope.GALAXY:
-                    target_id, target_type = await self._pick_galaxy(state)
-                    if target_id is None: return None
-                    if target_id == BACK: continue
-                else:
-                    target_id = None
-                    target_type = TargetType.UNIVERSE
+                if confirmed is None: return None
+                if not confirmed:
+                    prefill = (chosen_scope, target_id, stop_when)
+                    continue
                 break
             return ActionInstance(
                 action_definition_id=defn.id,
@@ -1219,7 +1204,7 @@ class GameScreen(Screen):
                 timestamp=state.universe.age.to_float_years(),
                 demiurge_id=state.demiurge.id,
                 proxius_id=None,
-                intent=ScryIntent(scope=chosen_scope),
+                intent=ScryIntent(scope=chosen_scope, stop_when=stop_when),
             )
 
         # ── whisper: unified config modal ──

@@ -3164,7 +3164,11 @@ class TickLoop:
                 and m.new_value is not None
             }
 
+            _stop_full = getattr(intent, "stop_when", "visible") == "full"
+
             def _will_be_visible(eid: str, cur_vis: float) -> bool:
+                if _stop_full:
+                    return cur_vis >= 1.0
                 return (
                     cur_vis > ENTITY_VISIBILITY_FLOOR
                     or _vis_muts.get(eid, 0.0) > ENTITY_VISIBILITY_FLOOR

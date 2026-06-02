@@ -567,6 +567,9 @@ class ScryIntent(BaseModel):
     Broader scopes cost more footprint but can reveal more entity types.
     """
     scope: ScryScope = ScryScope.WORLD
+    # "visible"  — stop when all primary entities are above ENTITY_VISIBILITY_FLOOR
+    # "full"     — stop when all primary entities have visibility >= 1.0
+    stop_when: str = "visible"
 
 
 # ─────────────────────────────────────────

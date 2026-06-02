@@ -21,11 +21,12 @@ from textual.widgets import (
 from core.action_core import (
     ActionCategory, ActionDefinition, OngoingAction, compute_cooldown,
     RevealImagoIntent, ChangeAffiliatedDomainsIntent,
+    ScryScope, TargetType,
 )
 from logic.tick_logic import (
     SimulationState,
     _compute_revelation_cap, _revelation_adjusted_cost,
-    ENTITY_VISIBILITY_FLOOR,
+    ENTITY_VISIBILITY_FLOOR, is_in_window,
 )
 from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -3227,4 +3228,431 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
 
     def action_back(self) -> None:
         self.dismiss(BACK)
+
+
+# ─────────────────────────────────────────
+# SCRY CONFIG MODAL
+# Single-screen Scry configuration.
+# Scope chips + cascading location pickers + auto-stop radio.
+# Dismisses with (scope, target_id_or_None, target_type, stop_when),
+# BACK, or None on cancel.
+# ─────────────────────────────────────────
+
+_SCOPE_CHIP_IDS: dict[str, ScryScope] = {
+    "chip-universe": ScryScope.UNIVERSE,
+    "chip-galaxy":   ScryScope.GALAXY,
+    "chip-system":   ScryScope.SYSTEM,
+    "chip-world":    ScryScope.WORLD,
+}
+
+_SCOPE_TARGET_TYPE: dict[ScryScope, TargetType] = {
+    ScryScope.UNIVERSE: TargetType.UNIVERSE,
+    ScryScope.GALAXY:   TargetType.GALAXY,
+    ScryScope.SYSTEM:   TargetType.SYSTEM,
+    ScryScope.WORLD:    TargetType.WORLD,
+}
+
+
+class ScryConfigModal(ModalScreen):
+    """
+    Single-screen Scry configuration.
+    Dismisses with (ScryScope, target_id_or_None, TargetType, stop_when_str).
+    """
+
+    BINDINGS = [
+        ("escape",    "cancel", "Cancel"),
+        ("backspace", "back",   "Back"),
+    ]
+
+    def __init__(
+        self,
+        state: SimulationState,
+        prefill: "tuple[ScryScope, object, str] | None" = None,
+    ) -> None:
+        super().__init__()
+        self._state = state
+        self._scope:     ScryScope | None = None
+        self._galaxy_id: str | None = None
+        self._system_id: str | None = None
+        self._world_id:  str | None = None
+        self._stop_when: str = "visible"
+        self._shown_systems: list[tuple[str, str]] = []
+        self._shown_worlds:  list[tuple[str, str]] = []
+
+        # Precompute all visible locations
+        self._galaxies: list[tuple[str, str]] = []
+        for gid, g in state.galaxies.items():
+            if is_in_window(g):
+                n = sum(
+                    1 for cid in g.child_ids
+                    if str(cid) in state.locations and is_in_window(state.locations[str(cid)])
+                )
+                self._galaxies.append((gid, f"{g.name:<26}  {n} system(s) known"))
+
+        self._systems: list[tuple[str, str, str]] = []
+        for sid, s in state.systems.items():
+            if is_in_window(s):
+                gal_id   = str(s.parent_id) if s.parent_id else ""
+                gal_obj  = state.locations.get(gal_id)
+                gal_name = gal_obj.name if gal_obj else "?"
+                n = sum(
+                    1 for cid in s.child_ids
+                    if str(cid) in state.locations and is_in_window(state.locations[str(cid)])
+                )
+                self._systems.append((sid, f"{s.name:<26}  {gal_name:<20}  {n} world(s) known", gal_id))
+
+        self._worlds: list[tuple[str, str, str]] = []
+        for wid, w in state.worlds.items():
+            if is_in_window(w):
+                sys_id   = str(w.parent_id) if w.parent_id else ""
+                sys_obj  = state.locations.get(sys_id)
+                sys_name = sys_obj.name if sys_obj else "?"
+                n_civs   = sum(
+                    1 for cid in w.civilization_ids
+                    if str(cid) in state.civilizations and is_in_window(state.civilizations[str(cid)])
+                )
+                life = f"{n_civs} civ(s) known" if n_civs else "no life known"
+                self._worlds.append((wid, f"{w.name:<20}  {sys_name:<20}  {life}", sys_id))
+
+        # Apply prefill
+        if prefill:
+            p_scope, p_target, p_stop = prefill
+            self._scope     = p_scope
+            self._stop_when = p_stop
+            if p_target is not None:
+                tid = str(p_target)
+                if p_scope == ScryScope.GALAXY:
+                    if any(gid == tid for gid, _ in self._galaxies):
+                        self._galaxy_id = tid
+                elif p_scope == ScryScope.SYSTEM:
+                    match = next((s for s in self._systems if s[0] == tid), None)
+                    if match:
+                        self._system_id = match[0]
+                        self._galaxy_id = match[2]
+                elif p_scope == ScryScope.WORLD:
+                    match = next((w for w in self._worlds if w[0] == tid), None)
+                    if match:
+                        self._world_id  = match[0]
+                        sys_m = next((s for s in self._systems if s[0] == match[2]), None)
+                        if sys_m:
+                            self._system_id = sys_m[0]
+                            self._galaxy_id = sys_m[2]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="scry-config-modal"):
+            yield Label("Scry", classes="modal-title")
+
+            # ── Scope chips ──
+            with Vertical(classes="scry-scope-panel"):
+                with Horizontal(classes="scry-scope-row-1"):
+                    yield Button("Universe", id="chip-universe", classes="scope-chip")
+                with Horizontal(classes="scry-scope-row-2"):
+                    yield Button("Galaxy", id="chip-galaxy", classes="scope-chip")
+                    yield Button("System", id="chip-system", classes="scope-chip")
+                    yield Button("World",  id="chip-world",  classes="scope-chip")
+
+            # ── Three-column pickers ──
+            with Horizontal(classes="scry-pickers"):
+                with Vertical(id="galaxy-col", classes="scry-picker-col picker-col--dull"):
+                    yield Label("Galaxy", classes="scry-picker-header")
+                    yield Static("", id="galaxy-placeholder", classes="scry-placeholder")
+                    yield LoopingListView(id="galaxy-list")
+                with Vertical(id="system-col", classes="scry-picker-col picker-col--dull"):
+                    yield Label("System", classes="scry-picker-header")
+                    yield Static("", id="system-placeholder", classes="scry-placeholder")
+                    yield LoopingListView(id="system-list")
+                with Vertical(id="world-col", classes="scry-picker-col picker-col--dull"):
+                    yield Label("World", classes="scry-picker-header")
+                    yield Static("", id="world-placeholder", classes="scry-placeholder")
+                    yield LoopingListView(id="world-list")
+
+            # ── Auto-stop + buttons ──
+            with Vertical(classes="scry-stop-panel"):
+                yield Label("Stop when", classes="scry-stop-label")
+                with RadioSet(id="stop-radio"):
+                    yield RadioButton("Entities within scope become visible",    id="stop-visible", value=True)
+                    yield RadioButton("Entities within scope are fully revealed", id="stop-full")
+                with Horizontal(classes="btn-row"):
+                    yield Button("← Back",     id="back-btn")
+                    yield Button("✕ Cancel",   id="cancel-btn", classes="-danger")
+                    yield Button("Continue →", id="continue-btn", disabled=True)
+
+    def on_mount(self) -> None:
+        if self._stop_when == "full":
+            self.query_one("#stop-full", RadioButton).value = True
+        if self._scope is not None:
+            self._apply_scope(self._scope, restore=True)
+
+    # ── Scope chip handling ────────────────────────
+
+    def _apply_scope(self, scope: ScryScope, restore: bool = False) -> None:
+        self._scope = scope
+        for cid in _SCOPE_CHIP_IDS:
+            btn = self.query_one(f"#{cid}", Button)
+            if _SCOPE_CHIP_IDS[cid] == scope:
+                btn.add_class("scope-chip--active")
+                btn.remove_class("scope-chip--inactive")
+            else:
+                btn.remove_class("scope-chip--active")
+                btn.add_class("scope-chip--inactive")
+
+        uses_galaxy = scope in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD)
+        uses_system = scope in (ScryScope.SYSTEM, ScryScope.WORLD)
+        uses_world  = scope == ScryScope.WORLD
+
+        for col_id, active in (
+            ("galaxy-col", uses_galaxy),
+            ("system-col", uses_system),
+            ("world-col",  uses_world),
+        ):
+            col = self.query_one(f"#{col_id}")
+            if active:
+                col.remove_class("picker-col--dull")
+                col.add_class("picker-col--active")
+            else:
+                col.remove_class("picker-col--active")
+                col.add_class("picker-col--dull")
+
+        if not restore:
+            if not uses_world:
+                self._world_id = None
+            if not uses_system:
+                self._system_id = None
+            if not uses_galaxy:
+                self._galaxy_id = None
+
+        self._populate_galaxy_list()
+        self._populate_system_list()
+        self._populate_world_list()
+
+    @on(Button.Pressed, "#chip-universe, #chip-galaxy, #chip-system, #chip-world")
+    def _on_chip_pressed(self, event: Button.Pressed) -> None:
+        scope = _SCOPE_CHIP_IDS.get(event.button.id)
+        if scope is not None:
+            self._apply_scope(scope)
+
+    # ── List population ───────────────────────────
+
+    @work(exclusive=True)
+    async def _populate_galaxy_list(self) -> None:
+        lst = self.query_one("#galaxy-list", ListView)
+        lst.disabled = self._scope not in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD)
+        await lst.clear()
+        if not lst.disabled:
+            for i, (gid, label) in enumerate(self._galaxies):
+                await lst.append(ListItem(Label(label), id=f"gal-{i}"))
+            if self._galaxy_id is not None:
+                idx = next((i for i, (gid, _) in enumerate(self._galaxies) if gid == self._galaxy_id), None)
+                if idx is not None:
+                    lst.index = idx
+        self._check_continue()
+
+    @work(exclusive=True)
+    async def _populate_system_list(self) -> None:
+        lst = self.query_one("#system-list", ListView)
+        ph  = self.query_one("#system-placeholder", Static)
+        uses_system = self._scope in (ScryScope.SYSTEM, ScryScope.WORLD)
+        lst.disabled = not uses_system
+        await lst.clear()
+        ph.update("")
+        if not uses_system or self._galaxy_id is None:
+            self._check_continue()
+            return
+        filtered = [(sid, label) for sid, label, gid in self._systems if gid == self._galaxy_id]
+        if not filtered:
+            ph.update("None in scope!")
+            self._check_continue()
+            return
+        self._shown_systems = filtered
+        for i, (sid, label) in enumerate(filtered):
+            await lst.append(ListItem(Label(label), id=f"sys-{i}"))
+        if self._system_id is not None:
+            idx = next((i for i, (sid, _) in enumerate(filtered) if sid == self._system_id), None)
+            if idx is not None:
+                lst.index = idx
+        self._check_continue()
+
+    @work(exclusive=True)
+    async def _populate_world_list(self) -> None:
+        lst = self.query_one("#world-list", ListView)
+        ph  = self.query_one("#world-placeholder", Static)
+        lst.disabled = self._scope != ScryScope.WORLD
+        await lst.clear()
+        ph.update("")
+        if self._scope != ScryScope.WORLD or self._system_id is None:
+            self._check_continue()
+            return
+        filtered = [(wid, label) for wid, label, sid in self._worlds if sid == self._system_id]
+        if not filtered:
+            ph.update("None in scope!")
+            self._check_continue()
+            return
+        self._shown_worlds = filtered
+        for i, (wid, label) in enumerate(filtered):
+            await lst.append(ListItem(Label(label), id=f"wld-{i}"))
+        if self._world_id is not None:
+            idx = next((i for i, (wid, _) in enumerate(filtered) if wid == self._world_id), None)
+            if idx is not None:
+                lst.index = idx
+        self._check_continue()
+
+    # ── List selection events ─────────────────────
+
+    @on(ListView.Highlighted, "#galaxy-list")
+    def _on_galaxy_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None or self._scope not in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD):
+            return
+        idx = int(event.item.id.rsplit("-", 1)[1])
+        if idx < len(self._galaxies):
+            new_gid = self._galaxies[idx][0]
+            if new_gid != self._galaxy_id:
+                self._galaxy_id = new_gid
+                self._system_id = None
+                self._world_id  = None
+                self._populate_system_list()
+                self._populate_world_list()
+        self._check_continue()
+
+    @on(ListView.Highlighted, "#system-list")
+    def _on_system_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None or self._scope not in (ScryScope.SYSTEM, ScryScope.WORLD):
+            return
+        idx = int(event.item.id.rsplit("-", 1)[1])
+        if idx < len(self._shown_systems):
+            new_sid = self._shown_systems[idx][0]
+            if new_sid != self._system_id:
+                self._system_id = new_sid
+                self._world_id  = None
+                self._populate_world_list()
+        self._check_continue()
+
+    @on(ListView.Highlighted, "#world-list")
+    def _on_world_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None or self._scope != ScryScope.WORLD:
+            return
+        idx = int(event.item.id.rsplit("-", 1)[1])
+        if idx < len(self._shown_worlds):
+            self._world_id = self._shown_worlds[idx][0]
+        self._check_continue()
+
+    # ── Continue gating ───────────────────────────
+
+    def _check_continue(self) -> None:
+        ready = False
+        if self._scope == ScryScope.UNIVERSE:
+            ready = True
+        elif self._scope == ScryScope.GALAXY:
+            ready = self._galaxy_id is not None
+        elif self._scope == ScryScope.SYSTEM:
+            ready = self._system_id is not None
+        elif self._scope == ScryScope.WORLD:
+            ready = self._world_id is not None
+        btn = self.query_one("#continue-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    # ── Auto-stop radio ───────────────────────────
+
+    @on(RadioSet.Changed, "#stop-radio")
+    def _on_stop_changed(self, event: RadioSet.Changed) -> None:
+        self._stop_when = "full" if (event.pressed.id == "stop-full") else "visible"
+
+    # ── Buttons ───────────────────────────────────
+
+    @on(Button.Pressed, "#continue-btn")
+    def _on_continue(self, _: Button.Pressed) -> None:
+        if self._scope is None:
+            return
+        from uuid import UUID as _UUID
+        target_id: object = None
+        if self._scope == ScryScope.GALAXY and self._galaxy_id:
+            target_id = _UUID(self._galaxy_id)
+        elif self._scope == ScryScope.SYSTEM and self._system_id:
+            target_id = _UUID(self._system_id)
+        elif self._scope == ScryScope.WORLD and self._world_id:
+            target_id = _UUID(self._world_id)
+        self.dismiss((self._scope, target_id, _SCOPE_TARGET_TYPE[self._scope], self._stop_when))
+
+    @on(Button.Pressed, "#back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(BACK)
+
+
+# ─────────────────────────────────────────
+# SCRY CONFIRM MODAL
+# Plain-language confirmation for a queued Scry action.
+# Dismisses with True (confirm), False (back), or None (cancel).
+# ─────────────────────────────────────────
+
+class ScryConfirmModal(ModalScreen):
+    """Confirmation step for Scry. Shows scope/target/stop-condition summary."""
+
+    BINDINGS = [
+        ("escape",    "cancel", "Cancel"),
+        ("backspace", "back",   "Back"),
+    ]
+
+    def __init__(
+        self,
+        scope:       ScryScope,
+        target_id:   object,
+        target_type: TargetType,
+        stop_when:   str,
+        state:       SimulationState,
+    ) -> None:
+        super().__init__()
+        if target_id is not None:
+            loc = state.locations.get(str(target_id))
+            self._target_name = loc.name if loc else str(target_id)
+        else:
+            self._target_name = "the universe"
+        self._condition = (
+            "entities within scope are fully revealed"
+            if stop_when == "full"
+            else "entities within scope become visible"
+        )
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box"):
+            yield Label("Confirm Scry", classes="modal-title")
+            yield Static(
+                f"You have chosen to scry [bold]{_e(self._target_name)}[/bold] "
+                f"and stop when {_e(self._condition)}.",
+                classes="modal-desc",
+            )
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",    id="back-btn")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✓ Confirm", id="confirm-btn", classes="continue-ready")
+
+    @on(Button.Pressed, "#confirm-btn")
+    def _on_confirm(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
 

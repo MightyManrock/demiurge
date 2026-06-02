@@ -849,3 +849,105 @@ Button.continue-ready {
     padding: 0 1;
 }
 
+
+/* ── Scry Config Modal ─────────────────────── */
+
+.scry-config-modal {
+    background: $bg-modal;
+    border: solid $border;
+    width: 90%;
+    height: 85%;
+    padding: 1 2;
+}
+
+.scry-scope-panel {
+    height: auto;
+    border-bottom: solid $border;
+    padding: 0 0 1 0;
+    margin-bottom: 1;
+}
+
+.scry-scope-row-1 {
+    height: 3;
+    align: center middle;
+}
+
+.scry-scope-row-2 {
+    height: 3;
+}
+
+.scry-scope-row-2 Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
+Button.scope-chip {
+    background: $bg;
+    border: solid $border;
+    color: $muted;
+    min-width: 12;
+}
+
+Button.scope-chip--active {
+    background: $accent;
+    color: $bg;
+    border: solid $accent;
+    text-style: bold;
+}
+
+.scry-pickers {
+    height: 1fr;
+}
+
+.scry-picker-col {
+    width: 1fr;
+    border-right: solid $border;
+    padding: 0 1;
+}
+
+.scry-picker-col:last-child {
+    border-right: none;
+}
+
+.scry-picker-header {
+    color: $accent;
+    text-style: bold;
+    height: 1;
+    padding: 0 0 1 0;
+}
+
+.picker-col--dull {
+    color: $muted;
+    opacity: 0.5;
+}
+
+.picker-col--dull LoopingListView {
+    opacity: 0.5;
+}
+
+.scry-placeholder {
+    color: $muted;
+    text-style: italic;
+    height: 1;
+    padding: 0 0 1 0;
+}
+
+.scry-stop-panel {
+    height: auto;
+    border-top: solid $border;
+    padding: 1 0 0 0;
+    margin-top: 1;
+}
+
+.scry-stop-label {
+    color: $muted;
+    height: 1;
+    margin-bottom: 1;
+}
+
+.scry-stop-panel RadioSet {
+    background: transparent;
+    border: none;
+    height: auto;
+    padding: 0;
+}
