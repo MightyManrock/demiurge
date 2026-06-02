@@ -868,12 +868,20 @@ Button.continue-ready {
 }
 
 .scry-scope-row-1 {
-    height: 3;
-    align: center middle;
+    height: 5;
+}
+
+.scry-scope-row-1 > * {
+    width: 1fr;
+    margin: 0 1;
+}
+
+.scope-chip-spacer {
+    width: 1fr;
 }
 
 .scry-scope-row-2 {
-    height: 3;
+    height: 5;
 }
 
 .scry-scope-row-2 Button {
@@ -885,7 +893,8 @@ Button.scope-chip {
     background: $bg;
     border: solid $border;
     color: $muted;
-    min-width: 12;
+    height: 5;
+    content-align: center middle;
 }
 
 Button.scope-chip--active {

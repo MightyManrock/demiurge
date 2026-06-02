@@ -3351,11 +3351,25 @@ class ScryConfigModal(ModalScreen):
             # ── Scope chips ──
             with Vertical(classes="scry-scope-panel"):
                 with Horizontal(classes="scry-scope-row-1"):
-                    yield Button("Universe", id="chip-universe", classes="scope-chip")
+                    yield Static(classes="scope-chip-spacer")
+                    yield Button(
+                        "Universe\n+0.35 subtle FP + 5 Ess / 5 ticks",
+                        id="chip-universe", classes="scope-chip",
+                    )
+                    yield Static(classes="scope-chip-spacer")
                 with Horizontal(classes="scry-scope-row-2"):
-                    yield Button("Galaxy", id="chip-galaxy", classes="scope-chip")
-                    yield Button("System", id="chip-system", classes="scope-chip")
-                    yield Button("World",  id="chip-world",  classes="scope-chip")
+                    yield Button(
+                        "Galaxy\n+0.20 subtle FP + 3 Ess / 5 ticks",
+                        id="chip-galaxy", classes="scope-chip",
+                    )
+                    yield Button(
+                        "System\n+0.10 subtle FP / 5 ticks",
+                        id="chip-system", classes="scope-chip",
+                    )
+                    yield Button(
+                        "World\n+0.01 subtle FP / 5 ticks",
+                        id="chip-world", classes="scope-chip",
+                    )
 
             # ── Three-column pickers ──
             with Horizontal(classes="scry-pickers"):
