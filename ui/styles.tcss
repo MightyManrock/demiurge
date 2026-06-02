@@ -889,18 +889,14 @@ Button.continue-ready {
     margin: 0 1;
 }
 
-Button.scope-chip {
+.scope-chip {
     background: $bg;
     border: solid $border;
-    color: $muted;
     height: 5;
     content-align: center middle;
 }
 
-Button.scope-chip--active,
-Button.scope-chip--active:focus,
-Button.scope-chip--active:hover {
-    background: $bg;
+.scope-chip--active {
     border: solid $accent;
 }
 

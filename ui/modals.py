@@ -12,6 +12,8 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
+from textual.message import Message
+from textual.widget import Widget
 from textual.widgets import (
     Button, Checkbox, Input, Label, ListItem, ListView,
     RadioButton, RadioSet, RichLog, Static,
@@ -3254,6 +3256,31 @@ _SCOPE_TARGET_TYPE: dict[ScryScope, TargetType] = {
 }
 
 
+class ScopeChip(Widget):
+    """Scope selector chip — plain Widget so Textual's Button styling never interferes."""
+
+    can_focus = True
+
+    class Pressed(Message):
+        def __init__(self, chip_id: str) -> None:
+            super().__init__()
+            self.chip_id = chip_id
+
+    def __init__(self, label: Text, chip_id: str) -> None:
+        super().__init__(id=chip_id, classes="scope-chip")
+        self._label   = label
+        self._chip_id = chip_id
+
+    def render(self) -> Text:
+        return self._label
+
+    def on_click(self) -> None:
+        self.post_message(self.Pressed(self._chip_id))
+
+    def key_enter(self) -> None:
+        self.post_message(self.Pressed(self._chip_id))
+
+
 def _scry_chip_label(scope: ScryScope, cooldown: int) -> Text:
     """Build the two-line chip label for a Scry scope button."""
     fp = SCRY_FP_BASE[scope]
@@ -3369,24 +3396,12 @@ class ScryConfigModal(ModalScreen):
             with Vertical(classes="scry-scope-panel"):
                 with Horizontal(classes="scry-scope-row-1"):
                     yield Static(classes="scope-chip-spacer")
-                    yield Button(
-                        _scry_chip_label(ScryScope.UNIVERSE, _scry_cd),
-                        id="chip-universe", classes="scope-chip",
-                    )
+                    yield ScopeChip(_scry_chip_label(ScryScope.UNIVERSE, _scry_cd), "chip-universe")
                     yield Static(classes="scope-chip-spacer")
                 with Horizontal(classes="scry-scope-row-2"):
-                    yield Button(
-                        _scry_chip_label(ScryScope.GALAXY, _scry_cd),
-                        id="chip-galaxy", classes="scope-chip",
-                    )
-                    yield Button(
-                        _scry_chip_label(ScryScope.SYSTEM, _scry_cd),
-                        id="chip-system", classes="scope-chip",
-                    )
-                    yield Button(
-                        _scry_chip_label(ScryScope.WORLD, _scry_cd),
-                        id="chip-world", classes="scope-chip",
-                    )
+                    yield ScopeChip(_scry_chip_label(ScryScope.GALAXY, _scry_cd), "chip-galaxy")
+                    yield ScopeChip(_scry_chip_label(ScryScope.SYSTEM, _scry_cd), "chip-system")
+                    yield ScopeChip(_scry_chip_label(ScryScope.WORLD,  _scry_cd), "chip-world")
 
             # ── Three-column pickers ──
             with Horizontal(classes="scry-pickers"):
@@ -3422,13 +3437,13 @@ class ScryConfigModal(ModalScreen):
     def _apply_scope(self, scope: ScryScope, restore: bool = False) -> None:
         self._scope = scope
         for cid in _SCOPE_CHIP_IDS:
-            btn = self.query_one(f"#{cid}", Button)
+            chip = self.query_one(f"#{cid}", ScopeChip)
             if _SCOPE_CHIP_IDS[cid] == scope:
-                btn.add_class("scope-chip--active")
-                btn.remove_class("scope-chip--inactive")
+                chip.add_class("scope-chip--active")
+                chip.remove_class("scope-chip--inactive")
             else:
-                btn.remove_class("scope-chip--active")
-                btn.add_class("scope-chip--inactive")
+                chip.remove_class("scope-chip--active")
+                chip.add_class("scope-chip--inactive")
 
         uses_galaxy = scope in (ScryScope.GALAXY, ScryScope.SYSTEM, ScryScope.WORLD)
         uses_system = scope in (ScryScope.SYSTEM, ScryScope.WORLD)
@@ -3457,9 +3472,9 @@ class ScryConfigModal(ModalScreen):
 
         self._trigger_repopulate()
 
-    @on(Button.Pressed, "#chip-universe, #chip-galaxy, #chip-system, #chip-world")
-    def _on_chip_pressed(self, event: Button.Pressed) -> None:
-        scope = _SCOPE_CHIP_IDS.get(event.button.id)
+    @on(ScopeChip.Pressed)
+    def _on_chip_pressed(self, event: ScopeChip.Pressed) -> None:
+        scope = _SCOPE_CHIP_IDS.get(event.chip_id)
         if scope is not None:
             self._apply_scope(scope)
 
