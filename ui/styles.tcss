@@ -394,6 +394,7 @@ DomainSquare.selected-active {
 DomainSquare.selected-active:focus {
     border: round #c0e0ff;
     color: #c0e0ff;
+    background: $bg-panel;
 }
 
 DomainSquare.affiliated.selected-active {
@@ -404,6 +405,7 @@ DomainSquare.affiliated.selected-active {
 DomainSquare.affiliated.selected-active:focus {
     border: round #c8ffd8;
     color: #c8ffd8;
+    background: $bg-panel;
 }
 
 DomainSquare.eligible-reveal.selected-active {
@@ -414,6 +416,7 @@ DomainSquare.eligible-reveal.selected-active {
 DomainSquare.eligible-reveal.selected-active:focus {
     border: round #fff8b0;
     color: #fff8b0;
+    background: $bg-panel;
 }
 
 DomainSquare.affiliated {
@@ -477,7 +480,7 @@ ImagoCell.selected-active {
 ImagoCell.selected-active:focus {
     border: round #c0e0ff;
     color: #c0e0ff;
-    background: #24407a;
+    background: $bg-panel;
 }
 
 ImagoCell.good.selected-active {
@@ -488,6 +491,7 @@ ImagoCell.good.selected-active {
 ImagoCell.good.selected-active:focus {
     border: round #c4e4ff;
     color: #c4e4ff;
+    background: $bg-panel;
 }
 
 ImagoCell.danger.selected-active {
@@ -498,6 +502,7 @@ ImagoCell.danger.selected-active {
 ImagoCell.danger.selected-active:focus {
     border: round #f0aab0;
     color: #f0aab0;
+    background: $bg-panel;
 }
 
 ImagoCell.good {
@@ -552,6 +557,7 @@ ImagoRevealCell.imago-eligible.selected-active {
 ImagoRevealCell.imago-eligible.selected-active:focus {
     border: round #fff8b0;
     color: $text;
+    background: $bg-panel;
 }
 
 #reveal-pool-label {
