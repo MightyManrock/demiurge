@@ -3915,9 +3915,18 @@ class HarvestEssenceConfigModal(ModalScreen):
     }
     """
 
-    BINDINGS = [("backspace", "back", "Back")]
+    BINDINGS = [
+        ("backspace", "back",   "Back"),
+        ("escape",    "cancel", "Cancel"),
+    ]
 
     _BASE_YIELD = 3.0
+
+    def action_back(self) -> None:
+        self.dismiss(BACK)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -3988,9 +3997,6 @@ class HarvestEssenceConfigModal(ModalScreen):
         inp_id = mapping.get(event.checkbox.id)
         if inp_id:
             self.query_one(f"#{inp_id}", Input).disabled = not event.value
-
-    def action_back(self) -> None:
-        self.dismiss(BACK)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back-btn":
