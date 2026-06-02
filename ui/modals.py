@@ -1359,14 +1359,12 @@ class RevealImagoConfigModal(ModalScreen):
         self.query_one("#domain-label", Label).update(
             f"Domain: {_domain_display_name(event.tag)}"
         )
-        self._load_reveal_tree(event.tag)
 
     def on_domain_square_blurred(self, event: "DomainSquare.Blurred") -> None:
         if self._domain_tag:
             self.query_one("#domain-label", Label).update(
                 f"Domain: {_domain_display_name(self._domain_tag)}"
             )
-            self._load_reveal_tree(self._domain_tag)
         else:
             self.query_one("#domain-label", Label).update("Domain: —")
 
