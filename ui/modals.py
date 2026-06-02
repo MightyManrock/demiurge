@@ -3254,18 +3254,19 @@ _SCOPE_TARGET_TYPE: dict[ScryScope, TargetType] = {
 }
 
 
-def _scry_chip_label(scope: ScryScope, cooldown: int) -> str:
+def _scry_chip_label(scope: ScryScope, cooldown: int) -> Text:
     """Build the two-line chip label for a Scry scope button."""
-    name = scope.value.title()
-    fp   = SCRY_FP_BASE[scope]
+    fp = SCRY_FP_BASE[scope]
     if scope == ScryScope.WORLD:
-        fp_max = fp + SCRY_FP_WORLD_MOM
-        fp_str = f"+{fp * 100:.0f}%→{fp_max * 100:.0f}% subtle FP"
+        fp_str = f"+{fp * 100:.0f}%→{(fp + SCRY_FP_WORLD_MOM) * 100:.0f}% subtle FP"
     else:
         fp_str = f"+{fp * 100:.0f}% subtle FP"
     ess = SCRY_ESSENCE[scope]
     ess_str = f" + {ess:.0f} Ess" if ess > 0 else ""
-    return f"{name}\n{fp_str}{ess_str} / {cooldown} ticks"
+    label = Text(justify="center")
+    label.append(scope.value.title(), style="bold #e8f0f8")
+    label.append(f"\n{fp_str}{ess_str} / {cooldown} ticks", style="#5a7090")
+    return label
 
 
 class ScryConfigModal(ModalScreen):
