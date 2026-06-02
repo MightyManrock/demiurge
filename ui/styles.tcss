@@ -925,12 +925,6 @@ Button.scope-chip--active {
     opacity: 0.5;
 }
 
-.scry-placeholder {
-    color: $muted;
-    text-style: italic;
-    height: 1;
-    padding: 0 0 1 0;
-}
 
 .scry-stop-panel {
     height: auto;
