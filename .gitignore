@@ -17,7 +17,6 @@ docs/**/*.syncthing.*.tmp
 saves/*.db
 scenarios/*.db.bak.*
 core/*.bak
-resources/*
 
 ERROR.txt
 
