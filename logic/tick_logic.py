@@ -3345,11 +3345,13 @@ class TickLoop:
                 new_value=f"{old_tag}→{new_tag}",
                 note=f"Demiurge reoriented affiliation: {old_tag} → {new_tag}",
             ))
-            old_short = old_tag.split(":", 1)[1] if ":" in old_tag else old_tag
-            new_short = new_tag.split(":", 1)[1] if ":" in new_tag else new_tag
+            old_short = old_tag.split(":", 1)[1].title() if ":" in old_tag else old_tag.title()
+            new_short = new_tag.split(":", 1)[1].title() if ":" in new_tag else new_tag.title()
+            old_link = f"§domain§{old_tag}§{old_short}§"
+            new_link = f"§domain§{new_tag}§{new_short}§"
             return mutations, (
-                f"You release your conceptual hold on {old_short.title()} and turn your focus "
-                f"toward {new_short.title()}. The reorientation settles into your nature."
+                f"You release your conceptual hold on {old_link} and turn your focus "
+                f"toward {new_link}. The reorientation settles into your nature."
             )
 
         # ── Explore Beliefs ───────────────────────────
