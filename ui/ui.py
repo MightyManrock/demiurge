@@ -1688,7 +1688,6 @@ class GameScreen(Screen):
                 except ValueError:
                     conc = 0.7
                 return EssenceHarvestIntent(
-                    target_concept_type=form["concept"].strip() or None,
                     concealment_priority=conc,
                 )
             if action_key == "salvage_concept":

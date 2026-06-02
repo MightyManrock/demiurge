@@ -432,24 +432,22 @@ class LuminaryPetitionIntent(BaseModel):
 
 class EssenceHarvestIntent(BaseModel):
     """
-    For: harvest_essence, investigate_underreal
-    The Underreal isn't a tap you just open —
-    you're navigating something with its own character.
+    For: harvest_essence
+    Controls how aggressively you're drawing from the Underreal
+    and when to automatically pause the ongoing harvest.
     """
-    target_concept_type: Optional[str] = None
-    # What kind of abandoned material you're looking for.
-    # e.g. "failed civilizations", "unrealized species",
-    #      "discarded divine experiments"
-    # None = opportunistic — take what's available
-
     concealment_priority: float = Field(ge=0.0, le=1.0, default=0.7)
-    # How carefully you're hiding this operation.
-    # High = slower yield, lower concealment_impact
-    # Low = faster yield, riskier apparent stockpile growth
+    # 0.0 = maximum yield, maximum suspicious Essence leak
+    # 1.0 = minimum yield, minimum suspicious Essence leak
 
-    yield_target: Optional[float] = None
-    # How much Essence you're trying to accumulate
-    # before stopping. None = harvest until interrupted.
+    stop_at_suspicious: Optional[float] = None
+    # Pause when essence.suspicious >= this value. None = no limit.
+
+    stop_at_integrity_below: Optional[float] = None
+    # Pause when essence.concealment_integrity < this value. None = no limit.
+
+    stop_at_stockpile: Optional[float] = None
+    # Pause when essence.actual >= this value. None = harvest indefinitely.
 
 
 class SalvageIntent(BaseModel):

@@ -56,8 +56,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     # ── Tick 4: First Essence harvest ─────────────────────────────────────
     if tick == 4:
         q("harvest_essence", TargetType.UNDERREAL, None,
-          EssenceHarvestIntent(target_concept_type="failed civilisations",
-                               concealment_priority=0.9))
+          EssenceHarvestIntent(concealment_priority=0.9))
         return "Harvest Essence (concealment 0.9) — building stockpile quietly."
 
     # ── Tick 5: Whisper to Orryn if visible, else re-scry Neran ───────────
