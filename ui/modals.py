@@ -3319,10 +3319,8 @@ class ScryConfigModal(ModalScreen):
     """
 
     BINDINGS = [
-        Binding("escape",    "cancel",       "Cancel"),
-        Binding("backspace", "back",         "Back"),
-        Binding("tab",       "tab_forward",  ""),
-        Binding("shift+tab", "tab_backward", ""),
+        Binding("escape",    "cancel", "Cancel"),
+        Binding("backspace", "back",   "Back"),
     ]
 
     def __init__(
@@ -3500,49 +3498,49 @@ class ScryConfigModal(ModalScreen):
                 self.query_one(f"#{target}", ScopeChip).focus()
             return
 
-        # ── Enter on auto-stop when all choices are made → advance ─
+        # ── Tab forward (pickers handle their own Tab via ScryPickerList.on_key) ──
+        if key == "tab":
+            if isinstance(focused, ScopeChip):
+                event.prevent_default()
+                self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
+                if self._scope == ScryScope.UNIVERSE:
+                    self.call_later(self._focus_stop_radio)
+                else:
+                    self._pending_focus = "galaxy-list"
+            elif isinstance(focused, RadioButton):
+                event.prevent_default()
+                focused.value = True
+                self.call_later(self.query_one("#back-btn", Button).focus)
+            elif getattr(focused, "id", None) == "continue-btn":
+                event.prevent_default()
+                self.call_later(self.query_one("#chip-universe", ScopeChip).focus)
+            return
+
+        # ── Shift+Tab backward (pickers handle their own Shift+Tab via ScryPickerList.on_key) ──
+        if key == "shift+tab":
+            if getattr(focused, "id", None) == "back-btn":
+                event.prevent_default()
+                self.call_later(self._focus_stop_radio)
+            elif isinstance(focused, RadioButton):
+                event.prevent_default()
+                if self._scope == ScryScope.WORLD:
+                    self.call_later(self.query_one("#world-list", ScryPickerList).focus)
+                elif self._scope == ScryScope.SYSTEM:
+                    self.call_later(self.query_one("#system-list", ScryPickerList).focus)
+                elif self._scope == ScryScope.GALAXY:
+                    self.call_later(self.query_one("#galaxy-list", ScryPickerList).focus)
+                else:
+                    self.call_later(self._focus_active_chip)
+            elif isinstance(focused, ScopeChip):
+                event.prevent_default()
+                btn = self.query_one("#continue-btn", Button)
+                target = btn if not btn.disabled else self.query_one("#cancel-btn", Button)
+                self.call_later(target.focus)
+            return
+
+        # ── Enter on auto-stop when all choices are made → advance ──
         if key == "enter" and isinstance(focused, RadioButton) and self._can_continue():
             self.call_later(self._dismiss_with_result)
-
-    def action_tab_forward(self) -> None:
-        """Handles Tab for non-picker widgets; pickers use ScryPickerList.on_key."""
-        focused = self.focused
-
-        if isinstance(focused, ScopeChip):
-            self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
-            if self._scope == ScryScope.UNIVERSE:
-                self.call_later(self._focus_stop_radio)
-            else:
-                self._pending_focus = "galaxy-list"
-
-        elif isinstance(focused, RadioButton):
-            focused.value = True
-            self.call_later(self.query_one("#back-btn", Button).focus)
-
-        elif getattr(focused, "id", None) == "continue-btn":
-            self.call_later(self.query_one("#chip-universe", ScopeChip).focus)
-
-    def action_tab_backward(self) -> None:
-        """Handles Shift+Tab for non-picker widgets; pickers use ScryPickerList.on_key."""
-        focused = self.focused
-
-        if getattr(focused, "id", None) == "back-btn":
-            self.call_later(self._focus_stop_radio)
-
-        elif isinstance(focused, RadioButton):
-            if self._scope == ScryScope.WORLD:
-                self.call_later(self.query_one("#world-list", ScryPickerList).focus)
-            elif self._scope == ScryScope.SYSTEM:
-                self.call_later(self.query_one("#system-list", ScryPickerList).focus)
-            elif self._scope == ScryScope.GALAXY:
-                self.call_later(self.query_one("#galaxy-list", ScryPickerList).focus)
-            else:
-                self.call_later(self._focus_active_chip)
-
-        elif isinstance(focused, ScopeChip):
-            btn = self.query_one("#continue-btn", Button)
-            target = btn if not btn.disabled else self.query_one("#cancel-btn", Button)
-            self.call_later(target.focus)
 
     # ── Picker Tab/Shift+Tab (widget-level, fires before all bindings) ─
 
@@ -3572,7 +3570,7 @@ class ScryConfigModal(ModalScreen):
             self._trigger_repopulate()
             self._pending_focus = "world-list"
         else:
-            self.call_later(self._focus_stop_radio)
+            self._focus_stop_radio()
 
     @on(ScryPickerList.TabBackward)
     def _on_picker_tab_backward(self, event: ScryPickerList.TabBackward) -> None:
