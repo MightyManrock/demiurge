@@ -884,7 +884,7 @@ Button.continue-ready {
     height: 5;
 }
 
-.scry-scope-row-2 Button {
+.scry-scope-row-2 ScopeChip {
     width: 1fr;
     margin: 0 1;
 }
