@@ -3242,6 +3242,12 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
 # BACK, or None on cancel.
 # ─────────────────────────────────────────
 
+def _loc_display_name(name: str, max_len: int = 25) -> str:
+    if len(name) > max_len:
+        name = name.removeprefix("The ")
+    return name[:max_len] if len(name) > max_len else name
+
+
 _SCOPE_CHIP_IDS: dict[str, ScryScope] = {
     "chip-universe": ScryScope.UNIVERSE,
     "chip-galaxy":   ScryScope.GALAXY,
@@ -3351,36 +3357,27 @@ class ScryConfigModal(ModalScreen):
         self._galaxies: list[tuple[str, str]] = []
         for gid, g in state.galaxies.items():
             if is_in_window(g):
-                n = sum(
-                    1 for cid in g.child_ids
-                    if str(cid) in state.locations and is_in_window(state.locations[str(cid)])
-                )
-                self._galaxies.append((gid, f"{g.name:<26}  {n} system(s) known"))
+                c = g.coordinates
+                self._galaxies.append((gid, f"{_loc_display_name(g.name):<25}  ({c.x:g},{c.y:g},{c.z:g})"))
 
         self._systems: list[tuple[str, str, str]] = []
         for sid, s in state.systems.items():
             if is_in_window(s):
-                gal_id   = str(s.parent_id) if s.parent_id else ""
-                gal_obj  = state.locations.get(gal_id)
-                gal_name = gal_obj.name if gal_obj else "?"
-                n = sum(
-                    1 for cid in s.child_ids
-                    if str(cid) in state.locations and is_in_window(state.locations[str(cid)])
-                )
-                self._systems.append((sid, f"{s.name:<26}  {gal_name:<20}  {n} world(s) known", gal_id))
+                gal_id = str(s.parent_id) if s.parent_id else ""
+                c = s.coordinates
+                self._systems.append((sid, f"{_loc_display_name(s.name):<25}  ({c.x:g},{c.y:g},{c.z:g})", gal_id))
 
         self._worlds: list[tuple[str, str, str]] = []
         for wid, w in state.worlds.items():
             if is_in_window(w):
-                sys_id   = str(w.parent_id) if w.parent_id else ""
-                sys_obj  = state.locations.get(sys_id)
-                sys_name = sys_obj.name if sys_obj else "?"
-                n_civs   = sum(
+                sys_id = str(w.parent_id) if w.parent_id else ""
+                n_civs = sum(
                     1 for cid in w.civilization_ids
                     if str(cid) in state.civilizations and is_in_window(state.civilizations[str(cid)])
                 )
                 life = f"{n_civs} civ(s) known" if n_civs else "no life known"
-                self._worlds.append((wid, f"{w.name:<20}  {sys_name:<20}  {life}", sys_id))
+                c = w.coordinates
+                self._worlds.append((wid, f"{_loc_display_name(w.name, 20):<20}  ({c.x:g},{c.y:g},{c.z:g})  {life}", sys_id))
 
         # Apply prefill
         if prefill:
