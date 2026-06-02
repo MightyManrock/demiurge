@@ -896,7 +896,15 @@ Button.continue-ready {
     text-align: center;
 }
 
+.scope-chip:focus {
+    border: solid $muted;
+}
+
 .scope-chip--active {
+    border: solid $accent;
+}
+
+.scope-chip--active:focus {
     border: solid $accent;
 }
 
