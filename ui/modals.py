@@ -4,7 +4,7 @@ ModalScreen subclass; they communicate with callers by being pushed via
 push_screen_wait() and returning a value from dismiss().
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from rich.markup import escape as _e
 from rich.text import Text
@@ -16,7 +16,7 @@ from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Checkbox, Input, Label, ListItem, ListView,
-    RadioButton, RadioSet, RichLog, Static,
+    RadioButton, RadioSet, RichLog, Slider, Static,
     TabbedContent, Tab, TabPane,
 )
 
@@ -3862,4 +3862,152 @@ class ScryConfirmModal(ModalScreen):
 
     def action_back(self) -> None:
         self.dismiss(False)
+
+
+# ─────────────────────────────────────────
+# HARVEST ESSENCE CONFIG MODAL
+# Concealment slider + optional auto-stop conditions.
+# ─────────────────────────────────────────
+
+class HarvestEssenceConfigModal(ModalScreen):
+    """Config modal for the Harvest Essence from Underreal action."""
+
+    DEFAULT_CSS = """
+    HarvestEssenceConfigModal {
+        align: center middle;
+    }
+    HarvestEssenceConfigModal > Vertical {
+        width: 64;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: solid $primary;
+    }
+    HarvestEssenceConfigModal #modal-title {
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    HarvestEssenceConfigModal #preview {
+        margin: 0 0 1 0;
+        color: $text-muted;
+    }
+    HarvestEssenceConfigModal #stop-label {
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    HarvestEssenceConfigModal .stop-row {
+        height: 3;
+        margin-bottom: 1;
+    }
+    HarvestEssenceConfigModal .stop-input {
+        width: 10;
+        margin-left: 2;
+    }
+    HarvestEssenceConfigModal #buttons {
+        margin-top: 1;
+        height: 3;
+        align: center middle;
+    }
+    """
+
+    _BASE_YIELD = 3.0
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("Harvest Essence from Underreal", id="modal-title")
+            yield Label("Concealment priority")
+            yield Slider(min=0.0, max=1.0, step=0.05, value=0.7, id="conc_slider")
+            yield Label("", id="preview")
+            yield Label(
+                "Auto-stop conditions (leave unchecked to harvest indefinitely):",
+                id="stop-label",
+            )
+            with Horizontal(classes="stop-row"):
+                yield Checkbox(
+                    "Stop when suspicious Essence ≥", id="chk_suspicious", value=False
+                )
+                yield Input(
+                    placeholder="e.g. 20",
+                    id="inp_suspicious",
+                    disabled=True,
+                    classes="stop-input",
+                )
+            with Horizontal(classes="stop-row"):
+                yield Checkbox(
+                    "Stop when concealment integrity < (0–100 %)",
+                    id="chk_integrity",
+                    value=False,
+                )
+                yield Input(
+                    placeholder="e.g. 40",
+                    id="inp_integrity",
+                    disabled=True,
+                    classes="stop-input",
+                )
+            with Horizontal(classes="stop-row"):
+                yield Checkbox(
+                    "Stop when Essence stockpile ≥", id="chk_stockpile", value=False
+                )
+                yield Input(
+                    placeholder="e.g. 50",
+                    id="inp_stockpile",
+                    disabled=True,
+                    classes="stop-input",
+                )
+            with Horizontal(id="buttons"):
+                yield Button("✕ Cancel", id="cancel", variant="default")
+                yield Button("Confirm", id="confirm", variant="primary")
+
+    def on_mount(self) -> None:
+        self._update_preview(0.7)
+
+    def _update_preview(self, conc: float) -> None:
+        yield_val = self._BASE_YIELD * (0.5 + conc * 0.5)
+        leak_val  = self._BASE_YIELD * (1.0 - conc) * 0.5
+        self.query_one("#preview", Label).update(
+            f"Expected yield: ~{yield_val:.2f}  |  Suspicious leak: ~{leak_val:.2f}  (per tick, on success)"
+        )
+
+    def on_slider_changed(self, event: Slider.Changed) -> None:
+        self._update_preview(float(event.value))
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        mapping = {
+            "chk_suspicious": "inp_suspicious",
+            "chk_integrity":  "inp_integrity",
+            "chk_stockpile":  "inp_stockpile",
+        }
+        inp_id = mapping.get(event.checkbox.id)
+        if inp_id:
+            self.query_one(f"#{inp_id}", Input).disabled = not event.value
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+            return
+        if event.button.id == "confirm":
+            self.dismiss(self._build_result())
+
+    def _parse_optional_float(self, input_id: str, checkbox_id: str) -> Optional[float]:
+        if not self.query_one(f"#{checkbox_id}", Checkbox).value:
+            return None
+        raw = self.query_one(f"#{input_id}", Input).value.strip()
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    def _build_result(self) -> dict:
+        conc = float(self.query_one("#conc_slider", Slider).value)
+        stop_suspicious = self._parse_optional_float("inp_suspicious", "chk_suspicious")
+        stop_stockpile  = self._parse_optional_float("inp_stockpile",  "chk_stockpile")
+        # Integrity input is in % (0–100); store as fraction
+        raw_integrity  = self._parse_optional_float("inp_integrity",  "chk_integrity")
+        stop_integrity = raw_integrity / 100.0 if raw_integrity is not None else None
+        return {
+            "concealment": conc,
+            "stop_suspicious": stop_suspicious,
+            "stop_integrity": stop_integrity,
+            "stop_stockpile": stop_stockpile,
+        }
 
