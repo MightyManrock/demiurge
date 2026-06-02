@@ -33,7 +33,7 @@ class SaveAsModal(ModalScreen[str]):
             yield Input(value=self._default_stem, id="field-stem")
             yield Label("", id="save-as-error", classes="modal-desc")
             with Horizontal(classes="btn-row"):
-                yield Button("Cancel", id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
                 yield Button("Save",   id="save-btn",   classes="-primary")
 
     def on_mount(self) -> None:

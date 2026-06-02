@@ -55,7 +55,7 @@ class NewScenarioWizardScreen(Screen):
             )
             yield Label("", id="wizard-error", classes="modal-desc")
             with Horizontal(classes="btn-row"):
-                yield Button("Cancel",  id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn", classes="-danger")
                 yield Button("Create",  id="create-btn", classes="-primary")
 
     def on_mount(self) -> None:

@@ -129,7 +129,7 @@ class PickerModal(ModalScreen):
             with Horizontal(classes="btn-row"):
                 if self._show_back:
                     yield Button("← Back",  id="back-btn")
-                yield Button("Cancel", id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
         self.query_one("#picker-list", ListView).focus()
@@ -205,7 +205,7 @@ class PopLatitudePickerModal(ModalScreen):
             with Horizontal(classes="btn-row"):
                 if self._show_back:
                     yield Button("← Back",  id="back-btn")
-                yield Button("Cancel", id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
         self.query_one("#picker-list", ListView).focus()
@@ -344,7 +344,7 @@ class TextFormModal(ModalScreen):
             with Horizontal(classes="btn-row"):
                 if self._show_back:
                     yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn", classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     @on(Button.Pressed, "#back-btn")
@@ -435,7 +435,7 @@ class DomainPickerModal(ModalScreen):
             with Horizontal(classes="btn-row"):
                 yield Button("Skip Domain", id="skip-btn")
                 yield Button("← Back",      id="back-btn")
-                yield Button("Cancel",      id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel",      id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
         for sq in self.query(DomainSquare):
@@ -562,16 +562,16 @@ class ExploreBeliefsModal(ModalScreen):
                     with Vertical(id="auto-stop-panel"):
                         yield Label("Auto-stop when…", classes="auto-stop-title")
                         with Grid(id="auto-stop-grid"):
-                            yield Checkbox("One T1 unlockable",   id="stop-t1-one",  value=False, disabled=True)
-                            yield Checkbox("Both T1s unlockable", id="stop-t1-both", value=False, disabled=True)
-                            yield Checkbox("One T2 unlockable",   id="stop-t2-one",  value=False, disabled=True)
-                            yield Checkbox("Both T2s unlockable", id="stop-t2-both", value=False, disabled=True)
-                            yield Checkbox("One T3 unlockable",   id="stop-t3-one",  value=False, disabled=True)
-                            yield Checkbox("Both T3s unlockable", id="stop-t3-both", value=False, disabled=True)
-                        yield Checkbox("Revelation cap reached", id="stop-cap", value=True, disabled=True)
+                            yield RadioButton("One T1 unlockable",   id="stop-t1-one",  value=False, disabled=True)
+                            yield RadioButton("Both T1s unlockable", id="stop-t1-both", value=False, disabled=True)
+                            yield RadioButton("One T2 unlockable",   id="stop-t2-one",  value=False, disabled=True)
+                            yield RadioButton("Both T2s unlockable", id="stop-t2-both", value=False, disabled=True)
+                            yield RadioButton("One T3 unlockable",   id="stop-t3-one",  value=False, disabled=True)
+                            yield RadioButton("Both T3s unlockable", id="stop-t3-both", value=False, disabled=True)
+                        yield RadioButton("Revelation cap reached", id="stop-cap", value=True, disabled=True)
                     with Horizontal(classes="btn-row"):
                         yield Button("← Back",  id="back-btn")
-                        yield Button("Cancel",  id="cancel-btn", classes="-danger")
+                        yield Button("✕ Cancel",  id="cancel-btn", classes="-danger")
                         yield Button("Continue →", id="confirm-btn", disabled=True)
                 with Vertical(id="explore-right"):
                     yield Label("— Imāgō reference —", classes="explore-ref-title")
@@ -595,7 +595,7 @@ class ExploreBeliefsModal(ModalScreen):
                 ("#stop-t3-one",  t3_one),
                 ("#stop-t3-both", t3_both),
             ]:
-                self.query_one(cb_id, Checkbox).value = val
+                self.query_one(cb_id, RadioButton).value = val
         else:
             for sq in self.query(DomainSquare):
                 if not sq.disabled:
@@ -609,7 +609,7 @@ class ExploreBeliefsModal(ModalScreen):
     ]
 
     def action_nav(self, direction: str) -> None:
-        focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
+        focused_cb = next((cb for cb in self.query(RadioButton) if cb.has_focus), None)
         if focused_cb is not None:
             entry = next((e for e in self._CB_GRID if e[0] == focused_cb.id), None)
             if entry:
@@ -619,7 +619,7 @@ class ExploreBeliefsModal(ModalScreen):
                 while 0 <= r < 3 and 0 <= c < 2:
                     target_id = next((e[0] for e in self._CB_GRID if e[1] == r and e[2] == c), None)
                     if target_id:
-                        cb = self.query_one(f"#{target_id}", Checkbox)
+                        cb = self.query_one(f"#{target_id}", RadioButton)
                         if not cb.disabled:
                             cb.focus()
                             return
@@ -651,7 +651,7 @@ class ExploreBeliefsModal(ModalScreen):
                 self._check_confirm()
                 self._focus_first_checkbox()
                 return
-            focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
+            focused_cb = next((cb for cb in self.query(RadioButton) if cb.has_focus), None)
             if focused_cb is not None:
                 event.prevent_default(); event.stop()
                 self.query_one("#back-btn", Button).focus()
@@ -661,7 +661,7 @@ class ExploreBeliefsModal(ModalScreen):
             if focused_sq is not None:
                 event.prevent_default(); event.stop()
                 return
-            focused_cb = next((cb for cb in self.query(Checkbox) if cb.has_focus), None)
+            focused_cb = next((cb for cb in self.query(RadioButton) if cb.has_focus), None)
             if focused_cb is not None:
                 event.prevent_default(); event.stop()
                 self._focus_selected_square()
@@ -674,7 +674,7 @@ class ExploreBeliefsModal(ModalScreen):
 
     def _focus_first_checkbox(self) -> None:
         for cb_id, _, _ in self._CB_GRID:
-            cb = self.query_one(f"#{cb_id}", Checkbox)
+            cb = self.query_one(f"#{cb_id}", RadioButton)
             if not cb.disabled:
                 cb.focus()
                 return
@@ -753,8 +753,8 @@ class ExploreBeliefsModal(ModalScreen):
         nodes = ireg.nodes_for_tree(tree)
         for tier in (1, 2, 3):
             remaining = sum(1 for n in nodes if n.tier == tier and n.node_id not in unlocked)
-            cb_one  = self.query_one(f"#stop-t{tier}-one",  Checkbox)
-            cb_both = self.query_one(f"#stop-t{tier}-both", Checkbox)
+            cb_one  = self.query_one(f"#stop-t{tier}-one",  RadioButton)
+            cb_both = self.query_one(f"#stop-t{tier}-both", RadioButton)
             cb_one.disabled  = remaining < 1
             cb_both.disabled = remaining < 2
             if remaining < 1:
@@ -776,16 +776,16 @@ class ExploreBeliefsModal(ModalScreen):
 
     _updating_checkboxes: bool = False
 
-    @on(Checkbox.Changed)
-    def _autostop_changed(self, event: Checkbox.Changed) -> None:
+    @on(RadioButton.Changed)
+    def _autostop_changed(self, event: RadioButton.Changed) -> None:
         cb_ids = {e[0] for e in self._CB_GRID}
-        if event.checkbox.id not in cb_ids or self._updating_checkboxes or not event.value:
+        if event.radio_button.id not in cb_ids or self._updating_checkboxes or not event.value:
             return
         self._updating_checkboxes = True
         try:
             for cb_id, _, _ in self._CB_GRID:
-                if cb_id != event.checkbox.id:
-                    self.query_one(f"#{cb_id}", Checkbox).value = False
+                if cb_id != event.radio_button.id:
+                    self.query_one(f"#{cb_id}", RadioButton).value = False
         finally:
             self._updating_checkboxes = False
 
@@ -801,12 +801,12 @@ class ExploreBeliefsModal(ModalScreen):
         if self._selected_tag:
             self.dismiss((
                 self._selected_tag,
-                self.query_one("#stop-t1-one",  Checkbox).value,
-                self.query_one("#stop-t1-both", Checkbox).value,
-                self.query_one("#stop-t2-one",  Checkbox).value,
-                self.query_one("#stop-t2-both", Checkbox).value,
-                self.query_one("#stop-t3-one",  Checkbox).value,
-                self.query_one("#stop-t3-both", Checkbox).value,
+                self.query_one("#stop-t1-one",  RadioButton).value,
+                self.query_one("#stop-t1-both", RadioButton).value,
+                self.query_one("#stop-t2-one",  RadioButton).value,
+                self.query_one("#stop-t2-both", RadioButton).value,
+                self.query_one("#stop-t3-one",  RadioButton).value,
+                self.query_one("#stop-t3-both", RadioButton).value,
             ))
 
     @on(Button.Pressed, "#confirm-btn")
@@ -896,7 +896,7 @@ class ExploreBeliefConfirmModal(ModalScreen):
             yield Static(self._body())
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -951,7 +951,7 @@ class ImagoTreeModal(ModalScreen):
             yield Static("", id="imago-tooltip")
             with Horizontal(classes="btn-row"):
                 yield Button("← Domain",  id="back-btn")
-                yield Button("Cancel",    id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",    id="cancel-btn",  classes="-danger")
 
     def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
         ireg = get_imago_registry()
@@ -1060,7 +1060,7 @@ class ImagoDetailModal(ModalScreen):
                 yield Static(self._body(), id="imago-detail-body")
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -1117,7 +1117,7 @@ class ShapeDreamConfirmModal(ModalScreen):
                     yield Static(_imago_panel_body(self._node_b, self._state))
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -1168,7 +1168,7 @@ class NoUnlockableModal(ModalScreen):
             )
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",         id="back-btn")
-                yield Button("Cancel",          id="cancel-btn",   classes="-danger")
+                yield Button("✕ Cancel",          id="cancel-btn",   classes="-danger")
                 yield Button("Explore Beliefs", id="explore-btn",  classes="-primary")
 
     def on_mount(self) -> None:
@@ -1245,7 +1245,7 @@ class RevealImagoConfigModal(ModalScreen):
                 pass
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",    id="back-btn")
-                yield Button("Cancel",    id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",    id="cancel-btn",  classes="-danger")
                 yield Button("Continue →", id="confirm-btn", classes="-primary", disabled=True)
 
     def on_mount(self) -> None:
@@ -1572,7 +1572,7 @@ class RevealImagoConfirmModal(ModalScreen):
                 yield Static(self._body())
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button(
                     "Reveal", id="confirm-btn", classes="-primary",
                     disabled=not self._affordable,
@@ -1656,7 +1656,7 @@ class ChangeAffiliatedDomainModal(ModalScreen):
                 )
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",    id="back-btn")
-                yield Button("Cancel",    id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",    id="cancel-btn",  classes="-danger")
                 yield Button("Continue →", id="confirm-btn", classes="-primary", disabled=True)
 
     def on_mount(self) -> None:
@@ -1865,7 +1865,7 @@ class ChangeAffiliatedDomainConfirmModal(ModalScreen):
             yield Static(self._body())
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",  id="back-btn")
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -1986,7 +1986,7 @@ class MortalDetailModal(ModalScreen):
                 yield Static(self._body(), id="mortal-detail-body")
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",            id="back-btn")
-                yield Button("Cancel",             id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",             id="cancel-btn",  classes="-danger")
                 yield Button("Appoint as Proxius", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -2066,7 +2066,7 @@ class ActionBrowserModal(ModalScreen):
                             id=f"cat-{i}",
                         )
             with Horizontal(classes="btn-row"):
-                yield Button("Cancel", id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
         self.query_one("#cat-list", ListView).focus()
@@ -2589,7 +2589,7 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
                         pass
                     with Horizontal(classes="btn-row"):
                         yield Button("← Back",     id="back-btn")
-                        yield Button("Cancel",     id="cancel-btn",   classes="-danger")
+                        yield Button("✕ Cancel",     id="cancel-btn",   classes="-danger")
                         yield Button("Continue →", id="continue-btn", disabled=True)
 
     def on_mount(self) -> None:
@@ -2876,7 +2876,7 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
                                 pass
                     with Horizontal(classes="btn-row"):
                         yield Button("← Back",     id="sd-back-btn")
-                        yield Button("Cancel",     id="sd-cancel-btn",   classes="-danger")
+                        yield Button("✕ Cancel",     id="sd-cancel-btn",   classes="-danger")
                         yield Button("Continue →", id="sd-continue-btn", disabled=True)
 
     def on_mount(self) -> None:

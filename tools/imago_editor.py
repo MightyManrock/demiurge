@@ -473,7 +473,7 @@ class ImagoPickerModal(ModalScreen):
                                 yield Static("", classes="imago-spacer")
             yield Static("", id="imago-tooltip")
             with Horizontal(classes="btn-row"):
-                yield Button("Cancel", id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
 
     def on_mount(self) -> None:
         cells = list(self.query(ImagoEditorCell))
@@ -539,7 +539,7 @@ class EditTextModal(ModalScreen):
             else:
                 yield TextArea(self._value, id="edit-area")
             with Horizontal(classes="btn-row"):
-                yield Button("Cancel",  id="cancel-btn",  classes="-danger")
+                yield Button("✕ Cancel",  id="cancel-btn",  classes="-danger")
                 yield Button("Confirm", id="confirm-btn", classes="-primary")
 
     def on_mount(self) -> None:
@@ -606,7 +606,7 @@ class AddMechanicModal(ModalScreen):
             yield Label("Value:", id="add-value-label", classes="field-label")
             yield Input("0.10", id="add-value-input")
             with Horizontal(classes="btn-row"):
-                yield Button("Cancel", id="cancel-btn", classes="-danger")
+                yield Button("✕ Cancel", id="cancel-btn", classes="-danger")
                 yield Button("Add",    id="add-btn",    classes="-primary")
 
     async def on_mount(self) -> None:
