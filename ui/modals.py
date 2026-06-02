@@ -1219,6 +1219,13 @@ class RevealImagoConfigModal(ModalScreen):
         self._selected_domain_widget: "DomainSquare | None"      = None
         self._selected_imago_widget:  "ImagoRevealCell | None"   = None
 
+        first_accessible = next(iter(sorted(self._accessible_tags)), None)
+        self._initial_tree = (
+            first_accessible.split(":", 1)[1]
+            if first_accessible and ":" in first_accessible
+            else "fire"
+        )
+
     def compose(self) -> "ComposeResult":
         with Vertical(classes="reveal-imago-modal"):
             yield Label("Reveal Imāgō", classes="modal-title")
@@ -1229,6 +1236,7 @@ class RevealImagoConfigModal(ModalScreen):
                     eligible_reveal_tags=self._eligible_reveal_tags,
                 )
             yield Label("Imāgō: —", id="imago-label")
+            yield ImagoTreeGrid(self._state, self._initial_tree, readonly=True, id="preview-tree")
             with ScrollableContainer(id="reveal-tree-container"):
                 pass
             with Horizontal(classes="btn-row"):
@@ -1239,6 +1247,7 @@ class RevealImagoConfigModal(ModalScreen):
     def on_mount(self) -> None:
         if self._initial:
             domain_tag, node_id = self._initial
+            self.query_one("#preview-tree", ImagoTreeGrid).display = False
             self.query_one("#domain-label", Label).update(
                 f"Domain: {_domain_display_name(domain_tag)}"
             )
@@ -1248,6 +1257,7 @@ class RevealImagoConfigModal(ModalScreen):
                     break
             self._load_reveal_tree(domain_tag, initial_node_id=node_id)
         else:
+            self.query_one("#reveal-tree-container", ScrollableContainer).display = False
             for sq in self.query(DomainSquare):
                 if not sq.disabled:
                     sq.focus()
@@ -1297,6 +1307,7 @@ class RevealImagoConfigModal(ModalScreen):
                     self._selected_imago_widget = None
                 self._mark_domain_selected(focused)
                 self._check_confirm()
+                self._switch_to_interactive()
                 self._load_reveal_tree(tag, focus_first=True)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoRevealCell) and not focused.disabled:
@@ -1343,6 +1354,12 @@ class RevealImagoConfigModal(ModalScreen):
                     target.focus()
                 event.prevent_default(); event.stop()
 
+    def _switch_to_interactive(self) -> None:
+        preview = self.query_one("#preview-tree", ImagoTreeGrid)
+        if preview.display:
+            preview.display = False
+            self.query_one("#reveal-tree-container", ScrollableContainer).display = True
+
     def _mark_domain_selected(self, sq: "DomainSquare") -> None:
         if self._selected_domain_widget is not None:
             self._selected_domain_widget.remove_class("selected-active")
@@ -1359,6 +1376,9 @@ class RevealImagoConfigModal(ModalScreen):
         self.query_one("#domain-label", Label).update(
             f"Domain: {_domain_display_name(event.tag)}"
         )
+        if self._domain_tag is None:
+            tree = event.tag.split(":", 1)[1] if ":" in event.tag else event.tag
+            self.query_one("#preview-tree", ImagoTreeGrid).load_tree(tree)
 
     def on_domain_square_blurred(self, event: "DomainSquare.Blurred") -> None:
         if self._domain_tag:
@@ -1367,6 +1387,7 @@ class RevealImagoConfigModal(ModalScreen):
             )
         else:
             self.query_one("#domain-label", Label).update("Domain: —")
+            self.query_one("#preview-tree", ImagoTreeGrid).load_tree(self._initial_tree)
 
     def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
         tag              = event.tag
@@ -1382,6 +1403,7 @@ class RevealImagoConfigModal(ModalScreen):
             self._selected_imago_widget = None
         self._mark_domain_selected(event._sender)
         self._check_confirm()
+        self._switch_to_interactive()
         self._load_reveal_tree(tag)
 
     def on_imago_reveal_cell_focused(self, event: "ImagoRevealCell.Focused") -> None:

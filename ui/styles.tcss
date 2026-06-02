@@ -740,6 +740,13 @@ Button.continue-ready {
     margin: 0 0 1 0;
 }
 
+#preview-tree {
+    height: 1fr;
+    border: solid $border;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
 /* ── Change Affiliated Domain Modal ──────────── */
 
 .change-affiliated-modal {
