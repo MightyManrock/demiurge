@@ -1210,6 +1210,7 @@ class LuminaryPresenceBanner(Widget):
         width: 1fr;
         background: #04080d;
         display: none;
+        overflow-x: hidden;
     }
     """
 
