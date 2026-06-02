@@ -898,10 +898,8 @@ Button.scope-chip {
 }
 
 Button.scope-chip--active {
-    background: $accent;
-    color: $bg;
+    background: $bg;
     border: solid $accent;
-    text-style: bold;
 }
 
 .scry-pickers {
