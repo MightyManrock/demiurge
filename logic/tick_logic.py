@@ -3861,7 +3861,7 @@ class TickLoop:
             if outcome == ActionOutcome.PARTIAL:
                 base_yield *= 0.5
             concealment_factor = intent.concealment_priority
-            actual_yield = base_yield * (0.5 + concealment_factor * 0.5)
+            actual_yield = base_yield * (1.0 - concealment_factor * 0.5)
             suspicious_leak = base_yield * (1.0 - concealment_factor) * 0.5
 
             mutations.append(StateMutation(

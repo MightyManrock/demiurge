@@ -3967,7 +3967,7 @@ class HarvestEssenceConfigModal(ModalScreen):
         self._update_preview(0.7)
 
     def _update_preview(self, conc: float) -> None:
-        yield_val = self._BASE_YIELD * (0.5 + conc * 0.5)
+        yield_val = self._BASE_YIELD * (1.0 - conc * 0.5)
         leak_val  = self._BASE_YIELD * (1.0 - conc) * 0.5
         self.query_one("#preview", Label).update(
             f"Expected yield: ~{yield_val:.2f}  |  Suspicious leak: ~{leak_val:.2f}  (per tick, on success)"
