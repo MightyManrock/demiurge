@@ -416,6 +416,22 @@ VISIBILITY_WEIGHT    = 0.05   # max bonus from target visibility at 1.0
 FRAMING_WEIGHT       = 0.04   # max bonus from perfect framing resonance
 PUISSANCE_TIER_BONUS = 0.08   # max success-threshold shift for reliability-tier actions
 
+# Scry footprint and essence costs — also consumed by the UI for display.
+# World footprint rises with momentum: SCRY_FP_BASE[WORLD] + momentum * SCRY_FP_WORLD_MOM.
+SCRY_FP_WORLD_MOM: float = 0.09   # at momentum=1.0, world total = 0.01 + 0.09 = 0.10
+SCRY_FP_BASE: "dict[ScryScope, float]" = {
+    ScryScope.WORLD:    0.01,
+    ScryScope.SYSTEM:   0.10,
+    ScryScope.GALAXY:   0.20,
+    ScryScope.UNIVERSE: 0.35,
+}
+SCRY_ESSENCE: "dict[ScryScope, float]" = {
+    ScryScope.WORLD:    0.0,
+    ScryScope.SYSTEM:   0.0,
+    ScryScope.GALAXY:   3.0,
+    ScryScope.UNIVERSE: 5.0,
+}
+
 
 def _compute_puissance(state: "SimulationState") -> float:
     """Compute Demiurge puissance [0, 1] from lifetime revelation, imago tier score, and tick count."""
@@ -2871,25 +2887,17 @@ class TickLoop:
                 _own_oa.momentum = _new_momentum
 
             # Footprint cost
-            scope_fp: dict[ScryScope, float] = {
-                ScryScope.WORLD:    0.01 + _new_momentum * 0.09,
-                ScryScope.SYSTEM:   0.10,
-                ScryScope.GALAXY:   0.20,
-                ScryScope.UNIVERSE: 0.35,
-            }
+            _fp = SCRY_FP_BASE[scope] + (_new_momentum * SCRY_FP_WORLD_MOM if scope == ScryScope.WORLD else 0.0)
             mutations.append(StateMutation(
                 mutation_type=MutationType.FOOTPRINT_CHANGE,
                 target_id=state.demiurge.id,
                 field="subtle_influence",
-                delta=scope_fp[scope],
+                delta=_fp,
                 note=f"Scry ({scope.value}) footprint",
             ))
 
             # Essence cost (galaxy/universe only)
-            scope_essence: dict[ScryScope, float] = {
-                ScryScope.WORLD: 0.0, ScryScope.SYSTEM: 0.0,
-                ScryScope.GALAXY: 3.0, ScryScope.UNIVERSE: 5.0,
-            }
+            scope_essence = SCRY_ESSENCE
             if scope_essence[scope] > 0.0:
                 mutations.append(StateMutation(
                     mutation_type=MutationType.ESSENCE_CHANGE,

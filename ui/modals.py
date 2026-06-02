@@ -21,12 +21,13 @@ from textual.widgets import (
 from core.action_core import (
     ActionCategory, ActionDefinition, OngoingAction, compute_cooldown,
     RevealImagoIntent, ChangeAffiliatedDomainsIntent,
-    ScryScope, TargetType,
+    ScryScope, TargetType, CATEGORY_BASE_COOLDOWNS,
 )
 from logic.tick_logic import (
     SimulationState,
     _compute_revelation_cap, _revelation_adjusted_cost,
     ENTITY_VISIBILITY_FLOOR, is_in_window,
+    SCRY_FP_BASE, SCRY_FP_WORLD_MOM, SCRY_ESSENCE,
 )
 from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -3253,6 +3254,20 @@ _SCOPE_TARGET_TYPE: dict[ScryScope, TargetType] = {
 }
 
 
+def _scry_chip_label(scope: ScryScope, cooldown: int) -> str:
+    """Build the two-line chip label for a Scry scope button."""
+    name = scope.value.title()
+    fp   = SCRY_FP_BASE[scope]
+    if scope == ScryScope.WORLD:
+        fp_max = fp + SCRY_FP_WORLD_MOM
+        fp_str = f"+{fp * 100:.0f}%→{fp_max * 100:.0f}% subtle FP"
+    else:
+        fp_str = f"+{fp * 100:.0f}% subtle FP"
+    ess = SCRY_ESSENCE[scope]
+    ess_str = f" + {ess:.0f} Ess" if ess > 0 else ""
+    return f"{name}\n{fp_str}{ess_str} / {cooldown} ticks"
+
+
 class ScryConfigModal(ModalScreen):
     """
     Single-screen Scry configuration.
@@ -3345,6 +3360,7 @@ class ScryConfigModal(ModalScreen):
                             self._galaxy_id = sys_m[2]
 
     def compose(self) -> ComposeResult:
+        _scry_cd = CATEGORY_BASE_COOLDOWNS[ActionCategory.OBSERVATION]
         with Vertical(classes="scry-config-modal"):
             yield Label("Scry", classes="modal-title")
 
@@ -3353,21 +3369,21 @@ class ScryConfigModal(ModalScreen):
                 with Horizontal(classes="scry-scope-row-1"):
                     yield Static(classes="scope-chip-spacer")
                     yield Button(
-                        "Universe\n+0.35 subtle FP + 5 Ess / 5 ticks",
+                        _scry_chip_label(ScryScope.UNIVERSE, _scry_cd),
                         id="chip-universe", classes="scope-chip",
                     )
                     yield Static(classes="scope-chip-spacer")
                 with Horizontal(classes="scry-scope-row-2"):
                     yield Button(
-                        "Galaxy\n+0.20 subtle FP + 3 Ess / 5 ticks",
+                        _scry_chip_label(ScryScope.GALAXY, _scry_cd),
                         id="chip-galaxy", classes="scope-chip",
                     )
                     yield Button(
-                        "System\n+0.10 subtle FP / 5 ticks",
+                        _scry_chip_label(ScryScope.SYSTEM, _scry_cd),
                         id="chip-system", classes="scope-chip",
                     )
                     yield Button(
-                        "World\n+0.01 subtle FP / 5 ticks",
+                        _scry_chip_label(ScryScope.WORLD, _scry_cd),
                         id="chip-world", classes="scope-chip",
                     )
 
