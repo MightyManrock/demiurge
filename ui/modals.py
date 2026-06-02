@@ -3006,6 +3006,7 @@ class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
             elif isinstance(focused, DomainSquare):
                 grid_a = self.query_one("#shape-dream-domain-grid-a", Grid)
                 slot   = "a" if grid_a in focused.ancestors_with_self else "b"
+                self._mark_sd_domain_selected(slot, focused)
                 self._select_slot_domain(slot, focused._tag)
                 event.prevent_default(); event.stop()
             elif isinstance(focused, ImagoCell):
