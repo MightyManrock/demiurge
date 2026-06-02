@@ -1199,9 +1199,9 @@ class LuminaryPresenceBanner(Widget):
     BUFFER_W = 150  # wider than any realistic terminal; render trims to widget width
 
     _SPEED_PARAMS: dict[str, dict] = {
-        "fast":   {"interval": 100,  "rate": 0.32},
-        "medium": {"interval": 210,  "rate": 0.22},
-        "slow":   {"interval": 420,  "rate": 0.11},
+        "fast":   {"interval": 100,  "rate": 0.18},
+        "medium": {"interval": 210,  "rate": 0.18},
+        "slow":   {"interval": 420,  "rate": 0.18},
     }
 
     DEFAULT_CSS = """
