@@ -13,6 +13,7 @@ Loads from (and bootstraps) core/core.db. Provides:
 """
 
 from __future__ import annotations
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -57,6 +58,26 @@ _DOMAIN_DATA: list[tuple[str, float, str, str, float, float, float]] = [
     ("domain:secrecy",    0.4, "domain:silence",   "⛉", -0.3,  0.3, -0.1),
     ("domain:community", -0.5, "domain:sacrifice", "♾", -0.1, -0.3, -0.7),
 ]
+
+# Visual properties: color (hex), symbols (list), speed ("slow"/"medium"/"fast")
+_DOMAIN_VISUAL: dict[str, dict] = {
+    "domain:order":     {"color": "#90b4f0", "symbols": ["═","║","╔","╗","╚","╝","┼","─","┤","├","╠","╣","╦","╩"], "speed": "slow"},
+    "domain:silence":   {"color": "#7a8fa6", "symbols": ["◯","·","∘","○","◌","⊹","‥","∙","⋯","⊸"],               "speed": "slow"},
+    "domain:truth":     {"color": "#b8b8cc", "symbols": ["◈","✦","⊕","✧","⊗","⋄","⟐","◇","◆","⊞"],               "speed": "medium"},
+    "domain:conflict":  {"color": "#ff6b6b", "symbols": ["✖","╳","✕","×","▲","⚡","▶","◀","▼","⟆"],               "speed": "fast"},
+    "domain:change":    {"color": "#5fcca8", "symbols": ["↺","↻","⟳","≈","~","⌀","⇌","⇄","↯","⇅"],               "speed": "fast"},
+    "domain:fire":      {"color": "#ff9f40", "symbols": ["▲","△","▴","∧","^","⟨","▵","⋀","∆","ʌ"],               "speed": "fast"},
+    "domain:water":     {"color": "#4ecdc4", "symbols": ["≋","≈","∿","~","⌇","⌊","∼","⌣","⏜","⌢"],               "speed": "medium"},
+    "domain:void":      {"color": "#9b72cf", "symbols": ["∅","◌","□","░","▫","⊡","▭","◽","▪","◾"],               "speed": "slow"},
+    "domain:growth":    {"color": "#7bc67e", "symbols": ["✿","❀","✾","⁂","∗","⊛","❋","✳","⊕","✢"],               "speed": "medium"},
+    "domain:decay":     {"color": "#c4956a", "symbols": ["☋","⁂","∴","∵","¨","⌀","∾","⁖","⁘","⁙"],               "speed": "medium"},
+    "domain:memory":    {"color": "#e8c96a", "symbols": ["◉","◎","⊙","○","●","⊚","⊛","◌","⊜","◍"],               "speed": "slow"},
+    "domain:sacrifice": {"color": "#e05c6c", "symbols": ["⚱","☽","⋆","*","✦","⛤","✵","⊶","⊷","∗"],               "speed": "medium"},
+    "domain:light":     {"color": "#fff4a0", "symbols": ["☼","✴","★","✦","⟡","⊹","✧","✯","✬","✭"],               "speed": "medium"},
+    "domain:mastery":   {"color": "#b0bec5", "symbols": ["⚙","⬡","⊞","◧","⊡","⊟","⊠","⊝","◫","◪"],               "speed": "medium"},
+    "domain:secrecy":   {"color": "#26c6da", "symbols": ["⛉","⊘","▣","▪","◾","⊡","▩","◼","▬","⊏"],               "speed": "slow"},
+    "domain:community": {"color": "#f48fb1", "symbols": ["♾","∞","⊕","⊞","⊛","⊗","⊎","⋈","⊍","∪"],               "speed": "medium"},
+}
 
 # Derived flat list — preserves call-site compatibility.
 DOMAIN_TAGS: list[str] = [d[0] for d in _DOMAIN_DATA]
@@ -161,6 +182,9 @@ class DomainRegistry:
         self._wrathful_score: dict[str, float] = {}
         self._partner: dict[str, str] = {}
         self._icon: dict[str, str] = {}
+        self._color: dict[str, str] = {}
+        self._symbols: dict[str, list[str]] = {}
+        self._speed: dict[str, str] = {}
         self._ensure_db()
         self._load()
 
@@ -180,6 +204,18 @@ class DomainRegistry:
     def icon(self, tag: str) -> str:
         """Unicode icon for this domain, or empty string if unknown."""
         return self._icon.get(tag, "")
+
+    def color(self, tag: str) -> str:
+        """Hex color string for this domain, or empty string if unknown."""
+        return self._color.get(tag, "")
+
+    def symbols(self, tag: str) -> list[str]:
+        """Particle symbol pool for this domain, or empty list if unknown."""
+        return list(self._symbols.get(tag, []))
+
+    def speed(self, tag: str) -> str:
+        """Animation speed for this domain: 'slow', 'medium', or 'fast'."""
+        return self._speed.get(tag, "medium")
 
     def similarity(self, tag_a: str, tag_b: str) -> float:
         """
@@ -354,7 +390,10 @@ class DomainRegistry:
                     icon                 TEXT NOT NULL DEFAULT '',
                     authoritative_score  REAL NOT NULL DEFAULT 0.0,
                     mercurial_score      REAL NOT NULL DEFAULT 0.0,
-                    wrathful_score       REAL NOT NULL DEFAULT 0.0
+                    wrathful_score       REAL NOT NULL DEFAULT 0.0,
+                    color                TEXT NOT NULL DEFAULT '',
+                    symbols              TEXT NOT NULL DEFAULT '[]',
+                    speed                TEXT NOT NULL DEFAULT 'medium'
                 );
                 CREATE TABLE IF NOT EXISTS domain_similarity (
                     tag_a      TEXT NOT NULL,
@@ -372,6 +411,9 @@ class DomainRegistry:
                 "ADD COLUMN authoritative_score REAL NOT NULL DEFAULT 0.0",
                 "ADD COLUMN mercurial_score     REAL NOT NULL DEFAULT 0.0",
                 "ADD COLUMN wrathful_score      REAL NOT NULL DEFAULT 0.0",
+                "ADD COLUMN color               TEXT NOT NULL DEFAULT ''",
+                "ADD COLUMN symbols             TEXT NOT NULL DEFAULT '[]'",
+                "ADD COLUMN speed               TEXT NOT NULL DEFAULT 'medium'",
             ):
                 try:
                     conn.execute(f"ALTER TABLE domain_registry {col_def}")
@@ -389,12 +431,17 @@ class DomainRegistry:
             # Upsert all canonical domains.
             for i, (tag, dynamic, partner, icon, auth, merc, wrath) in enumerate(_DOMAIN_DATA):
                 display = tag.split(":", 1)[1].replace("_", " ").title()
+                vis = _DOMAIN_VISUAL.get(tag, {})
                 conn.execute(
                     "INSERT OR REPLACE INTO domain_registry "
                     "(tag, display_name, sort_order, dynamic_score, partner_tag, icon, "
-                    " authoritative_score, mercurial_score, wrathful_score) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (tag, display, i, dynamic, partner, icon, auth, merc, wrath),
+                    " authoritative_score, mercurial_score, wrathful_score, "
+                    " color, symbols, speed) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (tag, display, i, dynamic, partner, icon, auth, merc, wrath,
+                     vis.get("color", ""),
+                     json.dumps(vis.get("symbols", []), ensure_ascii=False),
+                     vis.get("speed", "medium")),
                 )
 
             for tag_a, tag_b, sim in _SIMILARITY_DATA:
@@ -415,16 +462,21 @@ class DomainRegistry:
             self._all_tags = []
             for row in conn.execute(
                 "SELECT tag, dynamic_score, partner_tag, icon, "
-                "authoritative_score, mercurial_score, wrathful_score "
+                "authoritative_score, mercurial_score, wrathful_score, "
+                "color, symbols, speed "
                 "FROM domain_registry ORDER BY sort_order"
             ):
-                self._all_tags.append(row["tag"])
-                self._dynamic_score[row["tag"]]       = row["dynamic_score"]
-                self._authoritative_score[row["tag"]] = row["authoritative_score"]
-                self._mercurial_score[row["tag"]]     = row["mercurial_score"]
-                self._wrathful_score[row["tag"]]      = row["wrathful_score"]
-                self._partner[row["tag"]]             = row["partner_tag"]
-                self._icon[row["tag"]]                = row["icon"]
+                t = row["tag"]
+                self._all_tags.append(t)
+                self._dynamic_score[t]       = row["dynamic_score"]
+                self._authoritative_score[t] = row["authoritative_score"]
+                self._mercurial_score[t]     = row["mercurial_score"]
+                self._wrathful_score[t]      = row["wrathful_score"]
+                self._partner[t]             = row["partner_tag"]
+                self._icon[t]                = row["icon"]
+                self._color[t]               = row["color"] or ""
+                self._symbols[t]             = json.loads(row["symbols"] or "[]")
+                self._speed[t]               = row["speed"] or "medium"
             self._tag_set = set(self._all_tags)
 
             for row in conn.execute("SELECT tag_a, tag_b, similarity FROM domain_similarity"):

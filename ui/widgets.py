@@ -38,6 +38,7 @@ from ui.display import (
     _name_for_id, _name_link_for_id, _short_tag, _trait_color, _pop_stratum_label,
     _format_beliefs_markup, _format_culture_markup, _color_short_tag,
     display_briefing, _lines_to_text, _get_lum_domain_context, _short_age_label,
+    _luminary_link_color,
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 from utilities.domain_registry import get_registry as get_domain_registry
@@ -613,7 +614,8 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
         snapshot = state.last_essence_capture_by_domain
         for t in aff:
             label = _short_tag(t)
-            name = f"[@click=screen.open_divine_wisdom('{t}')][#a0c0e0]{_e(label)}[/][/]"
+            domain_color = get_domain_registry().color(t) or "#a0c0e0"
+            name = f"[@click=screen.open_divine_wisdom('{t}')][{domain_color}]{_e(label)}[/][/]"
             v = snapshot.get(t, 0.0)
             essence = f"[#c09030]+{v:.2f}[/]" if v > 0.0 else "[dim]—[/]"
             pad = " " * max(1, 14 - len(label))
@@ -642,7 +644,9 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
         rc  = "#50b870" if d.results >= 0 else "#b04050"
         mc  = "#50b870" if d.methods  >= 0 else "#b04050"
         ac  = "#c09030" if att > 0.5       else "#2a4a6a"
-        a(f"  [bold #c0ccdc]{_e(lum.name)}[/] [#3a5a7a]({_e(_personality_label(lum))})[/]")
+        lum_color = _luminary_link_color(lum)
+        lum_link  = f"[@click=screen.open_luminary('{lid}')][{lum_color}][bold]{_e(lum.name)}[/][/][/]"
+        a(f"  {lum_link} [#3a5a7a]({_e(_personality_label(lum))})[/]")
         a(f"    R[{rc}]{d.results:+.0%}[/] "
           f"M[{mc}]{d.methods:+.0%}[/] "
           f"att[{ac}]{att:.0%}[/]")
@@ -1254,7 +1258,8 @@ class LuminariesTab(ContentTab):
             d = lum.disposition
             is_liege = lid in liege_ids
             tag = " [#c09030]\\[LIEGE][/]" if is_liege else ""
-            lum_link = _click_link("luminary", str(lid), f"[bold]{_e(lum.name)}[/]")
+            lum_color = _luminary_link_color(lum)
+            lum_link  = _click_link("luminary", str(lid), f"[{lum_color}][bold]{_e(lum.name)}[/][/]")
             a(f"● {lum_link}{tag} "
               f"[#3a5a7a]({_e(_personality_label(lum))})[/]")
             domain_parts = [

@@ -6,6 +6,7 @@ Imports only from core/, logic/, utilities/, and rich — never from textual
 or ui/. This module is the lower layer; ui/ depends on it, not the reverse.
 """
 from __future__ import annotations
+import random
 import re
 from uuid import UUID
 from typing import TYPE_CHECKING
@@ -292,8 +293,9 @@ def _name_link_for_id(uid: "UUID", state: "SimulationState") -> str:
         )
         return _entity_link(loc_kind, sid, name)
     if sid in state.luminaries:
-        name = getattr(state.luminaries[sid], "name", sid[:8])
-        return _entity_link("luminary", sid, name)
+        lum = state.luminaries[sid]
+        name = getattr(lum, "name", sid[:8])
+        return _entity_link("luminary", sid, name, color=_luminary_link_color(lum))
     return _e(sid[:8])
 
 
@@ -475,17 +477,29 @@ _LOG_LINK_COLORS: dict[str, str] = {
 }
 
 
-def _entity_link(kind: str, eid: str, name: str) -> str:
+def _entity_link(kind: str, eid: str, name: str, color: "str | None" = None) -> str:
     if kind == "imago":
         return f"[@click=screen.open_imago_node('{eid}')][#c0ccdc]{_e(name)}[/][/]"
     if kind == "domain":
-        color = _LOG_LINK_COLORS["domain"]
-        return f"[@click=screen.open_divine_wisdom('{eid}')][{color}]{_e(name)}[/][/]"
-    color = _LOG_LINK_COLORS.get(kind, "#c0ccdc")
+        c = get_domain_registry().color(eid) or _LOG_LINK_COLORS["domain"]
+        return f"[@click=screen.open_divine_wisdom('{eid}')][{c}]{_e(name)}[/][/]"
+    if kind == "luminary":
+        c = color or "#c0ccdc"
+        return f"[@click=screen.open_luminary('{eid}')][{c}]{_e(name)}[/][/]"
+    c = _LOG_LINK_COLORS.get(kind, "#c0ccdc")
     return (
         f"[@click=screen.open_detail_by_id('{kind}','{eid}')]"
-        f"[{color}]{_e(name)}[/][/]"
+        f"[{c}]{_e(name)}[/][/]"
     )
+
+
+def _luminary_link_color(lum: "Luminary") -> str:
+    """Weighted random domain color for a Luminary link, re-rolled on every call."""
+    reg = get_domain_registry()
+    items = sorted(lum.domains.items(), key=lambda x: (-x[1], x[0]))
+    colors  = [reg.color(tag) for tag, _ in items]
+    weights = [aff for _, aff in items]
+    return random.choices(colors, weights=weights, k=1)[0]
 
 
 def _build_name_index(state: "SimulationState") -> dict[str, tuple[str, str]]:
