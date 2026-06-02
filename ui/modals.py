@@ -3269,6 +3269,19 @@ def _scry_chip_label(scope: ScryScope, cooldown: int) -> Text:
     return label
 
 
+# Arrow-key navigation map for scope chips: (chip_id, direction) → target_chip_id
+_CHIP_NAV: dict[tuple[str, str], str] = {
+    ("chip-universe", "down"):  "chip-system",
+    ("chip-galaxy",   "up"):    "chip-universe",
+    ("chip-galaxy",   "right"): "chip-system",
+    ("chip-system",   "up"):    "chip-universe",
+    ("chip-system",   "left"):  "chip-galaxy",
+    ("chip-system",   "right"): "chip-world",
+    ("chip-world",    "up"):    "chip-universe",
+    ("chip-world",    "left"):  "chip-system",
+}
+
+
 class ScryConfigModal(ModalScreen):
     """
     Single-screen Scry configuration.
@@ -3404,6 +3417,110 @@ class ScryConfigModal(ModalScreen):
             self.query_one("#stop-full", RadioButton).value = True
         if self._scope is not None:
             self._apply_scope(self._scope, restore=True)
+            self._focus_active_chip()
+        else:
+            self.query_one("#chip-universe", ScopeChip).focus()
+
+    # ── Keyboard navigation ───────────────────────
+
+    def _focus_active_chip(self) -> None:
+        for cid, scope in _SCOPE_CHIP_IDS.items():
+            if scope == self._scope:
+                self.query_one(f"#{cid}", ScopeChip).focus()
+                return
+        self.query_one("#chip-universe", ScopeChip).focus()
+
+    def _can_continue(self) -> bool:
+        if self._scope == ScryScope.UNIVERSE: return True
+        if self._scope == ScryScope.GALAXY:   return self._galaxy_id is not None
+        if self._scope == ScryScope.SYSTEM:   return self._system_id is not None
+        if self._scope == ScryScope.WORLD:    return self._world_id is not None
+        return False
+
+    def _dismiss_with_result(self) -> None:
+        if not self._can_continue():
+            return
+        from uuid import UUID as _UUID
+        target_id: object = None
+        if self._scope == ScryScope.GALAXY and self._galaxy_id:
+            target_id = _UUID(self._galaxy_id)
+        elif self._scope == ScryScope.SYSTEM and self._system_id:
+            target_id = _UUID(self._system_id)
+        elif self._scope == ScryScope.WORLD and self._world_id:
+            target_id = _UUID(self._world_id)
+        self.dismiss((self._scope, target_id, _SCOPE_TARGET_TYPE[self._scope], self._stop_when))
+
+    def on_key(self, event) -> None:
+        focused = self.focused
+        key     = event.key
+
+        # ── Arrow keys within chips (navigate without selecting) ──
+        if isinstance(focused, ScopeChip) and key in ("up", "down", "left", "right"):
+            event.prevent_default()
+            target = _CHIP_NAV.get((focused.id, key))
+            if target:
+                self.query_one(f"#{target}", ScopeChip).focus()
+            return
+
+        # ── Tab forward ───────────────────────────────────────────
+        if key == "tab":
+            if isinstance(focused, ScopeChip):
+                event.prevent_default()
+                self._apply_scope(_SCOPE_CHIP_IDS[focused.id])
+                if self._scope == ScryScope.UNIVERSE:
+                    self.query_one("#stop-radio", RadioSet).focus()
+                else:
+                    self.query_one("#galaxy-list", LoopingListView).focus()
+            elif isinstance(focused, LoopingListView):
+                event.prevent_default()
+                lid = focused.id
+                if lid == "galaxy-list" and self._scope in (ScryScope.SYSTEM, ScryScope.WORLD):
+                    self.query_one("#system-list", LoopingListView).focus()
+                elif lid == "system-list" and self._scope == ScryScope.WORLD:
+                    self.query_one("#world-list", LoopingListView).focus()
+                else:
+                    self.query_one("#stop-radio", RadioSet).focus()
+            elif isinstance(focused, (RadioButton, RadioSet)):
+                event.prevent_default()
+                self.query_one("#back-btn", Button).focus()
+            elif getattr(focused, "id", None) == "continue-btn":
+                event.prevent_default()
+                self.query_one("#chip-universe", ScopeChip).focus()
+            return
+
+        # ── Shift+Tab backward ────────────────────────────────────
+        if key == "shift+tab":
+            if getattr(focused, "id", None) == "back-btn":
+                event.prevent_default()
+                self.query_one("#stop-radio", RadioSet).focus()
+            elif isinstance(focused, (RadioButton, RadioSet)):
+                event.prevent_default()
+                if self._scope == ScryScope.WORLD:
+                    self.query_one("#world-list", LoopingListView).focus()
+                elif self._scope == ScryScope.SYSTEM:
+                    self.query_one("#system-list", LoopingListView).focus()
+                elif self._scope == ScryScope.GALAXY:
+                    self.query_one("#galaxy-list", LoopingListView).focus()
+                else:
+                    self._focus_active_chip()
+            elif isinstance(focused, LoopingListView):
+                event.prevent_default()
+                lid = focused.id
+                if lid == "world-list":
+                    self.query_one("#system-list", LoopingListView).focus()
+                elif lid == "system-list":
+                    self.query_one("#galaxy-list", LoopingListView).focus()
+                else:
+                    self._focus_active_chip()
+            elif isinstance(focused, ScopeChip):
+                event.prevent_default()
+                btn = self.query_one("#continue-btn", Button)
+                (btn if not btn.disabled else self.query_one("#cancel-btn", Button)).focus()
+            return
+
+        # ── Enter on auto-stop when all choices are made → advance ─
+        if key == "enter" and isinstance(focused, RadioButton) and self._can_continue():
+            self.call_later(self._dismiss_with_result)
 
     # ── Scope chip handling ────────────────────────
 
@@ -3579,15 +3696,7 @@ class ScryConfigModal(ModalScreen):
     # ── Continue gating ───────────────────────────
 
     def _check_continue(self) -> None:
-        ready = False
-        if self._scope == ScryScope.UNIVERSE:
-            ready = True
-        elif self._scope == ScryScope.GALAXY:
-            ready = self._galaxy_id is not None
-        elif self._scope == ScryScope.SYSTEM:
-            ready = self._system_id is not None
-        elif self._scope == ScryScope.WORLD:
-            ready = self._world_id is not None
+        ready = self._can_continue()
         btn = self.query_one("#continue-btn", Button)
         btn.disabled = not ready
         if ready:
@@ -3605,17 +3714,7 @@ class ScryConfigModal(ModalScreen):
 
     @on(Button.Pressed, "#continue-btn")
     def _on_continue(self, _: Button.Pressed) -> None:
-        if self._scope is None:
-            return
-        from uuid import UUID as _UUID
-        target_id: object = None
-        if self._scope == ScryScope.GALAXY and self._galaxy_id:
-            target_id = _UUID(self._galaxy_id)
-        elif self._scope == ScryScope.SYSTEM and self._system_id:
-            target_id = _UUID(self._system_id)
-        elif self._scope == ScryScope.WORLD and self._world_id:
-            target_id = _UUID(self._world_id)
-        self.dismiss((self._scope, target_id, _SCOPE_TARGET_TYPE[self._scope], self._stop_when))
+        self._dismiss_with_result()
 
     @on(Button.Pressed, "#back-btn")
     def _on_back(self, _: Button.Pressed) -> None:
