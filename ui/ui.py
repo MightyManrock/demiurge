@@ -811,6 +811,10 @@ class GameScreen(Screen):
         self._log.finalize(self._state, self._last_result)
         self.app.exit()
 
+    def action_dev_grant_essence(self) -> None:
+        self._state.essence.actual += 100.0
+        self.query_one(StatusPanel).refresh_state(self._state, self.app.loop)
+
     @work
     async def _quit_confirm_flow(self) -> None:
         choice = await self.app.push_screen_wait(QuitConfirmModal())

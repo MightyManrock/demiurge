@@ -636,6 +636,8 @@ def _render_status(state: "SimulationState", loop=None) -> Text:
     if harvest_fresh:
         a(f"  last harvest [#c09030]+{state.last_harvest_amount:.2f}[/] "
           f"[dim](t{state.last_harvest_tick})[/]")
+    if display.DEV_MODE:
+        a("  [@click=screen.dev_grant_essence()][#c09030][ + 100 Essence ][/][/]")
     a("")
 
     # Affiliated domains
