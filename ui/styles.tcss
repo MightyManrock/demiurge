@@ -1046,7 +1046,7 @@ Button.continue-ready {
 }
 
 .pi-domain-lat-band {
-    height: 8;
+    height: 10;
     border-bottom: solid $border;
     margin-bottom: 1;
 }
