@@ -1029,7 +1029,7 @@ Button.continue-ready {
 }
 
 .pi-pickers-band {
-    height: 7;
+    height: 10;
     border-bottom: solid $border;
     margin-bottom: 1;
 }
@@ -1045,19 +1045,20 @@ Button.continue-ready {
     padding: 0 0 0 1;
 }
 
-.pi-middle-band {
-    height: 1fr;
+.pi-domain-lat-band {
+    height: 8;
+    border-bottom: solid $border;
     margin-bottom: 1;
 }
 
-.pi-domain-col {
-    width: 22;
+.pi-domain-col-h {
+    width: 1fr;
     border-right: solid $border;
     padding: 0 1 0 0;
 }
 
 #pi-domain-grid {
-    grid-size: 2;
+    grid-size: 8;
     height: auto;
 }
 
@@ -1065,27 +1066,25 @@ Button.continue-ready {
     height: 3;
 }
 
-.pi-imago-col {
-    width: 1fr;
+.pi-lat-col {
+    width: 18;
     padding: 0 0 0 1;
+}
+
+.pi-lat-col RadioSet {
+    background: transparent;
+    border: none;
+    height: auto;
+    padding: 0;
+}
+
+.pi-imago-band {
+    height: 1fr;
+    margin-bottom: 1;
 }
 
 #pi-tree-container {
     height: 1fr;
     border: solid $border;
     padding: 0 1;
-}
-
-.pi-latitude-band {
-    height: 3;
-    border-top: solid $border;
-    padding: 1 0 0 0;
-}
-
-.pi-latitude-band RadioSet {
-    background: transparent;
-    border: none;
-    height: auto;
-    padding: 0;
-    width: 1fr;
 }

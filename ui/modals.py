@@ -4121,23 +4121,23 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
                     yield Label("Pop: —", id="pi-pop-label")
                     with LoopingListView(id="pi-pop-list"):
                         pass
-            # Middle band: Domain grid + Imago tree
-            with Horizontal(classes="pi-middle-band"):
-                with Vertical(classes="pi-domain-col"):
+            # Domain + Latitude band
+            with Horizontal(classes="pi-domain-lat-band"):
+                with Vertical(classes="pi-domain-col-h"):
                     yield Label("Domain: —", id="pi-domain-label")
                     with Grid(id="pi-domain-grid"):
                         yield from _domain_grid_squares(self._state, self._dreg, self._eligible_tags)
-                with Vertical(classes="pi-imago-col"):
-                    yield Label("Imāgō: —", id="pi-imago-label")
-                    with ScrollableContainer(id="pi-tree-container"):
-                        pass
-            # Latitude band
-            with Horizontal(classes="pi-latitude-band"):
-                with RadioSet(id="pi-latitude"):
-                    yield RadioButton("Strict", id="strict")
-                    yield RadioButton("Guided", id="guided")
-                    yield RadioButton("Lax",    id="lax")
-                    yield RadioButton("——",     id="none", disabled=True)
+                with Vertical(classes="pi-lat-col"):
+                    with RadioSet(id="pi-latitude"):
+                        yield RadioButton("Strict", id="strict")
+                        yield RadioButton("Guided", id="guided")
+                        yield RadioButton("Lax",    id="lax")
+                        yield RadioButton("——",     id="none", disabled=True)
+            # Imāgō band
+            with Vertical(classes="pi-imago-band"):
+                yield Label("Imāgō: —", id="pi-imago-label")
+                with ScrollableContainer(id="pi-tree-container"):
+                    pass
             # Button row
             with Horizontal(classes="btn-row"):
                 yield Button("← Back",     id="pi-back-btn")
@@ -4286,7 +4286,7 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
     def action_nav_domain(self, direction: str) -> None:
         squares = list(self.query_one("#pi-domain-grid", Grid).query(DomainSquare))
         if any(sq.has_focus for sq in squares):
-            _nav_domain_grid(squares, direction, cols=2)
+            _nav_domain_grid(squares, direction, cols=8)
 
     def _mark_domain_selected(self, sq: "DomainSquare") -> None:
         if self._selected_domain_widget is not None:
