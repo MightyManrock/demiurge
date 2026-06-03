@@ -2,7 +2,7 @@
 
 # Underreal Harvesting
 
-The Underreal is the primary Essence source. Harvesting it is risky and must be hidden from Luminaries.
+The Underreal is a secondary Essence source beyond what you passively gather from Domain affinities. Harvesting Essence from the Underreal is risky and must be hidden from Luminaries.
 
 ## EssenceStockpile model (`core/action_core.py`)
 
