@@ -75,6 +75,7 @@ from ui.modals import (
     ShapeDreamConfigModal, ShapeDreamConfirmModal,
     ExploreBeliefConfirmModal, RevealImagoConfirmModal, ChangeAffiliatedDomainConfirmModal,
     ScryConfigModal, ScryConfirmModal, HarvestEssenceConfigModal,
+    PreachImagoConfigModal, PreachImagoConfirmModal,
 )
 
 
@@ -1010,7 +1011,7 @@ class GameScreen(Screen):
                 intent=RescindDirectiveIntent(proxius_id=proxius_id),
             )
 
-        # ── preach_imago: multi-step (proxius → domain/imago → pop) ──
+        # ── preach_imago: PreachImagoConfigModal → PreachImagoConfirmModal → splinter name ──
         if action_key == "preach_imago":
             already_directed = {
                 str(pa.proxius_id)
@@ -1018,114 +1019,44 @@ class GameScreen(Screen):
                 if isinstance(pa.intent, ProxiusDirectiveIntent)
                 and pa.proxius_id is not None
             }
-            step = 0
-            pid = None
-            dvs: list = []; imago_id = None
-            target_civ_id = None
-            target_pop_id = None
-            goal_pop_name: str | None = None
-            chosen_obj = None
             while True:
-                if step == 0:
-                    result = await self._pick_proxius(
-                        state, include_dormant=True, already_directed=already_directed,
-                    )
-                    if result is None: return None
-                    if result == BACK: return BACK
-                    pid = result; step = 1
-                if step == 1:
-                    domain_result = await self._pick_domain_and_imago(state)
-                    if domain_result is None: return None
-                    if domain_result == BACK: step = 0; continue
-                    dvs, cvs, imago_id = domain_result; step = 2
-                if step == 2:
-                    target_civ_id = None
-                    target_pop_id = None
-                    proxius_obj   = state.mortals.get(pid)
-                    # proxius.current_location is a PopLocation now — resolve
-                    # to its parent world so child_ids iteration finds sibling PopLocs.
-                    from logic.tick_logic import _resolve_world_id_for
-                    world_id      = _resolve_world_id_for(state, proxius_obj.current_location) if proxius_obj else None
-                    origin_pop_id = str(proxius_obj.pop_id) if (proxius_obj and proxius_obj.pop_id) else None
+                config = await app.push_screen_wait(
+                    PreachImagoConfigModal(state, already_directed=already_directed)
+                )
+                if config is None:
+                    return None
+                if config is BACK:
+                    return BACK
+                proxius_id, pop_id, latitude, dvs, cvs, imago_id = config
 
-                    world_obj = state.locations.get(world_id) if world_id else None
-                    all_world_pops: list = []
-                    for child_id in getattr(world_obj, "child_ids", []):
-                        child = state.locations.get(str(child_id))
-                        if isinstance(child, PopLocation):
-                            for pop_id_val in getattr(child, "pop_ids", []):
-                                p = state.pops.get(str(pop_id_val))
-                                if p is not None:
-                                    all_world_pops.append(p)
+                # Resolve display names for confirm modal
+                proxius_obj = state.mortals.get(proxius_id)
+                proxius_name = proxius_obj.name if proxius_obj else "?"
+                pop_obj = state.pops.get(pop_id)
+                pop_name = _pop_identity_label(state, pop_obj) if pop_obj else "?"
+                ireg = get_imago_registry()
+                node = ireg.get_node(imago_id)
+                imago_name = node.name if node else imago_id
 
-                    eligible_pops = [
-                        p for p in all_world_pops
-                        if (is_in_window(p) or str(p.id) == origin_pop_id)
-                        and p.preaching_imago_id is None
-                        and p.preaching_goal_cooldown_until <= state.tick_number
-                    ]
+                confirmed = await app.push_screen_wait(
+                    PreachImagoConfirmModal(proxius_name, pop_name, imago_name, latitude)
+                )
+                if confirmed is None:
+                    return None
+                if confirmed is False:
+                    continue  # back to config modal
 
-                    if not eligible_pops:
-                        msg = (
-                            "This Proxius is in transit between worlds and has no nearby "
-                            "communities to preach to. Choose a different Proxius."
-                            if not all_world_pops else
-                            "No visible, targetable communities at this location. "
-                            "Scry the world to reveal Pops first."
-                        )
-                        await app.push_screen_wait(ErrorModal(msg))
-                        step = 0; continue
-
-                    proxius_civ_id = (
-                        str(state.pops[origin_pop_id].civilization_id)
-                        if origin_pop_id and origin_pop_id in state.pops
-                        and state.pops[origin_pop_id].civilization_id is not None
-                        else None
-                    )
-
-                    def _pop_label(p) -> str:
-                        civ = state.civilizations.get(str(p.civilization_id)) if p.civilization_id else None
-                        civ_name = civ.name if civ else None
-                        cross = " [foreign]" if proxius_civ_id and str(p.civilization_id) != proxius_civ_id else ""
-                        origin_marker = " *" if str(p.id) == origin_pop_id else ""
-                        top_beliefs = sorted(
-                            p.dominant_beliefs.items(), key=lambda x: -x[1]
-                        )[:2]
-                        belief_str = "  ".join(
-                            f"{_short_tag(tag)}:{val:.2f}" for tag, val in top_beliefs
-                        ) if top_beliefs else "no beliefs"
-                        identity = _pop_identity_label(state, p)
-                        civ_tag = f"  · {civ_name}" if civ_name else ""
-                        return (
-                            f"{identity}{cross}{origin_marker}"
-                            f"  size {p.size_magnitude}  {belief_str}{civ_tag}"
-                        )
-
-                    pop_items = [(str(p.id), _pop_label(p)) for p in eligible_pops]
-                    pop_result = await app.push_screen_wait(
-                        PopLatitudePickerModal("Preach to which community?", pop_items, show_back=True)
-                    )
-                    if pop_result == BACK: step = 1; continue
-                    if pop_result is None: return None
-                    chosen_pop, chosen_latitude = pop_result
-                    chosen_obj = next((p for p in eligible_pops if str(p.id) == chosen_pop), None)
-                    if chosen_obj:
-                        target_pop_id = chosen_obj.id
-                        target_civ_id = chosen_obj.civilization_id
-                    step = 3
-                if step == 3:
-                    # Step 3 — name the splinter Pop B, but only when no
-                    # splinter for this imago already exists under Pop A.
-                    existing_splinter = None
-                    if chosen_obj is not None:
-                        for child_id in chosen_obj.child_pop_ids:
-                            child = state.pops.get(str(child_id))
-                            if child is not None and child.preaching_imago_id == imago_id:
-                                existing_splinter = child
-                                break
-                    if existing_splinter is not None:
-                        # An ongoing splinter is already growing — skip the prompt.
-                        break
+                # Step 4: name the splinter Pop (conditional — only when no splinter exists yet)
+                goal_pop_name: str | None = None
+                chosen_obj = state.pops.get(pop_id)
+                existing_splinter = None
+                if chosen_obj is not None:
+                    for child_id in chosen_obj.child_pop_ids:
+                        child = state.pops.get(str(child_id))
+                        if child is not None and child.preaching_imago_id == imago_id:
+                            existing_splinter = child
+                            break
+                if existing_splinter is None:
                     stratum_label = (
                         chosen_obj.social_class.value.title()
                         if chosen_obj and chosen_obj.social_class else "Splinter"
@@ -1142,29 +1073,34 @@ class GameScreen(Screen):
                         fields=[("Name", "name", default_name)],
                         show_back=True,
                     ))
-                    if name_result == BACK: step = 2; continue
-                    if name_result is None: return None
+                    if name_result == BACK:
+                        continue  # back to config modal
+                    if name_result is None:
+                        return None
                     raw = (name_result.get("name") or "").strip()
                     goal_pop_name = raw or None
-                    break
-            intent = ProxiusDirectiveIntent(
-                domain_vectors=dvs,
-                culture_vectors=cvs,
-                latitude=chosen_latitude,
-                target_civilization_id=target_civ_id,
-                target_pop_id=target_pop_id,
-                imago_node_id=imago_id,
-                goal_pop_name=goal_pop_name,
-            )
-            return ActionInstance(
-                action_definition_id=defn.id,
-                target_type=TargetType.MORTAL,
-                target_id=UUID(pid),
-                timestamp=state.universe.age.to_float_years(),
-                demiurge_id=state.demiurge.id,
-                proxius_id=UUID(pid),
-                intent=intent,
-            )
+
+                # Build intent
+                target_civ_id = pop_obj.civilization_id if pop_obj else None
+                target_pop_id = pop_obj.id if pop_obj else None
+                intent = ProxiusDirectiveIntent(
+                    domain_vectors=dvs,
+                    culture_vectors=cvs,
+                    latitude=latitude,
+                    target_civilization_id=target_civ_id,
+                    target_pop_id=target_pop_id,
+                    imago_node_id=imago_id,
+                    goal_pop_name=goal_pop_name,
+                )
+                return ActionInstance(
+                    action_definition_id=defn.id,
+                    target_type=TargetType.MORTAL,
+                    target_id=UUID(proxius_id),
+                    timestamp=state.universe.age.to_float_years(),
+                    demiurge_id=state.demiurge.id,
+                    proxius_id=UUID(proxius_id),
+                    intent=intent,
+                )
 
         # ── Other proxius-targeted actions (no intent params) ──
         if defn.requires_proxius:
