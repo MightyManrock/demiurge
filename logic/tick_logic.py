@@ -112,7 +112,7 @@ SPLINTER_MIN_SIZE = 4.0
 # Pop must be at least this large (size_fractional) to split.
 # Prevents micro-Pops from fragmenting further.
 
-SPLINTER_COOLDOWN_TICKS = 10
+SPLINTER_COOLDOWN_TICKS = 30
 # After splitting, a Pop cannot split again for this many ticks.
 
 # Stratum order lowest→highest. Used by the arrival milieu algorithm.
@@ -1961,6 +1961,8 @@ class TickLoop:
             if pop.asset_crew_for is not None:
                 continue
             if pop.preaching_imago_id is not None:
+                continue
+            if pop.splinter_cooldown > 0:
                 continue
             # Only drain pops that are small (at or near minimum size)
             if pop.size_fractional >= SPLINTER_MIN_SIZE + 1.0:

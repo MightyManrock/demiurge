@@ -15,7 +15,7 @@ The check is **stride-gated**: it only fires when `state.tick_number % SPLINTER_
 | Gate | Value |
 |---|---|
 | `asset_crew_for is None` | Vessel crew pops are permanently exempt |
-| `splinter_cooldown == 0` | 10-tick cooldown after any split (applies to both parent and new splinter) |
+| `splinter_cooldown == 0` | 30-tick cooldown after any split (applies to both parent and new splinter) |
 | `size_fractional >= SPLINTER_MIN_SIZE` | Minimum viable size (4.0, ≈ 10,000 people) |
 | `civilization_id` set | Must belong to a civilization |
 | `civ.established_beliefs` non-empty | Civ must have an aggregate belief profile |
@@ -130,6 +130,7 @@ Same stride as the splinter check (`SPLINTER_CHECK_STRIDE`). Runs immediately af
 |---|---|
 | `asset_crew_for is None` | Vessel crew exempt |
 | `preaching_imago_id is None` | Pops actively targeted by Preach Imago are protected |
+| `splinter_cooldown == 0` | Pops still in their post-split window are immune |
 | `size_fractional < SPLINTER_MIN_SIZE + 1.0` | Only small pops near minimum size are candidates |
 | Target found with `cosine_similarity >= REABSORPTION_CONVERGENCE_THRESHOLD (0.85)` | Beliefs must have converged sufficiently |
 
@@ -167,7 +168,7 @@ When `new_source_size < SPLINTER_MIN_SIZE`, the source is fully absorbed on that
 | `SPLINTER_CHECK_STRIDE` | 10 | Ticks between splinter/reabsorption checks |
 | `SPLINTER_DIVERGENCE_THRESHOLD` | 0.50 | Minimum cosine divergence to be eligible |
 | `SPLINTER_MIN_SIZE` | 4.0 | Minimum log-space size to split (≈ 10,000 people) |
-| `SPLINTER_COOLDOWN_TICKS` | 10 | Post-split cooldown on both parent and splinter |
+| `SPLINTER_COOLDOWN_TICKS` | 30 | Post-split cooldown on both parent and splinter; also the reabsorption immunity window |
 | `SPLINTER_MIN_FRACTION` | 0.10 | Smallest splinter (at threshold divergence) |
 | `SPLINTER_MAX_FRACTION` | 0.45 | Largest splinter (at maximum divergence) |
 | `SPLINTER_PROB_MIDPOINT` | 0.70 | Divergence at which P(split) = 50% |
