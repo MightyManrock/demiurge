@@ -25,23 +25,25 @@ from core.action_core import (
     ActionCategory, ActionDefinition, EssenceStockpile, OngoingAction, compute_cooldown,
     RevealImagoIntent, ChangeAffiliatedDomainsIntent,
     ScryScope, TargetType, CATEGORY_BASE_COOLDOWNS,
+    DomainVector, CultureVector,
 )
 from logic.tick_logic import (
     SimulationState,
     _compute_revelation_cap, _revelation_adjusted_cost,
     ENTITY_VISIBILITY_FLOOR, is_in_window,
     SCRY_FP_BASE, SCRY_FP_WORLD_MOM, SCRY_ESSENCE,
+    _resolve_world_id_for,
 )
 from utilities.culture_registry import is_culture_tag
 from utilities.domain_registry import get_registry as get_domain_registry
 from utilities.imago_registry import get_registry as get_imago_registry, ImagoNode
 
-from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag, _pop_stratum_label
+from ui.display import _get_lum_domain_context, _wrap_desc, _short_tag, _pop_stratum_label, _pop_identity_label
 
 from ui.widgets import DomainSquare, ImagoCell, ImagoRevealCell, ImagoTreeGrid, LoopingListView, ScopeChip
 from ui.constants import BACK, _DOMAIN_GRID_ORDER, _LATITUDE_OPTS, _STUB_ACTIONS
 
-from core.universe_core import MortalRole, MortalStatus
+from core.universe_core import MortalRole, MortalStatus, PopLocation
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
@@ -4036,4 +4038,463 @@ class HarvestEssenceConfigModal(ModalScreen):
             "stop_integrity": stop_integrity,
             "stop_stockpile": stop_stockpile,
         }
+
+
+# ─────────────────────────────────────────
+# PREACH IMĀGŌ CONFIG MODAL
+# Single-screen consolidated picker for Proxius Directive (Preach Imago).
+# Cascading: Proxius selection repopulates eligible Pop list (filtered by
+# Proxius' current world). Domain selection swaps the imago tree.
+# Returns (proxius_id, pop_id, latitude, dvs, cvs, imago_node_id) on Continue,
+# BACK on back, or None on cancel.
+# ─────────────────────────────────────────
+
+class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
+    """Single-screen Preach Imāgō configuration consolidating the 4-step wizard."""
+
+    BINDINGS = [
+        ("escape",    "cancel",                  "Cancel"),
+        ("backspace", "back",                    "Back"),
+        ("up",        "nav_domain('up')",        ""),
+        ("down",      "nav_domain('down')",      ""),
+        ("left",      "nav_domain('left')",      ""),
+        ("right",     "nav_domain('right')",     ""),
+    ]
+
+    def __init__(
+        self,
+        state: SimulationState,
+        already_directed: "set[str] | None" = None,
+    ) -> None:
+        super().__init__()
+        self._state            = state
+        self._already_directed = already_directed or set()
+        self._dreg             = get_domain_registry()
+        self._eligible_tags    = _eligible_domain_tags(state)
+
+        self._proxius_id:    str | None = None
+        self._pop_id:        str | None = None
+        self._domain_tag:    str | None = None
+        self._imago_node_id: str | None = None
+        self._latitude:      float | None = None
+        self._dvs: list = []
+        self._cvs: list = []
+
+        self._proxius_items: list[tuple[str, str]] = self._build_proxius_items()
+        self._proxius_ids: list[str] = [pid for pid, _ in self._proxius_items]
+        self._pop_item_ids: list[str] = []
+
+        self._repopulate_gen: int = 0
+        self._selected_domain_widget: "DomainSquare | None" = None
+        self._selected_imago_widget:  "ImagoCell | None"    = None
+
+    # ── Build list of eligible Proxii (active or dormant) ──
+    def _build_proxius_items(self) -> "list[tuple[str, str]]":
+        s = self._state
+        items: list[tuple[str, str]] = []
+        for mid, m in s.mortals.items():
+            if m.role != MortalRole.PROXIUS:
+                continue
+            if mid in self._already_directed:
+                continue
+            if m.status not in (MortalStatus.ACTIVE, MortalStatus.DORMANT):
+                continue
+            w_obj   = s.locations.get(str(m.current_location)) if m.current_location else None
+            loc     = w_obj.name if w_obj else "?"
+            sp_obj  = s.species.get(str(m.species_id)) if m.species_id else None
+            sp_name = sp_obj.name if sp_obj else "?"
+            dorm    = "  [DORMANT]" if m.status == MortalStatus.DORMANT else ""
+            items.append((mid, f"{m.name:<18}  {sp_name:<14}  align:{m.alignment:.2f}  {loc}{dorm}"))
+        return items
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="preach-imago-modal"):
+            yield Label("Preach Imāgō", classes="modal-title")
+            # Top band: Proxius + Pop pickers
+            with Horizontal(classes="pi-pickers-band"):
+                with Vertical(classes="pi-proxius-col"):
+                    yield Label("Proxius: —", id="pi-proxius-label")
+                    with LoopingListView(id="pi-proxius-list"):
+                        for i, (_, text) in enumerate(self._proxius_items):
+                            yield ListItem(Label(text), id=f"pi-proxius-{i}")
+                with Vertical(classes="pi-pop-col"):
+                    yield Label("Pop: —", id="pi-pop-label")
+                    with LoopingListView(id="pi-pop-list"):
+                        pass
+            # Middle band: Domain grid + Imago tree
+            with Horizontal(classes="pi-middle-band"):
+                with Vertical(classes="pi-domain-col"):
+                    yield Label("Domain: —", id="pi-domain-label")
+                    with Grid(id="pi-domain-grid"):
+                        yield from _domain_grid_squares(self._state, self._dreg, self._eligible_tags)
+                with Vertical(classes="pi-imago-col"):
+                    yield Label("Imāgō: —", id="pi-imago-label")
+                    with ScrollableContainer(id="pi-tree-container"):
+                        pass
+            # Latitude band
+            with Horizontal(classes="pi-latitude-band"):
+                with RadioSet(id="pi-latitude"):
+                    yield RadioButton("Strict", id="strict")
+                    yield RadioButton("Guided", id="guided")
+                    yield RadioButton("Lax",    id="lax")
+                    yield RadioButton("——",     id="none", disabled=True)
+            # Button row
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",     id="pi-back-btn")
+                yield Button("✕ Cancel",   id="pi-cancel-btn",   classes="-danger")
+                yield Button("Continue →", id="pi-continue-btn", disabled=True)
+
+    def on_mount(self) -> None:
+        # Pre-select first Proxius if any (which will trigger pop repopulation
+        # through the Highlighted event).
+        if self._proxius_ids:
+            lv = self.query_one("#pi-proxius-list", ListView)
+            lv.index = 0
+        self._check_continue()
+
+    # ─── Continue gating ───
+    def _check_continue(self) -> None:
+        ready = bool(
+            self._proxius_id
+            and self._pop_id
+            and self._imago_node_id
+            and self._latitude is not None
+        )
+        btn = self.query_one("#pi-continue-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    # ─── Proxius selection → repopulate Pop list ───
+    @on(ListView.Highlighted, "#pi-proxius-list")
+    def _on_proxius_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None or not self._proxius_ids:
+            return
+        try:
+            idx = int(event.item.id.rsplit("-", 1)[1])
+        except (AttributeError, ValueError, IndexError):
+            return
+        if idx >= len(self._proxius_ids):
+            return
+        self._proxius_id = self._proxius_ids[idx]
+        m = self._state.mortals.get(self._proxius_id)
+        if m:
+            self.query_one("#pi-proxius-label", Label).update(f"Proxius: {m.name}")
+        # Clear dependent state
+        self._pop_id = None
+        self.query_one("#pi-pop-label", Label).update("Pop: —")
+        self._repopulate_gen += 1
+        self._repopulate_pops(self._repopulate_gen, self._proxius_id)
+        self._check_continue()
+
+    @work
+    async def _repopulate_pops(self, gen: int, proxius_id: str) -> None:
+        state = self._state
+        proxius = state.mortals.get(proxius_id)
+        list_view = self.query_one("#pi-pop-list", LoopingListView)
+        await list_view.clear()
+        self._pop_item_ids = []
+        if proxius is None:
+            return
+        world_id = (
+            _resolve_world_id_for(state, proxius.current_location)
+            if proxius.current_location else None
+        )
+        origin_pop_id = str(proxius.pop_id) if proxius.pop_id else None
+        world_obj = state.locations.get(world_id) if world_id else None
+
+        all_world_pops: list = []
+        for child_id in getattr(world_obj, "child_ids", []):
+            child = state.locations.get(str(child_id))
+            if isinstance(child, PopLocation):
+                for pop_id_val in getattr(child, "pop_ids", []):
+                    p = state.pops.get(str(pop_id_val))
+                    if p is not None:
+                        all_world_pops.append(p)
+
+        eligible = [
+            p for p in all_world_pops
+            if (is_in_window(p) or str(p.id) == origin_pop_id)
+            and p.preaching_imago_id is None
+            and p.preaching_goal_cooldown_until <= state.tick_number
+        ]
+
+        # Bail if a newer repopulate has started
+        if gen != self._repopulate_gen:
+            return
+
+        proxius_civ_id = (
+            str(state.pops[origin_pop_id].civilization_id)
+            if origin_pop_id and origin_pop_id in state.pops
+            and state.pops[origin_pop_id].civilization_id is not None
+            else None
+        )
+
+        for i, p in enumerate(eligible):
+            identity = _pop_identity_label(state, p)
+            cross = (
+                " [foreign]"
+                if proxius_civ_id and str(p.civilization_id) != proxius_civ_id
+                else ""
+            )
+            origin_marker = " *" if str(p.id) == origin_pop_id else ""
+            top_beliefs = sorted(p.dominant_beliefs.items(), key=lambda x: -x[1])[:2]
+            belief_str = (
+                "  ".join(f"{_short_tag(t)}:{v:.2f}" for t, v in top_beliefs)
+                if top_beliefs else "no beliefs"
+            )
+            civ = state.civilizations.get(str(p.civilization_id)) if p.civilization_id else None
+            civ_tag = f"  · {civ.name}" if civ else ""
+            label = (
+                f"{identity}{cross}{origin_marker}  sz {p.size_magnitude}  "
+                f"{belief_str}{civ_tag}"
+            )
+            if gen != self._repopulate_gen:
+                return
+            await list_view.append(ListItem(Label(label), id=f"pi-pop-{i}"))
+            self._pop_item_ids.append(str(p.id))
+
+    # ─── Pop selection ───
+    @on(ListView.Highlighted, "#pi-pop-list")
+    def _on_pop_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None or not self._pop_item_ids:
+            return
+        try:
+            idx = int(event.item.id.rsplit("-", 1)[1])
+        except (AttributeError, ValueError, IndexError):
+            return
+        if idx >= len(self._pop_item_ids):
+            return
+        self._pop_id = self._pop_item_ids[idx]
+        p = self._state.pops.get(self._pop_id)
+        if p is not None:
+            self.query_one("#pi-pop-label", Label).update(
+                f"Pop: {_pop_identity_label(self._state, p)}"
+            )
+        self._check_continue()
+
+    # ─── Domain grid keyboard nav ───
+    def action_nav_domain(self, direction: str) -> None:
+        squares = list(self.query_one("#pi-domain-grid", Grid).query(DomainSquare))
+        if any(sq.has_focus for sq in squares):
+            _nav_domain_grid(squares, direction, cols=2)
+
+    def _mark_domain_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_domain_widget is not None:
+            self._selected_domain_widget.remove_class("selected-active")
+        self._selected_domain_widget = sq
+        sq.add_class("selected-active")
+
+    def _mark_imago_selected(self, cell: "ImagoCell") -> None:
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+        self._selected_imago_widget = cell
+        cell.add_class("selected-active")
+
+    # ─── Domain hover/selection ───
+    def on_domain_square_focused(self, event: DomainSquare.Focused) -> None:
+        self.query_one("#pi-domain-label", Label).update(
+            f"Domain: {_domain_display_name(event.tag)}"
+        )
+
+    def on_domain_square_blurred(self, event: DomainSquare.Blurred) -> None:
+        label = _domain_display_name(self._domain_tag) if self._domain_tag else "—"
+        self.query_one("#pi-domain-label", Label).update(f"Domain: {label}")
+
+    def on_domain_square_selected(self, event: DomainSquare.Selected) -> None:
+        tag = event.tag
+        self._domain_tag    = tag
+        self._imago_node_id = None
+        self._dvs = []
+        self._cvs = []
+        self.query_one("#pi-domain-label", Label).update(
+            f"Domain: {_domain_display_name(tag)}"
+        )
+        self.query_one("#pi-imago-label", Label).update("Imāgō: —")
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+            self._selected_imago_widget = None
+        sq = next(
+            (s for s in self.query_one("#pi-domain-grid", Grid).query(DomainSquare)
+             if s._tag == tag),
+            None,
+        )
+        if sq:
+            self._mark_domain_selected(sq)
+        self._check_continue()
+        self._swap_imago_tree("pi-tree-container", tag)
+
+    # ─── Imago selection ───
+    def on_imago_cell_focused(self, event: ImagoCell.Focused) -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#pi-imago-label", Label).update(f"Imāgō: {name}")
+
+    def on_imago_cell_blurred(self, event: ImagoCell.Blurred) -> None:
+        if self._imago_node_id:
+            ireg = get_imago_registry()
+            node = ireg.get_node(self._imago_node_id)
+            name = node.name if node else self._imago_node_id
+            self.query_one("#pi-imago-label", Label).update(f"Imāgō: {name}")
+        else:
+            self.query_one("#pi-imago-label", Label).update("Imāgō: —")
+
+    def on_imago_cell_selected(self, event: ImagoCell.Selected) -> None:
+        self._imago_node_id = event.node_id
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        if node is not None:
+            self._dvs = [
+                DomainVector(domain_tag=t, direction=v)
+                for t, v in node.mechanics.items() if t.startswith("domain:")
+            ]
+            self._cvs = [
+                CultureVector(culture_tag=t, direction=v)
+                for t, v in node.mechanics.items() if not t.startswith("domain:")
+            ]
+            name = node.name
+        else:
+            self._dvs = []
+            self._cvs = []
+            name = event.node_id
+        self.query_one("#pi-imago-label", Label).update(f"Imāgō: {name}")
+        cell = next(
+            (c for c in self.query_one("#pi-tree-container", ScrollableContainer).query(ImagoCell)
+             if c._node.node_id == event.node_id),
+            None,
+        )
+        if cell:
+            self._mark_imago_selected(cell)
+        self._check_continue()
+
+    # ─── Latitude ───
+    @on(RadioSet.Changed, "#pi-latitude")
+    def _on_latitude_changed(self, event: RadioSet.Changed) -> None:
+        if event.pressed is None:
+            return
+        bid = event.pressed.id
+        self._latitude = next((v for k, _, v in _LATITUDE_OPTS if k == bid), None)
+        self._check_continue()
+
+    # ─── Keyboard: Enter on imago commits if all set ───
+    def on_key(self, event) -> None:
+        focused = self.focused
+        if event.key == "enter":
+            if isinstance(focused, DomainSquare):
+                # Treat Enter as selection on a focused DomainSquare
+                tag = focused._tag
+                if not focused.disabled:
+                    self._domain_tag    = tag
+                    self._imago_node_id = None
+                    self._dvs = []
+                    self._cvs = []
+                    self.query_one("#pi-domain-label", Label).update(
+                        f"Domain: {_domain_display_name(tag)}"
+                    )
+                    self.query_one("#pi-imago-label", Label).update("Imāgō: —")
+                    if self._selected_imago_widget is not None:
+                        self._selected_imago_widget.remove_class("selected-active")
+                        self._selected_imago_widget = None
+                    self._mark_domain_selected(focused)
+                    self._check_continue()
+                    self._swap_imago_tree("pi-tree-container", tag, focus_first=True)
+                event.prevent_default(); event.stop()
+
+    # ─── Buttons ───
+    @on(Button.Pressed, "#pi-continue-btn")
+    def _on_continue(self, _: Button.Pressed) -> None:
+        if (
+            self._proxius_id and self._pop_id and self._imago_node_id
+            and self._latitude is not None
+        ):
+            self.dismiss((
+                self._proxius_id,
+                self._pop_id,
+                self._latitude,
+                self._dvs,
+                self._cvs,
+                self._imago_node_id,
+            ))
+
+    @on(Button.Pressed, "#pi-back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#pi-cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(BACK)
+
+
+# ─────────────────────────────────────────
+# PREACH IMĀGŌ CONFIRM MODAL
+# Plain confirmation modal for Preach Imāgō. Dismisses True/False/None.
+# ─────────────────────────────────────────
+
+class PreachImagoConfirmModal(ModalScreen):
+    """Confirmation modal for Preach Imāgō directive."""
+
+    BINDINGS = [
+        ("escape",    "cancel", "Cancel"),
+        ("backspace", "back",   "Back"),
+    ]
+
+    _LAT_LABELS = {0.0: "strict", 0.5: "guided", 1.0: "lax"}
+
+    def __init__(
+        self,
+        proxius_name: str,
+        pop_name: str,
+        imago_name: str,
+        latitude: float,
+    ) -> None:
+        super().__init__()
+        self._proxius_name = proxius_name
+        self._pop_name     = pop_name
+        self._imago_name   = imago_name
+        self._latitude     = latitude
+
+    def compose(self) -> ComposeResult:
+        lat_label = self._LAT_LABELS.get(self._latitude, f"{self._latitude:.2f}")
+        body = (
+            f"You will send a [b]{lat_label}[/b] directive to "
+            f"[b]{_e(self._proxius_name)}[/b] to preach "
+            f"[b]{_e(self._imago_name)}[/b] to [b]{_e(self._pop_name)}[/b]."
+        )
+        with Vertical(classes="modal-box"):
+            yield Label("Confirm Preach Imāgō", classes="modal-title")
+            yield Static(body, classes="modal-body")
+            with Horizontal(classes="btn-row"):
+                yield Button("← Back",     id="pi-confirm-back-btn")
+                yield Button("✕ Cancel",   id="pi-confirm-cancel-btn", classes="-danger")
+                yield Button("✓ Confirm",  id="pi-confirm-ok-btn")
+
+    def on_mount(self) -> None:
+        self.query_one("#pi-confirm-ok-btn", Button).focus()
+
+    @on(Button.Pressed, "#pi-confirm-ok-btn")
+    def _on_ok(self, _: Button.Pressed) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#pi-confirm-back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#pi-confirm-cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(False)
 
