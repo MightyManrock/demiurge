@@ -16,7 +16,7 @@ Categories: `overt_miracles`, `subtle_influence`, `proxius_activity`, `direct_cr
 
 - `Demiurge.footprint` is universe-wide.
 - `SignificantLocation.local_footprint` is per-location.
-- Luminaries evaluate `EssenceStockpile.apparent`, not `actual`. The player manages the gap via `maintain_concealment`.
+- Luminaries evaluate `EssenceStockpile.suspicious`, not `actual`. The player manages the gap via `maintain_concealment`.
 
 ## FootprintConstraint
 

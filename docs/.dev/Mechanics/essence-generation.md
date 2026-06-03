@@ -30,7 +30,7 @@ For each Domain pool, let `lum_total_aff = min(0.9, Σ lum.domains[tag])` across
 
 Luminary satisfaction and Demiurge income are **separate accounts**. Each Luminary accumulates `lum_aff * pool` into `state.luminary_production_this_eval[lid]` regardless of what the Demiurge claims. Reducing the Demiurge's affiliated count does **not** reduce Luminary satisfaction.
 
-Claimed Essence flows to `Demiurge.essence.actual` via an `ESSENCE_CHANGE` mutation (no `apparent` impact). Per-Domain breakdown is exposed on `TickResult.essence_claimed_by_domain` and mirrored on `state.last_tick_essence_by_domain`. Domains in `Demiurge.tracked_essence_domains` accumulate into `state.domain_essence_claimed` for cumulative tracking.
+Claimed Essence flows to `Demiurge.essence.actual` via an `ESSENCE_CHANGE` mutation (no `suspicious` impact). Per-Domain breakdown is exposed on `TickResult.essence_claimed_by_domain` and mirrored on `state.last_tick_essence_by_domain`. Domains in `Demiurge.tracked_essence_domains` accumulate into `state.domain_essence_claimed` for cumulative tracking.
 
 ## Luminary Expectations
 

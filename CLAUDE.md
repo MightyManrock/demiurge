@@ -144,6 +144,7 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Domain tags, similarity, affiliated domains | [domain-system.md](docs/.dev/Mechanics/domain-system.md) |
 | Luminary personality axes | [luminary-personality.md](docs/.dev/Mechanics/luminary-personality.md) |
 | Essence generation and claim split | [essence-generation.md](docs/.dev/Mechanics/essence-generation.md) |
+| Underreal harvesting, EssenceStockpile model, laundering, auto-stop | [underreal-harvesting.md](docs/.dev/Mechanics/underreal-harvesting.md) |
 | Imago trees, mechanics dict, influence integration | [imago-system.md](docs/.dev/Mechanics/imago-system.md) |
 | Revelation accumulation and reveal actions | [imago-revelation.md](docs/.dev/Mechanics/imago-revelation.md) |
 | Whisper, Shape Dream, Manifest Omen; influence success roll | [influence-actions.md](docs/.dev/Mechanics/influence-actions.md) |
