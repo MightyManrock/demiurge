@@ -1062,7 +1062,28 @@ Button.continue-ready {
 }
 
 #pi-domain-grid > DomainSquare {
-    height: 3;
+    height: 2;
+    border: none;
+    background: $boost;
+}
+
+#pi-domain-grid > DomainSquare:focus {
+    border: none;
+    background: $accent-darken-1;
+}
+
+#pi-domain-grid > DomainSquare.selected-active {
+    border: none;
+    background: $bg-panel;
+}
+
+#pi-domain-grid > DomainSquare.selected-active:focus {
+    border: none;
+    background: $bg-panel;
+}
+
+#pi-domain-grid > DomainSquare.inactive {
+    border: none;
 }
 
 .pi-imago-col {
