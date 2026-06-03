@@ -4145,11 +4145,18 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
                 yield Button("Continue →", id="pi-continue-btn", disabled=True)
 
     def on_mount(self) -> None:
-        # Pre-select first Proxius if any (which will trigger pop repopulation
-        # through the Highlighted event).
+        # Pre-select first Proxius directly to avoid racing the async
+        # ListView.Highlighted message (which would leave _proxius_id None
+        # when _check_continue() runs).
         if self._proxius_ids:
             lv = self.query_one("#pi-proxius-list", ListView)
-            lv.index = 0
+            self._proxius_id = self._proxius_ids[0]
+            p = self._state.mortals.get(self._proxius_id)
+            if p:
+                self.query_one("#pi-proxius-label", Label).update(f"Proxius: {p.name}")
+            lv.index = 0  # visual selection
+            self._repopulate_gen += 1
+            self._repopulate_pops(self._repopulate_gen, self._proxius_id)
         self._check_continue()
 
     # ─── Continue gating ───
@@ -4248,7 +4255,7 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
             civ = state.civilizations.get(str(p.civilization_id)) if p.civilization_id else None
             civ_tag = f"  · {civ.name}" if civ else ""
             label = (
-                f"{identity}{cross}{origin_marker}  sz {p.size_magnitude}  "
+                f"{identity}{cross}{origin_marker}  size {p.size_magnitude}  "
                 f"{belief_str}{civ_tag}"
             )
             if gen != self._repopulate_gen:
@@ -4369,6 +4376,9 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
         if cell:
             self._mark_imago_selected(cell)
         self._check_continue()
+        # Move focus to the Latitude RadioSet so the user can continue.
+        lat = self.query_one("#pi-latitude", RadioSet)
+        lat.focus()
 
     # ─── Latitude ───
     @on(RadioSet.Changed, "#pi-latitude")
@@ -4379,14 +4389,33 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
         self._latitude = next((v for k, _, v in _LATITUDE_OPTS if k == bid), None)
         self._check_continue()
 
-    # ─── Keyboard: Enter on imago commits if all set ───
+    # ─── Keyboard: Tab / Shift-Tab navigation between sections ───
+    # NOTE: Enter on a focused DomainSquare is intentionally NOT handled here.
+    # DomainSquare already posts a Selected message on Enter (see widgets.py),
+    # which routes to on_domain_square_selected. Intercepting Enter here too
+    # would fire two concurrent _swap_imago_tree @work coroutines on the same
+    # container — a race on remove_children() + mount().
     def on_key(self, event) -> None:
         focused = self.focused
-        if event.key == "enter":
+        if event.key == "tab":
+            # Proxius list → Pop list
+            if isinstance(focused, ListView) and focused.id == "pi-proxius-list":
+                pop_lv = self.query_one("#pi-pop-list", ListView)
+                pop_lv.focus()
+                event.prevent_default(); event.stop()
+                return
+            # Pop list → first enabled DomainSquare
+            if isinstance(focused, ListView) and focused.id == "pi-pop-list":
+                squares = list(self.query_one("#pi-domain-grid", Grid).query(DomainSquare))
+                target = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+                return
+            # DomainSquare → first unlocked ImagoCell (committing selection)
             if isinstance(focused, DomainSquare):
-                # Treat Enter as selection on a focused DomainSquare
-                tag = focused._tag
-                if not focused.disabled:
+                if not focused.disabled and focused._tag != self._domain_tag:
+                    tag = focused._tag
                     self._domain_tag    = tag
                     self._imago_node_id = None
                     self._dvs = []
@@ -4401,7 +4430,70 @@ class PreachImagoConfigModal(_ImagoSwapMixin, ModalScreen):
                     self._mark_domain_selected(focused)
                     self._check_continue()
                     self._swap_imago_tree("pi-tree-container", tag, focus_first=True)
+                else:
+                    cells = [
+                        c for c in self.query_one(
+                            "#pi-tree-container", ScrollableContainer
+                        ).query(ImagoCell) if c._unlocked
+                    ]
+                    if cells:
+                        cells[0].focus()
                 event.prevent_default(); event.stop()
+                return
+            # ImagoCell → Latitude RadioSet
+            if isinstance(focused, ImagoCell):
+                self.query_one("#pi-latitude", RadioSet).focus()
+                event.prevent_default(); event.stop()
+                return
+            # Latitude → Continue button
+            if isinstance(focused, RadioSet) and focused.id == "pi-latitude":
+                self.query_one("#pi-continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
+                return
+        elif event.key == "shift+tab":
+            # Continue → Latitude
+            if isinstance(focused, Button) and focused.id == "pi-continue-btn":
+                self.query_one("#pi-latitude", RadioSet).focus()
+                event.prevent_default(); event.stop()
+                return
+            # Latitude → ImagoCell (first unlocked)
+            if isinstance(focused, RadioSet) and focused.id == "pi-latitude":
+                cells = [
+                    c for c in self.query_one(
+                        "#pi-tree-container", ScrollableContainer
+                    ).query(ImagoCell) if c._unlocked
+                ]
+                if cells:
+                    cells[0].focus()
+                else:
+                    squares = list(
+                        self.query_one("#pi-domain-grid", Grid).query(DomainSquare)
+                    )
+                    target = next((sq for sq in squares if not sq.disabled), None)
+                    if target:
+                        target.focus()
+                event.prevent_default(); event.stop()
+                return
+            # ImagoCell → first enabled DomainSquare
+            if isinstance(focused, ImagoCell):
+                squares = list(
+                    self.query_one("#pi-domain-grid", Grid).query(DomainSquare)
+                )
+                target = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+                return
+            # DomainSquare → Pop list
+            if isinstance(focused, DomainSquare):
+                self.query_one("#pi-pop-list", ListView).focus()
+                event.prevent_default(); event.stop()
+                return
+            # Pop list → Proxius list
+            if isinstance(focused, ListView) and focused.id == "pi-pop-list":
+                self.query_one("#pi-proxius-list", ListView).focus()
+                event.prevent_default(); event.stop()
+                return
 
     # ─── Buttons ───
     @on(Button.Pressed, "#pi-continue-btn")
