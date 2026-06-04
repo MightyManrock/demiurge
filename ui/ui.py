@@ -1596,9 +1596,6 @@ class GameScreen(Screen):
                     imago_node_id=imago_id,
                 )
 
-        # ── OVERT MIRACLE ────────────────────────────────
-        elif cat == ActionCategory.OVERT_MIRACLE:
-
         # ── UNDERREAL ────────────────────────────────────
         elif cat == ActionCategory.UNDERREAL:
             if action_key == "harvest_essence":
