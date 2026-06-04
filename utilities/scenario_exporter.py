@@ -522,7 +522,7 @@ def _write_mortals(conn, state: SimulationState):
             """INSERT INTO mortals
                (id, name, description, civilization_id, role, status,
                 species_id, prominence_roles, prominence, visibility,
-                belief_tags, personal_tags, status_tags, culture_tags,
+                belief_tags, personal_tags, status_tags, culture_tags, skill_tags,
                 alignment, chrono_age, bio_age,
                 birthday_billions, birthday_millions, birthday_thousands, birthday_years,
                 birthday_month, birthday_day,
@@ -534,7 +534,7 @@ def _write_mortals(conn, state: SimulationState):
                 travel_intent_json,
                 fatigue, assets, knowledge_base, civilian_state,
                 occupation)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -550,6 +550,7 @@ def _write_mortals(conn, state: SimulationState):
                 _j(m.personal_tags),
                 _j(m.status_tags),
                 _j(m.culture_tags),
+                _j(m.skill_tags),
                 m.alignment,
                 m.chrono_age,
                 m.bio_age,

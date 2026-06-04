@@ -800,6 +800,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             personal_tags=_j(row["personal_tags"]),
             status_tags=_j(row.get("status_tags", "[]")),
             culture_tags=_jd(row.get("culture_tags", "{}")),
+            skill_tags=_jd(row.get("skill_tags", "{}")),
             alignment=row["alignment"],
             chrono_age=row["chrono_age"],
             bio_age=row["bio_age"],

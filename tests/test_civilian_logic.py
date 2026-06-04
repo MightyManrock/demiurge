@@ -4,6 +4,7 @@ from core.agent_core import (
     CivilianAgentState, Resource, MortalNeed, KnowledgeBase,
     RouteFact, LocationQualityFact, ResourceFact, DirectiveFact,
 )
+from core.universe_core import NotableMortal
 from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need, _cross_factor, _pop_social_quality
 
 
@@ -562,3 +563,18 @@ def test_effective_commerce_clamped_to_one():
 def test_effective_commerce_size_weighted():
     loc_large, state_large = _make_loc_and_state(0.5, [(0.8, 10.0), (0.0, 1.0)])
     assert _effective_commerce_quality(loc_large, state_large) > 0.5
+
+
+def test_notable_mortal_skill_tags_default_empty():
+    m = NotableMortal(name="Test", home_location="00000000-0000-0000-0000-000000000001",
+                      current_location="00000000-0000-0000-0000-000000000001")
+    assert m.skill_tags == {}
+
+
+def test_notable_mortal_skill_tags_roundtrip():
+    m = NotableMortal(name="Test", home_location="00000000-0000-0000-0000-000000000001",
+                      current_location="00000000-0000-0000-0000-000000000001",
+                      skill_tags={"skill:trade": 0.8, "skill:craft": 0.4})
+    dumped = m.model_dump()
+    restored = NotableMortal(**dumped)
+    assert restored.skill_tags == {"skill:trade": 0.8, "skill:craft": 0.4}

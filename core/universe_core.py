@@ -673,6 +673,7 @@ class NotableMortal(BaseModel):
     status_tags: list[str] = Field(default_factory=list)
     culture_tags: dict[str, float] = Field(default_factory=dict)
     # Cultural traits inherited from their civilization, e.g. {"culture:hierarchy": 0.8}
+    skill_tags: dict[str, float] = Field(default_factory=dict)
 
     species_id: Optional[UUID] = None
     pop_id: Optional[UUID] = None   # Pop this mortal belongs to; cleared when they age out
