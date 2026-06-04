@@ -30,7 +30,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe, TravelNetwork,
+    Universe, TravelNetwork, Faction,
 )
 from core.action_core import EssenceStockpile, CategoryCooldowns
 from core.event_core import Event
@@ -75,6 +75,7 @@ def export_scenario(
         _write_species(conn, state)
         _write_civilizations(conn, state)
         _write_pops(conn, state)
+        _write_factions(conn, state)
         _write_mortals(conn, state)
         _write_demiurge(conn, state)
         _write_essence(conn, state)
@@ -483,8 +484,9 @@ def _write_pops(conn, state: SimulationState):
                 identity_anchor,
                 visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until,
-                occupation, linked_pop_ids, active_directives, asset_crew_for)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                occupation, linked_pop_ids, active_directives, asset_crew_for,
+                faction_ids)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -512,6 +514,29 @@ def _write_pops(conn, state: SimulationState):
                 _j(p.linked_pop_ids),
                 _j([d.model_dump() for d in p.active_directives]),
                 p.asset_crew_for,
+                _j([str(fid) for fid in p.faction_ids]),
+            ),
+        )
+
+
+def _write_factions(conn, state: "SimulationState") -> None:
+    # TODO: wire call in Task 3 when SimulationState.factions exists
+    factions = getattr(state, "factions", {})
+    for f in factions.values():
+        conn.execute(
+            """INSERT INTO factions
+               (id, name, description, civilization_id,
+                member_pop_ids, active_directives, visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                str(f.id),
+                f.name,
+                f.description,
+                str(f.civilization_id) if f.civilization_id else None,
+                _j([str(pid) for pid in f.member_pop_ids]),
+                _j([d.model_dump() for d in f.active_directives]),
+                f.visibility,
+                int(f.pinned),
             ),
         )
 

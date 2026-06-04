@@ -30,7 +30,7 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe, TravelNetwork, EntityAge,
+    Universe, TravelNetwork, EntityAge, Faction,
 )
 UniverseAge = EntityAge  # backward compat for helpers that still use the old name
 from core.action_core import (
@@ -776,6 +776,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             linked_pop_ids=_jd(row.get("linked_pop_ids", "{}")),
             active_directives=_load_directives(row.get("active_directives", "[]")),
             asset_crew_for=row.get("asset_crew_for") or None,
+            faction_ids=[UUID(fid) for fid in _j(row.get("faction_ids", "[]"))],
         )
         out[str(p.id)] = p
     return out
@@ -867,6 +868,29 @@ def _load_directives(raw: Optional[str]) -> list:
         return [Directive.model_validate(d) for d in items]
     except Exception:
         return []
+
+
+def _load_factions(conn) -> "dict[str, Faction]":
+    try:
+        rows = conn.execute("SELECT * FROM factions").fetchall()
+    except Exception:
+        return {}  # table absent in old DBs
+    result: dict[str, Faction] = {}
+    for raw in rows:
+        row = dict(raw)
+        directives = _load_directives(row.get("active_directives", "[]"))
+        f = Faction(
+            id=UUID(row["id"]),
+            name=row["name"],
+            description=row.get("description", ""),
+            civilization_id=_uuid(row.get("civilization_id")),
+            member_pop_ids=[UUID(mid) for mid in _j(row.get("member_pop_ids", "[]"))],
+            active_directives=directives,
+            visibility=float(row.get("visibility", 1.0)),
+            pinned=bool(row.get("pinned", 0)),
+        )
+        result[str(f.id)] = f
+    return result
 
 
 def _load_collectible_resource(raw: Optional[str]) -> Optional[CollectibleResource]:

@@ -259,7 +259,19 @@ CREATE TABLE IF NOT EXISTS pops (
     occupation                    TEXT NOT NULL DEFAULT '',
     linked_pop_ids                TEXT NOT NULL DEFAULT '{}',  -- JSON object {pop_id_str: base_link_factor}
     active_directives             TEXT NOT NULL DEFAULT '[]',  -- JSON array of Directive objects
-    asset_crew_for                TEXT DEFAULT NULL            -- asset_type if this is a vessel crew pop
+    asset_crew_for                TEXT DEFAULT NULL,           -- asset_type if this is a vessel crew pop
+    faction_ids                   TEXT NOT NULL DEFAULT '[]'   -- JSON array of Faction UUIDs
+);
+
+CREATE TABLE IF NOT EXISTS factions (
+    id                  TEXT    PRIMARY KEY,
+    name                TEXT    NOT NULL DEFAULT '',
+    description         TEXT    NOT NULL DEFAULT '',
+    civilization_id     TEXT,
+    member_pop_ids      TEXT    NOT NULL DEFAULT '[]',
+    active_directives   TEXT    NOT NULL DEFAULT '[]',
+    visibility          REAL    NOT NULL DEFAULT 1.0,
+    pinned              INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS mortals (
