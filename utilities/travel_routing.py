@@ -70,9 +70,9 @@ def leg_cost(state, origin_id: UUID, dest_id: UUID) -> int:
 
     coords = _divergence_coordinates(state, origin, dest)
     if coords is None:
-        # Intra-world
+        # Intra-world: minimum 1 tick; each depth unit costs 1 tick
         d = origin.distance_from_core + dest.distance_from_core
-        return d if (origin.distance_from_core > 0 and dest.distance_from_core > 0) else d + 1
+        return max(1, d)
 
     ca, cb, speed = coords
     dist = math.sqrt((ca.x - cb.x)**2 + (ca.y - cb.y)**2 + (ca.z - cb.z)**2)
