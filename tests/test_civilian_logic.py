@@ -628,8 +628,8 @@ def test_skill_rating_zero_for_absent_skill():
 def _kb_with_resource_and_sell(resource_loc_id, sell_loc_id):
     """KnowledgeBase with a known resource location and a sell location."""
     kb = KnowledgeBase()
-    kb.facts.append(ResourceFact(location_id=resource_loc_id, resource_type="ore", yield_per_tick=5))
-    kb.facts.append(LocationQualityFact(location_id=sell_loc_id, quality_type="sell", score=0.8))
+    kb.facts.append(ResourceFact(location_id=resource_loc_id, resource_type="ore", resource_yield=5))
+    kb.facts.append(LocationQualityFact(location_id=sell_loc_id, quality_type="sell", quality=0.8))
     return kb
 
 
@@ -690,7 +690,7 @@ def test_sell_blocked_when_skill_system_engaged_without_trade():
                             converts_to="wealth", threshold=5, usable_for=["sell"])],
     )
     kb = KnowledgeBase()
-    kb.facts.append(LocationQualityFact(location_id=sell_loc, quality_type="sell", score=0.8))
+    kb.facts.append(LocationQualityFact(location_id=sell_loc, quality_type="sell", quality=0.8))
     mortal = _mortal(cs, kb, loc_id=sell_loc, skill_tags={"skill:craft": 0.9})
     result = evaluate_civilian_action(mortal, _state(), 0)
     assert result != "sell"
