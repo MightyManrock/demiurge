@@ -126,8 +126,11 @@ class CosmicCoordinates(BaseModel):
     Not a hard physics simulation — used for
     determining isolation, travel time between
     civilizations, and regional Luminary influence gradients.
-    Galaxy-level coordinates use a much larger effective scale
-    than system-level coordinates (see _GALAXY_SCALE in tick_logic).
+
+    Units by scope:
+      Galaxy (intergalactic): megaparsecs from an arbitrary origin
+      System (interstellar):  parsecs from galactic core
+      Planet / warp_gate:     AU from the system's central star
     """
     x: float = 0.0
     y: float = 0.0

@@ -52,13 +52,15 @@ def find_route(state, origin_id: UUID, destination_id: UUID) -> list[UUID] | Non
     return None
 
 
-_SPACE_TRAVEL_CONSTANT = 3.0
+_SUBLIGHT_SPEED = 50.0   # AU/tick  (intra-system travel)
+_WARP_SPEED     = 80.0   # pc/tick  (interstellar warpspace travel)
 
 
 def leg_cost(state, origin_id: UUID, dest_id: UUID) -> int:
     """Compute tick cost for one hop.
     Intra-world: distance_from_core formula.
-    Cross-world: euclidean distance at divergence level / SPACE_TRAVEL_CONSTANT.
+    Intra-system cross-world: euclidean AU distance / _SUBLIGHT_SPEED.
+    Inter-system: euclidean parsec distance / _WARP_SPEED.
     """
     from core.universe_core import PopLocation
     origin = state.locations.get(str(origin_id))
@@ -72,13 +74,17 @@ def leg_cost(state, origin_id: UUID, dest_id: UUID) -> int:
         d = origin.distance_from_core + dest.distance_from_core
         return d if (origin.distance_from_core > 0 and dest.distance_from_core > 0) else d + 1
 
-    ca, cb = coords
+    ca, cb, speed = coords
     dist = math.sqrt((ca.x - cb.x)**2 + (ca.y - cb.y)**2 + (ca.z - cb.z)**2)
-    return max(1, math.ceil(dist / _SPACE_TRAVEL_CONSTANT))
+    return max(1, math.ceil(dist / speed))
 
 
 def _divergence_coordinates(state, loc_a, loc_b):
-    """Return (coord_a, coord_b) at the divergence level, or None for intra-world."""
+    """Return (coord_a, coord_b, speed) at the divergence level, or None for intra-world.
+
+    Speed is _SUBLIGHT_SPEED when coordinates are in AU (same system, different worlds),
+    or _WARP_SPEED when coordinates are in parsecs (different systems).
+    """
     pid_a = str(loc_a.parent_id) if loc_a.parent_id else None
     pid_b = str(loc_b.parent_id) if loc_b.parent_id else None
 
@@ -94,16 +100,16 @@ def _divergence_coordinates(state, loc_a, loc_b):
     gpid_b = str(parent_b.parent_id) if parent_b.parent_id else None
 
     if gpid_a == gpid_b:
-        # Same System → use SignificantLocation coordinates (sublight)
-        return (parent_a.coordinates, parent_b.coordinates)
+        # Same System → SignificantLocation coordinates in AU → sublight
+        return (parent_a.coordinates, parent_b.coordinates, _SUBLIGHT_SPEED)
 
-    # Different Systems → use System coordinates (interstellar)
+    # Different Systems → System coordinates in parsecs → warp
     gp_a = state.locations.get(gpid_a) if gpid_a else None
     gp_b = state.locations.get(gpid_b) if gpid_b else None
     if gp_a is None or gp_b is None:
-        # Fall back to SignificantLocation coords
-        return (parent_a.coordinates, parent_b.coordinates)
-    return (gp_a.coordinates, gp_b.coordinates)
+        # Fall back to SignificantLocation coords (treat as sublight)
+        return (parent_a.coordinates, parent_b.coordinates, _SUBLIGHT_SPEED)
+    return (gp_a.coordinates, gp_b.coordinates, _WARP_SPEED)
 
 
 def build_legs(state, route: list[UUID]) -> dict[str, int]:
