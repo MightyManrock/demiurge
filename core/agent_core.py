@@ -55,6 +55,7 @@ class DirectiveFact(BaseModel):
     target_pop_location_id: str    # UUID of the PopLocation whose wealth this grows
     confidence: float = 1.0
     learned_at_tick: int = 0
+    source_faction_id: Optional[str] = None
 
 
 KnowledgeFact = Annotated[

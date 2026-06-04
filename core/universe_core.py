@@ -405,6 +405,7 @@ class Directive(BaseModel):
     directive_type: str = "commerce"       # extensible: "preach", "research", …
     target_location_id: Optional[UUID] = None
     issued_at_tick: int = 0
+    required_skill: Optional[str] = None
 
 
 class Pop(BaseModel):
@@ -493,8 +494,21 @@ class Pop(BaseModel):
     # circumstances. Keys are pop ID strings; values are the base link factor
     # (0.0–1.0). Asymmetric: each Pop stores its own perspective.
     linked_pop_ids: dict[str, float] = Field(default_factory=dict)
+    faction_ids: list[UUID] = Field(default_factory=list)
     active_directives: list[Directive] = Field(default_factory=list)
     asset_crew_for: Optional[str] = None  # asset_type; marks this as a vessel crew pop
+
+
+class Faction(BaseModel):
+    """An institutional interest group that issues Directives to qualifying member mortals."""
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    description: str = ""
+    civilization_id: Optional[UUID] = None
+    member_pop_ids: list[UUID] = Field(default_factory=list)
+    active_directives: list[Directive] = Field(default_factory=list)
+    visibility: float = Field(ge=0.0, le=1.0, default=1.0)
+    pinned: bool = False
 
 
 def pop_label(pop: "Pop") -> str:
