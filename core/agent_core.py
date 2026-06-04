@@ -163,6 +163,7 @@ class CivilianAgentState(BaseModel):
     last_action: Optional[str] = None
     pending_travel_dest: Optional[str] = None
     collecting_ticks_remaining: int = 0
+    pending_transfer: bool = False
 
     def pressing_needs(self) -> list[MortalNeed]:
         return [n for n in self.needs if n.is_pressing]

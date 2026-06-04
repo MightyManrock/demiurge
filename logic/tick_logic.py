@@ -5316,6 +5316,8 @@ class TickLoop:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
                         mortal.current_location = next_wp_uuid
+                        if mortal.civilian_state is not None:
+                            mortal.civilian_state.pending_transfer = True
 
         for lid in to_remove:
             tl = state.locations.get(lid)
@@ -5431,6 +5433,11 @@ class TickLoop:
                             f"(hold: {_bg_res.quantity:.0f}/{_bg_cap:.0f})."
                         )
                     cs.collecting_ticks_remaining = max(0, cs.collecting_ticks_remaining - 1)
+
+            if cs.pending_transfer:
+                cs.pending_transfer = False
+                cs.last_action = "transfer"
+                continue  # busy setting up next leg — no need satisfaction this tick
 
             action = evaluate_civilian_action(mortal, state, current_tick)
             cs.last_action = action
