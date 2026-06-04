@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 import random
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
@@ -264,6 +264,29 @@ def _begin_loading(cs, cur_loc, cargo_cap: Optional[float], cargo_load: float) -
     remaining = max(0.0, cargo_cap - cargo_load)
     additional_ticks = max(0, math.ceil(remaining / yield_per_tick) - 1)
     cs.collecting_ticks_remaining = additional_ticks
+
+
+def _has_skill(mortal: Any, skill_name: str) -> bool:
+    """True if mortal can attempt skill-gated actions for `skill_name`.
+
+    Empty skill_tags means the skill system isn't engaged for this mortal
+    (legacy / pre-skill entities). Non-empty skill_tags means the mortal is
+    in the skill system and must hold the skill explicitly.
+    """
+    tags = getattr(mortal, "skill_tags", {}) or {}
+    if not tags:
+        return True  # legacy: ungated
+    return skill_name in tags
+
+
+def _skill_rating(mortal: Any, skill_name: str) -> float:
+    """Skill rating in [0, 1]. Returns 1.0 for legacy (empty skill_tags) mortals.
+    Returns 0.0 if skill system is engaged but the skill is absent.
+    """
+    tags = getattr(mortal, "skill_tags", {}) or {}
+    if not tags:
+        return 1.0  # legacy: full effectiveness
+    return tags.get(skill_name, 0.0)
 
 
 def evaluate_civilian_action(

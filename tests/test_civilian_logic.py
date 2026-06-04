@@ -5,10 +5,10 @@ from core.agent_core import (
     RouteFact, LocationQualityFact, ResourceFact, DirectiveFact,
 )
 from core.universe_core import NotableMortal
-from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need, _cross_factor, _pop_social_quality
+from logic.civilian_agent_logic import evaluate_civilian_action, _trip_too_long_for_urgent_need, _cross_factor, _pop_social_quality, _has_skill, _skill_rating
 
 
-def _mortal(cs, kb=None, fatigue=0.0, assets=None, travel_intent=None, loc_id="loc-A"):
+def _mortal(cs, kb=None, fatigue=0.0, assets=None, travel_intent=None, loc_id="loc-A", skill_tags=None):
     m = MagicMock()
     m.civilian_state = cs
     m.knowledge_base = kb or KnowledgeBase()
@@ -16,6 +16,7 @@ def _mortal(cs, kb=None, fatigue=0.0, assets=None, travel_intent=None, loc_id="l
     m.assets = assets or []
     m.travel_intent = travel_intent
     m.current_location = loc_id
+    m.skill_tags = skill_tags if skill_tags is not None else {}
     return m
 
 
@@ -578,3 +579,43 @@ def test_notable_mortal_skill_tags_roundtrip():
     dumped = m.model_dump()
     restored = NotableMortal(**dumped)
     assert restored.skill_tags == {"skill:trade": 0.8, "skill:craft": 0.4}
+
+
+# ── Skill helpers ─────────────────────────────────────────────────────────────
+
+def test_has_skill_legacy_empty_dict():
+    """Empty skill_tags → legacy mode → all actions ungated."""
+    m = MagicMock()
+    m.skill_tags = {}
+    assert _has_skill(m, "skill:trade") is True
+
+
+def test_has_skill_present():
+    m = MagicMock()
+    m.skill_tags = {"skill:trade": 0.8}
+    assert _has_skill(m, "skill:trade") is True
+
+
+def test_has_skill_absent_when_skill_system_engaged():
+    """Mortal has skills but not this one → blocked."""
+    m = MagicMock()
+    m.skill_tags = {"skill:craft": 0.7}
+    assert _has_skill(m, "skill:trade") is False
+
+
+def test_skill_rating_legacy():
+    m = MagicMock()
+    m.skill_tags = {}
+    assert _skill_rating(m, "skill:trade") == 1.0
+
+
+def test_skill_rating_returns_value():
+    m = MagicMock()
+    m.skill_tags = {"skill:trade": 0.8}
+    assert _skill_rating(m, "skill:trade") == pytest.approx(0.8)
+
+
+def test_skill_rating_zero_for_absent_skill():
+    m = MagicMock()
+    m.skill_tags = {"skill:craft": 0.7}
+    assert _skill_rating(m, "skill:trade") == 0.0
