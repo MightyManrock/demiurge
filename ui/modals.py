@@ -25,7 +25,7 @@ from core.action_core import (
     ActionCategory, ActionDefinition, EssenceStockpile, OngoingAction, compute_cooldown,
     RevealImagoIntent, ChangeAffiliatedDomainsIntent,
     ScryScope, TargetType, CATEGORY_BASE_COOLDOWNS,
-    DomainVector, CultureVector,
+    DomainVector, CultureVector, Framing,
 )
 from logic.tick_logic import (
     SimulationState,
