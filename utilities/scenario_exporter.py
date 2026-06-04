@@ -534,7 +534,7 @@ def _write_factions(conn, state: "SimulationState") -> None:
                 f.description,
                 str(f.civilization_id) if f.civilization_id else None,
                 _j([str(pid) for pid in f.member_pop_ids]),
-                _j([d.model_dump() for d in f.active_directives]),
+                json.dumps([d.model_dump(mode="json") for d in f.active_directives]),
                 f.visibility,
                 int(f.pinned),
             ),
