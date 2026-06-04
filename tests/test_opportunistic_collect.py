@@ -45,6 +45,7 @@ def _mortal(cs, kb, loc_id=SETHIS):
     m.current_location = loc_id
     m.pop_id = None
     m.pop_milieu = None
+    m.skill_tags = {}
     return m
 
 

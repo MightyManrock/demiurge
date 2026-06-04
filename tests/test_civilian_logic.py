@@ -202,6 +202,7 @@ def _mortal_with_pop(cs, pop_id=POP_ID, pop_milieu=None, fatigue=0.0, loc_id="lo
     m.pop_id = pop_id
     m.pop_milieu = pop_milieu
     m.culture_tags = {}
+    m.skill_tags = {}
     return m
 
 
@@ -338,6 +339,7 @@ def _directive_mortal(resource_loc_id="res-loc", loc_id="res-loc", culture_tags=
     m.travel_intent = None
     m.current_location = loc_id
     m.culture_tags = culture_tags or {}
+    m.skill_tags = {}
     return m
 
 
@@ -619,3 +621,76 @@ def test_skill_rating_zero_for_absent_skill():
     m = MagicMock()
     m.skill_tags = {"skill:craft": 0.7}
     assert _skill_rating(m, "skill:trade") == 0.0
+
+
+# ── Skill gating: collect and sell ────────────────────────────────────────────
+
+def _kb_with_resource_and_sell(resource_loc_id, sell_loc_id):
+    """KnowledgeBase with a known resource location and a sell location."""
+    kb = KnowledgeBase()
+    kb.facts.append(ResourceFact(location_id=resource_loc_id, resource_type="ore", yield_per_tick=5))
+    kb.facts.append(LocationQualityFact(location_id=sell_loc_id, quality_type="sell", score=0.8))
+    return kb
+
+
+def test_collect_blocked_when_skill_system_engaged_without_trade():
+    """Mortal has skills but not skill:trade → collect score = 0 → not collect."""
+    resource_loc = "loc-A"
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="purpose", satisfaction=0.1, pressing_threshold=0.6)],
+        inventory=[Resource(resource_type="ore", quantity=0, base_value=10,
+                            converts_to="wealth", threshold=1, usable_for=["sell", "collect"])],
+    )
+    kb = _kb_with_resource_and_sell(resource_loc, "sell-loc")
+    mortal = _mortal(cs, kb, loc_id=resource_loc, skill_tags={"skill:craft": 0.9})
+    loc = MagicMock()
+    loc.collectible_resource = "ore"
+    result = evaluate_civilian_action(mortal, _state({resource_loc: loc}), 0)
+    assert result != "collect"
+
+
+def test_collect_allowed_when_skill_trade_present():
+    """Mortal with skill:trade → collect proceeds normally."""
+    resource_loc = "loc-A"
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="purpose", satisfaction=0.1, pressing_threshold=0.6)],
+        inventory=[Resource(resource_type="ore", quantity=0, base_value=10,
+                            converts_to="wealth", threshold=1, usable_for=["sell", "collect"])],
+    )
+    kb = _kb_with_resource_and_sell(resource_loc, "sell-loc")
+    mortal = _mortal(cs, kb, loc_id=resource_loc, skill_tags={"skill:trade": 0.8})
+    loc = MagicMock()
+    loc.collectible_resource = "ore"
+    result = evaluate_civilian_action(mortal, _state({resource_loc: loc}), 0)
+    assert result == "collect"
+
+
+def test_collect_allowed_legacy_no_skill_tags():
+    """Empty skill_tags (legacy) → collect ungated."""
+    resource_loc = "loc-A"
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="purpose", satisfaction=0.1, pressing_threshold=0.6)],
+        inventory=[Resource(resource_type="ore", quantity=0, base_value=10,
+                            converts_to="wealth", threshold=1, usable_for=["sell", "collect"])],
+    )
+    kb = _kb_with_resource_and_sell(resource_loc, "sell-loc")
+    mortal = _mortal(cs, kb, loc_id=resource_loc, skill_tags={})
+    loc = MagicMock()
+    loc.collectible_resource = "ore"
+    result = evaluate_civilian_action(mortal, _state({resource_loc: loc}), 0)
+    assert result == "collect"
+
+
+def test_sell_blocked_when_skill_system_engaged_without_trade():
+    """Mortal with skill:craft but not skill:trade at a sell location → cannot sell."""
+    sell_loc = "loc-sell"
+    cs = CivilianAgentState(
+        needs=[MortalNeed(name="purpose", satisfaction=0.1, pressing_threshold=0.6)],
+        inventory=[Resource(resource_type="ore", quantity=10, base_value=10,
+                            converts_to="wealth", threshold=5, usable_for=["sell"])],
+    )
+    kb = KnowledgeBase()
+    kb.facts.append(LocationQualityFact(location_id=sell_loc, quality_type="sell", score=0.8))
+    mortal = _mortal(cs, kb, loc_id=sell_loc, skill_tags={"skill:craft": 0.9})
+    result = evaluate_civilian_action(mortal, _state(), 0)
+    assert result != "sell"

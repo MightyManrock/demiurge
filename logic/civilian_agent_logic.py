@@ -412,6 +412,8 @@ def evaluate_civilian_action(
     ) if _sellable else 0.0
     if _directive_active and _sell_score > 0:
         _sell_score *= DIRECTIVE_MULTIPLIER
+    if _sell_score > 0:
+        _sell_score *= _skill_rating(mortal, "skill:trade") if _has_skill(mortal, "skill:trade") else 0.0
 
     # Collect: purpose urgency drives it; a small baseline fires on a "might as well" roll.
     _directive_base = MIGHT_AS_WELL_COLLECT_BASE if _might_as_well else 0.0
@@ -420,6 +422,8 @@ def evaluate_civilian_action(
     ) if not _hold_full else 0.0
     if _directive_active and _collect_score > 0:
         _collect_score *= DIRECTIVE_MULTIPLIER
+    if _collect_score > 0:
+        _collect_score *= _skill_rating(mortal, "skill:trade") if _has_skill(mortal, "skill:trade") else 0.0
 
     # Spend: direct need fill (or generic QoL boost when fills_need is unset)
     if _spendable:
