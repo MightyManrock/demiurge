@@ -46,7 +46,7 @@ from core.universe_core import (
     Civilization, NotableMortal, EntityAge,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
-    Pop, SocialClass, is_wild_civ, pop_label,
+    Pop, SocialClass, is_wild_civ, pop_label, Faction,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import (
@@ -54,7 +54,7 @@ from utilities.culture_registry import (
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
-from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent
+from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent, DirectiveFact, KnowledgeBase
 from logic.civilian_agent_logic import (
     evaluate_civilian_action,
     _select_local_pop,
@@ -928,6 +928,7 @@ class SimulationState(BaseModel):
     mortals:       dict[str, "NotableMortal"]
     species:          dict[str, "Species"] = Field(default_factory=dict)
     travel_networks:  dict[str, "TravelNetwork"] = Field(default_factory=dict)
+    factions:         dict[str, "Faction"] = Field(default_factory=dict)
 
     @property
     def worlds(self) -> "dict[str, SignificantLocation]":
@@ -1110,6 +1111,49 @@ def _status_recognition_from_pop(
         return link_scale * lf, link_hold
 
     return stranger_gain, str_hold
+
+
+_DIRECTIVE_ACTION_MAP: dict[str, str] = {
+    "commerce": "sell",
+}
+
+
+def _sync_faction_directives(
+    mortal: "NotableMortal",
+    state: "SimulationState",
+    tick: int,
+) -> None:
+    """Rebuild Faction-sourced DirectiveFacts in the mortal's KnowledgeBase each tick."""
+    if not mortal.knowledge_base:
+        return
+    kb = mortal.knowledge_base
+    kb.facts = [
+        f for f in kb.facts
+        if not (f.fact_type == "directive" and getattr(f, "source_faction_id", None))
+    ]
+    if not mortal.pop_id:
+        return
+    pop = state.pops.get(str(mortal.pop_id))
+    if not pop:
+        return
+    mortal_skills = getattr(mortal, "skill_tags", {}) or {}
+    for faction in state.factions.values():
+        if mortal.pop_id not in faction.member_pop_ids:
+            continue
+        for directive in faction.active_directives:
+            if directive.required_skill and directive.required_skill not in mortal_skills:
+                continue
+            satisfying_action = _DIRECTIVE_ACTION_MAP.get(directive.directive_type, directive.directive_type)
+            target = str(directive.target_location_id) if directive.target_location_id else ""
+            df = DirectiveFact(
+                directive_id=str(directive.id),
+                directive_type=directive.directive_type,
+                satisfying_action=satisfying_action,
+                target_pop_location_id=target,
+                source_faction_id=str(faction.id),
+                learned_at_tick=tick,
+            )
+            kb.facts.append(df)
 
 
 class TickLoop:
@@ -5434,6 +5478,7 @@ class TickLoop:
                 cs.last_action = "transfer"
                 continue  # busy setting up next leg — no need satisfaction this tick
 
+            _sync_faction_directives(mortal, state, current_tick)
             action = evaluate_civilian_action(mortal, state, current_tick)
             cs.last_action = action
 

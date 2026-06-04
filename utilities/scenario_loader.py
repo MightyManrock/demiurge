@@ -353,6 +353,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         last_harvest_tick=last_harvest_tick,
         tick_number=meta.get("tick_number", 0),
         rich_log_name=rich_log_name,
+        factions=_load_factions(conn),
     )
 
     # If the scenario DB didn't specify starting affiliated domains, derive them:
