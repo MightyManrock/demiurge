@@ -3,6 +3,19 @@
 
 ---
 
+### Rewrite Ledger and the Ash Luminary constraints
+
+The current NarrativeConstraints in the scenario read as domain evaluation preferences
+(e.g. "allow Decay to spread," "maintain hierarchy") rather than genuine constraints on
+the Demiurge's behavior. Good constraints should impose tension — directives that require
+active effort or restrict the player's freedom in ways that aren't just "score points in
+my domain." They should also not reference specific mortal factions by name; Luminaries
+operate at cosmological scale and are indifferent to mortal politics.
+
+Rewrite all six NarrativeConstraints from scratch with this principle in mind.
+
+---
+
 ### Civilian agent bugs
 
 10. **Durenn Vail doesn't return from Sethis.** After collecting a full hold and selling at Neran, he either doesn't score the return trip highly enough or gets stuck in a post-sell idle loop. The sell pop resolution, need satiation after selling, and travel scoring all interact here — needs a focused debug session.
