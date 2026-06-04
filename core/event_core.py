@@ -53,7 +53,6 @@ class Event(BaseModel):
 
     imago_node_id: Optional[str] = None
     framing: Optional[str] = None
-    sign_description: str = ""
     concept: str = ""
 
     def current_strength(self, current_tick: int) -> float:

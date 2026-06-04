@@ -80,8 +80,6 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
 
     q("manifest_omen", TargetType.WORLD, target_world,
       OmenIntent(
-          sign_description=f"A blinding pillar of divine fire descends over {world_name}.",
-          intended_interpretation="This is not subtle. The gods are HERE.",
           domain_vectors=dvs,
           culture_vectors=cvs,
           framing=Framing.PROPHETIC,

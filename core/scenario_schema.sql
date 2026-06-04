@@ -458,6 +458,5 @@ CREATE TABLE IF NOT EXISTS active_events (
     attention_per_tick     REAL NOT NULL DEFAULT 0.0,
     imago_node_id          TEXT,
     framing                TEXT,
-    sign_description       TEXT NOT NULL DEFAULT '',
     concept                TEXT NOT NULL DEFAULT ''
 );

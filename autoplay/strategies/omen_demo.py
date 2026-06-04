@@ -72,8 +72,6 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
                for t, v in node.mechanics.items() if not t.startswith("domain:")]
         q("manifest_omen", TargetType.WORLD, world_id(state, OMEN_WORLD),
           OmenIntent(
-              sign_description="The skies of Neran churn and reverse",
-              intended_interpretation="The age of stillness is ending",
               domain_vectors=dvs,
               culture_vectors=cvs,
               framing=Framing.PROPHETIC,

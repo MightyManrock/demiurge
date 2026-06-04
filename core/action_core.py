@@ -265,15 +265,6 @@ class OmenIntent(BaseModel):
     Omens are deliberately interpretable — you set
     the signal, mortals supply the meaning.
     """
-    sign_description: str
-    # What physically/supernaturally occurs.
-    # e.g. "A red star appears and burns for seven nights"
-    #      "All rivers in the region run backward for one day"
-
-    intended_interpretation: str
-    # What you *want* them to conclude — may differ from actual outcome
-    # depending on reliability roll and civilization's existing beliefs
-
     domain_vectors: list[DomainVector] = Field(default_factory=list)
 
     culture_vectors: list[CultureVector] = Field(default_factory=list)

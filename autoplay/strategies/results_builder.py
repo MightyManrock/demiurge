@@ -230,8 +230,6 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     if just_revealed_edge:
         q("manifest_omen", TargetType.WORLD, oros,
           OmenIntent(
-              sign_description="The sky above Oros tears open — a wound of fire that bleeds conflict into the stars.",
-              intended_interpretation="Clash is sacred. To fight is to be alive.",
               domain_vectors=[DomainVector(domain_tag="domain:conflict", direction=0.8)],
               framing=Framing.PROPHETIC,
               imago_node_id="conflict:t2:edge",
@@ -240,8 +238,6 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     elif just_revealed_dawn and sethis:
         q("manifest_omen", TargetType.WORLD, sethis,
           OmenIntent(
-              sign_description="A new sun rises on Sethis — warm, unfamiliar, full of promise and loss.",
-              intended_interpretation="Change is not the end. It is the beginning wearing unfamiliar clothes.",
               domain_vectors=[DomainVector(domain_tag="domain:change", direction=0.8)],
               framing=Framing.PROPHETIC,
               imago_node_id="change:t2:dawn",

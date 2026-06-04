@@ -3893,14 +3893,11 @@ class TickLoop:
 
         # ── Omen / Manifestation ──────────────────────
         elif isinstance(intent, OmenIntent):
-            if outcome == ActionOutcome.FAILURE:
-                return mutations, "The omen dissipated — mortals found no meaning in it."
-
             base_pass = (
                 OMEN_PASS_BASE_SUCCESS if outcome == ActionOutcome.SUCCESS
                 else OMEN_PASS_BASE_PARTIAL
             )
-            aware_eff = 1.0 if outcome == ActionOutcome.SUCCESS else 0.5
+            aware_eff = 1.0 if outcome == ActionOutcome.SUCCESS else rng.uniform(0.5, 1.5)
 
             omen_world_id = self._resolve_world_id(instance, state)
             scope_civ_id = str(intent.civilization_scope) if intent.civilization_scope else None
@@ -3967,8 +3964,7 @@ class TickLoop:
                 else "all populations"
             )
             narrative = (
-                f"The omen '{intent.sign_description}' manifested for {scope_desc}. "
-                f"Intended: '{intent.intended_interpretation}'. "
+                f"An omen manifested across {scope_desc}. "
                 f"{len(target_pops)} population(s) and {len(target_mortals)} notable "
                 f"mortal(s) each read it through their own lens."
             )
@@ -3997,7 +3993,6 @@ class TickLoop:
                     divine_awareness_rate=0.03,
                     attention_per_tick=0.04,
                     imago_node_id=getattr(intent, "imago_node_id", None),
-                    sign_description=intent.sign_description,
                 ),
             ))
 

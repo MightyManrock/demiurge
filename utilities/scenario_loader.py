@@ -1109,7 +1109,6 @@ def _load_active_events(conn) -> dict[str, Event]:
             attention_per_tick=row.get("attention_per_tick", 0.0),
             imago_node_id=row.get("imago_node_id"),
             framing=row.get("framing"),
-            sign_description=row.get("sign_description", ""),
             concept=row.get("concept", ""),
         )
         out[row["id"]] = event

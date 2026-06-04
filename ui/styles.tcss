@@ -776,6 +776,55 @@ Button.continue-ready {
     text-style: bold;
 }
 
+/* ── Manifest Omen Config Modal ─────────────── */
+
+.omen-config-modal {
+    background: $bg-modal;
+    border: solid $border;
+    width: 95%;
+    height: 82%;
+    padding: 1 2;
+}
+
+.omen-panels {
+    height: 1fr;
+}
+
+.omen-left {
+    width: 38%;
+    border-right: solid $border;
+    padding: 0 1 0 0;
+}
+
+.omen-right {
+    width: 62%;
+    padding: 0 0 0 1;
+}
+
+#omen-world-list {
+    height: 1fr;
+}
+
+#omen-framing {
+    background: transparent;
+    border: none;
+    height: auto;
+    padding: 0;
+    margin-top: 1;
+}
+
+#omen-domain-grid {
+    grid-size: 8;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+#omen-tree-container {
+    height: 1fr;
+    border: solid $border;
+    padding: 0 1;
+}
+
 /* ── Reveal Imāgō Config Modal ─────────────── */
 
 .reveal-imago-modal {

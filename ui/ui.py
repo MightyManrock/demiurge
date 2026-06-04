@@ -76,6 +76,7 @@ from ui.modals import (
     ExploreBeliefConfirmModal, RevealImagoConfirmModal, ChangeAffiliatedDomainConfirmModal,
     ScryConfigModal, ScryConfirmModal, HarvestEssenceConfigModal,
     PreachImagoConfigModal, PreachImagoConfirmModal,
+    OmenConfigModal,
 )
 
 
@@ -1239,6 +1240,38 @@ class GameScreen(Screen):
                     ),
                 )
 
+        # ── manifest_omen / divine_manifestation: unified config modal ──
+        if action_key in ("manifest_omen", "divine_manifestation"):
+            ireg = get_imago_registry()
+            result = await app.push_screen_wait(OmenConfigModal(state))
+            if result is None:
+                return None
+            if result is BACK:
+                return BACK
+            world_id_str, domain_tag, imago_node_id, framing = result
+            node = ireg.get_node(imago_node_id)
+            dvs: list = []
+            cvs: list = []
+            if node is not None:
+                dvs = [DomainVector(domain_tag=t, direction=v)
+                       for t, v in node.mechanics.items() if t.startswith("domain:")]
+                cvs = [CultureVector(culture_tag=t, direction=v)
+                       for t, v in node.mechanics.items() if not t.startswith("domain:")]
+            return ActionInstance(
+                action_definition_id=defn.id,
+                target_type=TargetType.WORLD,
+                target_id=UUID(world_id_str),
+                timestamp=state.universe.age.to_float_years(),
+                demiurge_id=state.demiurge.id,
+                proxius_id=None,
+                intent=OmenIntent(
+                    domain_vectors=dvs,
+                    culture_vectors=cvs,
+                    framing=framing,
+                    imago_node_id=imago_node_id,
+                ),
+            )
+
         # ── Target selection by type, with back-from-params loop ──
         _NO_PARAMS = (
             "appoint_proxius", "empower_proxius", "dismiss_proxius",
@@ -1565,48 +1598,6 @@ class GameScreen(Screen):
 
         # ── OVERT MIRACLE ────────────────────────────────
         elif cat == ActionCategory.OVERT_MIRACLE:
-            if action_key in ("manifest_omen", "divine_manifestation"):
-                step = 0; form_data = None
-                dvs = []; imago_id = None
-                while True:
-                    if step == 0:
-                        form = await app.push_screen_wait(
-                            TextFormModal(
-                                "Manifest Omen",
-                                [
-                                    ("Sign description",       "sign",   "A celestial anomaly appears"),
-                                    ("Intended interpretation","interp", "The gods demand action"),
-                                ],
-                                show_back=True,
-                            )
-                        )
-                        if form is None: return None
-                        if form == BACK: return BACK
-                        form_data = form; step = 1
-                    if step == 1:
-                        domain_result = await self._pick_domain_and_imago(state)
-                        if domain_result is None: return None
-                        if domain_result == BACK: step = 0; continue
-                        dvs, cvs, imago_id = domain_result; step = 2
-                    if step == 2:
-                        framing = await self._pick_framing()
-                        if framing is None: return None
-                        if framing == BACK: step = 1; continue
-                        break
-                civ_scope = None
-                if target_id:
-                    tid_str = str(target_id)
-                    if tid_str in state.civilizations:
-                        civ_scope = target_id
-                    elif tid_str in state.mortals:
-                        civ_scope = state.mortals[tid_str].civilization_id
-                return OmenIntent(
-                    sign_description=form_data["sign"].strip() or "A celestial anomaly appears",
-                    intended_interpretation=form_data["interp"].strip() or "The gods demand action",
-                    domain_vectors=dvs, culture_vectors=cvs,
-                    framing=framing, civilization_scope=civ_scope,
-                    imago_node_id=imago_id,
-                )
 
         # ── UNDERREAL ────────────────────────────────────
         elif cat == ActionCategory.UNDERREAL:

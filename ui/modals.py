@@ -2800,6 +2800,306 @@ class WhisperConfigModal(_ImagoSwapMixin, ModalScreen):
         self.dismiss(BACK)
 
 
+# ─────────────────────────────────────────
+# MANIFEST OMEN CONFIG MODAL
+# Unified world + domain + imāgō + framing picker for Manifest Omen.
+# Dismisses with (world_id_str, domain_tag, imago_node_id, Framing) on
+# Continue, BACK sentinel, or None on cancel.
+# ─────────────────────────────────────────
+
+class OmenConfigModal(_ImagoSwapMixin, ModalScreen):
+    """
+    Single-screen Manifest Omen configuration. Left panel: world list +
+    framing RadioSet. Right panel: domain grid + imāgō tree.
+    Continue is gated until world, domain, and imāgō are all selected.
+    """
+
+    BINDINGS = [
+        ("escape",    "cancel",           "Cancel"),
+        ("backspace", "back",             "Back"),
+        ("up",        "nav_domain('up')",    ""),
+        ("down",      "nav_domain('down')",  ""),
+        ("left",      "nav_domain('left')",  ""),
+        ("right",     "nav_domain('right')", ""),
+    ]
+
+    def __init__(self, state: "SimulationState") -> None:
+        super().__init__()
+        self._state          = state
+        self._world_id:      str | None = None
+        self._domain_tag:    str | None = None
+        self._imago_node_id: str | None = None
+        self._framing:       "Framing"  = Framing.PROPHETIC
+        self._dreg           = get_domain_registry()
+        self._eligible_tags  = _eligible_domain_tags(state)
+        self._worlds         = _compose_entity_list(state, "world", "omen-world")
+        self._world_ids      = [wid for wid, _ in self._worlds]
+        self._selected_domain_widget: "DomainSquare | None" = None
+        self._selected_imago_widget:  "ImagoCell | None"    = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="omen-config-modal"):
+            yield Label("Manifest Omen", classes="modal-title")
+            with Horizontal(classes="omen-panels"):
+                with Vertical(classes="omen-left"):
+                    yield Label("World: —", id="omen-world-label")
+                    with LoopingListView(id="omen-world-list"):
+                        for _, item in self._worlds:
+                            yield item
+                    yield Label("Framing: Prophetic", id="omen-framing-label")
+                    with RadioSet(id="omen-framing"):
+                        yield RadioButton("Prophetic",     id="prophetic",     value=True)
+                        yield RadioButton("Natural",       id="natural")
+                        yield RadioButton("Inspirational", id="inspirational")
+                        yield RadioButton("Threatening",   id="threatening")
+                        yield RadioButton("Ambiguous",     id="ambiguous")
+                with Vertical(classes="omen-right"):
+                    yield Label("Domain: —", id="omen-domain-label")
+                    with Grid(id="omen-domain-grid"):
+                        yield from _domain_grid_squares(self._state, self._dreg, self._eligible_tags)
+                    yield Label("Imāgō: —", id="omen-imago-label")
+                    with ScrollableContainer(id="omen-tree-container"):
+                        pass
+                    with Horizontal(classes="btn-row"):
+                        yield Button("← Back",     id="omen-back-btn")
+                        yield Button("✕ Cancel",   id="omen-cancel-btn",   classes="-danger")
+                        yield Button("Continue →", id="omen-continue-btn", disabled=True)
+
+    def on_mount(self) -> None:
+        if self._world_ids:
+            self._world_id = self._world_ids[0]
+            w = self._state.worlds.get(self._world_id)
+            if w:
+                self.query_one("#omen-world-label", Label).update(f"World: {w.name}")
+        self._check_continue()
+
+    def _check_continue(self) -> None:
+        ready = bool(self._world_id and self._domain_tag and self._imago_node_id)
+        btn   = self.query_one("#omen-continue-btn", Button)
+        btn.disabled = not ready
+        if ready:
+            btn.add_class("continue-ready")
+        else:
+            btn.remove_class("continue-ready")
+
+    def action_nav_domain(self, direction: str) -> None:
+        squares = list(self.query_one("#omen-domain-grid", Grid).query(DomainSquare))
+        if any(sq.has_focus for sq in squares):
+            _nav_domain_grid(squares, direction)
+
+    def on_key(self, event) -> None:
+        focused = self.focused
+        if event.key == "tab":
+            if isinstance(focused, ListView) and focused.id == "omen-world-list":
+                self.query_one("#omen-framing", RadioSet).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, RadioSet) and focused.id == "omen-framing":
+                squares = list(self.query_one("#omen-domain-grid", Grid).query(DomainSquare))
+                target  = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, DomainSquare):
+                if not focused.disabled and focused._tag != self._domain_tag:
+                    tag = focused._tag
+                    self._domain_tag    = tag
+                    self._imago_node_id = None
+                    self.query_one("#omen-domain-label", Label).update(
+                        f"Domain: {_domain_display_name(tag)}"
+                    )
+                    self.query_one("#omen-imago-label", Label).update("Imāgō: —")
+                    if self._selected_imago_widget is not None:
+                        self._selected_imago_widget.remove_class("selected-active")
+                        self._selected_imago_widget = None
+                    self._mark_domain_selected(focused)
+                    self._check_continue()
+                    self._swap_imago_tree("omen-tree-container", tag, focus_first=True)
+                else:
+                    cells = [
+                        c for c in self.query_one(
+                            "#omen-tree-container", ScrollableContainer
+                        ).query(ImagoCell) if c._unlocked
+                    ]
+                    if cells:
+                        cells[0].focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoCell):
+                self.query_one("#omen-back-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "omen-back-btn":
+                self.query_one("#omen-cancel-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "omen-cancel-btn":
+                self.query_one("#omen-continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "omen-continue-btn":
+                self.query_one("#omen-world-list", ListView).focus()
+                event.prevent_default(); event.stop()
+        elif event.key == "shift+tab":
+            if isinstance(focused, ListView) and focused.id == "omen-world-list":
+                self.query_one("#omen-continue-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, RadioSet) and focused.id == "omen-framing":
+                self.query_one("#omen-world-list", ListView).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, DomainSquare):
+                self.query_one("#omen-framing", RadioSet).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, ImagoCell):
+                squares = list(
+                    self.query_one("#omen-domain-grid", Grid).query(DomainSquare)
+                )
+                target = next((sq for sq in squares if not sq.disabled), None)
+                if target:
+                    target.focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "omen-back-btn":
+                cells = [
+                    c for c in self.query_one(
+                        "#omen-tree-container", ScrollableContainer
+                    ).query(ImagoCell) if c._unlocked
+                ]
+                if cells:
+                    cells[0].focus()
+                else:
+                    squares = list(
+                        self.query_one("#omen-domain-grid", Grid).query(DomainSquare)
+                    )
+                    target = next((sq for sq in squares if not sq.disabled), None)
+                    if target:
+                        target.focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "omen-cancel-btn":
+                self.query_one("#omen-back-btn", Button).focus()
+                event.prevent_default(); event.stop()
+            elif isinstance(focused, Button) and focused.id == "omen-continue-btn":
+                self.query_one("#omen-cancel-btn", Button).focus()
+                event.prevent_default(); event.stop()
+
+    @on(ListView.Highlighted, "#omen-world-list")
+    def _on_world_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item is None:
+            return
+        try:
+            idx = int(event.item.id.rsplit("-", 1)[1])
+        except (AttributeError, ValueError, IndexError):
+            return
+        if idx >= len(self._world_ids):
+            return
+        self._world_id = self._world_ids[idx]
+        w = self._state.worlds.get(self._world_id)
+        if w:
+            self.query_one("#omen-world-label", Label).update(f"World: {w.name}")
+        self._check_continue()
+
+    def _mark_domain_selected(self, sq: "DomainSquare") -> None:
+        if self._selected_domain_widget is not None:
+            self._selected_domain_widget.remove_class("selected-active")
+        self._selected_domain_widget = sq
+        sq.add_class("selected-active")
+
+    def _mark_imago_selected(self, cell: "ImagoCell") -> None:
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+        self._selected_imago_widget = cell
+        cell.add_class("selected-active")
+
+    def on_domain_square_focused(self, event: "DomainSquare.Focused") -> None:
+        self.query_one("#omen-domain-label", Label).update(
+            f"Domain: {_domain_display_name(event.tag)}"
+        )
+
+    def on_domain_square_blurred(self, event: "DomainSquare.Blurred") -> None:
+        label = _domain_display_name(self._domain_tag) if self._domain_tag else "—"
+        self.query_one("#omen-domain-label", Label).update(f"Domain: {label}")
+
+    def on_domain_square_selected(self, event: "DomainSquare.Selected") -> None:
+        tag = event.tag
+        self._domain_tag    = tag
+        self._imago_node_id = None
+        self.query_one("#omen-domain-label", Label).update(
+            f"Domain: {_domain_display_name(tag)}"
+        )
+        self.query_one("#omen-imago-label", Label).update("Imāgō: —")
+        if self._selected_imago_widget is not None:
+            self._selected_imago_widget.remove_class("selected-active")
+            self._selected_imago_widget = None
+        sq = next(
+            (s for s in self.query_one("#omen-domain-grid", Grid).query(DomainSquare)
+             if s._tag == tag),
+            None,
+        )
+        if sq:
+            self._mark_domain_selected(sq)
+        self._check_continue()
+        self._swap_imago_tree("omen-tree-container", tag)
+
+    def on_imago_cell_focused(self, event: "ImagoCell.Focused") -> None:
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#omen-imago-label", Label).update(f"Imāgō: {name}")
+
+    def on_imago_cell_blurred(self, event: "ImagoCell.Blurred") -> None:
+        if self._imago_node_id:
+            ireg = get_imago_registry()
+            node = ireg.get_node(self._imago_node_id)
+            name = node.name if node else self._imago_node_id
+            self.query_one("#omen-imago-label", Label).update(f"Imāgō: {name}")
+        else:
+            self.query_one("#omen-imago-label", Label).update("Imāgō: —")
+
+    def on_imago_cell_selected(self, event: "ImagoCell.Selected") -> None:
+        self._imago_node_id = event.node_id
+        ireg = get_imago_registry()
+        node = ireg.get_node(event.node_id)
+        name = node.name if node else event.node_id
+        self.query_one("#omen-imago-label", Label).update(f"Imāgō: {name}")
+        cell = next(
+            (c for c in self.query_one("#omen-tree-container", ScrollableContainer).query(ImagoCell)
+             if c._node.node_id == event.node_id),
+            None,
+        )
+        if cell:
+            self._mark_imago_selected(cell)
+        self._check_continue()
+
+    @on(RadioSet.Changed, "#omen-framing")
+    def _on_framing_changed(self, event: RadioSet.Changed) -> None:
+        if event.pressed is None:
+            return
+        _framing_map = {
+            "prophetic":     Framing.PROPHETIC,
+            "natural":       Framing.NATURAL,
+            "inspirational": Framing.INSPIRATIONAL,
+            "threatening":   Framing.THREATENING,
+            "ambiguous":     Framing.AMBIGUOUS,
+        }
+        self._framing = _framing_map.get(event.pressed.id, Framing.PROPHETIC)
+        self.query_one("#omen-framing-label", Label).update(
+            f"Framing: {self._framing.value.title()}"
+        )
+
+    @on(Button.Pressed, "#omen-continue-btn")
+    def _on_continue(self, _: Button.Pressed) -> None:
+        if self._world_id and self._domain_tag and self._imago_node_id:
+            self.dismiss((self._world_id, self._domain_tag, self._imago_node_id, self._framing))
+
+    @on(Button.Pressed, "#omen-back-btn")
+    def _on_back(self, _: Button.Pressed) -> None:
+        self.dismiss(BACK)
+
+    @on(Button.Pressed, "#omen-cancel-btn")
+    def _on_cancel(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_back(self) -> None:
+        self.dismiss(BACK)
+
+
 class ShapeDreamConfigModal(_ImagoSwapMixin, ModalScreen):
     """
     Single-screen Shape Dream configuration. Left panel: mortal list.

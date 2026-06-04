@@ -719,8 +719,8 @@ def _write_active_events(conn, state: SimulationState):
                 target_loc_id, domain_vectors, culture_vectors,
                 domain_shift_rate, divine_awareness_rate,
                 attention_per_tick, imago_node_id, framing,
-                sign_description, concept)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                concept)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(ev.id),
                 ev.event_type.value,
@@ -742,7 +742,6 @@ def _write_active_events(conn, state: SimulationState):
                 ev.attention_per_tick,
                 ev.imago_node_id,
                 ev.framing,
-                ev.sign_description,
                 ev.concept,
             ),
         )
