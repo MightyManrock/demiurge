@@ -956,7 +956,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                         pop_obj = state.pops.get(pf.pop_id)
                         lbl = _e(_pop_label(pop_obj) if pop_obj else pf.label or pf.pop_id[:8])
                         pop_lnk = _click_link("pop", pf.pop_id, lbl) if pop_obj else lbl
-                        count = f" [#606878](×{pf.interaction_count})[/]" if pf.interaction_count else " [#606878](met)[/]"
+                        count = f" [#606878](×{pf.interaction_count})[/]" if pf.interaction_count else " [#606878](seen)[/]"
                         a(f"    [#5a7090]pop[/]   {pop_lnk}{count}")
                 if _res_facts:
                     for rf in _res_facts:

@@ -5411,6 +5411,31 @@ class TickLoop:
                         if getattr(_f, "fact_type", None) == "location" and _f.visit_count == 0:
                             _f.visit_count = 1
 
+            # Lazy PopFact seeding: populate KB with same-civ Pops under home SignificantLocation
+            if (
+                mortal.knowledge_base is not None
+                and not mortal.knowledge_base.pop_facts()
+                and mortal.civilization_id is not None
+                and mortal.home_location is not None
+            ):
+                from core.agent_core import PopFact as _PopFact
+                _home_loc = state.locations.get(str(mortal.home_location))
+                _home_parent_id = str(getattr(_home_loc, "parent_id", None) or "")
+                if _home_parent_id:
+                    for _sib_loc in state.locations.values():
+                        if not isinstance(_sib_loc, PopLocation):
+                            continue
+                        if str(getattr(_sib_loc, "parent_id", None) or "") != _home_parent_id:
+                            continue
+                        for _seed_pid in _sib_loc.pop_ids:
+                            _seed_pop = state.pops.get(str(_seed_pid))
+                            if _seed_pop is None or _seed_pop.civilization_id != mortal.civilization_id:
+                                continue
+                            if mortal.knowledge_base.get_pop_fact(str(_seed_pid)) is None:
+                                mortal.knowledge_base.facts.append(
+                                    _PopFact(pop_id=str(_seed_pid), label=pop_label(_seed_pop))
+                                )
+
             # Passive restoration for needs that are auto-satisfied by stable conditions
             loc = state.locations.get(str(mortal.current_location))
             if loc and _effective_commerce_quality(loc, state) > 0:
@@ -5455,6 +5480,15 @@ class TickLoop:
             _milieu_pop_id = _select_local_pop(mortal, state)
             if _milieu_pop_id:
                 mortal.pop_milieu = UUID(_milieu_pop_id)
+
+            # Milieu → PopFact: being among a Pop creates a KB record even before interacting
+            if mortal.pop_milieu and (kb := mortal.knowledge_base):
+                _milieu_id_str = str(mortal.pop_milieu)
+                if kb.get_pop_fact(_milieu_id_str) is None:
+                    from core.agent_core import PopFact as _PopFact
+                    _milieu_pop = state.pops.get(_milieu_id_str)
+                    if _milieu_pop:
+                        kb.facts.append(_PopFact(pop_id=_milieu_id_str, label=pop_label(_milieu_pop)))
 
             # Observe local pop_location wealth → keep sell quality fact current
             if (kb := mortal.knowledge_base):
@@ -5521,6 +5555,19 @@ class TickLoop:
                             _exp_desire.satisfaction = min(1.0, _exp_desire.satisfaction + 0.40)
                             _exp_desire.satiation_hold = 5
                     _loc_fact.visit_count = min(99, _loc_fact.visit_count + 1)
+
+                # Passive Pop discovery: 20% chance per unknown Pop at this PopLocation
+                _cur_pop_loc = state.locations.get(_cur_loc_str)
+                if isinstance(_cur_pop_loc, PopLocation):
+                    from core.agent_core import PopFact as _PopFact
+                    for _disc_pid in _cur_pop_loc.pop_ids:
+                        _disc_pid_str = str(_disc_pid)
+                        if kb.get_pop_fact(_disc_pid_str) is not None:
+                            continue
+                        if random.random() < 0.20:
+                            _disc_pop = state.pops.get(_disc_pid_str)
+                            if _disc_pop:
+                                kb.facts.append(_PopFact(pop_id=_disc_pid_str, label=pop_label(_disc_pop)))
 
             _sync_faction_directives(mortal, state, current_tick)
             action = evaluate_civilian_action(mortal, state, current_tick)
