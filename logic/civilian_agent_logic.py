@@ -538,7 +538,7 @@ def evaluate_civilian_action(
     # ── Travel candidates: score = (dest_score − best_local) / ticks_cost ────
     travel_candidates: dict[str, float] = {}
 
-    if not _docked and not _travelling:
+    if not _docked and not _travelling and mortal.travel_intent is None:
         def _try_travel(dest_id: str, dest_score: float) -> None:
             if dest_id == current_loc_id or dest_score <= _best_local:
                 return
@@ -571,7 +571,7 @@ def evaluate_civilian_action(
 
     # ── Wander: Exploration desire drives travel to unvisited locations ────────
     _exploration_u = _desire_u.get(DESIRE_EXPLORATION, 0.0)
-    if _exploration_u > 0 and not _docked and not _travelling and not cs.pressing_needs():
+    if _exploration_u > 0 and not _docked and not _travelling and mortal.travel_intent is None and not cs.pressing_needs():
         _kb_locations = [f for f in kb.facts if f.fact_type == "location"]
         for loc_fact in _kb_locations:
             dest_id = loc_fact.location_id
