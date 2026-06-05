@@ -925,6 +925,46 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                     loc_link = _location_link(state, df.target_pop_location_id, _e(loc_name)) if ploc else _e(loc_name)
                     a(f"    {_e(df.directive_type)}: {_e(df.satisfying_action)} → {loc_link}")
 
+        # KB facts by type
+        if m.knowledge_base and m.knowledge_base.facts:
+            kb = m.knowledge_base
+            _loc_facts  = [f for f in kb.facts if f.fact_type == "location"]
+            _route_facts = [f for f in kb.facts if f.fact_type == "route"]
+            _pop_facts_  = [f for f in kb.facts if f.fact_type == "pop"]
+            _res_facts   = [f for f in kb.facts if f.fact_type == "resource"]
+            if any((_loc_facts, _route_facts, _pop_facts_, _res_facts)):
+                a("  knowledge:")
+                if _loc_facts:
+                    for lf in sorted(_loc_facts, key=lambda f: f.visit_count, reverse=True):
+                        loc_obj = state.locations.get(lf.location_id)
+                        lbl = _e(loc_obj.name if loc_obj and loc_obj.name else lf.label or lf.location_id[:8])
+                        link = _location_link(state, lf.location_id, lbl) if loc_obj else lbl
+                        visits = f" [#606878](×{lf.visit_count})[/]" if lf.visit_count > 0 else " [#606878](known)[/]"
+                        a(f"    [#5a7090]loc[/]  {link}{visits}")
+                if _route_facts:
+                    for rf in _route_facts:
+                        from_obj = state.locations.get(rf.from_id)
+                        to_obj   = state.locations.get(rf.to_id)
+                        from_lbl = _e(from_obj.name if from_obj and from_obj.name else rf.from_id[:8])
+                        to_lbl   = _e(to_obj.name   if to_obj   and to_obj.name   else rf.to_id[:8])
+                        from_lnk = _location_link(state, rf.from_id, from_lbl) if from_obj else from_lbl
+                        to_lnk   = _location_link(state, rf.to_id,   to_lbl)   if to_obj   else to_lbl
+                        cost     = f" [#606878]({rf.ticks_cost}t)[/]" if rf.ticks_cost else ""
+                        a(f"    [#5a7090]route[/]  {from_lnk} → {to_lnk}{cost}")
+                if _pop_facts_:
+                    for pf in sorted(_pop_facts_, key=lambda f: f.interaction_count, reverse=True):
+                        pop_obj = state.pops.get(pf.pop_id)
+                        lbl = _e(pop_obj.label if pop_obj and pop_obj.label else pf.label or pf.pop_id[:8])
+                        pop_lnk = _click_link("pop", pf.pop_id, lbl) if pop_obj else lbl
+                        count = f" [#606878](×{pf.interaction_count})[/]" if pf.interaction_count else " [#606878](met)[/]"
+                        a(f"    [#5a7090]pop[/]   {pop_lnk}{count}")
+                if _res_facts:
+                    for rf in _res_facts:
+                        loc_obj = state.locations.get(rf.location_id)
+                        lbl = _e(loc_obj.name if loc_obj and loc_obj.name else rf.location_id[:8])
+                        link = _location_link(state, rf.location_id, lbl) if loc_obj else lbl
+                        a(f"    [#5a7090]res[/]   {link} — {_e(rf.resource_type)} ({rf.resource_yield:.2f})")
+
         if dev:
             # Pop's active directives
             _agent_pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
