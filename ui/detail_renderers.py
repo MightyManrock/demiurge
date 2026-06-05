@@ -709,6 +709,12 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         civ_link = _click_link("civ", str(m.civilization_id), f"{_e(civ.name)}")
         _gated(civ, f"civilization: {civ_link}")
 
+    _fac_pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
+    if _fac_pop and _fac_pop.faction_ids:
+        _fac = state.factions.get(str(_fac_pop.faction_ids[0]))
+        if _fac:
+            _gated(_fac, f"faction:      {_e(_fac.name)}")
+
     pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
     if pop:
         stratum = _pop_stratum_label(state, pop)
@@ -1174,6 +1180,11 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
         a(f"  civilization: {civ_link}")
     elif (civ and is_wild_civ(civ)) or not pop.civilization_id:
         a(f"  civilization: [#5a7090](wild)[/]")
+
+    if pop.faction_ids:
+        fac = state.factions.get(str(pop.faction_ids[0]))
+        if fac and is_in_window(fac):
+            a(f"  faction:      {_e(fac.name)}")
 
     loc = state.locations.get(str(pop.current_location)) if pop.current_location else None
     if loc:

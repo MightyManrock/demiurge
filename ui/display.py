@@ -907,8 +907,16 @@ def display_briefing(state: "SimulationState", dev_mode: bool = False) -> list[s
             f"{age_str}{sp_note}{vis_note}   {loc}"
         )
         lines.append(f"{mm}    {prom_str}")
+        _m_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+        _m_fac = (
+            state.factions.get(str(_m_pop.faction_ids[0]))
+            if _m_pop and _m_pop.faction_ids else None
+        )
+        _fac_suffix = f"  faction: {_m_fac.name}" if _m_fac else ""
         if mortal.status_tags:
-            lines.append(f"{mm}    Status: {', '.join(_short_tag(t) for t in mortal.status_tags)}")
+            lines.append(f"{mm}    Status: {', '.join(_short_tag(t) for t in mortal.status_tags)}{_fac_suffix}")
+        elif _m_fac:
+            lines.append(f"{mm}    faction: {_m_fac.name}")
         if mortal.personal_tags:
             lines.append(f"{mm}    Tags: {', '.join(_short_tag(t) for t in mortal.personal_tags)}")
         if mortal.culture_tags:
