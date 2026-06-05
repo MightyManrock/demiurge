@@ -5685,7 +5685,7 @@ class TickLoop:
                         _novelty = _pop_novelty(_pf, current_tick)
                         if _pf is None:
                             from core.agent_core import PopFact as _PopFact
-                            _pf = _PopFact(pop_id=local_pop_id, label=getattr(pop, "label", ""))
+                            _pf = _PopFact(pop_id=local_pop_id, label=pop_label(pop))
                             kb.facts.append(_pf)
                         _pf.interaction_count += 1
                         _pf.last_interaction_tick = current_tick
@@ -5735,7 +5735,7 @@ class TickLoop:
                     if _kb is not None:
                         if _pf is None:
                             from core.agent_core import PopFact as _PopFact
-                            _pf = _PopFact(pop_id=local_pop_id, label=getattr(pop, "label", ""))
+                            _pf = _PopFact(pop_id=local_pop_id, label=pop_label(pop))
                             _kb.facts.append(_pf)
                         _pf.interaction_count += 1
                         _pf.last_interaction_tick = current_tick

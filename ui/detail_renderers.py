@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from rich.markup import escape as _e
 from rich.text import Text
 
-from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ
+from core.universe_core import MortalRole, MortalStatus, PopLocation, is_wild_civ, pop_label as _pop_label
 from logic.sim_utils import compute_link_factor
 from logic.tick_logic import is_in_window, is_mortal_visible, ENTITY_VISIBILITY_FLOOR
 from ui import display
@@ -954,7 +954,7 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 if _pop_facts_:
                     for pf in sorted(_pop_facts_, key=lambda f: f.interaction_count, reverse=True):
                         pop_obj = state.pops.get(pf.pop_id)
-                        lbl = _e(pop_obj.label if pop_obj and pop_obj.label else pf.label or pf.pop_id[:8])
+                        lbl = _e(_pop_label(pop_obj) if pop_obj else pf.label or pf.pop_id[:8])
                         pop_lnk = _click_link("pop", pf.pop_id, lbl) if pop_obj else lbl
                         count = f" [#606878](×{pf.interaction_count})[/]" if pf.interaction_count else " [#606878](met)[/]"
                         a(f"    [#5a7090]pop[/]   {pop_lnk}{count}")
