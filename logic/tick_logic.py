@@ -67,7 +67,10 @@ from logic.civilian_agent_logic import (
     SOCIALIZE_SATIATION_HOLD_BASE,
     CREW_LEISURE_MULTIPLIER,
 )
-from logic.needs_config import NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS
+from logic.needs_config import (
+    NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS,
+    DESIRE_ACCUMULATION, DESIRE_EXPLORATION, DESIRE_EXPRESSION,
+)
 from logic.sim_utils import (
     resolve_world_id_for as _resolve_world_id_for,
     resolve_world_for as _resolve_world_for,
@@ -5425,6 +5428,12 @@ class TickLoop:
                 else:
                     need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
 
+            for desire in cs.desires:
+                if desire.satiation_hold > 0:
+                    desire.satiation_hold -= 1
+                else:
+                    desire.satisfaction = max(0.0, desire.satisfaction - desire.decay_rate)
+
             if mortal.fatigue > 0.0:
                 mortal.fatigue = max(0.0, mortal.fatigue - 0.1)
 
@@ -5477,6 +5486,27 @@ class TickLoop:
                 cs.pending_transfer = False
                 cs.last_action = "transfer"
                 continue  # busy setting up next leg — no need satisfaction this tick
+
+            # Presence tracking: increment visit_count on current LocationFact; grant Exploration on first visit
+            _travelling = mortal.travel_intent is not None or (
+                (lambda _l: _l is not None and getattr(_l, "location_type", None) == "travel_location")(
+                    state.locations.get(str(mortal.current_location))
+                )
+            )
+            if not _travelling and (kb := mortal.knowledge_base):
+                _cur_loc_str = str(mortal.current_location)
+                _loc_fact = next(
+                    (f for f in kb.facts if getattr(f, "fact_type", None) == "location" and f.location_id == _cur_loc_str),
+                    None,
+                )
+                if _loc_fact is not None:
+                    if _loc_fact.visit_count == 0:
+                        # First visit — satisfy Exploration desire
+                        _exp_desire = next((d for d in cs.desires if d.name == DESIRE_EXPLORATION), None)
+                        if _exp_desire is not None:
+                            _exp_desire.satisfaction = min(1.0, _exp_desire.satisfaction + 0.40)
+                            _exp_desire.satiation_hold = 5
+                    _loc_fact.visit_count = min(99, _loc_fact.visit_count + 1)
 
             _sync_faction_directives(mortal, state, current_tick)
             action = evaluate_civilian_action(mortal, state, current_tick)
@@ -5564,6 +5594,11 @@ class TickLoop:
                                             purpose_need.satisfaction = min(1.0, purpose_need.satisfaction + _p_lf)
                                             purpose_need.satiation_hold = round(10 * _p_lf)
                                     break
+                    # Accumulation desire satisfaction from completing a trade
+                    _acc_desire = next((d for d in cs.desires if d.name == DESIRE_ACCUMULATION), None)
+                    if _acc_desire is not None:
+                        _acc_desire.satisfaction = min(1.0, _acc_desire.satisfaction + 0.25)
+                        _acc_desire.satiation_hold = 3
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
                     if mortal.pinned:
                         _sell_loc = state.locations.get(str(mortal.current_location))
@@ -5623,6 +5658,12 @@ class TickLoop:
                         leisure_need.satisfaction = min(1.0, leisure_need.satisfaction + gain)
                         leisure_need.satiation_hold = round(LEISURE_SATIATION_HOLD_BASE * quality * _crew_mult)
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
+                    # Expression desire satisfaction when practice quality is high
+                    if quality > 0.5:
+                        _expr_desire = next((d for d in cs.desires if d.name == DESIRE_EXPRESSION), None)
+                        if _expr_desire is not None:
+                            _expr_desire.satisfaction = min(1.0, _expr_desire.satisfaction + 0.20)
+                            _expr_desire.satiation_hold = 2
                     if mortal.pinned:
                         narratives.append(
                             f"{mortal.name} spends time enjoying local culture "
@@ -5705,6 +5746,45 @@ class TickLoop:
                         dest_name = dest_loc.name if dest_loc else dest_id
                         if mortal.pinned:
                             narratives.append(f"{mortal.name} departs for {dest_name}.")
+                except (ValueError, Exception):
+                    pass
+
+            elif action and action.startswith("wander:"):
+                # Wander: same as travel but desire-driven. Exploration satisfaction granted on arrival
+                # (handled by visit_count first-visit detection above). Reuse travel logic exactly.
+                wander_dest_id = action.split(":", 1)[1]
+                try:
+                    from utilities.travel_routing import (
+                        find_route, build_legs, get_or_create_travel_location,
+                    )
+                    dest_uuid = _uuid_mod.UUID(wander_dest_id)
+                    route = find_route(state, mortal.current_location, dest_uuid)
+                    if route and len(route) >= 2:
+                        legs = build_legs(state, route)
+                        tl = get_or_create_travel_location(state, legs)
+                        tl.occupants.append(mortal.id)
+                        mortal.travel_intent = TravelIntent(travel_location_id=tl.id)
+                        _crew_pop = next(
+                            (p for p in state.pops.values()
+                             if getattr(p, "asset_crew_for", None) is not None
+                             and any(a.asset_type == p.asset_crew_for for a in mortal.assets)),
+                            None,
+                        )
+                        if _crew_pop:
+                            _old_crew_loc = state.locations.get(str(_crew_pop.current_location))
+                            if _old_crew_loc is not None and hasattr(_old_crew_loc, "pop_ids"):
+                                try:
+                                    _old_crew_loc.pop_ids.remove(_crew_pop.id)
+                                except ValueError:
+                                    pass
+                            tl.pop_ids.append(_crew_pop.id)
+                            _crew_pop.current_location = tl.id
+                            mortal.pop_milieu = _crew_pop.id
+                        mortal.fatigue = min(1.0, mortal.fatigue + 0.2)
+                        dest_loc = state.locations.get(wander_dest_id)
+                        dest_name = dest_loc.name if dest_loc else wander_dest_id
+                        if mortal.pinned:
+                            narratives.append(f"{mortal.name} wanders toward {dest_name}.")
                 except (ValueError, Exception):
                     pass
 
