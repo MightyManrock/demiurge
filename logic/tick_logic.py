@@ -5663,6 +5663,7 @@ class TickLoop:
             elif action == "leisure":
                 local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
                 pop = state.pops.get(local_pop_id)
+                gain = 0.0  # default so narrative reference is always bound
                 if pop:
                     quality = _pop_practice_quality(mortal.culture_tags, pop.culture_tags)
                     _crew_mult = CREW_LEISURE_MULTIPLIER if getattr(pop, "asset_crew_for", None) else 1.0
@@ -5688,10 +5689,12 @@ class TickLoop:
                             kb.facts.append(_pf)
                         _pf.interaction_count += 1
                         _pf.last_interaction_tick = current_tick
-                        # Smaller Exploration boost from leisure vs. socialize
+                        # Leisure novelty boost: smaller than socialize (0.12 vs 0.25); leisure enjoyment
+                        # is intrinsic to the activity, not relational — no novelty discount on gain.
                         _exp_desire = next((d for d in cs.desires if d.name == DESIRE_EXPLORATION), None)
                         if _exp_desire is not None and _novelty >= EXPLORATION_NOVELTY_THRESHOLD:
                             _exp_desire.satisfaction = min(1.0, _exp_desire.satisfaction + _novelty * 0.12)
+                            _exp_desire.satiation_hold = round(_novelty * 2)
                     if mortal.pinned:
                         narratives.append(
                             f"{mortal.name} spends time enjoying local culture "
