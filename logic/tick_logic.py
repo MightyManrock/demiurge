@@ -5556,7 +5556,7 @@ class TickLoop:
                             _exp_desire.satiation_hold = 5
                     _loc_fact.visit_count = min(99, _loc_fact.visit_count + 1)
 
-                # Passive Pop discovery: 20% chance per unknown Pop at this PopLocation
+                # Passive Pop discovery: 20% chance per unknown Pop physically at this PopLocation
                 _cur_pop_loc = state.locations.get(_cur_loc_str)
                 if isinstance(_cur_pop_loc, PopLocation):
                     from core.agent_core import PopFact as _PopFact
@@ -5564,10 +5564,11 @@ class TickLoop:
                         _disc_pid_str = str(_disc_pid)
                         if kb.get_pop_fact(_disc_pid_str) is not None:
                             continue
+                        _disc_pop = state.pops.get(_disc_pid_str)
+                        if _disc_pop is None or str(_disc_pop.current_location) != _cur_loc_str:
+                            continue
                         if random.random() < 0.20:
-                            _disc_pop = state.pops.get(_disc_pid_str)
-                            if _disc_pop:
-                                kb.facts.append(_PopFact(pop_id=_disc_pid_str, label=pop_label(_disc_pop)))
+                            kb.facts.append(_PopFact(pop_id=_disc_pid_str, label=pop_label(_disc_pop)))
 
             _sync_faction_directives(mortal, state, current_tick)
             action = evaluate_civilian_action(mortal, state, current_tick)
