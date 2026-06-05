@@ -956,6 +956,11 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                         pop_obj = state.pops.get(pf.pop_id)
                         lbl = _e(_pop_label(pop_obj) if pop_obj else pf.label or pf.pop_id[:8])
                         pop_lnk = _click_link("pop", pf.pop_id, lbl) if pop_obj else lbl
+                        if pop_obj:
+                            _pop_loc_obj = state.locations.get(str(pop_obj.current_location))
+                            _pop_loc_name = _e(_pop_loc_obj.name if _pop_loc_obj and _pop_loc_obj.name else "?")
+                            _pop_size = int(pop_obj.size_fractional)
+                            pop_lnk = f"{pop_lnk} [#606878]({_pop_loc_name} : {_pop_size})[/]"
                         count = f" [#606878](×{pf.interaction_count})[/]" if pf.interaction_count else " [#606878](seen)[/]"
                         a(f"    [#5a7090]pop[/]   {pop_lnk}{count}")
                 if _res_facts:
