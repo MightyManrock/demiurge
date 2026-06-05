@@ -61,11 +61,14 @@ from logic.civilian_agent_logic import (
     _pop_practice_quality,
     _pop_social_quality,
     _effective_commerce_quality,
+    _pop_novelty,
     LEISURE_BASE_GAIN,
     SOCIALIZE_BASE_GAIN,
     LEISURE_SATIATION_HOLD_BASE,
     SOCIALIZE_SATIATION_HOLD_BASE,
     CREW_LEISURE_MULTIPLIER,
+    EXPLORATION_NOVELTY_THRESHOLD,
+    SOCIAL_NOVELTY_FLOOR,
 )
 from logic.needs_config import (
     NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS,
@@ -5675,6 +5678,20 @@ class TickLoop:
                         if _expr_desire is not None:
                             _expr_desire.satisfaction = min(1.0, _expr_desire.satisfaction + 0.20)
                             _expr_desire.satiation_hold = 2
+                    # Upsert PopFact for time spent with this Pop during leisure
+                    if (kb := mortal.knowledge_base) and pop:
+                        _pf = kb.get_pop_fact(local_pop_id)
+                        _novelty = _pop_novelty(_pf, current_tick)
+                        if _pf is None:
+                            from core.agent_core import PopFact as _PopFact
+                            _pf = _PopFact(pop_id=local_pop_id, label=getattr(pop, "label", ""))
+                            kb.facts.append(_pf)
+                        _pf.interaction_count += 1
+                        _pf.last_interaction_tick = current_tick
+                        # Smaller Exploration boost from leisure vs. socialize
+                        _exp_desire = next((d for d in cs.desires if d.name == DESIRE_EXPLORATION), None)
+                        if _exp_desire is not None and _novelty >= EXPLORATION_NOVELTY_THRESHOLD:
+                            _exp_desire.satisfaction = min(1.0, _exp_desire.satisfaction + _novelty * 0.12)
                     if mortal.pinned:
                         narratives.append(
                             f"{mortal.name} spends time enjoying local culture "
@@ -5691,11 +5708,16 @@ class TickLoop:
                         same_species=(str(mortal.species_id) == str(pop.species_id)) if (mortal.species_id and pop.species_id) else True,
                         same_civ=True,
                     )
+                    # compute novelty BEFORE updating PopFact
+                    _kb = mortal.knowledge_base
+                    _pf = _kb.get_pop_fact(local_pop_id) if _kb else None
+                    _novelty = _pop_novelty(_pf, current_tick)
+                    _novelty_factor = SOCIAL_NOVELTY_FLOOR + _novelty * (1.0 - SOCIAL_NOVELTY_FLOOR)
                     belonging_need = cs.get_need(NEED_BELONGING)
                     if belonging_need:
-                        gain = SOCIALIZE_BASE_GAIN * quality
+                        gain = SOCIALIZE_BASE_GAIN * quality * _novelty_factor
                         belonging_need.satisfaction = min(1.0, belonging_need.satisfaction + gain)
-                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality)
+                        belonging_need.satiation_hold = round(SOCIALIZE_SATIATION_HOLD_BASE * quality * _novelty_factor)
                     # Minor Status recognition from being seen by the community
                     _s_gain, _s_hold = _status_recognition_from_pop(
                         mortal, pop, state, strong=False
@@ -5706,6 +5728,19 @@ class TickLoop:
                         if _s_hold:
                             _soc_status.satiation_hold = _s_hold
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.03)
+                    # Upsert PopFact
+                    if _kb is not None:
+                        if _pf is None:
+                            from core.agent_core import PopFact as _PopFact
+                            _pf = _PopFact(pop_id=local_pop_id, label=getattr(pop, "label", ""))
+                            _kb.facts.append(_pf)
+                        _pf.interaction_count += 1
+                        _pf.last_interaction_tick = current_tick
+                    # Exploration satisfaction from novel social interaction
+                    _exp_desire = next((d for d in cs.desires if d.name == DESIRE_EXPLORATION), None)
+                    if _exp_desire is not None and _novelty >= EXPLORATION_NOVELTY_THRESHOLD:
+                        _exp_desire.satisfaction = min(1.0, _exp_desire.satisfaction + _novelty * 0.25)
+                        _exp_desire.satiation_hold = round(_novelty * 4)
                     if mortal.pinned:
                         from utilities.occupation_registry import pop_display_name as _pdname
                         _civ_for_pop = state.civilizations.get(str(pop.civilization_id)) if pop.civilization_id else None
