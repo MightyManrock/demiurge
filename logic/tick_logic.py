@@ -5401,6 +5401,12 @@ class TickLoop:
             # Lazy desire init: existing saves pre-date desires; populate on first tick
             if not cs.desires and mortal.culture_tags:
                 cs.desires = compute_desire_profile(mortal.culture_tags)
+                # Pre-existing LocationFacts are already-known places — mark as visited
+                # so they don't trigger Exploration first-visit satisfaction spuriously
+                if mortal.knowledge_base:
+                    for _f in mortal.knowledge_base.facts:
+                        if getattr(_f, "fact_type", None) == "location" and _f.visit_count == 0:
+                            _f.visit_count = 1
 
             # Passive restoration for needs that are auto-satisfied by stable conditions
             loc = state.locations.get(str(mortal.current_location))

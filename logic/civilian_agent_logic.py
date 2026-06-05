@@ -450,6 +450,7 @@ def evaluate_civilian_action(
     # Leisure: urgency-based score (pressing) or ambient score (in transit with crew, not full).
     # Zeroed out if the expected gain would be less than the per-tick decay — not worth doing.
     _leisure_u = urgency.get("leisure", 0.0)
+    _expr_u = _desire_u.get(DESIRE_EXPRESSION, 0.0)
     if _local_pop is not None and (_leisure_u > 0 or _in_transit_with_crew):
         mortal_tags = getattr(mortal, "culture_tags", {}) or {}
         _pq = _pop_practice_quality(mortal_tags, _local_pop.culture_tags)
@@ -459,8 +460,6 @@ def evaluate_civilian_action(
         if _leisure_u > 0:
             _lei_gain = LEISURE_BASE_GAIN * _pq * _crew_mult_lei
             _leisure_score = _leisure_u * _lei_gain
-            # Expression desire: extra weight when local practice is a good match
-            _expr_u = _desire_u.get(DESIRE_EXPRESSION, 0.0)
             if _expr_u > 0 and _pq > 0.5:
                 _leisure_score += _expr_u * (_pq - 0.5) * EXPRESSION_LEISURE_WEIGHT
         else:
@@ -468,6 +467,11 @@ def evaluate_civilian_action(
             _leisure_score = _lei_gain
         if _l_need and _lei_gain < _l_need.decay_rate:
             _leisure_score = 0.0
+    elif _local_pop is not None and _expr_u > 0:
+        # Expression desire drives leisure independently of the leisure need
+        mortal_tags = getattr(mortal, "culture_tags", {}) or {}
+        _pq = _pop_practice_quality(mortal_tags, _local_pop.culture_tags)
+        _leisure_score = _expr_u * (_pq - 0.5) * EXPRESSION_LEISURE_WEIGHT if _pq > 0.5 else 0.0
     else:
         _leisure_score = 0.0
 
