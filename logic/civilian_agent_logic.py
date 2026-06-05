@@ -42,6 +42,12 @@ ACCUMULATION_SELL_WEIGHT    = 0.6   # desire boost on sell score
 ACCUMULATION_COLLECT_WEIGHT = 0.4   # desire boost on collect score (scaled by empty hold)
 EXPRESSION_LEISURE_WEIGHT   = 0.35  # desire boost on leisure when practice quality > 0.5
 
+# Social novelty constants (tunable)
+SOCIAL_NOVELTY_FLOOR         = 0.40   # min fraction of belonging gain from a fully familiar Pop
+NOVELTY_HALFLIFE             = 20     # interactions until novelty reaches ~50%
+RECENCY_RECOVERY_TICKS       = 50     # ticks of absence to recover 50% novelty
+EXPLORATION_NOVELTY_THRESHOLD = 0.50  # novelty above this grants Exploration satisfaction
+
 # "Might as well" factor: per-tick probability that a mortal with an active directive
 # and no pressing needs decides to run their route anyway.
 # Culture tags modulate this probability additively (tag_weight * modifier).
@@ -175,6 +181,20 @@ def _pop_social_quality(
 
 
 _TRADE_QUALITY_WEIGHT = 0.30  # max bonus contribution from practice:trade pops
+
+
+def _pop_novelty(pop_fact, current_tick: int) -> float:
+    """Novelty in [0, 1]: 1.0 for an unknown Pop, decays with interaction_count,
+    partially recovers with time since last interaction."""
+    if pop_fact is None:
+        return 1.0
+    familiarity = pop_fact.interaction_count / (pop_fact.interaction_count + NOVELTY_HALFLIFE)
+    base = 1.0 - familiarity
+    if pop_fact.last_interaction_tick > 0:
+        ticks_since = max(0, current_tick - pop_fact.last_interaction_tick)
+        recency = min(1.0, ticks_since / RECENCY_RECOVERY_TICKS)
+        return max(base, recency)
+    return base
 
 
 def _effective_commerce_quality(loc, state) -> float:
@@ -491,6 +511,11 @@ def evaluate_civilian_action(
             _b_need = cs.get_need("belonging")
             _b_sat = _b_need.satisfaction if _b_need else 1.0
             _socialize_score = max(0.0, 1.0 - _b_sat) * SOCIALIZE_AMBIENT_GAIN * _sq
+        # Apply novelty weighting: familiar Pops yield less belonging gain
+        _pop_fact = kb.get_pop_fact(_local_pop_id) if kb else None
+        _novelty = _pop_novelty(_pop_fact, current_tick)
+        _novelty_factor = SOCIAL_NOVELTY_FLOOR + _novelty * (1.0 - SOCIAL_NOVELTY_FLOOR)
+        _socialize_score *= _novelty_factor
     else:
         _socialize_score = 0.0
 
