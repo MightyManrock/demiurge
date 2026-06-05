@@ -17,6 +17,7 @@ class LocationFact(BaseModel):
     label: str = ""
     confidence: float = 1.0
     learned_at_tick: int = 0
+    visit_count: int = 0
 
 
 class ResourceFact(BaseModel):
@@ -123,6 +124,23 @@ class MortalNeed(BaseModel):
         return self.satisfaction < self.urgent_threshold
 
 
+class MortalDesire(BaseModel):
+    name: str
+    satisfaction: float = Field(ge=0.0, le=1.0, default=0.7)
+    decay_rate: float = 0.003
+    pressing_threshold: float = 0.5
+    satiation_hold: int = 0
+
+    @property
+    def is_pressing(self) -> bool:
+        return self.satisfaction < self.pressing_threshold
+
+    def urgency(self) -> float:
+        if self.satiation_hold > 0 or not self.is_pressing:
+            return 0.0
+        return 1.0 - (self.satisfaction / self.pressing_threshold)
+
+
 # ---------------------------------------------------------------------------
 # Assets and collectible resources
 # ---------------------------------------------------------------------------
@@ -159,6 +177,7 @@ class Resource(BaseModel):
 
 class CivilianAgentState(BaseModel):
     needs: list[MortalNeed] = Field(default_factory=list)
+    desires: list[MortalDesire] = Field(default_factory=list)
     inventory: list[Resource] = Field(default_factory=list)
     action_cooldowns: dict[str, int] = Field(default_factory=dict)
     last_action: Optional[str] = None

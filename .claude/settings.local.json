@@ -9,7 +9,12 @@
       "Bash(python3 *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Skill(commit-commands:commit)",
+      "Bash(sort -t: -k2 -n)",
+      "Skill(commit-commands:commit-push-pr)",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ]
   }
 }
