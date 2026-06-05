@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from core.agent_core import CivilianAgentState, KnowledgeBase
     from logic.tick_logic import SimulationState
 
+from logic.needs_config import DESIRE_ACCUMULATION, DESIRE_EXPLORATION, DESIRE_EXPRESSION
+
 FATIGUE_BLOCK_THRESHOLD = 0.85
 
 LEISURE_BASE_GAIN             = 0.35
@@ -34,6 +36,11 @@ CREW_LEISURE_MULTIPLIER = 0.10
 # Exponent applied to ticks_cost in travel scoring: 1.0 = linear (harsh); 0.5 = square root
 # (gentler — a 12-tick trip divides benefit by ~3.5 instead of 12).
 TRAVEL_DIST_EXPONENT = 0.5
+
+# Desire score weights (desire urgency multipliers for action scoring)
+ACCUMULATION_SELL_WEIGHT    = 0.6   # desire boost on sell score
+ACCUMULATION_COLLECT_WEIGHT = 0.4   # desire boost on collect score (scaled by empty hold)
+EXPRESSION_LEISURE_WEIGHT   = 0.35  # desire boost on leisure when practice quality > 0.5
 
 # "Might as well" factor: per-tick probability that a mortal with an active directive
 # and no pressing needs decides to run their route anyway.
@@ -366,8 +373,10 @@ def evaluate_civilian_action(
     )
 
     # Gate: idle when nothing is pressing — UNLESS mortal has a full hold to sell
-    # or a directive with pending work (purpose pressing, or "might as well" roll succeeded).
-    if not cs.pressing_needs() and not _in_transit_with_crew and _sellable is None and not _directive_work_pending:
+    # or a directive with pending work (purpose pressing, or "might as well" roll succeeded),
+    # or any desire is pressing (so wander can be scored).
+    _any_desire_pressing = any(d.is_pressing for d in cs.desires)
+    if not cs.pressing_needs() and not _in_transit_with_crew and _sellable is None and not _directive_work_pending and not _any_desire_pressing:
         return "idle"
     # Load fraction: ratio when capacity is known; sigmoid (L/(L+1)) otherwise.
     # The sigmoid never reaches 1.0, so uncapped mortals always have some collect score
@@ -398,17 +407,19 @@ def evaluate_civilian_action(
 
     # Need urgency map
     urgency = {n.name: _need_urgency(n) for n in cs.needs}
+    _desire_u = {d.name: d.urgency() for d in cs.desires}
 
     _best_sell_loc  = kb.best_known_sell_location()  if _sellable  else None
     _best_spend_loc = kb.best_known_spend_location() if _spendable else None
 
     # ── Action scores ─────────────────────────────────────────────────────────
 
-    # Sell: follow-through from loaded hold + purpose + status urgency
+    # Sell: follow-through from loaded hold + purpose + status urgency + accumulation desire
     _sell_score = (
         _load_fraction
         + urgency.get("purpose", 0.0) * 1.0
         + urgency.get("status",  0.0) * 0.5
+        + _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_SELL_WEIGHT
     ) if _sellable else 0.0
     if _directive_active and _sell_score > 0:
         _sell_score *= DIRECTIVE_MULTIPLIER
@@ -416,9 +427,11 @@ def evaluate_civilian_action(
         _sell_score *= _skill_rating(mortal, "skill:trade") if _has_skill(mortal, "skill:trade") else 0.0
 
     # Collect: purpose urgency drives it; a small baseline fires on a "might as well" roll.
+    # Accumulation desire also lifts the base score even without purpose pressure.
     _directive_base = MIGHT_AS_WELL_COLLECT_BASE if _might_as_well else 0.0
+    _collect_base = max(urgency.get("purpose", 0.0), _directive_base, _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_COLLECT_WEIGHT)
     _collect_score = (
-        (1.0 - _load_fraction) * max(urgency.get("purpose", 0.0), _directive_base)
+        (1.0 - _load_fraction) * _collect_base
     ) if not _hold_full else 0.0
     if _directive_active and _collect_score > 0:
         _collect_score *= DIRECTIVE_MULTIPLIER
@@ -446,6 +459,10 @@ def evaluate_civilian_action(
         if _leisure_u > 0:
             _lei_gain = LEISURE_BASE_GAIN * _pq * _crew_mult_lei
             _leisure_score = _leisure_u * _lei_gain
+            # Expression desire: extra weight when local practice is a good match
+            _expr_u = _desire_u.get(DESIRE_EXPRESSION, 0.0)
+            if _expr_u > 0 and _pq > 0.5:
+                _leisure_score += _expr_u * (_pq - 0.5) * EXPRESSION_LEISURE_WEIGHT
         else:
             _lei_gain = max(0.0, 1.0 - _l_sat) * LEISURE_AMBIENT_GAIN * _pq * _crew_mult_lei
             _leisure_score = _lei_gain
@@ -522,6 +539,31 @@ def evaluate_civilian_action(
     all_candidates: dict[str, float] = dict(local_candidates)
     for dest, score in travel_candidates.items():
         all_candidates[f"travel:{dest}"] = score
+
+    # ── Wander: Exploration desire drives travel to unvisited locations ────────
+    _exploration_u = _desire_u.get(DESIRE_EXPLORATION, 0.0)
+    if _exploration_u > 0 and not _docked and not _travelling and not cs.pressing_needs():
+        _kb_locations = [f for f in kb.facts if f.fact_type == "location"]
+        for loc_fact in _kb_locations:
+            dest_id = loc_fact.location_id
+            if dest_id == current_loc_id:
+                continue
+            if loc_fact.visit_count > 0:
+                continue
+            # Only wander to reachable locations
+            route = kb.route_to(dest_id)
+            can_travel = not (route and route.vehicle_type) or any(
+                a.asset_type == route.vehicle_type for a in mortal.assets
+            )
+            if not can_travel:
+                continue
+            if _trip_too_long_for_urgent_need(cs, kb, dest_id):
+                continue
+            ticks = route.ticks_cost if route else 1
+            _wander_score = _exploration_u / max(1.0, ticks ** TRAVEL_DIST_EXPONENT)
+            if _wander_score > 0:
+                wander_key = f"wander:{dest_id}"
+                all_candidates[wander_key] = max(all_candidates.get(wander_key, 0.0), _wander_score)
 
     if not all_candidates:
         return "idle"
