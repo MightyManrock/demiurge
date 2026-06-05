@@ -902,6 +902,17 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
                 else:
                     suffix = ""
                 a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{suffix}")
+        if cs.desires:
+            a("  desires:")
+            for desire in cs.desires:
+                bar = "█" * int(desire.satisfaction * 10) + "░" * (10 - int(desire.satisfaction * 10))
+                if desire.is_pressing:
+                    suffix = "  [#c09030][PRESSING][/]"
+                elif desire.satiation_hold > 0:
+                    suffix = f"  [#60a860]held:{desire.satiation_hold}[/]"
+                else:
+                    suffix = ""
+                a(f"    {_e(desire.name):12s} [{bar}] {desire.satisfaction:.2f}{suffix}")
 
         # KB directive facts (always — drives Purpose/commerce behavior)
         if m.knowledge_base:
