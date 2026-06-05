@@ -70,6 +70,7 @@ from logic.civilian_agent_logic import (
 from logic.needs_config import (
     NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS,
     DESIRE_ACCUMULATION, DESIRE_EXPLORATION, DESIRE_EXPRESSION,
+    compute_desire_profile,
 )
 from logic.sim_utils import (
     resolve_world_id_for as _resolve_world_id_for,
@@ -5396,6 +5397,10 @@ class TickLoop:
             cs = mortal.civilian_state
             if cs is None:
                 continue
+
+            # Lazy desire init: existing saves pre-date desires; populate on first tick
+            if not cs.desires and mortal.culture_tags:
+                cs.desires = compute_desire_profile(mortal.culture_tags)
 
             # Passive restoration for needs that are auto-satisfied by stable conditions
             loc = state.locations.get(str(mortal.current_location))
