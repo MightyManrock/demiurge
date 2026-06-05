@@ -59,8 +59,16 @@ class DirectiveFact(BaseModel):
     source_faction_id: Optional[str] = None
 
 
+class PopFact(BaseModel):
+    fact_type: Literal["pop"] = "pop"
+    pop_id: str
+    label: str = ""
+    interaction_count: int = 0
+    last_interaction_tick: int = 0
+
+
 KnowledgeFact = Annotated[
-    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact,
+    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact | PopFact,
     Field(discriminator="fact_type"),
 ]
 
@@ -101,6 +109,12 @@ class KnowledgeBase(BaseModel):
 
     def directive_facts(self) -> list[DirectiveFact]:
         return [f for f in self.facts if f.fact_type == "directive"]
+
+    def pop_facts(self) -> list[PopFact]:
+        return [f for f in self.facts if f.fact_type == "pop"]
+
+    def get_pop_fact(self, pop_id: str) -> Optional[PopFact]:
+        return next((f for f in self.facts if f.fact_type == "pop" and f.pop_id == pop_id), None)
 
 
 # ---------------------------------------------------------------------------
