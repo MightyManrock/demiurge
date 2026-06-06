@@ -91,19 +91,19 @@ The codebase is strictly layered. `logic/tick_logic.py` knows nothing about SQL 
 | File | What lives here |
 |---|---|
 | `core/onto_core.py` | `Power`, `Domain`, `Luminary`, `Pantheon`, `Demiurge` (incl. `puissance`, `lifetime_revelation`), `Disposition`, `NarrativeConstraint`, `FootprintConstraint`, `ResultsConstraint`, `Constraint` (discriminated union), `FootprintProfile` |
-| `core/universe_core.py` | `Universe`, `Location`, `System`, `SignificantLocation`, `PopLocation` (incl. `wealth`), `Civilization`, `Species`, `NotableMortal`, `Pop` (incl. `active_directives`), `Directive`, all enums |
+| `core/universe_core.py` | `Universe`, `Location`, `System`, `SignificantLocation`, `PopLocation` (incl. `wealth`, `danger`), `TravelNetwork`, `NetworkCondition`, `TravelEdge`, `TravelLocation`, `Civilization`, `Faction`, `Species` (incl. `life_basis`, `solvent`), `LifeBasis`, `Solvent`, `NotableMortal`, `Pop` (incl. `active_directives`), `Directive`, all enums |
 | `core/action_core.py` | Action taxonomy: `ActionDefinition`, `ActionInstance`, `OngoingAction`, all `*Intent` types, `build_action_library()` |
 | `core/eval_core.py` | Luminary evaluation: `UniverseDomainProfile`, `LuminaryEvaluation`, `DispositionDelta`, `EvaluationEngine` |
 | `core/event_core.py` | Multi-tick effect system: `Event`, `EventType`, `StrengthCurve` |
-| `core/agent_core.py` | `ProxiusGoal`, `AgentActionChoice`, `CivilianAgentState`, `KnowledgeBase`, `MortalNeed`, `Resource`, `RouteFact`, `LocationFact`, `LocationQualityFact`, `DirectiveFact`; `KnowledgeFact` discriminated union |
+| `core/agent_core.py` | `ProxiusGoal`, `AgentActionChoice`, `MortalAgentState`, `KnowledgeBase`, `MortalNeed`, `MortalDesire`, `MortalAsset`, `CollectibleResource`, `Resource` (incl. `biochem_tags`), `ResourceFact`, `PopFact`, `RouteFact`, `LocationFact`, `LocationQualityFact`, `DirectiveFact`; `KnowledgeFact` discriminated union; `species_can_consume()` |
 
 ### Engine, registries, and persistence
 
 | File | What it does |
 |---|---|
-| `logic/tick_logic.py` | The simulation engine: `SimulationState`, `TickLoop`, all six tick phases + Phase 2.55 civilian agents |
-| `logic/civilian_agent_logic.py` | `evaluate_civilian_action()` — autonomous decision loop for mortals with `civilian_state` (sell → spend → leisure → socialize → collect priority) |
-| `logic/needs_config.py` | Canonical need names, default params, trait-modifier table, `compute_need_profile()`, `initialize_civilian_state()` |
+| `logic/tick_logic.py` | The simulation engine: `SimulationState`, `TickLoop`, all six tick phases + Phase 2.55 mortal agents |
+| `logic/mortal_agent_logic.py` | `evaluate_mortal_action()` — autonomous decision loop for mortals with `mortal_state` (sell → spend → leisure → socialize → collect priority) |
+| `logic/needs_config.py` | Canonical need names, default params, trait-modifier table, `compute_need_profile()`, `initialize_mortal_state()` |
 | `utilities/domain_registry.py` | Canonical `domain:...` list, pairwise similarity, `luminary_approval()` |
 | `utilities/culture_registry.py` | Canonical `culture:...` traits, pairwise synergy |
 | `utilities/imago_registry.py` | 112 `ImagoNode` records across 16 trees |
@@ -153,8 +153,10 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Window visibility, entity decay | [window-visibility.md](docs/.dev/Mechanics/window-visibility.md) |
 | Scry scope and discovery | [scry-action.md](docs/.dev/Mechanics/scry-action.md) |
 | Mortal aging, alignment, prominence; pop_milieu and arrival algorithm | [mortal-system.md](docs/.dev/Mechanics/mortal-system.md) |
-| Proxii, authored splinters, planned agent tiers; civilian agent decision loop | [agent-system.md](docs/.dev/Mechanics/agent-system.md) |
+| Proxii, authored splinters, mortal agent decision loop, Factions | [agent-system.md](docs/.dev/Mechanics/agent-system.md) |
 | Mortal needs, trait profiles, leisure/socialize actions, Directives, PopLocation wealth | [needs-and-directives.md](docs/.dev/Mechanics/needs-and-directives.md) |
+| Species life basis, solvent, biochem_tags, resource compatibility | [species-biology.md](docs/.dev/Mechanics/species-biology.md) |
+| TravelNetwork, NetworkCondition gates, route selection, PopLocation danger | [travel-networks.md](docs/.dev/Mechanics/travel-networks.md) |
 | Linked Pops — data model, link factor, drift, cascade, travel milieu | [linked-pops.md](docs/.dev/Mechanics/linked-pops.md) |
 | Log narrative events — how to emit, sentinel format, entity linking reference | [narrative-events.md](docs/.dev/Mechanics/narrative-events.md) |
 | Pop splitting and reabsorption — divergence check, probabilistic gate, civ-scale modifier, mortal redistribution, passive drain, identity anchor | [pop-splinter-absorption.md](docs/.dev/Mechanics/pop-splinter-absorption.md) |

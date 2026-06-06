@@ -12,11 +12,11 @@ When a `preach_imago` directive is issued and the chosen Pop A doesn't already h
 
 Demiurge-authored splinters set `Pop.demiurge_authored = True` at creation. The flag grants the player ongoing naming rights via a `[ Rename ]` button in the pop detail tab's header strip. Clicking it opens a `TextFormModal` pre-filled with the current name; clearing the field reverts to the stratum label. Scenario-authored pops always keep `demiurge_authored=False`.
 
-## Civilian Agents (Implemented)
+## Mortal Agents (Implemented)
 
-Any `NotableMortal` with a non-None `civilian_state: CivilianAgentState` runs as a civilian agent in Phase 2.55 of the tick loop (`_tick_civilian_agents`). Currently only Durenn Vail has this.
+Any `NotableMortal` with a non-None `mortal_state: MortalAgentState` runs as a mortal agent in Phase 2.55 of the tick loop (`_tick_mortal_agents`). Currently only Durenn Vail has this.
 
-### Decision loop (`evaluate_civilian_action`)
+### Decision loop (`evaluate_mortal_action`)
 
 `logic/civilian_agent_logic.py` returns one action string per tick, evaluated in priority order:
 
@@ -34,7 +34,7 @@ Travel is triggered inside the collect branch when the mortal isn't already at a
 
 The Priority 2.5 override ensures a mortal with unfulfilled community obligations (Purpose pressing) doesn't stop to relax — they skip leisure and socializing and proceed directly to the collect/travel/sell chain. Once Purpose is satisfied (post-sell, 8-tick hold), priorities 3–4 resume normally.
 
-`CivilianAgentState.last_action: Optional[str]` is set every tick to the action string returned by `evaluate_civilian_action`. Displayed on the mortal detail page for playtest observability.
+`MortalAgentState.last_action: Optional[str]` is set every tick to the action string returned by `evaluate_mortal_action`. Displayed on the mortal detail page for playtest observability.
 
 ### KnowledgeBase
 
@@ -44,13 +44,38 @@ The Priority 2.5 override ensures a mortal with unfulfilled community obligation
 |------|---------|
 | `location` | Known PopLocation or SignificantLocation |
 | `resource` | Known collectible resource at a location |
-| `route` | Route ticks cost to a destination |
+| `route` | Route tick cost to a destination |
 | `location_quality` | Spend or sell quality at a location |
 | `directive` | Mortal's encoded knowledge of a Pop Directive (see below) |
+| `pop` | Known Pop — novelty tracking (visit count, last interaction tick) |
 
 ### Needs → see [needs-and-directives.md](needs-and-directives.md)
 
 ### Directives → see [needs-and-directives.md](needs-and-directives.md)
+
+---
+
+## Factions (Implemented)
+
+`Faction` lives in `core/universe_core.py`. It is an institutional interest group that issues `Directive`s to qualifying member mortals.
+
+```python
+class Faction(BaseModel):
+    id: UUID
+    name: str
+    description: str
+    civilization_id: Optional[UUID]
+    member_pop_ids: list[UUID]       # Pops affiliated with the faction
+    member_mortal_ids: list[UUID]    # Direct mortal membership (explicit)
+    mortal_leader_ids: list[UUID]    # Mortals holding leadership roles
+    active_directives: list[Directive]
+    visibility: float
+    pinned: bool
+```
+
+`NotableMortal` carries `faction_ids: list[UUID]` and `led_faction_ids: list[UUID]` — the authoritative membership record. The faction sync pass in tick Phase 2.55 uses `mortal.faction_ids` directly to push `DirectiveFact`s into mortal knowledge bases. See [needs-and-directives.md](needs-and-directives.md) for directive mechanics.
+
+`NetworkCondition.faction_ids` can gate a `TravelNetwork` to members of specific factions. See [travel-networks.md](travel-networks.md).
 
 ---
 
@@ -60,4 +85,4 @@ Two-tier resolution split by visibility:
 - **Luminaries and Heralds** go through the full `ActionDefinition`/`ActionInstance` machinery — interventions produce footprint, narrative, and attention.
 - **Mortals, factions, and Proxii** generate `StateMutation`s more directly — internal politics are invisible state drift until they cross a threshold that surfaces as a narrative event.
 
-**Factions** need a new `Faction` model in `core/universe_core.py` (strength, goals, mortal/world links). This is the primary data-modelling prerequisite before expanding the agent phase. **Luminary agency** is a natural extension of `EvaluationEngine` — when disposition sours past a threshold, evaluation flips to active intervention.
+**Luminary agency** is a natural extension of `EvaluationEngine` — when disposition sours past a threshold, evaluation flips to active intervention.

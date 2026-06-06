@@ -4,7 +4,7 @@
 
 ## Mortal Needs
 
-Each civilian agent carries a `CivilianAgentState.needs: list[MortalNeed]`. Six canonical need names are defined in `logic/needs_config.py`:
+Each mortal agent carries a `MortalAgentState.needs: list[MortalNeed]`. Six canonical need names are defined in `logic/needs_config.py`:
 
 | Constant | Name | Decay | Pressing | Urgent |
 |----------|------|-------|----------|--------|
@@ -31,7 +31,7 @@ class MortalNeed(BaseModel):
 
 `compute_need_profile(culture_tags: dict[str, float]) -> list[MortalNeed]` (in `needs_config.py`) builds a mortal's starting needs from their `culture_tags`. Each canonical need has a `NEED_TRAIT_MODIFIERS` entry mapping trait keys to `(Δdecay, Δpressing, Δurgent)` tuples. Trait values scale the deltas; results are clamped to sane ranges before construction.
 
-`initialize_civilian_state(mortal)` calls `compute_need_profile` and wraps the result in a `CivilianAgentState`.
+`initialize_mortal_state(mortal)` calls `compute_need_profile` and wraps the result in a `MortalAgentState`.
 
 ### Passive restoration (tick_logic Phase 2.55)
 
@@ -173,6 +173,24 @@ Sell action: `wealth_gain = min(0.05, credits_gained * 0.005)` added to `pop_loc
 ### SignificantLocation wealth (computed, not stored)
 
 `compute_world_wealth(world_id, state)` in `logic/sim_utils.py` sums the `wealth` of all child `PopLocation`s for a given `SignificantLocation`. Not persisted.
+
+---
+
+## CollectibleResource
+
+`PopLocation.collectible_resource: Optional[CollectibleResource]` declares what a location produces when a mortal collects there.
+
+```python
+class CollectibleResource(BaseModel):
+    resource_yield: float = 1.0      # quantity added per collect action
+    cooldown_ticks: int = 3          # ticks before the same mortal can collect again
+    resource_type: str               # freeform string; drives inventory key
+    biochem_tags: list[str] = []     # species compatibility (see species-biology.md)
+```
+
+When a mortal collects, a matching `Resource` entry (same `resource_type` and `biochem_tags`) is added to their `KnowledgeBase` inventory at `quantity = resource_yield`. The `ResourceFact` in KB tracks the location so the mortal can route back.
+
+For sustenance mechanics, `biochem_tags` declares which species can consume the resource. See [species-biology.md](species-biology.md).
 
 ---
 
