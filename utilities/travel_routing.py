@@ -11,7 +11,7 @@ Routing helpers for the TravelLocation system.
 from __future__ import annotations
 import math
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from uuid import UUID
 
 from core.universe_core import EntityAge
@@ -19,12 +19,12 @@ from core.universe_core import EntityAge
 
 @dataclass
 class TravelRoute:
-    waypoints: list        # list[UUID] — ordered PopLocation UUIDs origin→destination
-    legs: dict             # dict[str, int] — str(UUID) → tick cost; last entry value=0
+    waypoints: list[UUID]   # ordered PopLocation UUIDs origin→destination
+    legs: dict[str, int]    # str(UUID) → tick cost; last entry value=0
     total_ticks: int
-    resource_costs: list   # list[ResourceCost] — resources consumed on this route
-    network_ids: list      # list[UUID] — networks traversed (for transit name)
-    total_danger: float    # sum of effective danger across traversed waypoints (excl. origin)
+    resource_costs: list    # list[ResourceCost] — resources consumed on this route
+    network_ids: list[UUID] # networks traversed (for transit name)
+    total_danger: float     # sum of effective danger across traversed waypoints (excl. origin)
     avg_danger_per_location: float  # total_danger / number of traversed locations
     avg_danger_per_tick: float      # sum(danger_i × leg_ticks_i) / total_ticks
 
@@ -71,7 +71,10 @@ def _mortal_meets_condition(condition, mortal, state) -> bool:
 
 
 def _network_hard_gates_mortal(net, mortal, state) -> bool:
-    """Return True if ANY hard-gated condition on this network fails for this mortal."""
+    """Return True if ANY hard-gated condition on this network fails for this mortal.
+    A network with no conditions is never gated.
+    A network with mixed hard-gate and non-hard-gate conditions: failing ANY hard-gate condition blocks the entire network.
+    """
     return any(
         c.hard_gate and not _mortal_meets_condition(c, mortal, state)
         for c in net.conditions
@@ -151,7 +154,7 @@ def _build_travel_route(state, mortal, waypoints) -> TravelRoute:
                         seen_resource_net_ids.add(net_str)
                         resource_costs.extend(cond.resource_cost)
 
-        legs[a_str] = best_cost
+        legs[a_str] = max(1, best_cost)
 
         # Compute effective danger at destination waypoint (b)
         b_danger = b_loc.danger if isinstance(b_loc, PopLocation) else 0.0
@@ -182,6 +185,7 @@ def _build_travel_route(state, mortal, waypoints) -> TravelRoute:
 def find_qualified_routes(state, mortal, mortal_state, origin_id, destination_id) -> list:
     """BFS over PopLocations, filtering networks that hard-gate this mortal.
     Returns a list containing one TravelRoute (the BFS-optimal path), or [] if unreachable.
+    Returns the hop-minimum path (fewest intermediate locations), not necessarily the tick-cost-minimum path.
     mortal_state is accepted for API completeness but not currently used in condition evaluation.
     """
     from core.universe_core import PopLocation
