@@ -709,9 +709,8 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         civ_link = _click_link("civ", str(m.civilization_id), f"{_e(civ.name)}")
         _gated(civ, f"civilization: {civ_link}")
 
-    _fac_pop = state.pops.get(str(m.pop_id)) if m.pop_id else None
-    if _fac_pop and _fac_pop.faction_ids:
-        _fac = state.factions.get(str(_fac_pop.faction_ids[0]))
+    if m.faction_ids:
+        _fac = state.factions.get(str(m.faction_ids[0]))
         if _fac:
             _gated(_fac, f"faction:      {_e(_fac.name)}")
 
