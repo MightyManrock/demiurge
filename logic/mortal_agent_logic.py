@@ -260,6 +260,44 @@ def _mortal_is_travelling(mortal, state) -> bool:
     return loc is not None and getattr(loc, "location_type", None) == "travel_location"
 
 
+def _select_best_route(routes, mortal_state):
+    """Select the best TravelRoute for this mortal from a list of candidates.
+    Filters routes whose resource costs the mortal can't afford or that would
+    drain a survival need to zero. Returns the highest-scoring route or None.
+    """
+    best = None
+    best_score = 0.0
+    for route in routes:
+        if not route.resource_costs:
+            score = 1.0 / max(1, route.total_ticks)
+        else:
+            # Check affordability: mortal must have enough of each consumed resource
+            can_afford = True
+            if mortal_state is not None:
+                inventory = {r.resource_type: r.quantity for r in mortal_state.inventory}
+                for rc in route.resource_costs:
+                    if rc.consumed and inventory.get(rc.resource_type, 0.0) < rc.amount:
+                        can_afford = False
+                        break
+                    # Check survival needs won't be drained to zero
+                    need_obj = next(
+                        (n for n in mortal_state.needs if n.fills_need == rc.resource_type),
+                        None,
+                    )
+                    if need_obj and rc.consumed:
+                        remaining = inventory.get(rc.resource_type, 0.0) - rc.amount
+                        if remaining <= 0 and need_obj.name in _TRAVEL_BLOCKING_NEEDS:
+                            can_afford = False
+                            break
+            if not can_afford:
+                continue
+            score = 1.0 / max(1, route.total_ticks)
+        if score > best_score:
+            best_score = score
+            best = route
+    return best
+
+
 def _trip_too_long_for_urgent_need(cs, kb, dest_id: str) -> bool:
     """Return True if any survival need will reach 0 before the trip completes.
     Only sustenance and safety can ground a mortal — social/purpose urgency does not."""

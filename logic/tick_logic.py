@@ -5809,13 +5809,15 @@ class TickLoop:
                 dest_id = action.split(":", 1)[1]
                 try:
                     from utilities.travel_routing import (
-                        find_route, build_legs, get_or_create_travel_location,
+                        find_qualified_routes, get_or_create_travel_location,
                     )
+                    from logic.mortal_agent_logic import _select_best_route
                     dest_uuid = _uuid_mod.UUID(dest_id)
-                    route = find_route(state, mortal.current_location, dest_uuid)
-                    if route and len(route) >= 2:
-                        legs = build_legs(state, route)
-                        tl = get_or_create_travel_location(state, legs)
+                    _cs = mortal.mortal_state
+                    routes = find_qualified_routes(state, mortal, _cs, mortal.current_location, dest_uuid)
+                    chosen = _select_best_route(routes, _cs)
+                    if chosen:
+                        tl = get_or_create_travel_location(state, chosen.legs)
                         tl.occupants.append(mortal.id)
                         mortal.travel_intent = TravelIntent(
                             travel_location_id=tl.id
@@ -5852,13 +5854,15 @@ class TickLoop:
                 wander_dest_id = action.split(":", 1)[1]
                 try:
                     from utilities.travel_routing import (
-                        find_route, build_legs, get_or_create_travel_location,
+                        find_qualified_routes, get_or_create_travel_location,
                     )
+                    from logic.mortal_agent_logic import _select_best_route
                     dest_uuid = _uuid_mod.UUID(wander_dest_id)
-                    route = find_route(state, mortal.current_location, dest_uuid)
-                    if route and len(route) >= 2:
-                        legs = build_legs(state, route)
-                        tl = get_or_create_travel_location(state, legs)
+                    _cs = mortal.mortal_state
+                    routes = find_qualified_routes(state, mortal, _cs, mortal.current_location, dest_uuid)
+                    chosen = _select_best_route(routes, _cs)
+                    if chosen:
+                        tl = get_or_create_travel_location(state, chosen.legs)
                         tl.occupants.append(mortal.id)
                         mortal.travel_intent = TravelIntent(travel_location_id=tl.id)
                         _crew_pop = next(
