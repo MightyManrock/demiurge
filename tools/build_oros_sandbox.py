@@ -54,8 +54,10 @@ F = {
 
 TN = {
     "general":    uid(),   # Plains, Asvelim, Qaebdol, Dunes, Stones, Ulum
-    "asha_deep":  uid(),   # Dunes, Taem's Oasis, Salt Flats
-    "hipa_deep":  uid(),   # Ulum, Hiparun's Rift
+    "stone_fast": uid(),   # Qaebdol <-> Ancestor Stones (Stonecallers privilege)
+    "hipa_deep":  uid(),   # Ulum <-> Hiparun's Rift (Hiparunite privilege)
+    "asha_fast":  uid(),   # Dunes <-> Taem's Oasis (Asha Dunewalker privilege)
+    "asha_deep":  uid(),   # Dunes, Taem's Oasis, Salt Flats (Asha Dunewalker privilege)
 }
 
 # Pops keyed by (location_key, social_class, occupation)
@@ -485,15 +487,19 @@ def insert_poploc(lid, name, dfc, pop_ids, tn_ids, domain_expr=None):
     ))
 
 # General network membership
-gen = [L["plains"], L["asvelim"], L["qaebdol"], L["dunes"], L["stones"], L["ulum"]]
-asha_deep = [L["dunes"], L["oasis"], L["saltflats"]]
-hipa_deep = [L["ulum"], L["hiparun"]]
+gen        = [L["plains"], L["asvelim"], L["qaebdol"], L["dunes"], L["stones"], L["ulum"]]
+stone_fast = [L["qaebdol"], L["stones"]]
+hipa_deep  = [L["ulum"], L["hiparun"]]
+asha_fast  = [L["dunes"], L["oasis"]]
+asha_deep  = [L["dunes"], L["oasis"], L["saltflats"]]
 
 def tn_ids_for(lid):
     ids = []
-    if lid in gen:       ids.append(TN["general"])
-    if lid in asha_deep: ids.append(TN["asha_deep"])
-    if lid in hipa_deep: ids.append(TN["hipa_deep"])
+    if lid in gen:        ids.append(TN["general"])
+    if lid in stone_fast: ids.append(TN["stone_fast"])
+    if lid in hipa_deep:  ids.append(TN["hipa_deep"])
+    if lid in asha_fast:  ids.append(TN["asha_fast"])
+    if lid in asha_deep:  ids.append(TN["asha_deep"])
     return ids
 
 insert_poploc(L["plains"],    "Plains of Kir'an",      0, pops_by_loc.get(L["plains"],   []), tn_ids_for(L["plains"]))
@@ -513,15 +519,26 @@ con.execute(
 )
 
 # 5. Insert TravelNetworks
+for col, default in [("edges", "[]"), ("conditions", "[]")]:
+    try:
+        con.execute(f"ALTER TABLE travel_networks ADD COLUMN {col} TEXT NOT NULL DEFAULT '{default}'")
+    except Exception:
+        pass  # column already exists
+
+def cond(faction_id): return jdump([{"faction_id": faction_id, "hard_gate": False}])
+def edge(a, b, cost): return {"node_a": a, "node_b": b, "privileged_cost": cost}
+
 con.execute("DELETE FROM travel_networks")
-for tn_key, tn_name, members in [
-    ("general",   "Oros Open Routes",           gen),
-    ("asha_deep", "Asha Dunewalker Territory",  asha_deep),
-    ("hipa_deep", "Hiparunite Highlands",        hipa_deep),
+for tn_key, tn_name, members, edges, conditions in [
+    ("general",    "Oros Open Routes",               gen,        [],  "[]"),
+    ("stone_fast", "Stonecallers Paths",              stone_fast, [edge(L["qaebdol"], L["stones"], 1)],                                             cond(F["stone"])),
+    ("hipa_deep",  "Hiparunite Highlands",            hipa_deep,  [edge(L["ulum"],    L["hiparun"], 2)],                                            cond(F["hiparunite"])),
+    ("asha_fast",  "Asha Dunewalker Fast Route",      asha_fast,  [edge(L["dunes"],   L["oasis"],  1)],                                             cond(F["asha"])),
+    ("asha_deep",  "Asha Dunewalker Territory",       asha_deep,  [edge(L["dunes"],   L["saltflats"], 3), edge(L["oasis"], L["saltflats"], 3)],     cond(F["asha"])),
 ]:
     con.execute(
-        "INSERT INTO travel_networks (id, name, member_ids) VALUES (?, ?, ?)",
-        (TN[tn_key], tn_name, jdump(members))
+        "INSERT INTO travel_networks (id, name, member_ids, edges, conditions) VALUES (?, ?, ?, ?, ?)",
+        (TN[tn_key], tn_name, jdump(members), jdump(edges), conditions)
     )
 
 # 6. Insert Pops
@@ -621,7 +638,7 @@ con.execute("UPDATE civilizations SET pop_ids = ? WHERE id = ?",
 con.commit()
 con.close()
 print("Done.")
-print(f"  {len(POPS)} pops, 9 PopLocations, 3 factions, 3 travel networks")
+print(f"  {len(POPS)} pops, 9 PopLocations, 3 factions, 5 travel networks")
 print(f"  Asha Keln → {L['dunes']} (Dunes of Tor warrior)")
 print(f"  Kael Osh  → {L['hiparun']} (Hiparun's Rift producer)")
 print(f"  Urren     → {L['stones']} (Ancestor Stones clergy)")
