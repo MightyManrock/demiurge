@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS locations (
     commerce_quality      REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; spend effectiveness multiplier
     collectible_resource  TEXT    DEFAULT NULL,            -- JSON of CollectibleResource, or NULL
     wealth                REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; PopLocation prosperity indicator
+    danger                REAL    NOT NULL DEFAULT 0.0,    -- 0.0–1.0; base hazard level of this location
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0,      -- bool; 1 = never decays (all starting locations)
