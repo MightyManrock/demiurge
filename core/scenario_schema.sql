@@ -195,7 +195,9 @@ CREATE TABLE IF NOT EXISTS species (
     condition        TEXT NOT NULL DEFAULT 'stable',
     visibility       REAL    NOT NULL DEFAULT 0.0,
     pinned           INTEGER NOT NULL DEFAULT 0,
-    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0
+    visibility_stall_remaining INTEGER NOT NULL DEFAULT 0,
+    life_basis       TEXT NOT NULL DEFAULT 'carbon',
+    solvent          TEXT NOT NULL DEFAULT 'water'
 );
 
 CREATE TABLE IF NOT EXISTS civilizations (

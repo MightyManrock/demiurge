@@ -409,8 +409,9 @@ def _write_species(conn, state: SimulationState):
             """INSERT INTO species
                (id, name, description, origin_world_id, sapient, transplanted,
                 lifespan_min, lifespan_max, domain_tags, bio_tags, condition,
-                visibility, pinned, visibility_stall_remaining)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                visibility, pinned, visibility_stall_remaining,
+                life_basis, solvent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(sp.id),
                 sp.name,
@@ -426,6 +427,8 @@ def _write_species(conn, state: SimulationState):
                 sp.visibility,
                 int(sp.pinned),
                 sp.visibility_stall_remaining,
+                sp.life_basis.value,
+                sp.solvent.value,
             ),
         )
 

@@ -28,7 +28,7 @@ from core.universe_core import (
     SignificantLocation, PopLocation, LocCondition, LocFootprint,
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
-    Species, SpeciesCondition,
+    Species, SpeciesCondition, LifeBasis, Solvent,
     Pop, SocialClass, WildStratum,
     NetworkCondition, TravelEdge, TravelNetwork,
     Universe, EntityAge, Faction,
@@ -720,6 +720,8 @@ def _load_species(conn) -> dict[str, Species]:
             visibility=float(row.get("visibility", 0.0)),
             pinned=bool(row.get("pinned", 0)),
             visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
+            life_basis=LifeBasis(row.get("life_basis", "carbon")),
+            solvent=Solvent(row.get("solvent", "water")),
         )
         out[str(sp.id)] = sp
     return out
