@@ -1138,14 +1138,9 @@ def _sync_faction_directives(
         f for f in kb.facts
         if not (f.fact_type == "directive" and getattr(f, "source_faction_id", None))
     ]
-    if not mortal.pop_id:
-        return
-    pop = state.pops.get(str(mortal.pop_id))
-    if not pop:
-        return
     mortal_skills = getattr(mortal, "skill_tags", {}) or {}
     for faction in state.factions.values():
-        if mortal.pop_id not in faction.member_pop_ids:
+        if faction.id not in mortal.faction_ids:
             continue
         for directive in faction.active_directives:
             if directive.required_skill and directive.required_skill not in mortal_skills:

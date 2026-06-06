@@ -59,9 +59,10 @@ def _make_state(faction=None, pop=None):
     return state
 
 
-def _make_mortal(pop_id=None, skill_tags=None, facts=None):
+def _make_mortal(pop_id=None, skill_tags=None, facts=None, faction_ids=None):
     mortal = MagicMock()
     mortal.pop_id = pop_id
+    mortal.faction_ids = faction_ids or []
     mortal.skill_tags = skill_tags or {}
     kb = KnowledgeBase()
     if facts:
@@ -71,13 +72,10 @@ def _make_mortal(pop_id=None, skill_tags=None, facts=None):
 
 
 def test_sync_adds_directive_fact_for_member_with_required_skill():
-    pop_id = uuid4()
     directive = Directive(directive_type="commerce", required_skill="skill:trade")
-    faction = Faction(name="Guild", member_pop_ids=[pop_id], active_directives=[directive])
-    pop = MagicMock()
-    pop.id = pop_id
-    mortal = _make_mortal(pop_id=pop_id, skill_tags={"skill:trade": 0.8})
-    state = _make_state(faction=faction, pop=pop)
+    faction = Faction(name="Guild", active_directives=[directive])
+    mortal = _make_mortal(skill_tags={"skill:trade": 0.8}, faction_ids=[faction.id])
+    state = _make_state(faction=faction)
 
     _sync_faction_directives(mortal, state, tick=1)
 
@@ -102,15 +100,11 @@ def test_sync_skips_directive_when_required_skill_absent():
     assert mortal.knowledge_base.directive_facts() == []
 
 
-def test_sync_skips_directive_when_pop_not_member():
-    pop_id = uuid4()
-    other_pop_id = uuid4()
+def test_sync_skips_directive_when_not_member():
     directive = Directive(directive_type="commerce")
-    faction = Faction(name="Guild", member_pop_ids=[other_pop_id], active_directives=[directive])
-    pop = MagicMock()
-    pop.id = pop_id
-    mortal = _make_mortal(pop_id=pop_id, skill_tags={"skill:trade": 0.8})
-    state = _make_state(faction=faction, pop=pop)
+    faction = Faction(name="Guild", active_directives=[directive])
+    mortal = _make_mortal(skill_tags={"skill:trade": 0.8})  # faction_ids=[] by default
+    state = _make_state(faction=faction)
 
     _sync_faction_directives(mortal, state, tick=1)
 
@@ -118,14 +112,11 @@ def test_sync_skips_directive_when_pop_not_member():
 
 
 def test_sync_adds_directive_when_no_required_skill():
-    """Faction directive with no skill gate applies to all Pop members."""
-    pop_id = uuid4()
+    """Faction directive with no skill gate applies to all members."""
     directive = Directive(directive_type="commerce", required_skill=None)
-    faction = Faction(name="Guild", member_pop_ids=[pop_id], active_directives=[directive])
-    pop = MagicMock()
-    pop.id = pop_id
-    mortal = _make_mortal(pop_id=pop_id, skill_tags={})
-    state = _make_state(faction=faction, pop=pop)
+    faction = Faction(name="Guild", active_directives=[directive])
+    mortal = _make_mortal(skill_tags={}, faction_ids=[faction.id])
+    state = _make_state(faction=faction)
 
     _sync_faction_directives(mortal, state, tick=1)
 
