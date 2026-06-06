@@ -35,14 +35,19 @@ def find_route(state, origin_id: UUID, destination_id: UUID) -> list[UUID] | Non
         path = queue.popleft()
         current_str = path[-1]
         current_loc = state.locations.get(current_str)
-        if not isinstance(current_loc, PopLocation) or not current_loc.travel_network_ids:
+        if not isinstance(current_loc, PopLocation):
             continue
-        for cand_str, cand_loc in state.locations.items():
+        neighbors = set()
+        for net_id in current_loc.travel_network_ids:
+            net = state.travel_networks.get(str(net_id))
+            if net:
+                neighbors.update(str(m) for m in net.member_ids)
+        neighbors.discard(current_str)
+        for cand_str in neighbors:
+            cand_loc = state.locations.get(cand_str)
             if not isinstance(cand_loc, PopLocation):
                 continue
             if cand_str in visited:
-                continue
-            if not (set(current_loc.travel_network_ids) & set(cand_loc.travel_network_ids)):
                 continue
             new_path = path + [cand_str]
             if cand_str == dest_str:
