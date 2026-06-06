@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 from core.agent_core import (
     ProxiusGoal, TravelIntent,
-    KnowledgeBase, CivilianAgentState, MortalAsset, CollectibleResource,
+    KnowledgeBase, MortalAgentState, MortalAsset, CollectibleResource,
 )
 
 # ─────────────────────────────────────────
@@ -756,7 +756,7 @@ class NotableMortal(BaseModel):
     fatigue: float = Field(ge=0.0, le=1.0, default=0.0)
     assets: list[MortalAsset] = Field(default_factory=list)
     knowledge_base: Optional[KnowledgeBase] = None
-    civilian_state: Optional[CivilianAgentState] = None
+    mortal_state: Optional[MortalAgentState] = None
 
     active_goal: Optional["ProxiusGoal"] = None
     travel_intent: Optional[TravelIntent] = None

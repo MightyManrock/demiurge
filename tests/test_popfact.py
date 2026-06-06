@@ -1,6 +1,6 @@
 import pytest
 from core.agent_core import PopFact, LocationFact, KnowledgeBase
-from logic.civilian_agent_logic import (
+from logic.mortal_agent_logic import (
     _pop_novelty,
     NOVELTY_HALFLIFE,
     RECENCY_RECOVERY_TICKS,

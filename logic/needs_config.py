@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
-    from core.agent_core import CivilianAgentState
+    from core.agent_core import MortalAgentState
 
 from core.agent_core import MortalNeed, MortalDesire
 
@@ -212,13 +212,13 @@ def compute_desire_profile(culture_tags: dict[str, float]) -> list[MortalDesire]
     return desires
 
 
-def initialize_civilian_state(mortal: NotableMortal) -> CivilianAgentState:
-    """Build a fresh CivilianAgentState (needs and desires) from the mortal's culture_tags.
+def initialize_mortal_state(mortal: NotableMortal) -> MortalAgentState:
+    """Build a fresh MortalAgentState (needs and desires) from the mortal's culture_tags.
 
     Inventory and knowledge_base must be populated separately.
     """
-    from core.agent_core import CivilianAgentState
-    return CivilianAgentState(
+    from core.agent_core import MortalAgentState
+    return MortalAgentState(
         needs=compute_need_profile(mortal.culture_tags),
         desires=compute_desire_profile(mortal.culture_tags),
     )

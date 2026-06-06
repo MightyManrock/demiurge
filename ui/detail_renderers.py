@@ -867,8 +867,8 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
             a(f"  Traveling → {_e(dest_name)} | {ticks_remaining} {ticks_word} remaining")
 
     # ── Civilian Agent State ──────────────────────────────────────────
-    if m.civilian_state is not None:
-        cs = m.civilian_state
+    if m.mortal_state is not None:
+        cs = m.mortal_state
         a("")
         a("[bold #4a80b0]CIVILIAN AGENT[/]")
 

@@ -9,10 +9,10 @@ DB = "scenarios/wardens_compact.db"
 def main():
     state = load_scenario(DB)
     vail = next((m for m in state.mortals.values() if m.name == "Durenn Vail"), None)
-    if vail is None or vail.civilian_state is None:
+    if vail is None or vail.mortal_state is None:
         print("ERROR: Durenn Vail not found.")
         sys.exit(1)
-    for res in vail.civilian_state.inventory:
+    for res in vail.mortal_state.inventory:
         if res.resource_type == "unobtanium":
             old = res.threshold
             res.threshold = 5.0

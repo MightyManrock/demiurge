@@ -55,8 +55,8 @@ from utilities.culture_registry import (
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent, DirectiveFact, KnowledgeBase
-from logic.civilian_agent_logic import (
-    evaluate_civilian_action,
+from logic.mortal_agent_logic import (
+    evaluate_mortal_action,
     _select_local_pop,
     _pop_practice_quality,
     _pop_social_quality,
@@ -1409,8 +1409,8 @@ class TickLoop:
         result.agent_narratives.extend(agent_narratives)
 
         # ── Phase 2.55: Civilian Agent Actions ─────────
-        civilian_narratives = self._tick_civilian_agents(state, state.tick_number)
-        result.mortal_narratives.extend(civilian_narratives)
+        mortal_agent_narratives = self._tick_mortal_agents(state, state.tick_number)
+        result.mortal_narratives.extend(mortal_agent_narratives)
 
         # ── Phase 2.6: Mortal Travel ────────────────────
         travel_decisions = self._resolve_mortal_travel_decisions(state)
@@ -5238,7 +5238,7 @@ class TickLoop:
                     if current_name == self._KARATH_OMN_SHUTTLE_A
                     else self._KARATH_OMN_SHUTTLE_A
                 )
-            elif mortal.name == self._DURENN_VAIL_NAME and mortal.civilian_state is None:
+            elif mortal.name == self._DURENN_VAIL_NAME and mortal.mortal_state is None:
                 dest_name = (
                     self._VAIL_DEST_B
                     if current_name == self._VAIL_DEST_A
@@ -5362,8 +5362,8 @@ class TickLoop:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
                         mortal.current_location = next_wp_uuid
-                        if mortal.civilian_state is not None:
-                            mortal.civilian_state.pending_transfer = True
+                        if mortal.mortal_state is not None:
+                            mortal.mortal_state.pending_transfer = True
 
         for lid in to_remove:
             tl = state.locations.get(lid)
@@ -5392,12 +5392,12 @@ class TickLoop:
 
         return narratives
 
-    def _tick_civilian_agents(self, state: SimulationState, current_tick: int) -> list[str]:
-        """Phase 2.55 — run autonomous civilian agent logic for each mortal with civilian_state."""
+    def _tick_mortal_agents(self, state: SimulationState, current_tick: int) -> list[str]:
+        """Phase 2.55 — run autonomous civilian agent logic for each mortal with mortal_state."""
         import uuid as _uuid_mod
         narratives: list[str] = []
         for mortal in state.mortals.values():
-            cs = mortal.civilian_state
+            cs = mortal.mortal_state
             if cs is None:
                 continue
 
@@ -5503,7 +5503,7 @@ class TickLoop:
                             break
 
             # Background loading: auto-collect each tick while a loading session is active.
-            # The freighter is docked; evaluate_civilian_action will return personal time
+            # The freighter is docked; evaluate_mortal_action will return personal time
             # (leisure / socialize / idle) rather than collect or travel.
             if cs.collecting_ticks_remaining > 0:
                 _bg_loc = state.locations.get(str(mortal.current_location))
@@ -5571,7 +5571,7 @@ class TickLoop:
                             kb.facts.append(_PopFact(pop_id=_disc_pid_str, label=pop_label(_disc_pop)))
 
             _sync_faction_directives(mortal, state, current_tick)
-            action = evaluate_civilian_action(mortal, state, current_tick)
+            action = evaluate_mortal_action(mortal, state, current_tick)
             cs.last_action = action
 
             if action == "collect":

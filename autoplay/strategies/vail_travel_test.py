@@ -46,7 +46,7 @@ def _print_status(state: SimulationState, tick: int) -> None:
         print(f"  tick {tick:3d} | Vail NOT FOUND")
         return
 
-    cs = vail.civilian_state
+    cs = vail.mortal_state
     inv_str = ""
     if cs and cs.inventory:
         parts = [f"{r.resource_type}={r.quantity:.1f}" for r in cs.inventory]
@@ -75,8 +75,8 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     _print_status(state, tick)
 
     vail = _vail(state)
-    if vail and vail.travel_intent is None and vail.civilian_state:
-        cs = vail.civilian_state
+    if vail and vail.travel_intent is None and vail.mortal_state:
+        cs = vail.mortal_state
         loc = _loc_name(state, vail.current_location)
 
         if loc == "Sethis Surface":

@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from core.agent_core import CivilianAgentState, MortalNeed
+from core.agent_core import MortalAgentState, MortalNeed
 from logic.needs_config import NEED_STATUS, NEED_BELONGING
 from logic.tick_logic import _status_recognition_from_pop
 
@@ -120,7 +120,7 @@ def test_status_capped_at_1():
     pop = _pop()
     mortal = _mortal(pop_id=pop.id)
     status = MortalNeed(name=NEED_STATUS, satisfaction=0.95, pressing_threshold=0.60)
-    cs = CivilianAgentState(needs=[status])
+    cs = MortalAgentState(needs=[status])
     gain, hold = _status_recognition_from_pop(mortal, pop, _state(), strong=True)
     status.satisfaction = min(1.0, status.satisfaction + gain)
     assert status.satisfaction == pytest.approx(1.0)

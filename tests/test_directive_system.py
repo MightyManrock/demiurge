@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from core.agent_core import (
-    CivilianAgentState,
+    MortalAgentState,
     KnowledgeBase,
     MortalNeed,
     DirectiveFact,
@@ -81,9 +81,9 @@ def _build_sell_state(with_directive_fact: bool = True):
     pop = MagicMock()
     pop.current_location = pop_loc_id
 
-    # CivilianAgentState with a Purpose need at 0.4 satisfaction
+    # MortalAgentState with a Purpose need at 0.4 satisfaction
     purpose = MortalNeed(name=NEED_PURPOSE, satisfaction=0.4, pressing_threshold=0.60)
-    cs = CivilianAgentState(needs=[purpose])
+    cs = MortalAgentState(needs=[purpose])
 
     # KnowledgeBase
     facts = [_commerce_directive_fact()] if with_directive_fact else []
@@ -98,7 +98,7 @@ def _build_sell_state(with_directive_fact: bool = True):
 
 
 def _run_sell_directive_block(cs, kb, pop, pop_loc, state, pop_id, credits_gained=20.0):
-    """Simulate the directive fulfillment block from _tick_civilian_agents sell branch."""
+    """Simulate the directive fulfillment block from _tick_mortal_agents sell branch."""
     _sell_pop = state.pops.get(pop_id)
     if _sell_pop:
         _pop_loc = state.locations.get(str(_sell_pop.current_location))

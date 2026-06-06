@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS mortals (
     fatigue                REAL NOT NULL DEFAULT 0.0,
     assets                 TEXT NOT NULL DEFAULT '[]',   -- JSON array of MortalAsset
     knowledge_base         TEXT DEFAULT NULL,            -- JSON of KnowledgeBase, or NULL
-    civilian_state         TEXT DEFAULT NULL,            -- JSON of CivilianAgentState, or NULL
+    mortal_state         TEXT DEFAULT NULL,            -- JSON of MortalAgentState, or NULL
     occupation             TEXT NOT NULL DEFAULT ''
 );
 

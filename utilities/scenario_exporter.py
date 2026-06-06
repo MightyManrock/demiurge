@@ -563,7 +563,7 @@ def _write_mortals(conn, state: SimulationState):
                 pop_id, pop_milieu, proxius_appointed_tick, herald_appointed_tick,
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json,
-                fatigue, assets, knowledge_base, civilian_state,
+                fatigue, assets, knowledge_base, mortal_state,
                 occupation)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
@@ -609,7 +609,7 @@ def _write_mortals(conn, state: SimulationState):
                 m.fatigue,
                 json.dumps([a.model_dump() for a in m.assets]),
                 m.knowledge_base.model_dump_json() if m.knowledge_base else None,
-                m.civilian_state.model_dump_json() if m.civilian_state else None,
+                m.mortal_state.model_dump_json() if m.mortal_state else None,
                 m.occupation,
             ),
         )

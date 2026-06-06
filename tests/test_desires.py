@@ -1,17 +1,17 @@
 import pytest
 from unittest.mock import MagicMock
 from core.agent_core import (
-    CivilianAgentState, MortalNeed, MortalDesire, KnowledgeBase,
+    MortalAgentState, MortalNeed, MortalDesire, KnowledgeBase,
     LocationFact, LocationQualityFact, RouteFact, Resource,
 )
-from logic.civilian_agent_logic import evaluate_civilian_action
+from logic.mortal_agent_logic import evaluate_mortal_action
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _mortal_with_desires(cs, kb=None, fatigue=0.0, assets=None, loc_id="loc-A", culture_tags=None):
     m = MagicMock()
-    m.civilian_state = cs
+    m.mortal_state = cs
     m.knowledge_base = kb or KnowledgeBase()
     m.fatigue = fatigue
     m.assets = assets or []
@@ -108,7 +108,7 @@ def test_compute_desire_profile_expression_included():
 def test_accumulation_desire_boosts_sell_without_purpose_pressure():
     """With Accumulation desire pressing and no purpose urgency, sell score is boosted enough to beat idle."""
     sell_loc_id = "loc-A"
-    cs = CivilianAgentState(
+    cs = MortalAgentState(
         needs=[MortalNeed(name="purpose", satisfaction=1.0)],
         desires=[MortalDesire(name="accumulation", satisfaction=0.1, pressing_threshold=0.5)],
         inventory=[Resource(resource_type="unobtanium", quantity=5.0, threshold=2.0, usable_for=["sell"])],
@@ -116,13 +116,13 @@ def test_accumulation_desire_boosts_sell_without_purpose_pressure():
     kb = KnowledgeBase(facts=[
         LocationQualityFact(location_id=sell_loc_id, quality=0.9, quality_type="sell"),
     ])
-    result = evaluate_civilian_action(_mortal_with_desires(cs, kb, loc_id=sell_loc_id), _state(), 0)
+    result = evaluate_mortal_action(_mortal_with_desires(cs, kb, loc_id=sell_loc_id), _state(), 0)
     assert result == "sell"
 
 
 def test_wander_action_selected_for_unvisited_location():
     """With Exploration desire pressing, no needs pressing, known unvisited location → returns 'wander:<id>'."""
-    cs = CivilianAgentState(
+    cs = MortalAgentState(
         needs=[MortalNeed(name="purpose", satisfaction=1.0)],
         desires=[MortalDesire(name="exploration", satisfaction=0.1, pressing_threshold=0.5)],
     )
@@ -130,13 +130,13 @@ def test_wander_action_selected_for_unvisited_location():
         LocationFact(location_id="loc-B", visit_count=0),
         RouteFact(from_id="loc-A", to_id="loc-B", ticks_cost=3, vehicle_type=None),
     ])
-    result = evaluate_civilian_action(_mortal_with_desires(cs, kb, loc_id="loc-A"), _state(), 0)
+    result = evaluate_mortal_action(_mortal_with_desires(cs, kb, loc_id="loc-A"), _state(), 0)
     assert result == "wander:loc-B"
 
 
 def test_needs_dominate_desires_when_pressing():
     """When a survival need is urgent AND Exploration desire is pressing, wander is NOT chosen."""
-    cs = CivilianAgentState(
+    cs = MortalAgentState(
         needs=[MortalNeed(
             name="sustenance",
             satisfaction=0.2,
@@ -150,6 +150,6 @@ def test_needs_dominate_desires_when_pressing():
         LocationFact(location_id="loc-B", visit_count=0),
         RouteFact(from_id="loc-A", to_id="loc-B", ticks_cost=12, vehicle_type=None),
     ])
-    result = evaluate_civilian_action(_mortal_with_desires(cs, kb, loc_id="loc-A"), _state(), 0)
+    result = evaluate_mortal_action(_mortal_with_desires(cs, kb, loc_id="loc-A"), _state(), 0)
     # Wander is blocked: trip is too long for urgent sustenance need
     assert not result.startswith("wander:")

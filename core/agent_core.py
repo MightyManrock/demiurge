@@ -189,7 +189,7 @@ class Resource(BaseModel):
 # Civilian Agent State
 # ---------------------------------------------------------------------------
 
-class CivilianAgentState(BaseModel):
+class MortalAgentState(BaseModel):
     needs: list[MortalNeed] = Field(default_factory=list)
     desires: list[MortalDesire] = Field(default_factory=list)
     inventory: list[Resource] = Field(default_factory=list)

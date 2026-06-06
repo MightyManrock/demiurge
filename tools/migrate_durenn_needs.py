@@ -24,18 +24,18 @@ def migrate():
         print(f"ERROR: {VAIL_NAME} not found in {DB_PATH}")
         sys.exit(1)
 
-    if vail.civilian_state is None:
-        print(f"ERROR: {VAIL_NAME} has no civilian_state — run migrate_civilian_resources.py first")
+    if vail.mortal_state is None:
+        print(f"ERROR: {VAIL_NAME} has no mortal_state — run migrate_civilian_resources.py first")
         sys.exit(1)
 
     # Replace needs with trait-derived profile
-    old_names = [n.name for n in vail.civilian_state.needs]
-    vail.civilian_state.needs = compute_need_profile(vail.culture_tags)
-    new_names = [n.name for n in vail.civilian_state.needs]
+    old_names = [n.name for n in vail.mortal_state.needs]
+    vail.mortal_state.needs = compute_need_profile(vail.culture_tags)
+    new_names = [n.name for n in vail.mortal_state.needs]
     print(f"Needs replaced: {old_names} → {new_names}")
 
     # Update credits resource: fills_need "indulgence" → "leisure"
-    for res in vail.civilian_state.inventory:
+    for res in vail.mortal_state.inventory:
         if res.fills_need == "indulgence":
             res.fills_need = "leisure"
             print(f"Updated {res.resource_type}.fills_need: indulgence → leisure")
@@ -48,7 +48,7 @@ def migrate():
 
     # Print the resulting need profile for inspection
     print("\nDurenn Vail need profile:")
-    for need in vail.civilian_state.needs:
+    for need in vail.mortal_state.needs:
         print(
             f"  {need.name:<12} decay={need.decay_rate:.4f}  "
             f"pressing={need.pressing_threshold:.3f}  urgent={need.urgent_threshold:.3f}"

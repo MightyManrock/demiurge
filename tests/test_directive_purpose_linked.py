@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from core.agent_core import CivilianAgentState, MortalNeed, DirectiveFact
+from core.agent_core import MortalAgentState, MortalNeed, DirectiveFact
 from logic.needs_config import NEED_PURPOSE
 from logic.sim_utils import compute_link_factor
 
@@ -30,7 +30,7 @@ def _pop(pop_id=None, linked=None, occupation="merchant"):
 def _run_purpose_update(origin_pop, sell_pop, state, initial_satisfaction=0.3):
     """Simulate the directive Purpose block from the sell branch."""
     purpose = _need(NEED_PURPOSE, satisfaction=initial_satisfaction)
-    cs = CivilianAgentState(needs=[purpose])
+    cs = MortalAgentState(needs=[purpose])
 
     origin_pop_id_str = str(origin_pop.id)
     sell_pop_id_str = str(sell_pop.id)

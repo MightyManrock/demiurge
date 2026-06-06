@@ -22,12 +22,12 @@ def main() -> None:
     state = load_scenario(DB)
 
     for mortal in state.mortals.values():
-        if mortal.civilian_state is None:
+        if mortal.mortal_state is None:
             continue
         new_needs = compute_need_profile(mortal.culture_tags)
         new_by_name = {n.name: n for n in new_needs}
 
-        for need in mortal.civilian_state.needs:
+        for need in mortal.mortal_state.needs:
             fresh = new_by_name.get(need.name)
             if fresh is None:
                 continue

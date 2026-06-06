@@ -16,6 +16,35 @@ Rewrite all six NarrativeConstraints from scratch with this principle in mind.
 
 ---
 
+### TravelNetwork expansion: requirements, benefits, and agent route selection
+
+TravelNetworks currently encode only connectivity (membership). The intended expansion has two parts:
+
+**1. Network properties** — each TravelNetwork gains requirements and benefits:
+- *Requirements*: citizenship/faction affiliation, possession of a specific Asset (e.g. a capable vessel docked at the route's origin node), payment of a cost, etc. Multiple networks may connect the same two nodes but with different access conditions. Whether a requirement is a hard gate or a soft benefit condition depends on the faction's enforcement capacity — a tribal faction can offer preferential access to trusted travelers but can't stop a determined outsider; a spacefaring civilization with orbital checkpoints can enforce hard restrictions. Both cases should be expressible in the model.
+- *Benefits/costs*: expected travel time, cost in credits, average danger (once danger becomes a PopLocation property), and potentially others.
+
+**2. Routing and agent selection** — the current `find_route` returns the shortest valid path regardless of traveler. The expanded system works in two layers:
+- A router function (extending or wrapping `find_route`) filters out genuinely inaccessible routes given the traveler's current state, then labels each viable route with its objective properties.
+- An agent-side selection function chooses between those routes based on the mortal's knowledge (`RouteFact`s in their KB), active directives, personality, and current goal. The same mortal may prefer different routes on different trips — Durenn takes his own ship when collecting cargo, commercial transit otherwise.
+
+The router handles objective facts; the agent handles subjective preference. Neither layer bleeds into the other.
+
+**Related:** `MortalAsset` likely needs a `VehicleAsset` subclass once vehicle-specific properties multiply — `cargo_capacity` is already a candidate field sitting on the generic class, and `NetworkCondition.asset_type: str` may eventually need to specify required travel capability (sublight vs. warp) rather than just an asset type string. Hold until vehicle properties actually multiply.
+
+**Status:** `TravelNetwork` now has `edges: list[TravelEdge]` (per-pair privileged costs) and `conditions: list[NetworkCondition]` (faction, civilization, asset, stratum, occupation; hard gate or soft benefit). Model, schema, loader, and exporter are all updated. Not yet implemented: condition evaluation in routing, privileged cost lookup in `leg_cost`, or agent-side route selection logic.
+
+**Prerequisite:** `RouteFact` already exists in `agent_core.py` and can be extended to carry network requirement/benefit data once the TravelNetwork model is expanded.
+
+**Reference implementation — Oros sandbox:** The Oros scenario already implies four TravelNetworks and should serve as the first test case:
+
+1. **General overland network** — Plains of Kir'an, Asvelim Savannah, Qaebdol Cave Village, Dunes of Tor, Ancestor Stones, Ulum Highlands. No requirements.
+2. **Asha Dunewalker network** — Dunes of Tor, Taem's Oasis, Salt Flats. Open to all travelers at normal `max(1, a.dfc+b.dfc)` cost. Asha Dunewalker Clan membership or their permission unlocks reduced travel times: Dunes↔Oasis in 1 tick (vs. 3), Dunes/Oasis↔Salt Flats in 3/5 ticks (vs. 5/6).
+3. **Stonecallers network** — Qaebdol Cave Village ↔ Ancestor Stones. Open to all travelers at normal cost. Stonecallers membership or their permission unlocks: 1 tick (vs. 2). Both nodes remain on the general network as fallback.
+4. **Hiparunite network** — Ulum Highlands ↔ Hiparun's Rift. Open to all travelers at normal cost. Hiparunite membership or their permission unlocks: 2 ticks (vs. 5).
+
+---
+
 ### Civilian agent bugs
 
 10. **Durenn Vail doesn't return from Sethis.** After collecting a full hold and selling at Neran, he either doesn't score the return trip highly enough or gets stuck in a post-sell idle loop. The sell pop resolution, need satiation after selling, and travel scoring all interact here — needs a focused debug session.

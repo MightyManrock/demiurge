@@ -5,7 +5,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.universe_core import NotableMortal
-    from core.agent_core import CivilianAgentState, KnowledgeBase
+    from core.agent_core import MortalAgentState, KnowledgeBase
     from logic.tick_logic import SimulationState
 
 from logic.needs_config import DESIRE_ACCUMULATION, DESIRE_EXPLORATION, DESIRE_EXPRESSION
@@ -219,7 +219,7 @@ def _select_local_pop(mortal, state) -> Optional[str]:
     """Return pop_id of the best pop at mortal's location for pressing social needs,
     or None if no social needs are pressing or no pops are co-located.
     Used by tick_logic for zero-cost milieu switching."""
-    cs = mortal.civilian_state
+    cs = mortal.mortal_state
     if cs is None:
         return None
     leisure_pressing  = (n := cs.get_need("leisure"))  is not None and n.is_pressing
@@ -316,7 +316,7 @@ def _skill_rating(mortal: Any, skill_name: str) -> float:
     return tags.get(skill_name, 0.0)
 
 
-def evaluate_civilian_action(
+def evaluate_mortal_action(
     mortal,
     state,
     current_tick: int,
@@ -324,7 +324,7 @@ def evaluate_civilian_action(
     """
     Returns one of: "collect", "sell", "spend", "leisure", "socialize",
     "travel:<location_id>", "idle", None.
-    None means the mortal has no civilian_state and should be skipped.
+    None means the mortal has no mortal_state and should be skipped.
 
     Actions are scored by Σ(need_urgency × expected_gain). Sell and collect
     carry a "follow-through" component from cargo load fraction: a loaded hold
@@ -333,7 +333,7 @@ def evaluate_civilian_action(
     (best_score_at_dest − best_local_score) / ticks_cost, and only beats local
     options when the destination advantage outweighs the journey cost.
     """
-    cs = mortal.civilian_state
+    cs = mortal.mortal_state
     kb = mortal.knowledge_base
     if cs is None or kb is None:
         return None

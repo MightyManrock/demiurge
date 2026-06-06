@@ -2,10 +2,10 @@
 import pytest
 from unittest.mock import MagicMock
 from core.agent_core import (
-    CivilianAgentState, MortalNeed, KnowledgeBase,
+    MortalAgentState, MortalNeed, KnowledgeBase,
     RouteFact, LocationQualityFact, ResourceFact, Resource,
 )
-from logic.civilian_agent_logic import evaluate_civilian_action
+from logic.mortal_agent_logic import evaluate_mortal_action
 
 
 NERAN = "neran-surface"
@@ -18,7 +18,7 @@ def _pressing_need(name="purpose"):
 
 
 def _cs(with_sellable=True, with_cargo_space=True):
-    cs = CivilianAgentState(needs=[_pressing_need()])
+    cs = MortalAgentState(needs=[_pressing_need()])
     if with_sellable:
         quantity = 2.0 if with_cargo_space else 20.0  # above threshold either way
         cs.inventory = [Resource(resource_type="ore", quantity=quantity, threshold=2.0,
@@ -37,7 +37,7 @@ def _kb(sell_loc=NERAN, resource_loc=SETHIS):
 
 def _mortal(cs, kb, loc_id=SETHIS):
     m = MagicMock()
-    m.civilian_state = cs
+    m.mortal_state = cs
     m.knowledge_base = kb
     m.fatigue = 0.0
     m.assets = [MagicMock(asset_type="merchant_vessel", cargo_capacity=None)]
@@ -70,7 +70,7 @@ def test_opportunistic_collect_fires_before_travel():
     mortal = _mortal(cs, kb, loc_id=SETHIS)
     state = _state(resource_loc=SETHIS)
 
-    result = evaluate_civilian_action(mortal, state, 0)
+    result = evaluate_mortal_action(mortal, state, 0)
     assert result == "collect"
     assert cs.pending_travel_dest == NERAN
 
@@ -83,7 +83,7 @@ def test_pending_travel_commits_next_tick():
     mortal = _mortal(cs, kb, loc_id=SETHIS)
     state = _state(resource_loc=SETHIS)
 
-    result = evaluate_civilian_action(mortal, state, 0)
+    result = evaluate_mortal_action(mortal, state, 0)
     assert result == f"travel:{NERAN}"
     assert cs.pending_travel_dest is None
 
@@ -92,7 +92,7 @@ def test_intercept_fires_when_travel_beats_local_collect():
     """When cargo is heavily loaded, sell-travel score dominates — intercept fires,
     pending_travel_dest is set, and collect is returned for one final load."""
     from core.agent_core import MortalNeed
-    cs = CivilianAgentState(needs=[
+    cs = MortalAgentState(needs=[
         MortalNeed(name="purpose", satisfaction=0.55, pressing_threshold=0.60,
                    urgent_threshold=0.25, decay_rate=0.03),
     ])
@@ -104,7 +104,7 @@ def test_intercept_fires_when_travel_beats_local_collect():
     mortal = _mortal(cs, kb, loc_id=SETHIS)  # cargo_capacity=None (default)
     state = _state(resource_loc=SETHIS)
 
-    result = evaluate_civilian_action(mortal, state, 0)
+    result = evaluate_mortal_action(mortal, state, 0)
     # load_fraction≈0.98; sell_score≈1.06; collect_score≈0.0017;
     # travel:NERAN = (1.06−0.0017)/12 ≈ 0.088 > 0.0017 → intercept fires.
     assert result == "collect"
@@ -119,20 +119,20 @@ def test_no_opportunistic_collect_when_not_at_resource_location():
     mortal = _mortal(cs, kb, loc_id="other-loc")
     state = _state(resource_loc=SETHIS)
 
-    result = evaluate_civilian_action(mortal, state, 0)
+    result = evaluate_mortal_action(mortal, state, 0)
     assert result == f"travel:{NERAN}"
     assert cs.pending_travel_dest is None
 
 
 def test_pending_travel_fires_before_pressing_needs_check():
     """pending_travel_dest commits even when no pressing needs remain."""
-    cs = CivilianAgentState()  # no needs at all
+    cs = MortalAgentState()  # no needs at all
     cs.pending_travel_dest = NERAN
     cs.inventory = []
     kb = _kb()
     mortal = _mortal(cs, kb, loc_id=SETHIS)
     state = _state()
 
-    result = evaluate_civilian_action(mortal, state, 0)
+    result = evaluate_mortal_action(mortal, state, 0)
     assert result == f"travel:{NERAN}"
     assert cs.pending_travel_dest is None

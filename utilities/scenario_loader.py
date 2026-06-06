@@ -45,7 +45,7 @@ from core.action_core import (
 from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import (
     ProxiusGoal, AgentActionChoice, TravelIntent,
-    KnowledgeBase, MortalAsset, CivilianAgentState, CollectibleResource,
+    KnowledgeBase, MortalAsset, MortalAgentState, CollectibleResource,
 )
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
@@ -837,7 +837,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             fatigue=float(row.get("fatigue") or 0.0),
             assets=_load_mortal_assets(row.get("assets")),
             knowledge_base=_load_knowledge_base(row.get("knowledge_base")),
-            civilian_state=_load_civilian_state(row.get("civilian_state")),
+            mortal_state=_load_mortal_state(row.get("mortal_state") or row.get("civilian_state")),
             pop_id=_uuid(row.get("pop_id")),
             pop_milieu=_uuid(row.get("pop_milieu")),
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
@@ -869,11 +869,11 @@ def _load_knowledge_base(raw: Optional[str]) -> Optional[KnowledgeBase]:
         return None
 
 
-def _load_civilian_state(raw: Optional[str]) -> Optional[CivilianAgentState]:
+def _load_mortal_state(raw: Optional[str]) -> Optional[MortalAgentState]:
     if not raw:
         return None
     try:
-        return CivilianAgentState.model_validate_json(raw)
+        return MortalAgentState.model_validate_json(raw)
     except Exception:
         return None
 

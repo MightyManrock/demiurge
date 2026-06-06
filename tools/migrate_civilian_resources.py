@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migrate Durenn Vail's civilian_state and knowledge_base in wardens_compact.db
+Migrate Durenn Vail's mortal_state and knowledge_base in wardens_compact.db
 to the typed Resource model.
 """
 import sys, os
@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
 from core.agent_core import (
-    CivilianAgentState, Resource, MortalNeed,
+    MortalAgentState, Resource, MortalNeed,
     KnowledgeBase, LocationFact, LocationQualityFact, RouteFact, ResourceFact,
 )
 
@@ -29,8 +29,8 @@ def migrate():
         print(f"ERROR: {VAIL_NAME} not found in {DB_PATH}")
         sys.exit(1)
 
-    # ── civilian_state ──────────────────────────────────────────────────────
-    vail.civilian_state = CivilianAgentState(
+    # ── mortal_state ──────────────────────────────────────────────────────
+    vail.mortal_state = MortalAgentState(
         needs=[
             MortalNeed(
                 name="indulgence",

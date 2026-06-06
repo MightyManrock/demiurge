@@ -1,6 +1,6 @@
 import pytest
 from core.agent_core import (
-    Resource, MortalNeed, CivilianAgentState,
+    Resource, MortalNeed, MortalAgentState,
     CollectibleResource, LocationQualityFact, RouteFact, ResourceFact,
     KnowledgeBase,
 )
@@ -43,29 +43,29 @@ def test_mortal_need_not_urgent():
     assert not n.is_urgent
 
 
-# CivilianAgentState
+# MortalAgentState
 
-def test_civilian_state_inventory_default():
-    cs = CivilianAgentState()
+def test_mortal_state_inventory_default():
+    cs = MortalAgentState()
     assert cs.inventory == []
 
 
-def test_civilian_state_get_resource_found():
+def test_mortal_state_get_resource_found():
     r = Resource(resource_type="unobtanium", quantity=5.0)
-    cs = CivilianAgentState(inventory=[r])
+    cs = MortalAgentState(inventory=[r])
     found = cs.get_resource("unobtanium")
     assert found is r
 
 
-def test_civilian_state_get_resource_missing():
-    cs = CivilianAgentState()
+def test_mortal_state_get_resource_missing():
+    cs = MortalAgentState()
     assert cs.get_resource("unobtanium") is None
 
 
-def test_civilian_state_round_trips_json():
+def test_mortal_state_round_trips_json():
     r = Resource(resource_type="unobtanium", quantity=3.0, usable_for=["sell"], converts_to="credits")
-    cs = CivilianAgentState(inventory=[r])
-    restored = CivilianAgentState.model_validate_json(cs.model_dump_json())
+    cs = MortalAgentState(inventory=[r])
+    restored = MortalAgentState.model_validate_json(cs.model_dump_json())
     assert restored.inventory[0].resource_type == "unobtanium"
     assert restored.inventory[0].usable_for == ["sell"]
 
@@ -73,7 +73,7 @@ def test_civilian_state_round_trips_json():
 def test_old_json_with_resources_float_loads_cleanly():
     # Pydantic v2 ignores unknown fields — old DB rows must not crash
     old_json = '{"needs":[],"resources":5.0,"spend_threshold":2.0,"action_cooldowns":{}}'
-    cs = CivilianAgentState.model_validate_json(old_json)
+    cs = MortalAgentState.model_validate_json(old_json)
     assert cs.inventory == []
 
 
