@@ -584,6 +584,7 @@ def _load_locations(conn, universe_age: EntityAge) -> dict[str, Location]:
                 commerce_quality=float(row.get("commerce_quality") or 0.5),
                 collectible_resource=_load_collectible_resource(row.get("collectible_resource")),
                 wealth=float(row.get("wealth", 0.5) or 0.5),
+                danger=float(row.get("danger", 0.0) or 0.0),
                 age=entity_age,
             )
         elif subclass == "travel_location":
@@ -662,7 +663,20 @@ def _load_network_conditions(raw: Optional[str]) -> list[NetworkCondition]:
     if not raw:
         return []
     try:
-        return [NetworkCondition.model_validate(item) for item in json.loads(raw)]
+        items = json.loads(raw)
+        for item in items:
+            # backward compat: promote old singular keys to plural lists
+            for old, new in [
+                ("faction_id", "faction_ids"),
+                ("civilization_id", "civilization_ids"),
+                ("asset_type", "asset_types"),
+                ("pop_stratum", "pop_strata"),
+                ("pop_occupation", "pop_occupations"),
+            ]:
+                if old in item and new not in item:
+                    v = item.pop(old)
+                    item[new] = [v] if v is not None else []
+        return [NetworkCondition.model_validate(item) for item in items]
     except Exception:
         return []
 

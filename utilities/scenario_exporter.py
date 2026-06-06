@@ -307,6 +307,7 @@ def _write_locations(conn, state: SimulationState):
         commerce_quality = 0.5
         collectible_resource_val = None
         wealth_val = 0.5
+        danger_val = 0.0
         legs = "{}"
         travel_current_wp = ""
         travel_ticks_rem = 0
@@ -336,6 +337,7 @@ def _write_locations(conn, state: SimulationState):
             commerce_quality = loc.commerce_quality
             collectible_resource_val = loc.collectible_resource.model_dump_json() if loc.collectible_resource else None
             wealth_val = loc.wealth
+            danger_val = loc.danger
         elif isinstance(loc, TravelLocation):
             legs             = _j(loc.legs)
             travel_current_wp = loc.current_waypoint
@@ -361,7 +363,7 @@ def _write_locations(conn, state: SimulationState):
                 formation_year, formation_month, formation_day,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids, travel_network_ids,
-                commerce_quality, collectible_resource, wealth,
+                commerce_quality, collectible_resource, wealth, danger,
                 visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
@@ -373,7 +375,7 @@ def _write_locations(conn, state: SimulationState):
                        ?, ?, ?, ?, ?, ?,
                        ?, ?,
                        ?, ?, ?, ?, ?, ?,
-                       ?, ?, ?,
+                       ?, ?, ?, ?,
                        ?, ?, ?)""",
             (
                 str(loc.id),
@@ -395,7 +397,7 @@ def _write_locations(conn, state: SimulationState):
                 fd[0], fd[1], fd[2], fd[3], fd[4], fd[5],
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids_val, travel_network_ids_val,
-                commerce_quality, collectible_resource_val, wealth_val,
+                commerce_quality, collectible_resource_val, wealth_val, danger_val,
                 loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),
         )
