@@ -533,6 +533,8 @@ class Faction(BaseModel):
     description: str = ""
     civilization_id: Optional[UUID] = None
     member_pop_ids: list[UUID] = Field(default_factory=list)
+    member_mortal_ids: list[UUID] = Field(default_factory=list)
+    mortal_leader_ids: list[UUID] = Field(default_factory=list)
     active_directives: list[Directive] = Field(default_factory=list)
     visibility: float = Field(ge=0.0, le=1.0, default=1.0)
     pinned: bool = False
@@ -763,6 +765,9 @@ class NotableMortal(BaseModel):
     origin_pop_subsumed: bool = False
 
     fatigue: float = Field(ge=0.0, le=1.0, default=0.0)
+    # Faction membership — mirrors Faction.member_mortal_ids / .mortal_leader_ids
+    faction_ids: list[UUID] = Field(default_factory=list)     # factions this mortal belongs to
+    led_faction_ids: list[UUID] = Field(default_factory=list)  # factions this mortal leads
     assets: list[MortalAsset] = Field(default_factory=list)
     knowledge_base: Optional[KnowledgeBase] = None
     mortal_state: Optional[MortalAgentState] = None

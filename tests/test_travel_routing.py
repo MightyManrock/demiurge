@@ -65,14 +65,10 @@ def test_faction_gate_pass():
     faction_id = uuid4()
     cond = NetworkCondition(faction_ids=[faction_id])
 
-    pop = MagicMock()
-    pop.faction_ids = [faction_id]
-
     mortal = MagicMock()
-    mortal.pop_id = uuid4()
+    mortal.faction_ids = [faction_id]
 
     state = MagicMock()
-    state.pops = {str(mortal.pop_id): pop}
 
     assert _mortal_meets_condition(cond, mortal, state) is True
 
@@ -82,24 +78,20 @@ def test_faction_gate_fail():
     other_faction = uuid4()
     cond = NetworkCondition(faction_ids=[faction_id])
 
-    pop = MagicMock()
-    pop.faction_ids = [other_faction]
-
     mortal = MagicMock()
-    mortal.pop_id = uuid4()
+    mortal.faction_ids = [other_faction]
 
     state = MagicMock()
-    state.pops = {str(mortal.pop_id): pop}
 
     assert _mortal_meets_condition(cond, mortal, state) is False
 
 
-def test_no_pop_id_blocks_faction_gate():
+def test_no_faction_membership_blocks_faction_gate():
     faction_id = uuid4()
     cond = NetworkCondition(faction_ids=[faction_id])
 
     mortal = MagicMock()
-    mortal.pop_id = None
+    mortal.faction_ids = []
 
     state = MagicMock()
 
@@ -225,16 +217,11 @@ def test_hard_gate_filters_network():
     )
 
     # Mortal belongs to a different faction — fails the hard gate on net_x
-    pop = MagicMock()
-    pop.faction_ids = [uuid4()]  # not faction_id
-
     mortal = MagicMock()
-    mortal.pop_id = uuid4()
+    mortal.faction_ids = [uuid4()]  # not faction_id
     mortal.occupation = "farmer"
     mortal.assets = []
     mortal.civilization_id = None
-
-    state.pops = {str(mortal.pop_id): pop}
 
     # Route to B (only via blocked net_x) should fail
     routes_to_b = find_qualified_routes(state, mortal, None, loc_a, loc_b)

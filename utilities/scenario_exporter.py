@@ -528,20 +528,22 @@ def _write_pops(conn, state: SimulationState):
 
 
 def _write_factions(conn, state: "SimulationState") -> None:
-    # TODO: wire call in Task 3 when SimulationState.factions exists
     factions = getattr(state, "factions", {})
     for f in factions.values():
         conn.execute(
             """INSERT INTO factions
                (id, name, description, civilization_id,
-                member_pop_ids, active_directives, visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                member_pop_ids, member_mortal_ids, mortal_leader_ids,
+                active_directives, visibility, pinned)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(f.id),
                 f.name,
                 f.description,
                 str(f.civilization_id) if f.civilization_id else None,
                 _j([str(pid) for pid in f.member_pop_ids]),
+                _j([str(mid) for mid in f.member_mortal_ids]),
+                _j([str(mid) for mid in f.mortal_leader_ids]),
                 json.dumps([d.model_dump(mode="json") for d in f.active_directives]),
                 f.visibility,
                 int(f.pinned),
@@ -566,8 +568,8 @@ def _write_mortals(conn, state: SimulationState):
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json,
                 fatigue, assets, knowledge_base, mortal_state,
-                occupation)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                occupation, faction_ids, led_faction_ids)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -613,6 +615,8 @@ def _write_mortals(conn, state: SimulationState):
                 m.knowledge_base.model_dump_json() if m.knowledge_base else None,
                 m.mortal_state.model_dump_json() if m.mortal_state else None,
                 m.occupation,
+                _j([str(fid) for fid in m.faction_ids]),
+                _j([str(fid) for fid in m.led_faction_ids]),
             ),
         )
 

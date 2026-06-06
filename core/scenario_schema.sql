@@ -272,6 +272,8 @@ CREATE TABLE IF NOT EXISTS factions (
     description         TEXT    NOT NULL DEFAULT '',
     civilization_id     TEXT,
     member_pop_ids      TEXT    NOT NULL DEFAULT '[]',
+    member_mortal_ids   TEXT    NOT NULL DEFAULT '[]',
+    mortal_leader_ids   TEXT    NOT NULL DEFAULT '[]',
     active_directives   TEXT    NOT NULL DEFAULT '[]',
     visibility          REAL    NOT NULL DEFAULT 1.0,
     pinned              INTEGER NOT NULL DEFAULT 0
@@ -318,6 +320,8 @@ CREATE TABLE IF NOT EXISTS mortals (
     last_audit_tick        INTEGER,                      -- tick the last audit was recorded
     travel_intent_json     TEXT DEFAULT NULL,            -- JSON of TravelIntent, or NULL
     fatigue                REAL NOT NULL DEFAULT 0.0,
+    faction_ids            TEXT NOT NULL DEFAULT '[]',
+    led_faction_ids        TEXT NOT NULL DEFAULT '[]',
     assets                 TEXT NOT NULL DEFAULT '[]',   -- JSON array of MortalAsset
     knowledge_base         TEXT DEFAULT NULL,            -- JSON of KnowledgeBase, or NULL
     mortal_state         TEXT DEFAULT NULL,            -- JSON of MortalAgentState, or NULL

@@ -33,12 +33,10 @@ def _mortal_meets_condition(condition, mortal, state) -> bool:
     """Return True if mortal satisfies ALL non-empty criteria in condition.
     An empty list on any criterion means 'no restriction on that criterion'.
     """
-    # faction_ids: mortal's Pop must share a faction with condition
+    # faction_ids: mortal must belong to a matching faction directly
     if condition.faction_ids:
-        pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
-        if pop is None:
-            return False
-        if not (set(str(f) for f in pop.faction_ids) & set(str(f) for f in condition.faction_ids)):
+        mortal_faction_strs = {str(fid) for fid in mortal.faction_ids}
+        if not mortal_faction_strs.intersection(str(fid) for fid in condition.faction_ids):
             return False
 
     # civilization_ids: mortal's civ must be in condition list

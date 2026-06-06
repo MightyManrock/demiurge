@@ -13,6 +13,18 @@ DB = "scenarios/oros_test_sandbox.db"
 con = sqlite3.connect(DB)
 con.row_factory = sqlite3.Row
 
+# ── Schema migrations (idempotent) ────────────────────────────────────────────
+def _add_column(table, col, typedef):
+    try:
+        con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typedef}")
+    except Exception:
+        pass  # column already exists
+
+_add_column("factions", "member_mortal_ids", "TEXT NOT NULL DEFAULT '[]'")
+_add_column("factions", "mortal_leader_ids",  "TEXT NOT NULL DEFAULT '[]'")
+_add_column("mortals",  "faction_ids",         "TEXT NOT NULL DEFAULT '[]'")
+_add_column("mortals",  "led_faction_ids",      "TEXT NOT NULL DEFAULT '[]'")
+
 # ── Existing IDs we keep ─────────────────────────────────────────────────────
 OROS_PLANET   = "e3f92fd2-3501-40b4-957f-95d65dc4b51e"
 OROS_SYSTEM   = "bb1031ee-e15f-49dc-9ea4-83cb7d424b0c"
@@ -578,21 +590,22 @@ con.execute("DELETE FROM factions")
 faction_defs = [
     (F["asha"], "Asha Dunewalker Clan",
      "Wide-faring martial clan led by warchief Asha Keln. Controls the Dunes of Tor, Taem's Oasis, and the Salt Flats; raids the Plains and Savannah.",
-     pops_by_faction.get(F["asha"], [])),
+     pops_by_faction.get(F["asha"], []), [M_ASHA], [M_ASHA]),
     (F["hiparunite"], "The Hiparunites",
      "Highland and canyon-dwelling folk led by an elder council unofficially headed by Kael Osh. Deeply isolationist; control Hiparun's Rift and guard the Ulum Highlands from outsiders.",
-     pops_by_faction.get(F["hiparunite"], [])),
+     pops_by_faction.get(F["hiparunite"], []), [M_KAEL], [M_KAEL]),
     (F["stone"], "The Stonecallers",
      "Religious tradition venerating the Ancestor Stones, led by the prophet Urren. Based at Qaebdol Cave Village and the Ancestor Stones; prioritize tradition and protecting plainsfolk from raids.",
-     pops_by_faction.get(F["stone"], [])),
+     pops_by_faction.get(F["stone"], []), [M_URREN], [M_URREN]),
 ]
 
-for fid, fname, fdesc, fmembers in faction_defs:
+for fid, fname, fdesc, fmembers, fmortal_members, fmortal_leaders in faction_defs:
     con.execute("""
         INSERT INTO factions (id, name, description, civilization_id, member_pop_ids,
+                              member_mortal_ids, mortal_leader_ids,
                               active_directives, visibility, pinned)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (fid, fname, fdesc, CIV_ID, jdump(fmembers), jdump([]), 1.0, 0))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (fid, fname, fdesc, CIV_ID, jdump(fmembers), jdump(fmortal_members), jdump(fmortal_leaders), jdump([]), 1.0, 0))
 
 # 8. Update mortals
 # Asha Keln → Dunes warrior pop, at Dunes of Tor
@@ -600,9 +613,11 @@ con.execute("""
     UPDATE mortals SET
         pop_id = ?, pop_milieu = ?,
         current_location = ?,
-        home_location = ?
+        home_location = ?,
+        faction_ids = ?,
+        led_faction_ids = ?
     WHERE id = ?
-""", (dunes_warrior, dunes_warrior, L["dunes"], OROS_PLANET, M_ASHA))
+""", (dunes_warrior, dunes_warrior, L["dunes"], OROS_PLANET, jdump([F["asha"]]), jdump([F["asha"]]), M_ASHA))
 
 # Kael Ash → Kael Osh, Hiparunite producer pop, Hiparun's Rift
 # Update beliefs/culture to match Hiparunite flavor (he was already ambitious/suspicious)
@@ -613,7 +628,9 @@ con.execute("""
         current_location = ?,
         home_location = ?,
         belief_tags = ?,
-        culture_tags = ?
+        culture_tags = ?,
+        faction_ids = ?,
+        led_faction_ids = ?
     WHERE id = ?
 """, (
     hipa_producer, hipa_producer, L["hiparun"], OROS_PLANET,
@@ -625,6 +642,7 @@ con.execute("""
         "values:autonomy": 0.6, "values:wit": 0.45,
         "values:prowess": 0.55,
     }),
+    jdump([F["hiparunite"]]), jdump([F["hiparunite"]]),
     M_KAEL
 ))
 
@@ -633,9 +651,11 @@ con.execute("""
     UPDATE mortals SET
         pop_id = ?, pop_milieu = ?,
         current_location = ?,
-        home_location = ?
+        home_location = ?,
+        faction_ids = ?,
+        led_faction_ids = ?
     WHERE id = ?
-""", (stones_clergy, stones_clergy, L["stones"], OROS_PLANET, M_URREN))
+""", (stones_clergy, stones_clergy, L["stones"], OROS_PLANET, jdump([F["stone"]]), jdump([F["stone"]]), M_URREN))
 
 # 9. Update civilization pop_ids
 con.execute("UPDATE civilizations SET pop_ids = ? WHERE id = ?",
