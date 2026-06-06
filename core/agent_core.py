@@ -186,7 +186,7 @@ class Resource(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Civilian Agent State
+# Mortal Agent State
 # ---------------------------------------------------------------------------
 
 class MortalAgentState(BaseModel):
