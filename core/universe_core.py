@@ -286,13 +286,21 @@ class SignificantLocation(Location):
 
 
 
+class ResourceCost(BaseModel):
+    resource_type: str
+    amount: int
+    consumed: bool = True
+
+
 class NetworkCondition(BaseModel):
-    faction_id: Optional[UUID] = None
-    civilization_id: Optional[UUID] = None
-    asset_type: Optional[str] = None
-    pop_stratum: Optional[SocialClass] = None
-    pop_occupation: Optional[str] = None
+    faction_ids: list[UUID] = Field(default_factory=list)
+    civilization_ids: list[UUID] = Field(default_factory=list)
+    asset_types: list[str] = Field(default_factory=list)
+    pop_strata: list[SocialClass] = Field(default_factory=list)
+    pop_occupations: list[str] = Field(default_factory=list)
     hard_gate: bool = False
+    resource_cost: list[ResourceCost] = Field(default_factory=list)
+    danger_modifier: float = 0.0
 
 
 class TravelEdge(BaseModel):
@@ -324,6 +332,7 @@ class PopLocation(Location):
     commerce_quality: float = Field(ge=0.0, le=1.0, default=0.5)
     collectible_resource: Optional[CollectibleResource] = None
     wealth: float = Field(ge=0.0, le=1.0, default=0.5)
+    danger: float = Field(ge=0.0, le=1.0, default=0.0)
 
 
 class TravelLocation(Location):
