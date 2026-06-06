@@ -190,7 +190,13 @@ class Resource(BaseModel):
 
 
 def species_can_consume(species: "Species", resource: Resource) -> bool:
-    """True if the species can directly consume this resource for sustenance."""
+    """True if the species can directly consume this resource for sustenance.
+
+    A resource is consumable if all of its biochem_tags are satisfied by the species'
+    basis and solvent. Tags not declared on the resource are unconstrained — a resource
+    tagged only ["solvent:water"] matches any water-solvent species regardless of basis.
+    An empty biochem_tags list means inert (not consumable by anyone).
+    """
     if not resource.biochem_tags:
         return False
     species_tags = {f"basis:{species.life_basis.value}", f"solvent:{species.solvent.value}"}
