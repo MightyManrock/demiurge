@@ -359,6 +359,19 @@ class SpeciesCondition(str, Enum):
     EXTINCT    = "extinct"
 
 
+class LifeBasis(str, Enum):
+    CARBON  = "carbon"
+    SILICON = "silicon"
+    METHANE = "methane"
+
+
+class Solvent(str, Enum):
+    WATER         = "water"
+    AMMONIA       = "ammonia"
+    METHANE       = "methane"
+    SULFURIC_ACID = "sulfuric_acid"
+
+
 class Species(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
@@ -376,6 +389,9 @@ class Species(BaseModel):
 
     bio_tags: list[str] = Field(default_factory=list)
     # e.g. ["bio:bipedal", "bio:warm_blooded", "bio:carbon_based"]
+
+    life_basis: LifeBasis = LifeBasis.CARBON
+    solvent: Solvent = Solvent.WATER
 
     condition: SpeciesCondition = SpeciesCondition.STABLE
     visibility: float = 0.0
