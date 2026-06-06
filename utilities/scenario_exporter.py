@@ -260,8 +260,14 @@ def _write_universe_rules(conn, state: SimulationState):
 def _write_travel_networks(conn, state: SimulationState):
     for tn in state.travel_networks.values():
         conn.execute(
-            "INSERT INTO travel_networks (id, name, member_ids) VALUES (?, ?, ?)",
-            (str(tn.id), tn.name, _j(tn.member_ids)),
+            "INSERT INTO travel_networks (id, name, member_ids, edges, conditions) VALUES (?, ?, ?, ?, ?)",
+            (
+                str(tn.id),
+                tn.name,
+                _j(tn.member_ids),
+                json.dumps([e.model_dump() for e in tn.edges])),
+                json.dumps([c.model_dump() for c in tn.conditions]),
+            ),
         )
 
 

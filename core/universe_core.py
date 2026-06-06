@@ -286,6 +286,21 @@ class SignificantLocation(Location):
 
 
 
+class NetworkCondition(BaseModel):
+    faction_id: Optional[UUID] = None
+    civilization_id: Optional[UUID] = None
+    asset_type: Optional[str] = None
+    pop_stratum: Optional[SocialClass] = None
+    pop_occupation: Optional[str] = None
+    hard_gate: bool = False
+
+
+class TravelEdge(BaseModel):
+    node_a: UUID
+    node_b: UUID
+    privileged_cost: int
+
+
 class TravelNetwork(BaseModel):
     """Named travel network connecting a set of PopLocations.
     All members are mutually adjacent for routing purposes (fully-connected semantics).
@@ -293,6 +308,9 @@ class TravelNetwork(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     member_ids: list[UUID] = Field(default_factory=list)
+    edges: list[TravelEdge] = Field(default_factory=list)
+    conditions: list[NetworkCondition] = Field(default_factory=list)
+
 
 
 class PopLocation(Location):

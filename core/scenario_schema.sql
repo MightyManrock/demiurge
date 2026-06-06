@@ -108,7 +108,9 @@ CREATE TABLE IF NOT EXISTS universe_rules (
 CREATE TABLE IF NOT EXISTS travel_networks (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    member_ids TEXT NOT NULL DEFAULT '[]'
+    member_ids TEXT NOT NULL DEFAULT '[]',
+    edges      TEXT NOT NULL DEFAULT '[]',
+    conditions TEXT NOT NULL DEFAULT '[]'
 );
 
 -- Unified locations table: galaxies, systems, planets/planes, pop locations.

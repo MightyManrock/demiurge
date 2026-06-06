@@ -30,7 +30,8 @@ from core.universe_core import (
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
     Pop, SocialClass, WildStratum,
-    Universe, TravelNetwork, EntityAge, Faction,
+    NetworkCondition, TravelEdge, TravelNetwork,
+    Universe, EntityAge, Faction,
 )
 UniverseAge = EntityAge  # backward compat for helpers that still use the old name
 from core.action_core import (
@@ -649,6 +650,22 @@ def _load_locations(conn, universe_age: EntityAge) -> dict[str, Location]:
 
     return out
 
+def _load_travel_edges(raw: Optional[str]) -> list[TravelEdge]:
+    if not raw:
+        return []
+    try:
+        return [TravelEdge.model_validate(item) for item in json.loads(raw)]
+    except Exception:
+        return []
+
+def _load_network_conditions(raw: Optional[str]) -> list[NetworkCondition]:
+    if not raw:
+        return []
+    try:
+        return [NetworkCondition.model_validate(item) for item in json.loads(raw)]
+    except Exception:
+        return []
+
 
 def _load_travel_networks(conn) -> dict[str, TravelNetwork]:
     """Load all TravelNetworks from DB. Returns {} if table doesn't exist (old DBs)."""
@@ -663,6 +680,8 @@ def _load_travel_networks(conn) -> dict[str, TravelNetwork]:
             id=UUID(row["id"]),
             name=row["name"],
             member_ids=[UUID(x) for x in _j(row.get("member_ids", "[]"))],
+            edges=_load_travel_edges(row.get("edges", "[]")),
+            conditions=_load_network_conditions(row.get("conditions", "[]")),
         )
         out[str(tn.id)] = tn
     return out
