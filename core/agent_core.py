@@ -1,6 +1,8 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, Literal, Annotated
+from typing import Optional, Literal, Annotated, TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.universe_core import Species
 from enum import Enum
 from uuid import UUID
 
@@ -169,6 +171,7 @@ class CollectibleResource(BaseModel):
     resource_yield: float = 1.0
     cooldown_ticks: int = 3
     resource_type: str = "unobtanium"
+    biochem_tags: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +186,15 @@ class Resource(BaseModel):
     threshold: float = 1.0
     usable_for: list[str] = Field(default_factory=list)
     fills_need: Optional[str] = None
+    biochem_tags: list[str] = Field(default_factory=list)
+
+
+def species_can_consume(species: "Species", resource: Resource) -> bool:
+    """True if the species can directly consume this resource for sustenance."""
+    if not resource.biochem_tags:
+        return False
+    species_tags = {f"basis:{species.life_basis.value}", f"solvent:{species.solvent.value}"}
+    return all(tag in species_tags for tag in resource.biochem_tags)
 
 
 # ---------------------------------------------------------------------------
