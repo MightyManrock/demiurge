@@ -447,7 +447,12 @@ con.execute("DELETE FROM locations WHERE id = 'a8fdbeb7-c782-443e-a25c-2eb54539e
 con.execute("DELETE FROM pops")
 
 # 3. Insert new PopLocations
-def insert_poploc(lid, name, dfc, pop_ids, tn_ids, domain_expr=None):
+try:
+    con.execute("ALTER TABLE locations ADD COLUMN danger REAL NOT NULL DEFAULT 0.0")
+except Exception:
+    pass  # column already exists
+
+def insert_poploc(lid, name, dfc, pop_ids, tn_ids, domain_expr=None, danger=0.0):
     con.execute("""
         INSERT INTO locations (
             id, name, description, location_type, subclass,
@@ -463,11 +468,11 @@ def insert_poploc(lid, name, dfc, pop_ids, tn_ids, domain_expr=None):
             pop_ids, distance_from_core,
             legs, travel_current_wp, travel_ticks_rem,
             travel_occupants, travel_pop_ids, travel_network_ids,
-            commerce_quality, collectible_resource, wealth,
+            commerce_quality, collectible_resource, wealth, danger,
             visibility, pinned, visibility_stall_remaining
         ) VALUES (
             ?,?,?,?,?,  ?,?,?,?,  ?,?,?,?,  ?,?,?,?,?,  ?,?,?,?,  ?,?,
-            ?,?,?,?,?,?,  ?,?,?,?,?,?,  ?,?,  ?,?,?,?,?,?,  ?,?,?,  ?,?,?
+            ?,?,?,?,?,?,  ?,?,?,?,?,?,  ?,?,  ?,?,?,?,?,?,  ?,?,?,?,  ?,?,?
         )
     """, (
         lid, name, "", "pop_location", "pop_location",
@@ -482,7 +487,7 @@ def insert_poploc(lid, name, dfc, pop_ids, tn_ids, domain_expr=None):
         FORM["formation_year"], FORM["formation_month"], FORM["formation_day"],
         jdump(pop_ids), dfc,
         jdump({}), "", 0, jdump([]), jdump([]), jdump(tn_ids),
-        0.5, None, 0.5,
+        0.5, None, 0.5, danger,
         1.0, 0, 360,
     ))
 
@@ -502,15 +507,15 @@ def tn_ids_for(lid):
     if lid in asha_deep:  ids.append(TN["asha_deep"])
     return ids
 
-insert_poploc(L["plains"],    "Plains of Kir'an",      0, pops_by_loc.get(L["plains"],   []), tn_ids_for(L["plains"]))
-insert_poploc(L["asvelim"],   "Asvelim Savannah",       0, pops_by_loc.get(L["asvelim"],  []), tn_ids_for(L["asvelim"]))
-insert_poploc(L["qaebdol"],   "Qaebdol Cave Village",   0, pops_by_loc.get(L["qaebdol"],  []), tn_ids_for(L["qaebdol"]))
-insert_poploc(L["dunes"],     "Dunes of Tor",           1, pops_by_loc.get(L["dunes"],    []), tn_ids_for(L["dunes"]))
-insert_poploc(L["stones"],    "The Ancestor Stones",    2, pops_by_loc.get(L["stones"],   []), tn_ids_for(L["stones"]))
-insert_poploc(L["oasis"],     "Taem's Oasis",           2, pops_by_loc.get(L["oasis"],    []), tn_ids_for(L["oasis"]))
-insert_poploc(L["ulum"],      "Ulum Highlands",         2, pops_by_loc.get(L["ulum"],     []), tn_ids_for(L["ulum"]))
-insert_poploc(L["hiparun"],   "Hiparun's Rift",         3, pops_by_loc.get(L["hiparun"],  []), tn_ids_for(L["hiparun"]))
-insert_poploc(L["saltflats"], "The Salt Flats",         4, [],                                 tn_ids_for(L["saltflats"]))
+insert_poploc(L["plains"],    "Plains of Kir'an",      0, pops_by_loc.get(L["plains"],   []), tn_ids_for(L["plains"]),   danger=0.0)
+insert_poploc(L["asvelim"],   "Asvelim Savannah",       0, pops_by_loc.get(L["asvelim"],  []), tn_ids_for(L["asvelim"]),  danger=0.05)
+insert_poploc(L["qaebdol"],   "Qaebdol Cave Village",   0, pops_by_loc.get(L["qaebdol"],  []), tn_ids_for(L["qaebdol"]),  danger=0.0)
+insert_poploc(L["dunes"],     "Dunes of Tor",           1, pops_by_loc.get(L["dunes"],    []), tn_ids_for(L["dunes"]),    danger=0.35)
+insert_poploc(L["stones"],    "The Ancestor Stones",    2, pops_by_loc.get(L["stones"],   []), tn_ids_for(L["stones"]),   danger=0.1)
+insert_poploc(L["oasis"],     "Taem's Oasis",           2, pops_by_loc.get(L["oasis"],    []), tn_ids_for(L["oasis"]),    danger=0.0)
+insert_poploc(L["ulum"],      "Ulum Highlands",         2, pops_by_loc.get(L["ulum"],     []), tn_ids_for(L["ulum"]),     danger=0.15)
+insert_poploc(L["hiparun"],   "Hiparun's Rift",         3, pops_by_loc.get(L["hiparun"],  []), tn_ids_for(L["hiparun"]),  danger=0.25)
+insert_poploc(L["saltflats"], "The Salt Flats",         4, [],                                 tn_ids_for(L["saltflats"]), danger=0.45)
 
 # 4. Update Oros planet's child_ids
 con.execute(
@@ -525,7 +530,8 @@ for col, default in [("edges", "[]"), ("conditions", "[]")]:
     except Exception:
         pass  # column already exists
 
-def cond(faction_id): return jdump([{"faction_id": faction_id, "hard_gate": False}])
+def cond(faction_id, danger_mod=0.0):
+    return jdump([{"faction_ids": [faction_id], "hard_gate": False, "danger_modifier": danger_mod}])
 def edge(a, b, cost): return {"node_a": a, "node_b": b, "privileged_cost": cost}
 
 con.execute("DELETE FROM travel_networks")
@@ -534,7 +540,7 @@ for tn_key, tn_name, members, edges, conditions in [
     ("stone_fast", "Stonecallers Paths",              stone_fast, [edge(L["qaebdol"], L["stones"], 1)],                                             cond(F["stone"])),
     ("hipa_deep",  "Hiparunite Highlands",            hipa_deep,  [edge(L["ulum"],    L["hiparun"], 2)],                                            cond(F["hiparunite"])),
     ("asha_fast",  "Asha Dunewalker Fast Route",      asha_fast,  [edge(L["dunes"],   L["oasis"],  1)],                                             cond(F["asha"])),
-    ("asha_deep",  "Asha Dunewalker Territory",       asha_deep,  [edge(L["dunes"],   L["saltflats"], 3), edge(L["oasis"], L["saltflats"], 3)],     cond(F["asha"])),
+    ("asha_deep",  "Asha Dunewalker Territory",       asha_deep,  [edge(L["dunes"],   L["saltflats"], 3), edge(L["oasis"], L["saltflats"], 3)],     cond(F["asha"], danger_mod=-0.5)),
 ]:
     con.execute(
         "INSERT INTO travel_networks (id, name, member_ids, edges, conditions) VALUES (?, ?, ?, ?, ?)",
