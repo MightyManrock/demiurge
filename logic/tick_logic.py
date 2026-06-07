@@ -1407,6 +1407,10 @@ class TickLoop:
         mortal_agent_narratives = self._tick_mortal_agents(state, state.tick_number)
         result.mortal_narratives.extend(mortal_agent_narratives)
 
+        # ── Phase 2.57: Pop Agent Actions ───────────────
+        pop_agent_narratives = self._tick_pop_agents(state, state.tick_number)
+        result.mortal_narratives.extend(pop_agent_narratives)
+
         # ── Phase 2.6: Mortal Travel ────────────────────
         travel_decisions = self._resolve_mortal_travel_decisions(state)
         travel_arrivals  = self._process_mortal_travel(state)
@@ -5384,6 +5388,53 @@ class TickLoop:
                         if pop_id not in dest_pop_loc.pop_ids:
                             dest_pop_loc.pop_ids.append(pop_id)
             state.locations.pop(lid, None)
+
+        return narratives
+
+    def _tick_pop_agents(self, state: "SimulationState", current_tick: int) -> list[str]:
+        """Phase 2.57 — run PopAgent logic for each Pop with pop_state."""
+        from logic.pop_agent_logic import compute_pop_priorities, compute_active_slots, resolve_pop_actions
+        from core.universe_core import PopLocation
+
+        narratives: list[str] = []
+        factions = getattr(state, "factions", {})
+
+        for pop in state.pops.values():
+            ps = pop.pop_state
+            if ps is None:
+                continue
+
+            pop_loc = state.locations.get(str(pop.current_location))
+            if not isinstance(pop_loc, PopLocation):
+                continue
+
+            # 1. Decay PopNeeds
+            for need in ps.needs:
+                if need.satiation_hold > 0:
+                    need.satiation_hold -= 1
+                else:
+                    need.satisfaction = max(0.0, need.satisfaction - need.decay_rate)
+
+            # 2. Fatigue update
+            all_directives = list(pop.active_directives)
+            for fid in pop.faction_ids:
+                faction = factions.get(str(fid))
+                if faction:
+                    all_directives.extend(faction.active_directives)
+            has_slot_modifier = any(d.slot_modifier != 0 for d in all_directives)
+            if has_slot_modifier:
+                ps.fatigue = min(1.0, ps.fatigue + 0.05)
+            else:
+                ps.fatigue = max(0.0, ps.fatigue - 0.05)
+
+            # 3–4. Priority vector + active slots
+            priorities = compute_pop_priorities(pop, factions)
+            ps.action_priorities = priorities
+            n_slots = compute_active_slots(pop, factions)
+
+            # 5–6. Resolve actions + consumption
+            events = resolve_pop_actions(pop, pop_loc, priorities, n_slots, factions, current_tick)
+            narratives.extend(events)
 
         return narratives
 
