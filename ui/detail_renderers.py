@@ -1277,6 +1277,29 @@ def render_pop_detail(state: "SimulationState", pop_id: str) -> Text:
             a("[bold #4a80b0]LINKED POPS[/]")
             lines.extend(link_lines)
 
+    if pop.pop_state is not None:
+        ps = pop.pop_state
+        a("")
+        a("[bold #4a80b0]POP AGENT[/]")
+        if ps.needs:
+            a("  needs:")
+            for need in ps.needs:
+                bar = "█" * int(need.satisfaction * 10) + "░" * (10 - int(need.satisfaction * 10))
+                if need.is_urgent:
+                    suffix = "  [#c04040][URGENT][/]"
+                elif need.is_pressing:
+                    suffix = "  [#c09030][PRESSING][/]"
+                elif need.satiation_hold > 0:
+                    suffix = f"  [#60a860]held:{need.satiation_hold}[/]"
+                else:
+                    suffix = ""
+                a(f"    {_e(need.name):12s} [{bar}] {need.satisfaction:.2f}{suffix}")
+        if ps.action_priorities:
+            a("  priorities:")
+            for action, weight in sorted(ps.action_priorities.items(), key=lambda kv: -kv[1]):
+                a(f"    {_e(action):14s} {weight:.2f}")
+        a(f"  fatigue: {ps.fatigue:.2f}")
+
     return Text.from_markup("\n".join(lines))
 
 
@@ -1507,6 +1530,21 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
         a(f"  {mm}● {m_link} \\[{role_str}]  align:{m.alignment:.2f}{me}")
     if not any_m:
         a("  [#5a7090](none in Window)[/]")
+
+    if loc.collectible_resources or loc.resource_stockpile:
+        a("")
+        a("[bold #4a80b0]RESOURCES[/]")
+        if loc.collectible_resources:
+            a("  [#7090b0]collectible:[/]")
+            for cr in loc.collectible_resources:
+                filled = int((cr.current_yield / cr.max_yield) * 10) if cr.max_yield > 0 else 0
+                bar = "█" * filled + "░" * (10 - filled)
+                actions = ", ".join(cr.action_types) if cr.action_types else "any"
+                a(f"    {_e(cr.resource_type):16s} [{bar}] {cr.current_yield:.2f}/{cr.max_yield:.2f}  [#5a7090]({_e(actions)})[/]")
+        if loc.resource_stockpile:
+            a("  [#7090b0]stockpile:[/]")
+            for resource_type, quantity in sorted(loc.resource_stockpile.items()):
+                a(f"    {_e(resource_type):16s} {quantity:.2f}")
 
     return Text.from_markup("\n".join(lines))
 
