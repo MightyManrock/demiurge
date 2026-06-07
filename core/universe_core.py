@@ -438,6 +438,49 @@ OCCUPATIONS_BY_CLASS: dict["SocialClass", tuple[str, ...]] = {
 }
 
 
+class Occupation(str, Enum):
+    UNSPECIFIED  = ""
+    # WILD
+    FORAGER      = "forager"
+    RAIDER       = "raider"
+    # FERAL
+    OUTCAST      = "outcast"
+    CRIMINAL     = "criminal"
+    # UNDERCLASS
+    BONDED       = "bonded"
+    DISPOSSESSED = "dispossessed"
+    # COMMON
+    PRODUCER     = "producer"
+    LABORER      = "laborer"
+    SERVICE      = "service"
+    TRANSPORT    = "transport"
+    PROFESSIONAL = "professional"
+    # ARTISAN
+    CRAFTER      = "crafter"
+    BUILDER      = "builder"
+    ENGINEER     = "engineer"
+    TECHNICIAN   = "technician"
+    HEALER       = "healer"
+    ARTIST       = "artist"
+    # TRADER
+    MERCHANT     = "merchant"
+    FINANCIER    = "financier"
+    EXECUTIVE    = "executive"
+    # WARRIOR
+    SOLDIER      = "soldier"
+    OFFICER      = "officer"
+    GUARD        = "guard"
+    MERCENARY    = "mercenary"
+    MILITIA      = "militia"
+    # SCHOLAR
+    CLERGY       = "clergy"
+    SCIENTIST    = "scientist"
+    ACADEMIC     = "academic"
+    # ELITE
+    POLI_ADMIN   = "poli_admin"
+    NOBLE        = "noble"
+
+
 class WildStratum(str, Enum):
     APEX     = "apex"      # Top predator / dominant organism
     HERD     = "herd"      # Prey species / herd animals
