@@ -274,7 +274,7 @@ def _select_best_route(routes, mortal_state):
             # Check affordability: mortal must have enough of each consumed resource
             can_afford = True
             if mortal_state is not None:
-                inventory = {r.resource_type: r.quantity for r in mortal_state.inventory}
+                inventory = {r.resource_type: r.quantity for r in mortal_state.mortal_inventory.items}
                 for rc in route.resource_costs:
                     if rc.consumed and inventory.get(rc.resource_type, 0.0) < rc.amount:
                         can_afford = False
@@ -413,12 +413,12 @@ def evaluate_mortal_action(
         (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
         None,
     )
-    _cargo_load = sum(r.quantity for r in cs.inventory if "sell" in r.usable_for)
+    _cargo_load = sum(r.quantity for r in cs.mortal_inventory.items if "sell" in r.usable_for)
     _hold_full = _cargo_cap is not None and _cargo_load >= _cargo_cap
 
     _sell_threshold = _cargo_cap  # None → fall back to Resource.threshold
     _sellable = next(
-        (r for r in cs.inventory
+        (r for r in cs.mortal_inventory.items
          if "sell" in r.usable_for
          and r.quantity >= (_sell_threshold if _sell_threshold is not None else r.threshold)),
         None,
@@ -450,13 +450,35 @@ def evaluate_mortal_action(
     )
 
     _spendable = next(
-        (r for r in cs.inventory
+        (r for r in cs.mortal_inventory.items
          if "spend" in r.usable_for
          and r.quantity >= r.threshold
          and (r.fills_need is None
               or any(n.name == r.fills_need and n.is_pressing for n in cs.needs))),
         None,
     )
+
+    # Priority 2.75 — forage/hunt when nourishment is pressing and a resource is available
+    if not _docked:
+        _nour = cs.get_need("nourishment")
+        if _nour and _nour.is_pressing:
+            _forage_loc = state.locations.get(str(mortal.current_location))
+            if _forage_loc:
+                _forage_crs = getattr(_forage_loc, "collectible_resources", [])
+                _forage_match = next(
+                    (cr for cr in _forage_crs
+                     if "forage" in cr.action_types and cr.current_yield > 0),
+                    None
+                )
+                if _forage_match:
+                    return "forage"
+                _hunt_match = next(
+                    (cr for cr in _forage_crs
+                     if "hunt" in cr.action_types and cr.current_yield > 0),
+                    None
+                )
+                if _hunt_match:
+                    return "hunt"
 
     _cur_loc = state.locations.get(current_loc_id)
     _at_resource = (

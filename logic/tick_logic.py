@@ -1170,6 +1170,30 @@ def _tick_yield_renewal(state: "SimulationState") -> None:
             cr.current_yield = min(cr.max_yield, cr.current_yield + recovered)
 
 
+_MORTAL_FORAGE_YIELD_FRACTION = 0.15
+
+def _resolve_mortal_forage(mortal, loc, action: str, state, narratives: list) -> None:
+    """Resolve a mortal 'forage' or 'hunt' action — low-yield resource acquisition."""
+    cs = mortal.mortal_state
+    crs = getattr(loc, "collectible_resources", [])
+    for cr in crs:
+        if cr.action_types and action not in cr.action_types:
+            continue
+        if cr.current_yield <= 0:
+            continue
+        gained = min(cr.max_yield * _MORTAL_FORAGE_YIELD_FRACTION, cr.current_yield)
+        cr.current_yield = max(0.0, cr.current_yield - gained)
+        cs.mortal_inventory.add_resource(
+            cr.resource_type, gained, biochem_tags=list(cr.biochem_tags)
+        )
+        mortal.fatigue = min(1.0, mortal.fatigue + 0.10)
+        if mortal.pinned:
+            narratives.append(
+                f"{mortal.name} forages {gained:.2f} {cr.resource_type}."
+            )
+        break  # one resource per tick
+
+
 _MORTAL_FOOD_CONSUME_RATE  = 0.05
 _MORTAL_DRINK_CONSUME_RATE = 0.05
 _MORTAL_NOURISHMENT_FILL   = 0.03
@@ -5753,6 +5777,11 @@ class TickLoop:
                             f"(total: {res.quantity:.1f})."
                         )
                     break
+
+            elif action in ("forage", "hunt"):
+                loc = state.locations.get(str(mortal.current_location))
+                if loc:
+                    _resolve_mortal_forage(mortal, loc, action, state, narratives)
 
             elif action == "sell":
                 loc = state.locations.get(str(mortal.current_location))

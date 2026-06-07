@@ -534,3 +534,94 @@ def test_mortal_commerce_fallback_fills_when_no_resources():
     _tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality=0.8)
 
     assert cs.get_need("nourishment").satisfaction > 0.3
+
+
+# ── Task 8: Mortal forage + hunt ─────────────────────────────────────────────
+
+from logic.mortal_agent_logic import evaluate_mortal_action
+
+
+def _make_mortal_for_forage(nourishment_sat=0.3, has_forage_resource=True):
+    cs = _make_mortal_with_needs(nourishment=nourishment_sat)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.knowledge_base = MagicMock()
+    mortal.knowledge_base.facts = []
+    mortal.knowledge_base.directive_facts = MagicMock(return_value=[])
+    mortal.fatigue = 0.0
+    mortal.pinned = False
+    mortal.assets = []
+    mortal.pop_milieu = None
+    mortal.pop_id = uuid4()
+    mortal.current_location = uuid4()
+    mortal.travel_intent = None
+
+    if has_forage_resource:
+        cr = CollectibleResource(resource_type="food_flora", max_yield=10.0,
+                                  action_types=["forage"], biochem_tags=["basis:carbon"])
+        loc = PopLocation(id=mortal.current_location, name="Plains", location_type="city",
+                          parent_id=uuid4(), collectible_resources=[cr])
+    else:
+        loc = PopLocation(id=mortal.current_location, name="Plains", location_type="city",
+                          parent_id=uuid4(), collectible_resources=[])
+
+    state = MagicMock()
+    state.locations = {str(mortal.current_location): loc}
+    state.pops = {}
+    return mortal, state
+
+
+def test_mortal_forage_fires_when_nourishment_pressing():
+    mortal, state = _make_mortal_for_forage(nourishment_sat=0.1, has_forage_resource=True)
+    action = evaluate_mortal_action(mortal, state, 1)
+    assert action == "forage"
+
+def test_mortal_forage_does_not_fire_without_matching_resource():
+    mortal, state = _make_mortal_for_forage(nourishment_sat=0.1, has_forage_resource=False)
+    action = evaluate_mortal_action(mortal, state, 1)
+    assert action != "forage"
+
+def test_mortal_forage_does_not_fire_when_nourishment_ok():
+    mortal, state = _make_mortal_for_forage(nourishment_sat=0.9, has_forage_resource=True)
+    action = evaluate_mortal_action(mortal, state, 1)
+    assert action != "forage"
+
+def test_mortal_forage_produces_resource_in_inventory():
+    mortal, state = _make_mortal_for_forage(nourishment_sat=0.1, has_forage_resource=True)
+
+    loc = list(state.locations.values())[0]
+    initial_yield = loc.collectible_resources[0].current_yield
+
+    from logic.tick_logic import _resolve_mortal_forage
+    narratives = []
+    _resolve_mortal_forage(mortal, loc, "forage", state, narratives)
+
+    # Use mortal_inventory.items (not the old .inventory)
+    assert any(r.resource_type == "food_flora" for r in mortal.mortal_state.mortal_inventory.items)
+    assert loc.collectible_resources[0].current_yield < initial_yield
+
+def test_mortal_hunt_fires_when_nourishment_pressing_and_hunt_resource():
+    cs = _make_mortal_with_needs(nourishment=0.1)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.knowledge_base = MagicMock()
+    mortal.knowledge_base.facts = []
+    mortal.knowledge_base.directive_facts = MagicMock(return_value=[])
+    mortal.fatigue = 0.0
+    mortal.pinned = False
+    mortal.assets = []
+    mortal.pop_milieu = None
+    mortal.pop_id = uuid4()
+    mortal.current_location = uuid4()
+    mortal.travel_intent = None
+
+    cr = CollectibleResource(resource_type="food_fauna", max_yield=10.0,
+                              action_types=["hunt"], biochem_tags=["basis:carbon"])
+    loc = PopLocation(id=mortal.current_location, name="Plains", location_type="city",
+                      parent_id=uuid4(), collectible_resources=[cr])
+    state = MagicMock()
+    state.locations = {str(mortal.current_location): loc}
+    state.pops = {}
+
+    action = evaluate_mortal_action(mortal, state, 1)
+    assert action == "hunt"
