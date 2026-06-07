@@ -231,6 +231,18 @@ def test_competency_default_one():
     assert _pop_competency_modifier(pop, "build") == 1.0
 
 
+def test_competency_wild_with_wild_stratum_forage():
+    """Pops with SocialClass.WILD + a wild_stratum still get wild competency bonuses."""
+    from core.universe_core import WildStratum
+    pop = _make_pop_with_state([], social_class=SocialClass.WILD)
+    pop.wild_stratum = WildStratum.APEX
+    # When wild_stratum is set, stratum property returns its value ("apex")
+    # which isn't in _COMPETENCY, so we should fall back to "wild" bonuses.
+    pop.stratum = WildStratum.APEX.value  # Simulate what Pop.stratum property does
+    assert _pop_competency_modifier(pop, "forage") > 1.0
+    assert _pop_competency_modifier(pop, "forage") == 1.5
+
+
 def test_priorities_sum_to_one():
     needs = [
         PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),

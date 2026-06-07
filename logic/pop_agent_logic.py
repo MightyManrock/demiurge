@@ -32,7 +32,7 @@ STUB_ACTIONS: frozenset[str] = frozenset({"raid", "fight", "rout"})
 _COMPETENCY: dict[str, dict[str, float]] = {
     "wild":       {"forage": 1.5, "hunt": 1.5, "collect": 1.2, "migrate": 1.3},
     "feral":      {"forage": 1.4, "hunt": 1.4, "migrate": 1.2},
-    "underclass": {"forage": 1.2, "collect": 1.0},
+    "underclass": {"forage": 1.2},
     "common":     {"forage": 1.3, "hunt": 1.2, "collect": 1.2},
     "artisan":    {"build": 1.5, "fortify": 1.2},
     "trader":     {"collect": 1.3},
@@ -57,7 +57,15 @@ def _pop_need_urgency(need: PopNeed) -> float:
 
 def _pop_competency_modifier(pop, action: str) -> float:
     stratum = pop.stratum if pop.stratum else "common"
-    return _COMPETENCY.get(stratum, {}).get(action, 1.0)
+    mod = _COMPETENCY.get(stratum, {}).get(action)
+    if mod is None:
+        # For wild pops with a wild_stratum set, stratum returns the wild stratum value
+        # (e.g., "apex", "herd", "carrion") which isn't in _COMPETENCY.
+        # Fall back to the "wild" entry for wild competency bonuses.
+        from core.universe_core import SocialClass
+        if getattr(pop, "social_class", None) == SocialClass.WILD:
+            mod = _COMPETENCY.get("wild", {}).get(action)
+    return mod if mod is not None else 1.0
 
 
 def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
