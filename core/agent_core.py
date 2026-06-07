@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Optional, Literal, Annotated, TYPE_CHECKING
 if TYPE_CHECKING:
     from core.universe_core import Species
@@ -196,10 +196,21 @@ class MortalAsset(BaseModel):
 
 
 class CollectibleResource(BaseModel):
-    resource_yield: float = 1.0
-    cooldown_ticks: int = 3
+    model_config = ConfigDict(extra="forbid")
+
     resource_type: str = "unobtanium"
+    max_yield: float = 1.0
+    yield_renew_rate: float = 0.2      # fraction of max_yield restored per tick
+    current_yield: Optional[float] = None
+    cooldown_ticks: int = 3
+    action_types: list[str] = Field(default_factory=list)  # [] = any action can use
     biochem_tags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _init_current_yield(self) -> "CollectibleResource":
+        if self.current_yield is None:
+            self.current_yield = self.max_yield
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +226,7 @@ class Resource(BaseModel):
     usable_for: list[str] = Field(default_factory=list)
     fills_need: Optional[str] = None
     biochem_tags: list[str] = Field(default_factory=list)
+    decay_rate: float = 0.0   # future: environment-dependent resource spoilage rate
 
 
 def species_can_consume(species: "Species", resource: Resource) -> bool:

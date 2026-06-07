@@ -334,7 +334,7 @@ class PopLocation(Location):
     distance_from_core: int = 0
     travel_network_ids: list[UUID] = Field(default_factory=list)
     commerce_quality: float = Field(ge=0.0, le=1.0, default=0.5)
-    collectible_resource: Optional[CollectibleResource] = None
+    collectible_resources: list["CollectibleResource"] = Field(default_factory=list)
     wealth: float = Field(ge=0.0, le=1.0, default=0.5)
     danger: float = Field(ge=0.0, le=1.0, default=0.0)
     resource_stockpile: dict[str, float] = Field(default_factory=dict)

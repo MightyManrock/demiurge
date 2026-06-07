@@ -309,12 +309,12 @@ from core.agent_core import CollectibleResource
 from uuid import uuid4
 
 
-def _make_pop_loc(resource_type=None, resource_yield=2.0):
+def _make_pop_loc(resource_type=None, max_yield=2.0):
     loc = PopLocation(id=uuid4(), name="Test Location", location_type="city")
     if resource_type:
-        loc.collectible_resource = CollectibleResource(
-            resource_type=resource_type, resource_yield=resource_yield
-        )
+        loc.collectible_resources = [CollectibleResource(
+            resource_type=resource_type, max_yield=max_yield
+        )]
     return loc
 
 
@@ -339,7 +339,7 @@ def test_forage_deposits_to_stockpile():
 def test_collect_uses_collectible_resource():
     needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
     pop = _make_pop_for_resolution(needs)
-    loc = _make_pop_loc(resource_type="amber_resin", resource_yield=3.0)
+    loc = _make_pop_loc(resource_type="amber_resin", max_yield=3.0)
     resolve_pop_actions(pop, loc, _full_priorities("collect"), n_slots=1, factions={}, current_tick=1)
     assert loc.resource_stockpile.get("amber_resin", 0.0) > 0.0
 

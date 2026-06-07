@@ -191,9 +191,9 @@ def resolve_pop_actions(
             )
 
         elif action == "collect":
-            cr = pop_loc.collectible_resource
+            cr = pop_loc.collectible_resources[0] if pop_loc.collectible_resources else None
             if cr:
-                deposited = min(output, cr.resource_yield)
+                deposited = min(output, cr.current_yield or cr.max_yield)
                 pop_loc.resource_stockpile[cr.resource_type] = (
                     pop_loc.resource_stockpile.get(cr.resource_type, 0.0) + deposited
                 )
