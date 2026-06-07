@@ -103,6 +103,7 @@ def test_pop_agent_state_roundtrips_json():
 
 
 def test_pop_agent_state_loads_from_none():
-    """None pop_state → None (not error)."""
-    result = None
-    assert result is None
+    """None pop_state column → None (not error)."""
+    from utilities.scenario_loader import _load_pop_agent_state
+    assert _load_pop_agent_state(None) is None
+    assert _load_pop_agent_state("") is None

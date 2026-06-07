@@ -46,6 +46,7 @@ from core.event_core import Event, EventType, StrengthCurve
 from core.agent_core import (
     ProxiusGoal, AgentActionChoice, TravelIntent,
     KnowledgeBase, MortalAsset, MortalAgentState, CollectibleResource,
+    PopAgentState,
 )
 from logic.tick_logic import (
     SimulationState, CivilizationMomentum, TickConfig,
@@ -914,7 +915,6 @@ def _load_pop_agent_state(raw):
     if not raw:
         return None
     try:
-        from core.agent_core import PopAgentState
         return PopAgentState.model_validate_json(raw)
     except Exception:
         return None
