@@ -100,13 +100,14 @@ Stub actions (`raid`, `fight`, `rout`) always have weight 0.0.
 
 ### Resource stockpile
 
-`PopLocation.resource_stockpile: dict[str, float]` accumulates output from `forage`, `hunt`, and `collect` actions. A consumption pass draws from `food_flora` and `food_fauna` entries each tick to fill the `sustenance` need.
+`PopLocation.resource_stockpile: dict[str, float]` accumulates output from `forage`, `hunt`, and `collect` actions. A consumption pass draws `basis:*`-tagged entries each tick to fill the `nourishment` need and `solvent:*`-tagged entries to fill the `hydration` need.
 
 ### Canonical Pop needs
 
 | Need | Filled by | Notes |
 |---|---|---|
-| `sustenance` | forage, hunt, collect | Two-step via stockpile |
+| `nourishment` | forage, hunt, collect (two-step: → stockpile → passive consume) | Filled from `basis:*`-tagged resources |
+| `hydration`   | collect (two-step: → stockpile → passive consume)               | Filled from `solvent:*`-tagged resources; decays ~1.5× faster |
 | `safety` | fortify | Also: migrate from high-danger |
 | `cohesion` | commune, revel | |
 | `purpose` | enact_rituals, Directive compliance | |

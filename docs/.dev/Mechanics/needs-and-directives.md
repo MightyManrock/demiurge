@@ -8,7 +8,8 @@ Each mortal agent carries a `MortalAgentState.needs: list[MortalNeed]`. Six cano
 
 | Constant | Name | Decay | Pressing | Urgent |
 |----------|------|-------|----------|--------|
-| `NEED_SUSTENANCE` | `sustenance` | 0.02/tick | < 0.55 | < 0.20 |
+| `NEED_NOURISHMENT` | `nourishment` | 0.02/tick | < 0.55 | < 0.20 |
+| `NEED_HYDRATION`   | `hydration`   | 0.03/tick | < 0.55 | < 0.20 |
 | `NEED_SAFETY` | `safety` | 0.01/tick | < 0.50 | < 0.20 |
 | `NEED_BELONGING` | `belonging` | 0.04/tick | < 0.65 | < 0.30 |
 | `NEED_STATUS` | `status` | 0.03/tick | < 0.60 | < 0.25 |
@@ -178,19 +179,26 @@ Sell action: `wealth_gain = min(0.05, credits_gained * 0.005)` added to `pop_loc
 
 ## CollectibleResource
 
-`PopLocation.collectible_resource: Optional[CollectibleResource]` declares what a location produces when a mortal collects there.
+`PopLocation.collectible_resources: list[CollectibleResource]` declares what a location produces when agents collect/forage/hunt there. A location can have multiple resources (e.g., food flora AND potable water).
 
 ```python
 class CollectibleResource(BaseModel):
-    resource_yield: float = 1.0      # quantity added per collect action
-    cooldown_ticks: int = 3          # ticks before the same mortal can collect again
-    resource_type: str               # freeform string; drives inventory key
-    biochem_tags: list[str] = []     # species compatibility (see species-biology.md)
+    resource_type: str                  # freeform string; drives stockpile/inventory key
+    max_yield: float = 1.0              # maximum quantity available per full renewal
+    yield_renew_rate: float = 0.2       # fraction of max_yield restored each tick
+    current_yield: float = 0.0          # tracks depletion; initializes to max_yield if 0
+    cooldown_ticks: int = 3             # per-mortal cooldown (mortal collect only)
+    action_types: list[str] = []        # ["forage"], ["hunt"], ["collect"], etc.; [] = any
+    biochem_tags: list[str] = []        # species compatibility (see species-biology.md)
 ```
 
-When a mortal collects, a matching `Resource` entry (same `resource_type` and `biochem_tags`) is added to their `KnowledgeBase` inventory at `quantity = resource_yield`. The `ResourceFact` in KB tracks the location so the mortal can route back.
+**Yield renewal (Phase 2.54):** Each tick, `current_yield += yield_renew_rate * max_yield`, capped at `max_yield`. Pops and mortals deduct from `current_yield` when they gather; output is bounded by what's available.
 
-For sustenance mechanics, `biochem_tags` declares which species can consume the resource. See [species-biology.md](species-biology.md).
+**Action types:** `action_types` controls which actions can use the resource. `["forage"]` means only Pop forage or mortal forage can draw from it. `[]` means any action. Use this to distinguish flora (forage-only), fauna (hunt-only), and labeled mineral/water sources (collect-only).
+
+**Passive sustenance:** Resources are not consumed by explicit "eat" or "drink" actions. Instead:
+- Pops: a consumption pass each tick draws `basis:*`-tagged resources from `resource_stockpile` → fills `nourishment`; draws `solvent:*`-tagged resources → fills `hydration`.
+- Mortals: `_tick_mortal_passive_sustenance` runs a three-source priority — (1) entitled Pop stockpile at current location (scaled by entitlement factor), (2) `MortalInventory`, (3) commerce-quality fallback.
 
 ---
 
