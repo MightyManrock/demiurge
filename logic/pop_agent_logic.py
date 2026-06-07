@@ -232,8 +232,8 @@ def resolve_pop_actions(
                 need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE * 0.5)
 
     # Consumption pass: draw food from stockpile → fill nourishment need
-    sustenance = needs_by_name.get("nourishment")
-    if sustenance:
+    nourishment = needs_by_name.get("nourishment")
+    if nourishment:
         food_available = sum(pop_loc.resource_stockpile.get(rt, 0.0) for rt in POP_FOOD_RESOURCE_TYPES)
         if food_available > 0.0:
             consume_amount = min(food_available, pop.size_fractional * 0.5)
@@ -245,11 +245,11 @@ def resolve_pop_actions(
                     remaining -= take
                     if remaining <= 0.0:
                         break
-            sustenance.satisfaction = min(1.0, sustenance.satisfaction + SUSTENANCE_CONSUME_RATE)
-        elif sustenance.is_pressing:
+            nourishment.satisfaction = min(1.0, nourishment.satisfaction + SUSTENANCE_CONSUME_RATE)
+        elif nourishment.is_pressing:
             from core.universe_core import pop_label
             narratives.append(
-                f"§pop§{pop.id}§{pop_label(pop)}§ has no food — sustenance need unmet."
+                f"§pop§{pop.id}§{pop_label(pop)}§ has no food — nourishment need unmet."
             )
 
     return narratives

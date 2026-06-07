@@ -897,7 +897,9 @@ def _load_mortal_state(raw: Optional[str]) -> Optional[MortalAgentState]:
     if not raw:
         return None
     try:
-        return MortalAgentState.model_validate_json(raw)
+        state = MortalAgentState.model_validate_json(raw)
+        state.needs = _migrate_needs_sustenance_split(state.needs)
+        return state
     except Exception:
         return None
 

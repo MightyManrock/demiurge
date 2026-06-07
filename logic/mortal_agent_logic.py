@@ -300,7 +300,7 @@ def _select_best_route(routes, mortal_state):
 
 def _trip_too_long_for_urgent_need(cs, kb, dest_id: str) -> bool:
     """Return True if any survival need will reach 0 before the trip completes.
-    Only sustenance and safety can ground a mortal — social/purpose urgency does not."""
+    Only nourishment, hydration, and safety can ground a mortal — social/purpose urgency does not."""
     ticks_cost = kb.route_ticks_to(dest_id)
     if ticks_cost == 0:
         return False
