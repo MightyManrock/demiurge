@@ -914,11 +914,57 @@ def _load_directives(raw: Optional[str]) -> list:
         return []
 
 
+def _migrate_needs_sustenance_split(needs: list) -> list:
+    """Convert old 'sustenance' need into 'nourishment' + 'hydration'."""
+    names = {n.name for n in needs}
+    if "sustenance" not in names:
+        return needs
+    result = []
+    for n in needs:
+        if n.name == "sustenance":
+            n.name = "nourishment"
+        result.append(n)
+    if "hydration" not in names:
+        from core.agent_core import MortalNeed
+        result.append(MortalNeed(
+            name="hydration",
+            satisfaction=1.0,
+            decay_rate=0.03,
+            pressing_threshold=0.55,
+            urgent_threshold=0.20,
+        ))
+    return result
+
+
+def _migrate_pop_needs_sustenance_split(needs: list) -> list:
+    """Convert old 'sustenance' Pop need into 'nourishment' + 'hydration'."""
+    names = {n.name for n in needs}
+    if "sustenance" not in names:
+        return needs
+    result = []
+    for n in needs:
+        if n.name == "sustenance":
+            n.name = "nourishment"
+        result.append(n)
+    if "hydration" not in names:
+        from core.agent_core import PopNeed
+        result.append(PopNeed(
+            name="hydration",
+            satisfaction=1.0,
+            decay_rate=0.03,
+            pressing_threshold=0.55,
+            urgent_threshold=0.20,
+        ))
+    return result
+
+
 def _load_pop_agent_state(raw):
     if not raw:
         return None
     try:
-        return PopAgentState.model_validate_json(raw)
+        state = PopAgentState.model_validate_json(raw)
+        state.needs = _migrate_pop_needs_sustenance_split(state.needs)
+        return state
     except Exception:
         return None
 

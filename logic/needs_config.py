@@ -11,21 +11,26 @@ from core.agent_core import MortalNeed, MortalDesire
 # Canonical need name constants
 # ---------------------------------------------------------------------------
 
-NEED_SUSTENANCE = "sustenance"
-NEED_SAFETY     = "safety"
-NEED_BELONGING  = "belonging"
-NEED_STATUS     = "status"
-NEED_PURPOSE    = "purpose"
-NEED_LEISURE    = "leisure"
+NEED_NOURISHMENT = "nourishment"
+NEED_HYDRATION   = "hydration"
+NEED_SAFETY      = "safety"
+NEED_BELONGING   = "belonging"
+NEED_STATUS      = "status"
+NEED_PURPOSE     = "purpose"
+NEED_LEISURE     = "leisure"
 
 CANONICAL_NEEDS = (
-    NEED_SUSTENANCE,
+    NEED_NOURISHMENT,
+    NEED_HYDRATION,
     NEED_SAFETY,
     NEED_BELONGING,
     NEED_STATUS,
     NEED_PURPOSE,
     NEED_LEISURE,
 )
+
+# Aliases used by tests and external code
+CANONICAL_MORTAL_NEED_NAMES = CANONICAL_NEEDS
 
 # ---------------------------------------------------------------------------
 # Canonical desire name constants
@@ -40,13 +45,17 @@ DESIRE_EXPRESSION   = "expression"
 # ---------------------------------------------------------------------------
 
 NEED_DEFAULTS: dict[str, dict[str, float]] = {
-    NEED_SUSTENANCE: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
-    NEED_SAFETY:     {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
+    NEED_NOURISHMENT: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
+    NEED_HYDRATION:   {"decay_rate": 0.03,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
+    NEED_SAFETY:      {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
     NEED_BELONGING:  {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
     NEED_STATUS:     {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
     NEED_PURPOSE:    {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
     NEED_LEISURE:    {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
 }
+
+# Alias for external code/tests
+MORTAL_NEED_DEFAULTS = NEED_DEFAULTS
 
 # ---------------------------------------------------------------------------
 # Default parameters per desire
@@ -81,7 +90,12 @@ DESIRE_TRAIT_GATES: dict[str, list[tuple[str, float, str]]] = {
 # ---------------------------------------------------------------------------
 
 NEED_TRAIT_MODIFIERS: dict[str, dict[str, tuple[float, float, float]]] = {
-    NEED_SUSTENANCE: {
+    NEED_NOURISHMENT: {
+        "values:indulgence": ( 0.010,  0.050,  0.050),
+        "values:moderation": (-0.010, -0.050, -0.050),
+        "values:pragmatism": ( 0.000,  0.000, -0.050),
+    },
+    NEED_HYDRATION: {
         "values:indulgence": ( 0.010,  0.050,  0.050),
         "values:moderation": (-0.010, -0.050, -0.050),
         "values:pragmatism": ( 0.000,  0.000, -0.050),
@@ -228,7 +242,8 @@ def initialize_mortal_state(mortal: NotableMortal) -> MortalAgentState:
 # Pop canonical needs
 # ---------------------------------------------------------------------------
 
-POP_NEED_SUSTENANCE  = "sustenance"
+POP_NEED_NOURISHMENT = "nourishment"
+POP_NEED_HYDRATION   = "hydration"
 POP_NEED_SAFETY      = "safety"
 POP_NEED_COHESION    = "cohesion"
 POP_NEED_PURPOSE     = "purpose"
@@ -236,7 +251,8 @@ POP_NEED_SHELTER     = "shelter"
 POP_NEED_WANDERLUST  = "wanderlust"
 
 POP_CANONICAL_NEEDS = (
-    POP_NEED_SUSTENANCE,
+    POP_NEED_NOURISHMENT,
+    POP_NEED_HYDRATION,
     POP_NEED_SAFETY,
     POP_NEED_COHESION,
     POP_NEED_PURPOSE,
@@ -245,8 +261,9 @@ POP_CANONICAL_NEEDS = (
 )
 
 POP_NEED_DEFAULTS: dict[str, dict[str, float]] = {
-    POP_NEED_SUSTENANCE: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
-    POP_NEED_SAFETY:     {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
+    POP_NEED_NOURISHMENT: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
+    POP_NEED_HYDRATION:   {"decay_rate": 0.03,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
+    POP_NEED_SAFETY:      {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
     POP_NEED_COHESION:   {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
     POP_NEED_PURPOSE:    {"decay_rate": 0.015, "pressing_threshold": 0.50, "urgent_threshold": 0.25},
     POP_NEED_SHELTER:    {"decay_rate": 0.010, "pressing_threshold": 0.50, "urgent_threshold": 0.20},

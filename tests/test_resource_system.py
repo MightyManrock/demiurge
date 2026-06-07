@@ -4,6 +4,14 @@ from uuid import uuid4
 from core.agent_core import CollectibleResource, Resource
 from core.universe_core import PopLocation
 from utilities.scenario_loader import _load_collectible_resources
+from logic.needs_config import (
+    NEED_NOURISHMENT, NEED_HYDRATION,
+    CANONICAL_MORTAL_NEED_NAMES, MORTAL_NEED_DEFAULTS,
+    POP_NEED_NOURISHMENT, POP_NEED_HYDRATION,
+    POP_NEED_DEFAULTS, compute_pop_need_profile, initialize_pop_state,
+    compute_need_profile,
+)
+from unittest.mock import MagicMock
 
 
 # ── CollectibleResource ───────────────────────────────────────────────────────
@@ -119,3 +127,51 @@ def test_load_collectible_resources_old_format_already_max_yield():
                            "resource_type": "potable_water"})
     result = _load_collectible_resources(None, old_raw)
     assert result[0].max_yield == 4.0
+
+
+# ── Need split: sustenance → nourishment + hydration ─────────────────────────
+
+def test_need_nourishment_constant():
+    assert NEED_NOURISHMENT == "nourishment"
+
+def test_need_hydration_constant():
+    assert NEED_HYDRATION == "hydration"
+
+def test_sustenance_not_in_canonical_mortal_needs():
+    assert "sustenance" not in CANONICAL_MORTAL_NEED_NAMES
+
+def test_nourishment_in_canonical_mortal_needs():
+    assert "nourishment" in CANONICAL_MORTAL_NEED_NAMES
+
+def test_hydration_in_canonical_mortal_needs():
+    assert "hydration" in CANONICAL_MORTAL_NEED_NAMES
+
+def test_hydration_decays_faster_than_nourishment():
+    nour_decay = MORTAL_NEED_DEFAULTS["nourishment"]["decay_rate"]
+    hydr_decay = MORTAL_NEED_DEFAULTS["hydration"]["decay_rate"]
+    assert hydr_decay > nour_decay
+
+def test_compute_need_profile_has_nourishment_and_hydration():
+    needs = compute_need_profile({})
+    names = [n.name for n in needs]
+    assert "nourishment" in names
+    assert "hydration" in names
+    assert "sustenance" not in names
+
+def test_pop_nourishment_and_hydration_constants():
+    assert POP_NEED_NOURISHMENT == "nourishment"
+    assert POP_NEED_HYDRATION == "hydration"
+
+def test_pop_hydration_decays_faster():
+    nour_decay = POP_NEED_DEFAULTS["nourishment"]["decay_rate"]
+    hydr_decay = POP_NEED_DEFAULTS["hydration"]["decay_rate"]
+    assert hydr_decay > nour_decay
+
+def test_initialize_pop_state_has_nourishment_and_hydration():
+    pop = MagicMock()
+    pop.culture_tags = {}
+    state = initialize_pop_state(pop)
+    names = [n.name for n in state.needs]
+    assert "nourishment" in names
+    assert "hydration" in names
+    assert "sustenance" not in names

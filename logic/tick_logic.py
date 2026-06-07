@@ -71,7 +71,7 @@ from logic.mortal_agent_logic import (
     SOCIAL_NOVELTY_FLOOR,
 )
 from logic.needs_config import (
-    NEED_SUSTENANCE, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS,
+    NEED_NOURISHMENT, NEED_HYDRATION, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS,
     DESIRE_ACCUMULATION, DESIRE_EXPLORATION, DESIRE_EXPRESSION,
     compute_desire_profile,
 )
@@ -5485,7 +5485,7 @@ class TickLoop:
             # Passive restoration for needs that are auto-satisfied by stable conditions
             loc = state.locations.get(str(mortal.current_location))
             if loc and _effective_commerce_quality(loc, state) > 0:
-                sust = cs.get_need(NEED_SUSTENANCE)
+                sust = cs.get_need(NEED_NOURISHMENT)
                 if sust and sust.satisfaction < 1.0:
                     sust.satisfaction = min(1.0, sust.satisfaction + 0.03)
             safe = cs.get_need(NEED_SAFETY)

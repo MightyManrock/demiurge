@@ -16,9 +16,9 @@ NEED_FILL_RATE = 0.08
 SUSTENANCE_CONSUME_RATE = 0.05
 
 ACTION_NEED_MAP: dict[str, str] = {
-    "forage":        "sustenance",
-    "hunt":          "sustenance",
-    "collect":       "sustenance",
+    "forage":        "nourishment",
+    "hunt":          "nourishment",
+    "collect":       "nourishment",
     "commune":       "cohesion",
     "revel":         "cohesion",
     "enact_rituals": "purpose",
@@ -231,8 +231,8 @@ def resolve_pop_actions(
             if need:
                 need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE * 0.5)
 
-    # Consumption pass: draw food from stockpile → fill sustenance need
-    sustenance = needs_by_name.get("sustenance")
+    # Consumption pass: draw food from stockpile → fill nourishment need
+    sustenance = needs_by_name.get("nourishment")
     if sustenance:
         food_available = sum(pop_loc.resource_stockpile.get(rt, 0.0) for rt in POP_FOOD_RESOURCE_TYPES)
         if food_available > 0.0:

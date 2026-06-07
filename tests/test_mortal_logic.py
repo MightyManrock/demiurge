@@ -130,7 +130,7 @@ def test_collect_at_resource_location():
 
 def test_trip_too_long_for_urgent_need_true():
     # sustenance is a survival need — satisfaction=0.2, decay=0.05 → 4 ticks to zero < 12-tick trip
-    urgent_need = MortalNeed(name="sustenance", satisfaction=0.2, decay_rate=0.05,
+    urgent_need = MortalNeed(name="nourishment", satisfaction=0.2, decay_rate=0.05,
                              pressing_threshold=0.65, urgent_threshold=0.35)
     cs = MortalAgentState(needs=[urgent_need])
     kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])
@@ -171,7 +171,7 @@ def test_spend_skipped_when_target_need_not_pressing():
 
 def test_trip_too_long_for_urgent_need_false_when_not_urgent():
     # sustenance not yet urgent → no block
-    need = MortalNeed(name="sustenance", satisfaction=0.5, decay_rate=0.05,
+    need = MortalNeed(name="nourishment", satisfaction=0.5, decay_rate=0.05,
                       pressing_threshold=0.65, urgent_threshold=0.35)
     cs = MortalAgentState(needs=[need])
     kb = KnowledgeBase(facts=[RouteFact(from_id="sethis", to_id="neran", ticks_cost=12)])

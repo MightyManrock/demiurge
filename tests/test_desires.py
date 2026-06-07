@@ -138,7 +138,7 @@ def test_needs_dominate_desires_when_pressing():
     """When a survival need is urgent AND Exploration desire is pressing, wander is NOT chosen."""
     cs = MortalAgentState(
         needs=[MortalNeed(
-            name="sustenance",
+            name="nourishment",
             satisfaction=0.2,
             pressing_threshold=0.55,
             urgent_threshold=0.20,

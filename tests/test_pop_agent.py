@@ -6,7 +6,7 @@ from core.universe_core import Directive, Pop, PopLocation
 
 
 def test_pop_need_defaults():
-    n = PopNeed(name="sustenance")
+    n = PopNeed(name="nourishment")
     assert n.satisfaction == 1.0
     assert n.decay_rate == 0.02
     assert n.pressing_threshold == 0.55
@@ -15,22 +15,22 @@ def test_pop_need_defaults():
 
 
 def test_pop_need_is_pressing():
-    n = PopNeed(name="sustenance", satisfaction=0.4, pressing_threshold=0.55)
+    n = PopNeed(name="nourishment", satisfaction=0.4, pressing_threshold=0.55)
     assert n.is_pressing
 
 
 def test_pop_need_not_pressing():
-    n = PopNeed(name="sustenance", satisfaction=0.8, pressing_threshold=0.55)
+    n = PopNeed(name="nourishment", satisfaction=0.8, pressing_threshold=0.55)
     assert not n.is_pressing
 
 
 def test_pop_need_is_urgent():
-    n = PopNeed(name="sustenance", satisfaction=0.10, urgent_threshold=0.20)
+    n = PopNeed(name="nourishment", satisfaction=0.10, urgent_threshold=0.20)
     assert n.is_urgent
 
 
 def test_pop_need_not_urgent():
-    n = PopNeed(name="sustenance", satisfaction=0.50, urgent_threshold=0.20)
+    n = PopNeed(name="nourishment", satisfaction=0.50, urgent_threshold=0.20)
     assert not n.is_urgent
 
 
@@ -44,9 +44,9 @@ def test_pop_agent_state_defaults():
 
 
 def test_pop_agent_state_get_need():
-    n = PopNeed(name="sustenance", satisfaction=0.3)
+    n = PopNeed(name="nourishment", satisfaction=0.3)
     s = PopAgentState(needs=[n])
-    assert s.get_need("sustenance") is n
+    assert s.get_need("nourishment") is n
     assert s.get_need("shelter") is None
 
 
@@ -90,14 +90,14 @@ def test_pop_agent_state_roundtrips_json():
     import json
     from core.agent_core import PopNeed, PopAgentState
     ps = PopAgentState(
-        needs=[PopNeed(name="sustenance", satisfaction=0.6)],
+        needs=[PopNeed(name="nourishment", satisfaction=0.6)],
         action_priorities={"forage": 0.4, "commune": 0.6},
         fatigue=0.3,
     )
     raw = ps.model_dump_json()
     restored = PopAgentState.model_validate_json(raw)
     assert len(restored.needs) == 1
-    assert restored.needs[0].name == "sustenance"
+    assert restored.needs[0].name == "nourishment"
     assert abs(restored.needs[0].satisfaction - 0.6) < 1e-6
     assert abs(restored.action_priorities["forage"] - 0.4) < 1e-6
     assert abs(restored.fatigue - 0.3) < 1e-6
@@ -115,7 +115,7 @@ from logic.needs_config import (
     compute_pop_need_profile,
     POP_CANONICAL_NEEDS,
     POP_NEED_DEFAULTS,
-    POP_NEED_SUSTENANCE,
+    POP_NEED_NOURISHMENT,
     POP_NEED_SHELTER,
     POP_NEED_WANDERLUST,
 )
@@ -196,23 +196,23 @@ def _make_pop_with_state(needs, social_class=SocialClass.COMMON, size=3.0, direc
 
 
 def test_urgency_zero_when_satisfied():
-    n = PopNeed(name="sustenance", satisfaction=1.0, pressing_threshold=0.55)
+    n = PopNeed(name="nourishment", satisfaction=1.0, pressing_threshold=0.55)
     assert _pop_need_urgency(n) == 0.0
 
 
 def test_urgency_zero_when_satiation_hold():
-    n = PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, satiation_hold=3)
+    n = PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, satiation_hold=3)
     assert _pop_need_urgency(n) == 0.0
 
 
 def test_urgency_positive_when_pressing():
-    n = PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)
+    n = PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)
     u = _pop_need_urgency(n)
     assert 0 < u <= 1.0
 
 
 def test_urgency_above_one_when_urgent():
-    n = PopNeed(name="sustenance", satisfaction=0.05, pressing_threshold=0.55, urgent_threshold=0.20)
+    n = PopNeed(name="nourishment", satisfaction=0.05, pressing_threshold=0.55, urgent_threshold=0.20)
     assert _pop_need_urgency(n) > 1.0
 
 
@@ -245,7 +245,7 @@ def test_competency_wild_with_wild_stratum_forage():
 
 def test_priorities_sum_to_one():
     needs = [
-        PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
+        PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
         PopNeed(name="safety", satisfaction=0.8),
         PopNeed(name="cohesion", satisfaction=0.8),
         PopNeed(name="purpose", satisfaction=0.8),
@@ -259,7 +259,7 @@ def test_priorities_sum_to_one():
 
 def test_stubs_have_zero_weight():
     needs = [PopNeed(name=n, satisfaction=0.3) for n in
-             ["sustenance", "safety", "cohesion", "purpose", "shelter", "wanderlust"]]
+             ["nourishment", "hydration", "safety", "cohesion", "purpose", "shelter", "wanderlust"]]
     pop = _make_pop_with_state(needs)
     priorities = compute_pop_priorities(pop, {})
     assert priorities["raid"] == 0.0
@@ -268,7 +268,7 @@ def test_stubs_have_zero_weight():
 
 
 def test_directive_boosts_action():
-    needs = [PopNeed(name="sustenance", satisfaction=0.5, pressing_threshold=0.55),
+    needs = [PopNeed(name="nourishment", satisfaction=0.5, pressing_threshold=0.55),
              PopNeed(name="safety", satisfaction=0.9),
              PopNeed(name="cohesion", satisfaction=0.9),
              PopNeed(name="purpose", satisfaction=0.9),
@@ -329,7 +329,7 @@ def _full_priorities(dominant: str) -> dict:
 
 
 def test_forage_deposits_to_stockpile():
-    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
+    needs = [PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
     pop = _make_pop_for_resolution(needs)
     loc = _make_pop_loc()
     resolve_pop_actions(pop, loc, _full_priorities("forage"), n_slots=1, factions={}, current_tick=1)
@@ -337,7 +337,7 @@ def test_forage_deposits_to_stockpile():
 
 
 def test_collect_uses_collectible_resource():
-    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
+    needs = [PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
     pop = _make_pop_for_resolution(needs)
     loc = _make_pop_loc(resource_type="amber_resin", max_yield=3.0)
     resolve_pop_actions(pop, loc, _full_priorities("collect"), n_slots=1, factions={}, current_tick=1)
@@ -346,7 +346,7 @@ def test_collect_uses_collectible_resource():
 
 def test_commune_fills_cohesion_need():
     needs = [
-        PopNeed(name="sustenance", satisfaction=1.0),
+        PopNeed(name="nourishment", satisfaction=1.0),
         PopNeed(name="cohesion", satisfaction=0.2, pressing_threshold=0.45, urgent_threshold=0.20),
         PopNeed(name="safety", satisfaction=1.0),
         PopNeed(name="purpose", satisfaction=1.0),
@@ -361,7 +361,7 @@ def test_commune_fills_cohesion_need():
 
 
 def test_sustenance_filled_from_stockpile():
-    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
+    needs = [PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
              PopNeed(name="safety", satisfaction=1.0),
              PopNeed(name="cohesion", satisfaction=1.0),
              PopNeed(name="purpose", satisfaction=1.0),
@@ -370,13 +370,13 @@ def test_sustenance_filled_from_stockpile():
     pop = _make_pop_for_resolution(needs, size=3.0)
     loc = _make_pop_loc()
     loc.resource_stockpile["food_flora"] = 10.0
-    initial = pop.pop_state.get_need("sustenance").satisfaction
+    initial = pop.pop_state.get_need("nourishment").satisfaction
     resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
-    assert pop.pop_state.get_need("sustenance").satisfaction > initial
+    assert pop.pop_state.get_need("nourishment").satisfaction > initial
 
 
 def test_empty_stockpile_leaves_sustenance_unmet():
-    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
+    needs = [PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
              PopNeed(name="safety", satisfaction=1.0),
              PopNeed(name="cohesion", satisfaction=1.0),
              PopNeed(name="purpose", satisfaction=1.0),
@@ -384,15 +384,15 @@ def test_empty_stockpile_leaves_sustenance_unmet():
              PopNeed(name="wanderlust", satisfaction=1.0)]
     pop = _make_pop_for_resolution(needs, size=3.0)
     loc = _make_pop_loc()
-    initial = pop.pop_state.get_need("sustenance").satisfaction
+    initial = pop.pop_state.get_need("nourishment").satisfaction
     narratives = resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
-    assert pop.pop_state.get_need("sustenance").satisfaction == initial
+    assert pop.pop_state.get_need("nourishment").satisfaction == initial
     assert any("has no food" in n for n in narratives)
 
 
 def test_fortify_reduces_location_danger():
     needs = [PopNeed(name="safety", satisfaction=0.2, pressing_threshold=0.50, urgent_threshold=0.20),
-             PopNeed(name="sustenance", satisfaction=1.0),
+             PopNeed(name="nourishment", satisfaction=1.0),
              PopNeed(name="cohesion", satisfaction=1.0),
              PopNeed(name="purpose", satisfaction=1.0),
              PopNeed(name="shelter", satisfaction=1.0),
@@ -406,7 +406,7 @@ def test_fortify_reduces_location_danger():
 
 def test_migrate_partially_fills_wanderlust():
     needs = [PopNeed(name="wanderlust", satisfaction=0.2, pressing_threshold=0.40, urgent_threshold=0.18),
-             PopNeed(name="sustenance", satisfaction=1.0),
+             PopNeed(name="nourishment", satisfaction=1.0),
              PopNeed(name="safety", satisfaction=1.0),
              PopNeed(name="cohesion", satisfaction=1.0),
              PopNeed(name="purpose", satisfaction=1.0),

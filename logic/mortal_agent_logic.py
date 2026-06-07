@@ -27,7 +27,7 @@ DIRECTIVE_MULTIPLIER = 2.0
 
 # Needs whose urgency can block travel (physical survival only).
 # Social/purpose needs being low should not ground a mortal mid-route.
-_TRAVEL_BLOCKING_NEEDS: frozenset[str] = frozenset({"sustenance", "safety"})
+_TRAVEL_BLOCKING_NEEDS: frozenset[str] = frozenset({"nourishment", "hydration", "safety"})
 
 # Score and gain multiplier for leisure while in transit with a crew pop.
 # Leisure (culture, entertainment) is diminished on a working ship; socializing is not.
