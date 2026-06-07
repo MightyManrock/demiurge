@@ -94,8 +94,8 @@ def _pop_competency_modifier(pop, action: str) -> float:
         # For wild pops with a wild_stratum set, stratum returns the wild stratum value
         # (e.g., "apex", "herd", "carrion") which isn't in _COMPETENCY.
         # Fall back to the "wild" entry for wild competency bonuses.
-        from core.universe_core import SocialClass
-        if getattr(pop, "social_class", None) == SocialClass.WILD:
+        from core.universe_core import SocialStratum
+        if getattr(pop, "social_class", None) == SocialStratum.WILD:
             mod = _COMPETENCY.get("wild", {}).get(action)
     return mod if mod is not None else 1.0
 

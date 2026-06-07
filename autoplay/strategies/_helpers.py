@@ -10,7 +10,7 @@ from uuid import UUID
 from typing import Optional, Tuple
 
 from core.action_core import ActionInstance, OngoingAction, TargetType
-from core.universe_core import MortalRole, MortalStatus, SocialClass
+from core.universe_core import MortalRole, MortalStatus, SocialStratum
 from logic.tick_logic import TickLoop, SimulationState, is_mortal_visible
 
 
@@ -74,7 +74,7 @@ def pop_at(
     state: SimulationState,
     civ_name_substring: str,
     location_name: str,
-    social_class: SocialClass,
+    social_class: SocialStratum,
 ) -> Optional[Tuple[str, object]]:
     """Find the pop matching (civilization name fragment, location name, class)."""
     for pid, p in state.pops.items():

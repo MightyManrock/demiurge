@@ -38,7 +38,7 @@ from uuid import UUID
 from core.universe_core import (
     Civilization, CivilizationHealth, CivilizationScale,
     LocCondition, Location, MortalProminence, MortalRole, MortalStatus,
-    NotableMortal, Pop, PopLocation, SignificantLocation, SocialClass,
+    NotableMortal, Pop, PopLocation, SignificantLocation, SocialStratum,
     Species, SpeciesCondition, StarType, System, Universe, UniverseRules,
     WildStratum,
 )
@@ -482,13 +482,13 @@ def _apply_create(state, op: dict) -> InjectorResult:
             civ_id = civ.id
         social_class = wild_stratum = None
         if v.get("social_class"):
-            social_class = SocialClass(v["social_class"])
+            social_class = SocialStratum(v["social_class"])
         if v.get("wild_stratum"):
             wild_stratum = WildStratum(v["wild_stratum"])
         if social_class is None and wild_stratum is None:
             # Default by species sapience.
             if sp.sapient:
-                social_class = SocialClass.COMMON
+                social_class = SocialStratum.COMMON
             else:
                 wild_stratum = WildStratum.HERD
         pop = Pop(
@@ -702,15 +702,15 @@ def _apply_reassign(state, op: dict) -> InjectorResult:
             loc.pop_ids.append(entity.id)
             return InjectorResult("reassign", True, f"pop {name!r}.location → {new_name!r}")
         if field_name == "stratum":
-            # new_name is a SocialClass or WildStratum value string.
+            # new_name is a SocialStratum or WildStratum value string.
             try:
-                entity.social_class = SocialClass(new_name); entity.wild_stratum = None
+                entity.social_class = SocialStratum(new_name); entity.wild_stratum = None
             except ValueError:
                 try:
                     entity.wild_stratum = WildStratum(new_name); entity.social_class = None
                 except ValueError:
                     return InjectorResult("reassign", False,
-                                          f"stratum {new_name!r} not a SocialClass or WildStratum",
+                                          f"stratum {new_name!r} not a SocialStratum or WildStratum",
                                           error="bad_value")
             return InjectorResult("reassign", True, f"pop {name!r}.stratum → {new_name!r}")
     if kind == "mortal":

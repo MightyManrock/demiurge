@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from uuid import uuid4
 from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
-from core.universe_core import Pop, SocialClass
+from core.universe_core import Pop, SocialStratum
 
 DB = "scenarios/wardens_compact.db"
 
@@ -64,7 +64,7 @@ def main() -> None:
         id=uuid4(),
         name="Vail's Crew",
         demiurge_authored=False,
-        social_class=SocialClass.COMMON,
+        social_class=SocialStratum.COMMON,
         occupation="transport",
         asset_crew_for="merchant_vessel",
         current_location=UUID(NERAN_SURFACE_ID),

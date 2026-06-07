@@ -29,7 +29,7 @@ from core.universe_core import (
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition,
-    Pop, SocialClass, WildStratum,
+    Pop, SocialStratum, WildStratum,
     Universe, TravelNetwork, Faction,
 )
 from core.action_core import EssenceStockpile, CategoryCooldowns

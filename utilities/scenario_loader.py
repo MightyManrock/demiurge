@@ -29,7 +29,7 @@ from core.universe_core import (
     CivilizationScale, CivilizationHealth, Civilization,
     MortalRole, MortalStatus, MortalProminence, NotableMortal,
     Species, SpeciesCondition, LifeBasis, Solvent,
-    Pop, SocialClass, WildStratum,
+    Pop, SocialStratum, WildStratum,
     NetworkCondition, TravelEdge, TravelNetwork,
     Universe, EntityAge, Faction,
 )
@@ -796,7 +796,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             demiurge_authored=bool(row.get("demiurge_authored", 0)),
             civilization_id=_uuid(row.get("civilization_id")),
             species_id=_uuid(row.get("species_id")),
-            social_class=SocialClass(sc_raw) if sc_raw else None,
+            social_class=SocialStratum(sc_raw) if sc_raw else None,
             wild_stratum=WildStratum(ws_raw) if ws_raw else None,
             current_location=UUID(row["current_location"]),
             size_fractional=float(row.get("size_fractional", 6.0)),

@@ -18,7 +18,7 @@ from utilities.travel_routing import (
 )
 from logic.mortal_agent_logic import _select_best_route
 from core.agent_core import MortalAgentState, MortalNeed, Resource
-from core.universe_core import NetworkCondition, ResourceCost, SocialClass, PopLocation, TravelNetwork
+from core.universe_core import NetworkCondition, ResourceCost, SocialStratum, PopLocation, TravelNetwork
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

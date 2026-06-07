@@ -300,7 +300,7 @@ class NetworkCondition(BaseModel):
     faction_ids: list[UUID] = Field(default_factory=list)
     civilization_ids: list[UUID] = Field(default_factory=list)
     asset_types: list[str] = Field(default_factory=list)
-    pop_strata: list[SocialClass] = Field(default_factory=list)
+    pop_strata: list[SocialStratum] = Field(default_factory=list)
     pop_occupations: list[str] = Field(default_factory=list)
     hard_gate: bool = False
     resource_cost: list[ResourceCost] = Field(default_factory=list)
@@ -409,7 +409,7 @@ class Species(BaseModel):
 # Sub-civilizational population groups.
 # ─────────────────────────────────────────
 
-class SocialClass(str, Enum):
+class SocialStratum(str, Enum):
     WILD       = "wild"         # No social structure at all (pre-sapient pods, true wilderness).
     FERAL      = "feral"        # Partially or recently de-civilized — outside class but not pre-social.
     UNDERCLASS = "underclass"   # Slaves, serfs, the dispossessed
@@ -425,16 +425,16 @@ class SocialClass(str, Enum):
 # representing a coherent occupational bloc) and as the seed vocabulary for
 # NotableMortal.occupation — though individual mortals will eventually support
 # far more variation than these canonical buckets.
-OCCUPATIONS_BY_CLASS: dict["SocialClass", tuple[str, ...]] = {
-    SocialClass.WILD:       ("forager", "raider"),
-    SocialClass.FERAL:      ("outcast", "criminal"),
-    SocialClass.UNDERCLASS: ("bonded", "dispossessed"),
-    SocialClass.COMMON:     ("producer", "laborer", "service", "transport", "professional"),
-    SocialClass.ARTISAN:    ("crafter", "builder", "engineer", "technician", "healer", "artist"),
-    SocialClass.TRADER:     ("merchant", "financier", "executive"),
-    SocialClass.WARRIOR:    ("soldier", "officer", "guard", "mercenary", "militia"),
-    SocialClass.SCHOLAR:    ("clergy", "scientist", "academic"),
-    SocialClass.ELITE:      ("poli_admin", "noble"),
+OCCUPATIONS_BY_STRATUM: dict["SocialStratum", tuple[str, ...]] = {
+    SocialStratum.WILD:       ("forager", "raider"),
+    SocialStratum.FERAL:      ("outcast", "criminal"),
+    SocialStratum.UNDERCLASS: ("bonded", "dispossessed"),
+    SocialStratum.COMMON:     ("producer", "laborer", "service", "transport", "professional"),
+    SocialStratum.ARTISAN:    ("crafter", "builder", "engineer", "technician", "healer", "artist"),
+    SocialStratum.TRADER:     ("merchant", "financier", "executive"),
+    SocialStratum.WARRIOR:    ("soldier", "officer", "guard", "mercenary", "militia"),
+    SocialStratum.SCHOLAR:    ("clergy", "scientist", "academic"),
+    SocialStratum.ELITE:      ("poli_admin", "noble"),
 }
 
 
@@ -518,18 +518,18 @@ class Pop(BaseModel):
     species_id: Optional[UUID] = None
 
     # Exactly one of these should be set depending on whether the species is sapient.
-    social_class: Optional[SocialClass] = None
+    social_class: Optional[SocialStratum] = None
     wild_stratum: Optional[WildStratum] = None
 
     @property
     def stratum(self) -> str:
-        # SocialClass.WILD is a sapience designation, not a meaningful
+        # SocialStratum.WILD is a sapience designation, not a meaningful
         # stratum; fall through to wild_stratum (APEX/HERD/etc.) when set.
-        if self.social_class is not None and self.social_class != SocialClass.WILD:
+        if self.social_class is not None and self.social_class != SocialStratum.WILD:
             return self.social_class.value
         if self.wild_stratum is not None:
             return self.wild_stratum.value
-        if self.social_class == SocialClass.WILD:
+        if self.social_class == SocialStratum.WILD:
             return "wild"
         return "unknown"
 
@@ -539,7 +539,7 @@ class Pop(BaseModel):
         Use this instead of `stratum == 'wild'` — the property's value
         depends on whether `wild_stratum` is also populated."""
         return (
-            self.social_class == SocialClass.WILD
+            self.social_class == SocialStratum.WILD
             or self.wild_stratum is not None
         )
 

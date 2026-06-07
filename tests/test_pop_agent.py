@@ -179,11 +179,11 @@ from logic.pop_agent_logic import (
     _pop_need_urgency,
     _pop_competency_modifier,
 )
-from core.universe_core import SocialClass
+from core.universe_core import SocialStratum
 import math
 
 
-def _make_pop_with_state(needs, social_class=SocialClass.COMMON, size=3.0, directives=None):
+def _make_pop_with_state(needs, social_class=SocialStratum.COMMON, size=3.0, directives=None):
     pop = MagicMock()
     pop.pop_state = PopAgentState(needs=needs)
     pop.social_class = social_class
@@ -217,24 +217,24 @@ def test_urgency_above_one_when_urgent():
 
 
 def test_competency_warrior_fortify():
-    pop = _make_pop_with_state([], social_class=SocialClass.WARRIOR)
+    pop = _make_pop_with_state([], social_class=SocialStratum.WARRIOR)
     assert _pop_competency_modifier(pop, "fortify") > 1.0
 
 
 def test_competency_common_forage():
-    pop = _make_pop_with_state([], social_class=SocialClass.COMMON)
+    pop = _make_pop_with_state([], social_class=SocialStratum.COMMON)
     assert _pop_competency_modifier(pop, "forage") > 1.0
 
 
 def test_competency_default_one():
-    pop = _make_pop_with_state([], social_class=SocialClass.COMMON)
+    pop = _make_pop_with_state([], social_class=SocialStratum.COMMON)
     assert _pop_competency_modifier(pop, "build") == 1.0
 
 
 def test_competency_wild_with_wild_stratum_forage():
-    """Pops with SocialClass.WILD + a wild_stratum still get wild competency bonuses."""
+    """Pops with SocialStratum.WILD + a wild_stratum still get wild competency bonuses."""
     from core.universe_core import WildStratum
-    pop = _make_pop_with_state([], social_class=SocialClass.WILD)
+    pop = _make_pop_with_state([], social_class=SocialStratum.WILD)
     pop.wild_stratum = WildStratum.APEX
     # When wild_stratum is set, stratum property returns its value ("apex")
     # which isn't in _COMPETENCY, so we should fall back to "wild" bonuses.
@@ -318,7 +318,7 @@ def _make_pop_loc(resource_type=None, max_yield=2.0):
     return loc
 
 
-def _make_pop_for_resolution(needs, social_class=SocialClass.COMMON, size=3.0):
+def _make_pop_for_resolution(needs, social_class=SocialStratum.COMMON, size=3.0):
     return _make_pop_with_state(needs, social_class=social_class, size=size)
 
 
@@ -397,7 +397,7 @@ def test_fortify_reduces_location_danger():
              PopNeed(name="purpose", satisfaction=1.0),
              PopNeed(name="shelter", satisfaction=1.0),
              PopNeed(name="wanderlust", satisfaction=1.0)]
-    pop = _make_pop_for_resolution(needs, social_class=SocialClass.WARRIOR, size=3.0)
+    pop = _make_pop_for_resolution(needs, social_class=SocialStratum.WARRIOR, size=3.0)
     loc = _make_pop_loc()
     loc.danger = 0.5
     resolve_pop_actions(pop, loc, _full_priorities("fortify"), n_slots=1, factions={}, current_tick=1)

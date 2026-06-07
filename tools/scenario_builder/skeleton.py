@@ -11,7 +11,7 @@ from core.onto_core import Demiurge, FootprintProfile, Luminary, Pantheon
 from core.action_core import EssenceStockpile
 from core.universe_core import (
     Civilization, Location, NotableMortal, Pop, PopLocation,
-    SignificantLocation, SocialClass, Species, System, Universe, EntityAge, UniverseRules,
+    SignificantLocation, SocialStratum, Species, System, Universe, EntityAge, UniverseRules,
 )
 from logic.tick_logic import SimulationState
 
@@ -76,7 +76,7 @@ def build_skeleton_state(scenario_name: str, initialism: str) -> SimulationState
     pop = Pop(
         civilization_id=civ.id,
         species_id=species.id,
-        social_class=SocialClass.COMMON,
+        social_class=SocialStratum.COMMON,
         current_location=settlement.id,
         visibility=1.0, pinned=True,
     )

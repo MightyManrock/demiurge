@@ -23,7 +23,7 @@ from uuid import UUID
 
 from core.universe_core import (
     Civilization, CivilizationHealth, CivilizationScale,
-    PopLocation, Pop, SignificantLocation, SocialClass,
+    PopLocation, Pop, SignificantLocation, SocialStratum,
     Species, SpeciesCondition, WildStratum,
 )
 
@@ -36,8 +36,8 @@ CIV_SCALE_ITEMS: list[tuple[str, str]] = [
 SPECIES_CONDITION_ITEMS: list[tuple[str, str]] = [
     (c.value, c.value.title()) for c in SpeciesCondition
 ]
-SOCIAL_CLASS_ITEMS: list[tuple[str, str]] = [
-    (c.value, c.value.title()) for c in SocialClass
+SOCIAL_STRATUM_ITEMS: list[tuple[str, str]] = [
+    (c.value, c.value.title()) for c in SocialStratum
 ]
 WILD_STRATUM_ITEMS: list[tuple[str, str]] = [
     (w.value, w.value.title()) for w in WildStratum
@@ -227,7 +227,7 @@ def construct_pop(
     civilization_id: Optional[UUID],
     species_id: Optional[UUID],
     current_location: UUID,
-    social_class: Optional[SocialClass],
+    social_class: Optional[SocialStratum],
     wild_stratum: Optional[WildStratum],
     seed_beliefs: Optional[dict[str, float]] = None,
     seed_culture: Optional[dict[str, float]] = None,

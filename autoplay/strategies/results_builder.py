@@ -31,7 +31,7 @@ from core.action_core import (
     ProxiusDirectiveIntent, ExploreBeliefIntent, RevealImagoIntent,
     ChangeAffiliatedDomainsIntent, OmenIntent,
 )
-from core.universe_core import MortalRole, SocialClass, NotableMortal
+from core.universe_core import MortalRole, SocialStratum, NotableMortal
 from logic.tick_logic import TickLoop, SimulationState, is_mortal_visible
 
 from autoplay.strategies._helpers import (
@@ -77,7 +77,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
     deva_proxius  = bool(deva  and deva.role  == MortalRole.PROXIUS)
 
     # Artisan pop on Neran Surface — visible from tick 1
-    artisan     = pop_at(state, "Neran Confederacy", "Neran Surface", SocialClass.ARTISAN)
+    artisan     = pop_at(state, "Neran Confederacy", "Neran Surface", SocialStratum.ARTISAN)
     artisan_pid = UUID(artisan[0]) if artisan else None
 
     best_conflict = "conflict:t2:edge" if has_edge else "conflict:t1:banner"

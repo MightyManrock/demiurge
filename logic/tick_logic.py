@@ -46,7 +46,7 @@ from core.universe_core import (
     Civilization, NotableMortal, EntityAge,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
-    Pop, SocialClass, is_wild_civ, pop_label, Faction,
+    Pop, SocialStratum, is_wild_civ, pop_label, Faction,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import (
@@ -124,16 +124,16 @@ SPLINTER_COOLDOWN_TICKS = 30
 # After splitting, a Pop cannot split again for this many ticks.
 
 # Stratum order lowest→highest. Used by the arrival milieu algorithm.
-_STRATUM_ORDER: list[SocialClass] = [
-    SocialClass.WILD,
-    SocialClass.FERAL,
-    SocialClass.UNDERCLASS,
-    SocialClass.COMMON,
-    SocialClass.ARTISAN,
-    SocialClass.TRADER,
-    SocialClass.WARRIOR,
-    SocialClass.SCHOLAR,
-    SocialClass.ELITE,
+_STRATUM_ORDER: list[SocialStratum] = [
+    SocialStratum.WILD,
+    SocialStratum.FERAL,
+    SocialStratum.UNDERCLASS,
+    SocialStratum.COMMON,
+    SocialStratum.ARTISAN,
+    SocialStratum.TRADER,
+    SocialStratum.WARRIOR,
+    SocialStratum.SCHOLAR,
+    SocialStratum.ELITE,
 ]
 
 SPLINTER_CHECK_STRIDE        = 10     # ticks between splinter/reabsorption checks
@@ -5265,11 +5265,11 @@ class TickLoop:
             origin_idx = -1
 
         # Filter: COMMON and above exclude FERAL and WILD Pops
-        _common_idx = _STRATUM_ORDER.index(SocialClass.COMMON)
+        _common_idx = _STRATUM_ORDER.index(SocialStratum.COMMON)
         if origin_idx >= _common_idx:
             candidates = [
                 p for p in candidates
-                if p.social_class not in (SocialClass.FERAL, SocialClass.WILD)
+                if p.social_class not in (SocialStratum.FERAL, SocialStratum.WILD)
             ]
         if not candidates:
             return None
@@ -5299,8 +5299,8 @@ class TickLoop:
 
         # Step c: closest stratum beneath (WARRIOR special case: COMMON > TRADER > ARTISAN)
         if origin_idx >= 0:
-            if origin_cls == SocialClass.WARRIOR:
-                for target_cls in (SocialClass.COMMON, SocialClass.TRADER, SocialClass.ARTISAN):
+            if origin_cls == SocialStratum.WARRIOR:
+                for target_cls in (SocialStratum.COMMON, SocialStratum.TRADER, SocialStratum.ARTISAN):
                     for pop in candidates:
                         if pop.social_class == target_cls:
                             return pop.id

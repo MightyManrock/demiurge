@@ -79,9 +79,9 @@ def test_splinter_check_runs_on_stride():
 from uuid import uuid4 as _uuid4
 
 def _make_pop_for_redistrib(beliefs, occupation="Artist"):
-    from core.universe_core import Pop, SocialClass
+    from core.universe_core import Pop, SocialStratum
     return Pop(
-        social_class=SocialClass.COMMON,
+        social_class=SocialStratum.COMMON,
         occupation=occupation,
         current_location=_uuid4(),
         size_fractional=6.0,
@@ -146,8 +146,8 @@ def _make_loop_r():
     return TickLoop(rng_seed=42)
 
 def _make_pop_r(beliefs, size, location_id, civ_id, occupation="Artist", social_class_str="common"):
-    from core.universe_core import Pop, SocialClass
-    sc = SocialClass(social_class_str)
+    from core.universe_core import Pop, SocialStratum
+    sc = SocialStratum(social_class_str)
     return Pop(
         social_class=sc,
         occupation=occupation,
@@ -265,11 +265,11 @@ def test_reabsorption_full_transfer_on_final_absorption():
 def _make_splinter_state(pop_beliefs, pop_culture, civ_beliefs, civ_culture):
     """Build a minimal SimulationState that will fire a splinter on the first stride tick."""
     from uuid import uuid4
-    from core.universe_core import Pop, SocialClass
+    from core.universe_core import Pop, SocialStratum
     from logic.tick_logic import SPLINTER_CHECK_STRIDE
     civ_id = uuid4()
     pop = Pop(
-        social_class=SocialClass.COMMON,
+        social_class=SocialStratum.COMMON,
         occupation="Artist",
         current_location=uuid4(),
         size_fractional=7.0,
@@ -415,7 +415,7 @@ def test_culture_divergence_religion_mismatch_exceeds_values_mismatch():
 def test_splinter_pop_gets_name_from_parent_label():
     """Splinter Pop should have name = '<parent label> Splinter'."""
     from logic.tick_logic import SPLINTER_CHECK_STRIDE, SPLINTER_DIVERGENCE_THRESHOLD
-    from core.universe_core import Pop, SocialClass, Civilization, CivilizationScale
+    from core.universe_core import Pop, SocialStratum, Civilization, CivilizationScale
     from uuid import uuid4
     loop = _make_loop()
 
@@ -428,7 +428,7 @@ def test_splinter_pop_gets_name_from_parent_label():
         established_beliefs={"domain:change": 0.9},
     )
     parent = Pop(
-        social_class=SocialClass.COMMON,
+        social_class=SocialStratum.COMMON,
         occupation="Merchant",
         current_location=loc_id,
         size_fractional=6.0,
@@ -569,12 +569,12 @@ def test_splinter_identity_anchor_values_match_pre_nudge_beliefs():
 def test_identity_anchor_cleared_when_cooldown_transitions_to_zero():
     """identity_anchor is set to None when splinter_cooldown transitions from 1 to 0."""
     from logic.tick_logic import TickLoop, SPLINTER_CHECK_STRIDE
-    from core.universe_core import Pop, SocialClass
+    from core.universe_core import Pop, SocialStratum
     from uuid import uuid4
     loop = TickLoop(rng_seed=42)
     civ_id = uuid4()
     pop = Pop(
-        social_class=SocialClass.COMMON,
+        social_class=SocialStratum.COMMON,
         occupation="Artist",
         current_location=uuid4(),
         size_fractional=6.0,

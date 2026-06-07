@@ -1606,15 +1606,15 @@ class BuilderScreen(Screen):
         if loc_id in (None, BACK):
             return
         # Stratum: social class for sapient species, wild stratum otherwise.
-        from core.universe_core import SocialClass, WildStratum
+        from core.universe_core import SocialStratum, WildStratum
         social_class = wild_stratum = None
         if sp and sp.sapient:
             chosen = await self.app.push_screen_wait(PickerModal(
-                title="Social class", items=entedit.SOCIAL_CLASS_ITEMS, show_back=True,
+                title="Social class", items=entedit.SOCIAL_STRATUM_ITEMS, show_back=True,
             ))
             if chosen in (None, BACK):
                 return
-            social_class = SocialClass(chosen)
+            social_class = SocialStratum(chosen)
         else:
             chosen = await self.app.push_screen_wait(PickerModal(
                 title="Wild stratum", items=entedit.WILD_STRATUM_ITEMS, show_back=True,
@@ -1763,12 +1763,12 @@ class BuilderScreen(Screen):
             if new_sp.sapient:
                 chosen = await self.app.push_screen_wait(PickerModal(
                     title="Pick a social class for the new species",
-                    items=entedit.SOCIAL_CLASS_ITEMS, show_back=True,
+                    items=entedit.SOCIAL_STRATUM_ITEMS, show_back=True,
                 ))
                 if chosen in (None, BACK):
                     return
-                from core.universe_core import SocialClass
-                pop.social_class = SocialClass(chosen)
+                from core.universe_core import SocialStratum
+                pop.social_class = SocialStratum(chosen)
                 pop.wild_stratum = None
             else:
                 chosen = await self.app.push_screen_wait(PickerModal(
@@ -1844,12 +1844,12 @@ class BuilderScreen(Screen):
         if sp.sapient:
             chosen = await self.app.push_screen_wait(PickerModal(
                 title=f"Social class (current: {pop.social_class.value if pop.social_class else '(none)'})",
-                items=entedit.SOCIAL_CLASS_ITEMS, show_back=True,
+                items=entedit.SOCIAL_STRATUM_ITEMS, show_back=True,
             ))
             if chosen in (None, BACK):
                 return
-            from core.universe_core import SocialClass
-            pop.social_class = SocialClass(chosen)
+            from core.universe_core import SocialStratum
+            pop.social_class = SocialStratum(chosen)
             pop.wild_stratum = None
         else:
             chosen = await self.app.push_screen_wait(PickerModal(

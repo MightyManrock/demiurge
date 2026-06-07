@@ -15,7 +15,7 @@ from core.action_core import (
     TargetType,
     EssenceHarvestIntent, ProxiusDirectiveIntent, DomainVector,
 )
-from core.universe_core import MortalRole, SocialClass
+from core.universe_core import MortalRole, SocialStratum
 from logic.tick_logic import TickLoop, SimulationState
 
 from autoplay.strategies._helpers import (
@@ -45,7 +45,7 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
 
     if tick in (2, 3):
         if mid_veth and veth and veth.role == MortalRole.PROXIUS and veth.active_goal is None:
-            target_pop = pop_at(state, "Neran", "Neran Surface", SocialClass.ELITE)
+            target_pop = pop_at(state, "Neran", "Neran Surface", SocialStratum.ELITE)
             if target_pop is None:
                 q("harvest_essence", TargetType.UNDERREAL, None,
                   EssenceHarvestIntent(concealment_priority=0.9))
