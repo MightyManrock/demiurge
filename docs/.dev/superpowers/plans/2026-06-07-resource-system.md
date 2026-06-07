@@ -1,5 +1,6 @@
 # Resource System Implementation Plan
 
+> **Status:** complete — implemented 2026-06-07
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Redesign `CollectibleResource` from a single optional into a depleting, renewing list; split the monolithic `sustenance` need into `nourishment` and `hydration`; add passive sustenance fulfillment for both Pops and mortals; add mortal-autonomous `forage` and `hunt` actions.
