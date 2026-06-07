@@ -157,6 +157,34 @@ class MortalDesire(BaseModel):
         return 1.0 - (self.satisfaction / self.pressing_threshold)
 
 
+class PopNeed(BaseModel):
+    name: str
+    satisfaction: float = Field(ge=0.0, le=1.0, default=1.0)
+    decay_rate: float = 0.02
+    pressing_threshold: float = 0.55
+    urgent_threshold: float = 0.20
+    satiation_hold: int = 0
+
+    @property
+    def is_pressing(self) -> bool:
+        return self.satisfaction < self.pressing_threshold
+
+    @property
+    def is_urgent(self) -> bool:
+        return self.satisfaction < self.urgent_threshold
+
+
+class PopAgentState(BaseModel):
+    needs: list[PopNeed] = Field(default_factory=list)
+    action_priorities: dict[str, float] = Field(default_factory=dict)
+    fatigue: float = Field(ge=0.0, le=1.0, default=0.0)
+    pending_migration_dest: Optional[UUID] = None
+    migration_ticks_remaining: int = 0
+
+    def get_need(self, name: str) -> Optional[PopNeed]:
+        return next((n for n in self.needs if n.name == name), None)
+
+
 # ---------------------------------------------------------------------------
 # Assets and collectible resources
 # ---------------------------------------------------------------------------
