@@ -13,6 +13,7 @@ from logic.needs_config import (
     POP_NEED_DEFAULTS, compute_pop_need_profile, initialize_pop_state,
     compute_need_profile,
 )
+from logic.tick_logic import _MORTAL_FOOD_CONSUME_RATE
 
 
 # ── CollectibleResource ───────────────────────────────────────────────────────
@@ -438,3 +439,98 @@ def test_entitlement_no_milieu_empty():
     mortal.pop_milieu = None
     from logic.tick_logic import entitlement_resolver
     assert entitlement_resolver(mortal, MagicMock()) == []
+
+
+# ── Task 7: Three-source mortal passive sustenance ────────────────────────────
+
+def _make_mortal_with_needs(**sats):
+    needs = []
+    defaults = {"nourishment": 1.0, "hydration": 1.0, "safety": 1.0,
+                "belonging": 1.0, "status": 1.0, "purpose": 1.0, "leisure": 1.0}
+    defaults.update(sats)
+    for name, sat in defaults.items():
+        needs.append(MortalNeed(name=name, satisfaction=sat,
+                                 decay_rate=0.02, pressing_threshold=0.55,
+                                 urgent_threshold=0.20))
+    return MortalAgentState(needs=needs)
+
+
+def _make_state_with_entitled_pop(pop_id, stockpile: dict):
+    pop = MagicMock()
+    pop.linked_pop_ids = {}
+    loc = PopLocation(id=pop_id, name="Plains", location_type="city", parent_id=uuid4(),
+                      resource_stockpile=dict(stockpile))
+    state = MagicMock()
+    state.pops = {str(pop_id): pop}
+    state.locations = {str(pop_id): loc}
+    return state, loc
+
+
+def test_mortal_draws_nourishment_from_entitled_stockpile():
+    pop_id = uuid4()
+    state, loc = _make_state_with_entitled_pop(pop_id, {"food_flora": 10.0})
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+    _tick_mortal_passive_sustenance(mortal, loc, state)
+
+    assert cs.get_need("nourishment").satisfaction > 0.3
+    assert loc.resource_stockpile["food_flora"] < 10.0
+
+def test_mortal_stockpile_draw_scaled_by_link_factor():
+    origin_id = uuid4()
+    linked_id = uuid4()
+    origin_pop = MagicMock()
+    origin_pop.linked_pop_ids = {str(linked_id): 0.5}
+    linked_pop = MagicMock()
+    loc = PopLocation(id=linked_id, name="Plains", location_type="city", parent_id=uuid4(),
+                      resource_stockpile={"food_flora": 10.0})
+    state = MagicMock()
+    state.pops = {str(origin_id): origin_pop, str(linked_id): linked_pop}
+    state.locations = {str(linked_id): loc}
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = origin_id
+    mortal.pop_milieu = linked_id
+
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+    _tick_mortal_passive_sustenance(mortal, loc, state)
+
+    drawn = 10.0 - loc.resource_stockpile["food_flora"]
+    assert 0 < drawn <= _MORTAL_FOOD_CONSUME_RATE * 0.5 + 1e-9
+
+def test_mortal_falls_back_to_inventory_when_stockpile_empty():
+    pop_id = uuid4()
+    state, loc = _make_state_with_entitled_pop(pop_id, {})
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    food = Resource(resource_type="food_flora", biochem_tags=["basis:carbon"], quantity=5.0)
+    cs.mortal_inventory.items.append(food)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+    _tick_mortal_passive_sustenance(mortal, loc, state)
+
+    assert cs.get_need("nourishment").satisfaction > 0.3
+    assert food.quantity < 5.0
+
+def test_mortal_commerce_fallback_fills_when_no_resources():
+    pop_id = uuid4()
+    state, loc = _make_state_with_entitled_pop(pop_id, {})
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+    _tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality=0.8)
+
+    assert cs.get_need("nourishment").satisfaction > 0.3

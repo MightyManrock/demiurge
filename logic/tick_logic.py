@@ -70,6 +70,7 @@ from logic.mortal_agent_logic import (
     EXPLORATION_NOVELTY_THRESHOLD,
     SOCIAL_NOVELTY_FLOOR,
 )
+from logic.pop_agent_logic import _RESOURCE_BIOCHEM
 from logic.needs_config import (
     NEED_NOURISHMENT, NEED_HYDRATION, NEED_SAFETY, NEED_LEISURE, NEED_BELONGING, NEED_PURPOSE, NEED_STATUS,
     DESIRE_ACCUMULATION, DESIRE_EXPLORATION, DESIRE_EXPRESSION,
@@ -1167,6 +1168,73 @@ def _tick_yield_renewal(state: "SimulationState") -> None:
         for cr in loc.collectible_resources:
             recovered = cr.yield_renew_rate * cr.max_yield
             cr.current_yield = min(cr.max_yield, cr.current_yield + recovered)
+
+
+_MORTAL_FOOD_CONSUME_RATE  = 0.05
+_MORTAL_DRINK_CONSUME_RATE = 0.05
+_MORTAL_NOURISHMENT_FILL   = 0.03
+_MORTAL_HYDRATION_FILL     = 0.025
+
+
+def _tick_mortal_passive_sustenance(
+    mortal, loc, state, commerce_quality: float = 0.0
+) -> None:
+    """Three-source nourishment + hydration restore.
+
+    Priority: (1) entitled Pop stockpile at loc, (2) mortal_inventory, (3) commerce fallback.
+    Sources tried independently per need.
+    """
+    cs = mortal.mortal_state
+    nour = cs.get_need("nourishment")
+    hydr = cs.get_need("hydration")
+
+    food_consumed = False
+    drink_consumed = False
+
+    # Source 1: entitled Pop stockpile at current location
+    entitled = entitlement_resolver(mortal, state)
+    if entitled and loc is not None and hasattr(loc, "resource_stockpile"):
+        _, factor = entitled[0]
+        for resource_type, quantity in list(loc.resource_stockpile.items()):
+            if quantity <= 0:
+                continue
+            category = _RESOURCE_BIOCHEM.get(resource_type)
+            if category == "basis" and not food_consumed and nour and nour.satisfaction < 1.0:
+                consumed = min(quantity, _MORTAL_FOOD_CONSUME_RATE * factor)
+                loc.resource_stockpile[resource_type] -= consumed
+                nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL * factor)
+                food_consumed = True
+            elif category == "solvent" and not drink_consumed and hydr and hydr.satisfaction < 1.0:
+                consumed = min(quantity, _MORTAL_DRINK_CONSUME_RATE * factor)
+                loc.resource_stockpile[resource_type] -= consumed
+                hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL * factor)
+                drink_consumed = True
+            if food_consumed and drink_consumed:
+                break
+
+    # Source 2: mortal_inventory
+    for res in cs.mortal_inventory.items:
+        if not food_consumed and nour and nour.satisfaction < 1.0:
+            if any(t.startswith("basis:") for t in res.biochem_tags) and res.quantity > 0:
+                consumed = min(res.quantity, _MORTAL_FOOD_CONSUME_RATE)
+                res.quantity = max(0.0, res.quantity - consumed)
+                nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL)
+                food_consumed = True
+        if not drink_consumed and hydr and hydr.satisfaction < 1.0:
+            if any(t.startswith("solvent:") for t in res.biochem_tags) and res.quantity > 0:
+                consumed = min(res.quantity, _MORTAL_DRINK_CONSUME_RATE)
+                res.quantity = max(0.0, res.quantity - consumed)
+                hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL)
+                drink_consumed = True
+        if food_consumed and drink_consumed:
+            break
+
+    # Source 3: commerce fallback
+    if commerce_quality > 0:
+        if not food_consumed and nour and nour.satisfaction < 1.0:
+            nour.satisfaction = min(1.0, nour.satisfaction + 0.02)
+        if not drink_consumed and hydr and hydr.satisfaction < 1.0:
+            hydr.satisfaction = min(1.0, hydr.satisfaction + 0.015)
 
 
 def entitlement_resolver(mortal, state) -> list[tuple]:
@@ -5520,10 +5588,8 @@ class TickLoop:
 
             # Passive restoration for needs that are auto-satisfied by stable conditions
             loc = state.locations.get(str(mortal.current_location))
-            if loc and _effective_commerce_quality(loc, state) > 0:
-                sust = cs.get_need(NEED_NOURISHMENT)
-                if sust and sust.satisfaction < 1.0:
-                    sust.satisfaction = min(1.0, sust.satisfaction + 0.03)
+            _cq = _effective_commerce_quality(loc, state) if loc else 0.0
+            _tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality=_cq)
             safe = cs.get_need(NEED_SAFETY)
             if safe and safe.satisfaction < 1.0:
                 safe.satisfaction = min(1.0, safe.satisfaction + 0.02)
