@@ -79,6 +79,44 @@ class Faction(BaseModel):
 
 ---
 
+## Pop Agents (Implemented)
+
+Any `Pop` with a non-None `pop_state: PopAgentState` runs as a Pop agent in Phase 2.57 of the tick loop (`_tick_pop_agents` in `logic/tick_logic.py`).
+
+### Priority vector (`PopAgentState.action_priorities`)
+
+Recomputed each tick via `compute_pop_priorities()` in `logic/pop_agent_logic.py`:
+
+1. **Need urgency → raw weights** — continuous urgency from each `PopNeed`'s satisfaction vs. thresholds; urgency is 0 when satisfied or held, scales linearly between pressing and urgent thresholds, >1 when urgent
+2. **Competency scaling** — multiplied by stratum/occupation modifier (WARRIOR → fortify 1.5×; ARTISAN → build 1.5×; SCHOLAR → enact_rituals 1.5×; COMMON/WILD/FERAL → forage/hunt 1.2–1.5×)
+3. **Directive weight modifiers** — `Directive.action_weight_modifiers` adds/subtracts from action weights; sourced from `Pop.active_directives` and member Factions' `active_directives`
+4. **Normalize** — divide by total to produce distribution summing to 1.0
+
+Stub actions (`raid`, `fight`, `rout`) always have weight 0.0.
+
+### Active slots
+
+`compute_active_slots(pop, factions)` returns `max(2, floor(size_fractional))`, optionally ±1 from `Directive.slot_modifier`. Only the top-N actions by weight resolve each tick. Slot modifications are blocked when `PopAgentState.fatigue == 1.0`.
+
+### Resource stockpile
+
+`PopLocation.resource_stockpile: dict[str, float]` accumulates output from `forage`, `hunt`, and `collect` actions. A consumption pass draws from `food_flora` and `food_fauna` entries each tick to fill the `sustenance` need.
+
+### Canonical Pop needs
+
+| Need | Filled by | Notes |
+|---|---|---|
+| `sustenance` | forage, hunt, collect | Two-step via stockpile |
+| `safety` | fortify | Also: migrate from high-danger |
+| `cohesion` | commune, revel | |
+| `purpose` | enact_rituals, Directive compliance | |
+| `shelter` | build | High decay in sedentist Pops |
+| `wanderlust` | migrate | High decay in nomadic Pops |
+
+See [needs-and-directives.md](needs-and-directives.md) for full initialization details.
+
+---
+
 ## Planned
 
 Two-tier resolution split by visibility:

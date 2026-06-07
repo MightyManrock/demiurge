@@ -265,8 +265,8 @@ def _write_travel_networks(conn, state: SimulationState):
                 str(tn.id),
                 tn.name,
                 _j(tn.member_ids),
-                json.dumps([e.model_dump() for e in tn.edges]),
-                json.dumps([c.model_dump() for c in tn.conditions]),
+                json.dumps([e.model_dump(mode="json") for e in tn.edges]),
+                json.dumps([c.model_dump(mode="json") for c in tn.conditions]),
             ),
         )
 
