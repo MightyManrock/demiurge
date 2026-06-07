@@ -884,9 +884,9 @@ def render_mortal_detail(state: "SimulationState", mortal_id: str) -> Text:
         a(f"  fatigue:   {m.fatigue:.2f}")
         if m.assets:
             a(f"  assets:    {_e(', '.join(a_.label or a_.asset_type for a_ in m.assets))}")
-        if cs.inventory:
+        if cs.mortal_inventory.items:
             a("  inventory:")
-            for res in cs.inventory:
+            for res in cs.mortal_inventory.items:
                 thresh_tag = (
                     f"  [#888888](need {res.threshold:.0f})[/]"
                     if res.quantity < res.threshold else ""
