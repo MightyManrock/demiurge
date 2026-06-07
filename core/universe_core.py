@@ -11,11 +11,12 @@ from enum import Enum
 from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
-    from core.agent_core import PopAgentState
+    pass
 
 from core.agent_core import (
     ProxiusGoal, TravelIntent,
     KnowledgeBase, MortalAgentState, MortalAsset, CollectibleResource,
+    PopAgentState,
 )
 
 # ─────────────────────────────────────────
@@ -853,3 +854,7 @@ class Universe(Location):
     # Aggregate event log — references to Event objects
     # (defined when we build the action layer).
     event_log_ids: list[UUID] = Field(default_factory=list)
+
+
+# Resolve forward references now that all classes are defined
+Pop.model_rebuild()

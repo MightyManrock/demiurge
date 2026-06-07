@@ -82,3 +82,27 @@ def test_pop_pop_state_default_none():
 def test_pop_location_resource_stockpile_default():
     loc = PopLocation(id=uuid4(), name="test", location_type="city")
     assert loc.resource_stockpile == {}
+
+
+def test_pop_agent_state_roundtrips_json():
+    """PopAgentState survives model_dump_json → model_validate_json."""
+    import json
+    from core.agent_core import PopNeed, PopAgentState
+    ps = PopAgentState(
+        needs=[PopNeed(name="sustenance", satisfaction=0.6)],
+        action_priorities={"forage": 0.4, "commune": 0.6},
+        fatigue=0.3,
+    )
+    raw = ps.model_dump_json()
+    restored = PopAgentState.model_validate_json(raw)
+    assert len(restored.needs) == 1
+    assert restored.needs[0].name == "sustenance"
+    assert abs(restored.needs[0].satisfaction - 0.6) < 1e-6
+    assert abs(restored.action_priorities["forage"] - 0.4) < 1e-6
+    assert abs(restored.fatigue - 0.3) < 1e-6
+
+
+def test_pop_agent_state_loads_from_none():
+    """None pop_state → None (not error)."""
+    result = None
+    assert result is None

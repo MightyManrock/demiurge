@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS locations (
     collectible_resource  TEXT    DEFAULT NULL,            -- JSON of CollectibleResource, or NULL
     wealth                REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; PopLocation prosperity indicator
     danger                REAL    NOT NULL DEFAULT 0.0,    -- 0.0–1.0; base hazard level of this location
+    resource_stockpile            TEXT NOT NULL DEFAULT '{}',
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0,      -- bool; 1 = never decays (all starting locations)
@@ -265,7 +266,8 @@ CREATE TABLE IF NOT EXISTS pops (
     linked_pop_ids                TEXT NOT NULL DEFAULT '{}',  -- JSON object {pop_id_str: base_link_factor}
     active_directives             TEXT NOT NULL DEFAULT '[]',  -- JSON array of Directive objects
     asset_crew_for                TEXT DEFAULT NULL,           -- asset_type if this is a vessel crew pop
-    faction_ids                   TEXT NOT NULL DEFAULT '[]'   -- JSON array of Faction UUIDs
+    faction_ids                   TEXT NOT NULL DEFAULT '[]',  -- JSON array of Faction UUIDs
+    pop_state                     TEXT DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS factions (

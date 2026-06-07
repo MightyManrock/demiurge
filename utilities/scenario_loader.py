@@ -585,6 +585,7 @@ def _load_locations(conn, universe_age: EntityAge) -> dict[str, Location]:
                 collectible_resource=_load_collectible_resource(row.get("collectible_resource")),
                 wealth=float(row.get("wealth", 0.5) or 0.5),
                 danger=float(row.get("danger", 0.0) or 0.0),
+                resource_stockpile=_jd(row.get("resource_stockpile", "{}")),
                 age=entity_age,
             )
         elif subclass == "travel_location":
@@ -813,6 +814,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             active_directives=_load_directives(row.get("active_directives", "[]")),
             asset_crew_for=row.get("asset_crew_for") or None,
             faction_ids=[UUID(fid) for fid in _j(row.get("faction_ids", "[]"))],
+            pop_state=_load_pop_agent_state(row.get("pop_state")),
         )
         out[str(p.id)] = p
     return out
@@ -906,6 +908,16 @@ def _load_directives(raw: Optional[str]) -> list:
         return [Directive.model_validate(d) for d in items]
     except Exception:
         return []
+
+
+def _load_pop_agent_state(raw):
+    if not raw:
+        return None
+    try:
+        from core.agent_core import PopAgentState
+        return PopAgentState.model_validate_json(raw)
+    except Exception:
+        return None
 
 
 def _load_factions(conn) -> "dict[str, Faction]":
