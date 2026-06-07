@@ -297,3 +297,56 @@ def test_consumption_pass_solvent_resource_fills_hydration():
     resolve_pop_actions(pop, loc, [], 1, state)
     after = pop.pop_state.get_need("hydration").satisfaction
     assert after >= before
+
+
+# ── Task 5: Yield renewal ─────────────────────────────────────────────────────
+
+def _make_state_with_location(cr):
+    from core.universe_core import PopLocation
+    loc = PopLocation(id=uuid4(), name="Plains", parent_id=uuid4(),
+                      location_type="city", collectible_resources=[cr])
+    state = MagicMock()
+    state.locations = {str(loc.id): loc}
+    return state, loc
+
+
+def test_yield_renewal_increases_current_yield():
+    cr = CollectibleResource(resource_type="food_flora", max_yield=10.0,
+                              yield_renew_rate=0.1, current_yield=5.0)
+    state, loc = _make_state_with_location(cr)
+
+    from logic.tick_logic import _tick_yield_renewal
+    _tick_yield_renewal(state)
+
+    assert loc.collectible_resources[0].current_yield == pytest.approx(6.0)
+
+def test_yield_renewal_capped_at_max_yield():
+    cr = CollectibleResource(resource_type="food_flora", max_yield=10.0,
+                              yield_renew_rate=0.5, current_yield=9.0)
+    state, loc = _make_state_with_location(cr)
+
+    from logic.tick_logic import _tick_yield_renewal
+    _tick_yield_renewal(state)
+
+    # 9.0 + 0.5 * 10.0 = 14.0 → capped at 10.0
+    assert loc.collectible_resources[0].current_yield == pytest.approx(10.0)
+
+def test_yield_renewal_already_full_stays_full():
+    cr = CollectibleResource(resource_type="food_flora", max_yield=10.0,
+                              yield_renew_rate=0.2, current_yield=10.0)
+    state, loc = _make_state_with_location(cr)
+
+    from logic.tick_logic import _tick_yield_renewal
+    _tick_yield_renewal(state)
+
+    assert loc.collectible_resources[0].current_yield == pytest.approx(10.0)
+
+def test_yield_renewal_skips_non_pop_locations():
+    from core.universe_core import SignificantLocation
+    sig_loc = SignificantLocation(id=uuid4(), name="Region", parent_id=uuid4(),
+                                  location_type="planet")
+    state = MagicMock()
+    state.locations = {str(sig_loc.id): sig_loc}
+
+    from logic.tick_logic import _tick_yield_renewal
+    _tick_yield_renewal(state)  # should not raise

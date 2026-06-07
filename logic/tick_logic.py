@@ -1158,6 +1158,17 @@ def _sync_faction_directives(
             kb.facts.append(df)
 
 
+def _tick_yield_renewal(state: "SimulationState") -> None:
+    """Phase 2.54 — renew collectible_resource yields at all PopLocations."""
+    from core.universe_core import PopLocation
+    for loc in state.locations.values():
+        if not isinstance(loc, PopLocation):
+            continue
+        for cr in loc.collectible_resources:
+            recovered = cr.yield_renew_rate * cr.max_yield
+            cr.current_yield = min(cr.max_yield, cr.current_yield + recovered)
+
+
 class TickLoop:
 
     def __init__(self, rng_seed: Optional[int] = None):
@@ -1402,6 +1413,9 @@ class TickLoop:
         agent_mutations, agent_narratives = resolve_proxius_agents(state, phase_rng, cfg)
         state = self._apply_mutations(state, agent_mutations)
         result.agent_narratives.extend(agent_narratives)
+
+        # ── Phase 2.54: Resource Yield Renewal ─────────
+        _tick_yield_renewal(state)
 
         # ── Phase 2.55: Civilian Agent Actions ─────────
         mortal_agent_narratives = self._tick_mortal_agents(state, state.tick_number)
