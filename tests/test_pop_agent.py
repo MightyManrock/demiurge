@@ -39,3 +39,10 @@ def test_pop_agent_state_defaults():
     assert s.fatigue == 0.0
     assert s.pending_migration_dest is None
     assert s.migration_ticks_remaining == 0
+
+
+def test_pop_agent_state_get_need():
+    n = PopNeed(name="sustenance", satisfaction=0.3)
+    s = PopAgentState(needs=[n])
+    assert s.get_need("sustenance") is n
+    assert s.get_need("shelter") is None
