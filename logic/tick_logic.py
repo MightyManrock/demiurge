@@ -5570,9 +5570,10 @@ class TickLoop:
                     _bg_res = cs.get_resource(_bg_cr.resource_type)
                     if _bg_res is None:
                         from core.agent_core import Resource as _Resource
-                        _bg_res = _Resource(resource_type=_bg_cr.resource_type)
+                        _bg_res = _Resource(resource_type=_bg_cr.resource_type, biochem_tags=list(_bg_cr.biochem_tags))
                         cs.inventory.append(_bg_res)
-                    _bg_gained = _bg_cr.max_yield * 0.15
+                    _bg_gained = min(_bg_cr.max_yield * 0.15, _bg_cr.current_yield)
+                    _bg_cr.current_yield = max(0.0, _bg_cr.current_yield - _bg_gained)
                     _bg_res.quantity += _bg_gained
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
                     if mortal.pinned:
