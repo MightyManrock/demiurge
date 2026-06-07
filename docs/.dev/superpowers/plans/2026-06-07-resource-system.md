@@ -4,11 +4,11 @@
 
 **Goal:** Redesign `CollectibleResource` from a single optional into a depleting, renewing list; split the monolithic `sustenance` need into `nourishment` and `hydration`; add passive sustenance fulfillment for both Pops and mortals; add mortal-autonomous `forage` and `hunt` actions.
 
-**Architecture:** `CollectibleResource` gains `max_yield`/`yield_renew_rate`/`current_yield` fields and an `action_types` discriminator; `PopLocation.collectible_resource` becomes `collectible_resources: list[CollectibleResource]`. A new tick phase renews yields before agents act. `sustenance` is replaced by `nourishment` (filled by `basis:*`-tagged resources) and `hydration` (filled by `solvent:*`-tagged resources, decaying ~1.5× faster). Mortals passively consume from their KB inventory to fill these needs rather than using an explicit eat/drink action; a new `forage` / `hunt` priority in `evaluate_mortal_action` lets mortals acquire food autonomously when nourishment is pressing.
+**Architecture:** `CollectibleResource` gains `max_yield`/`yield_renew_rate`/`current_yield` fields and an `action_types` discriminator; `PopLocation.collectible_resource` becomes `collectible_resources: list[CollectibleResource]`. `Resource` gains a `decay_rate: float = 0.0` stub (inert for now; hooks into future environment-dependent decay). A new `MortalInventory` model replaces the flat `MortalAgentState.inventory` list, with `get_resource()` / `add_resource()` helpers and a backward-compat loader migration. An `entitlement_resolver(mortal, state)` function in `tick_logic.py` determines which Pop stockpiles a mortal may passively draw from (their `pop_id` Pop at factor 1.0, or Pops linked to it at the link factor). A new tick phase renews yields before agents act. `sustenance` is replaced by `nourishment` (filled by `basis:*`-tagged resources) and `hydration` (filled by `solvent:*`-tagged resources, decaying ~1.5× faster). Mortal passive sustenance follows a three-source priority: (1) entitled Pop stockpile at the mortal's current location, scaled by entitlement factor; (2) `MortalInventory`; (3) commerce-quality fallback. A new `forage` / `hunt` priority in `evaluate_mortal_action` lets mortals acquire food autonomously when nourishment is pressing.
 
 **Tech Stack:** Python 3.11, Pydantic v2, SQLite; `pytest` test suite.
 
-**Out of scope:** `ResourceStockpile` shared-ownership system (separate plan); Pop "leak" migration; tech-bonus modifiers on yield; mortal hydration action (collect with `solvent:*` resource covers it).
+**Out of scope:** `ResourceStockpile` shared-ownership system (separate plan); species-specific consumption enforcement (separate plan); stockpile draw rate limits (separate plan); mortal inventory capacity (separate plan); Pop "leak" migration; tech-bonus modifiers on yield; mortal hydration action (collect with `solvent:*` resource covers it).
 
 ---
 
@@ -16,14 +16,14 @@
 
 | File | Change |
 |---|---|
-| `core/agent_core.py` | Extend `CollectibleResource`: rename `resource_yield`→`max_yield`, add `yield_renew_rate`, `current_yield`, `action_types`; add `model_validator` |
+| `core/agent_core.py` | Extend `CollectibleResource`: rename `resource_yield`→`max_yield`, add `yield_renew_rate`, `current_yield`, `action_types`; add `model_validator`; add `decay_rate: float = 0.0` to `Resource`; add `MortalInventory` class; replace `MortalAgentState.inventory` with `mortal_inventory: MortalInventory`; add backward-compat `model_validator` |
 | `core/universe_core.py` | Replace `PopLocation.collectible_resource: Optional` with `collectible_resources: list` |
 | `core/scenario_schema.sql` | Rename column `collectible_resource` → `collectible_resources TEXT NOT NULL DEFAULT '[]'` |
 | `utilities/scenario_loader.py` | Replace `_load_collectible_resource` with `_load_collectible_resources`; backward-compat for old single-object column; state need migration (`sustenance`→`nourishment`+`hydration`) |
 | `utilities/scenario_exporter.py` | Serialize `collectible_resources` list |
 | `logic/needs_config.py` | Add `NEED_NOURISHMENT`, `NEED_HYDRATION`; remove `NEED_SUSTENANCE`; add pop equivalents; update mortal and pop defaults |
 | `logic/pop_agent_logic.py` | Update `ACTION_NEED_MAP`; gate forage/hunt/collect on `action_types` and `current_yield`; split consumption pass into nourishment + hydration |
-| `logic/tick_logic.py` | Add Phase 2.54 yield renewal; update mortal collect to use `collectible_resources` list; replace passive `sustenance` restore with `nourishment`+`hydration` inventory draws; add `forage`/`hunt` resolution for mortals |
+| `logic/tick_logic.py` | Add Phase 2.54 yield renewal; update mortal collect to use `collectible_resources` list; add `entitlement_resolver`; replace passive `sustenance` restore with three-source `nourishment`+`hydration` draw (entitled stockpile → inventory → commerce); add `forage`/`hunt` resolution for mortals |
 | `logic/mortal_agent_logic.py` | Add `"forage"` and `"hunt"` as possible return values from `evaluate_mortal_action` |
 | `tests/test_resource_system.py` | New test file covering all tasks |
 | `tests/test_pop_agent.py` | Update tests that reference `"sustenance"` need name |
@@ -144,6 +144,20 @@ class CollectibleResource(BaseModel):
         if self.current_yield is None:
             self.current_yield = self.max_yield
         return self
+```
+
+- [ ] **Step 3b: Add `decay_rate` stub to `Resource` in `core/agent_core.py`**
+
+In the `Resource` class (around line 209), add one field after `biochem_tags`:
+```python
+decay_rate: float = 0.0   # future: environment-dependent resource spoilage rate
+```
+
+Add one test to `tests/test_resource_system.py`:
+```python
+def test_resource_decay_rate_defaults_to_zero():
+    r = Resource(resource_type="food_flora")
+    assert r.decay_rate == 0.0
 ```
 
 - [ ] **Step 4: Update `PopLocation` in `core/universe_core.py`**
@@ -1093,7 +1107,238 @@ git commit -m "feat(resources): Phase 2.54 collectible_resource yield renewal"
 
 ---
 
-## Task 6: Mortal passive sustenance from inventory
+## Task 6: MortalInventory type + entitlement resolver
+
+**Files:**
+- Modify: `core/agent_core.py`
+- Modify: `logic/tick_logic.py`
+- Test: `tests/test_resource_system.py`
+
+**Context:** `MortalAgentState.inventory: list[Resource]` (line 241 of `agent_core.py`) is a flat list with a `get_resource()` helper on the state itself (line 254). We replace it with a `MortalInventory` model that owns the list and its helpers. `MortalAgentState` gets a backward-compat `model_validator` to migrate old serialized `"inventory"` keys. The `entitlement_resolver` lives in `tick_logic.py` (not `agent_core.py`) because it takes `state`.
+
+Entitlement rule: a mortal may draw from the `resource_stockpile` of the Pop they are currently among (`pop_milieu`) if that Pop is their origin Pop (`pop_id`, factor=1.0) or is listed in their `pop_id` Pop's `linked_pop_ids` (factor=that link factor). Both fields live on `NotableMortal` (lines 746–747 of `universe_core.py`); `linked_pop_ids: dict[str, float]` lives on `Pop` (line 546).
+
+- [ ] **Step 1: Write failing tests**
+
+Add to `tests/test_resource_system.py`:
+
+```python
+from core.agent_core import MortalInventory, MortalAgentState, MortalNeed, Resource
+
+
+# ── MortalInventory ───────────────────────────────────────────────────────────
+
+def test_mortal_inventory_empty_by_default():
+    inv = MortalInventory()
+    assert inv.items == []
+
+def test_mortal_inventory_get_resource_found():
+    inv = MortalInventory(items=[Resource(resource_type="food_flora", quantity=3.0)])
+    res = inv.get_resource("food_flora")
+    assert res is not None and res.quantity == 3.0
+
+def test_mortal_inventory_get_resource_not_found():
+    assert MortalInventory().get_resource("food_flora") is None
+
+def test_mortal_inventory_add_resource_new():
+    inv = MortalInventory()
+    res = inv.add_resource("food_flora", 2.0, ["basis:carbon"])
+    assert res.quantity == 2.0 and len(inv.items) == 1
+
+def test_mortal_inventory_add_resource_stacks():
+    inv = MortalInventory(items=[Resource(resource_type="food_flora", quantity=1.0)])
+    inv.add_resource("food_flora", 2.0)
+    assert inv.get_resource("food_flora").quantity == 3.0
+
+def test_mortal_agent_state_has_mortal_inventory():
+    cs = MortalAgentState()
+    assert hasattr(cs, "mortal_inventory")
+    assert isinstance(cs.mortal_inventory, MortalInventory)
+
+def test_mortal_agent_state_backward_compat():
+    import json
+    old_json = json.dumps({
+        "needs": [],
+        "inventory": [{"resource_type": "food_flora", "quantity": 5.0,
+                        "biochem_tags": ["basis:carbon"]}]
+    })
+    cs = MortalAgentState.model_validate_json(old_json)
+    assert cs.mortal_inventory.get_resource("food_flora").quantity == 5.0
+
+
+# ── entitlement_resolver ──────────────────────────────────────────────────────
+
+from logic.tick_logic import entitlement_resolver
+
+
+def test_entitlement_home_pop_full_factor():
+    pop_id = uuid4()
+    pop = MagicMock()
+    pop.linked_pop_ids = {}
+    state = MagicMock()
+    state.pops = {str(pop_id): pop}
+    mortal = MagicMock()
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+    assert entitlement_resolver(mortal, state) == [(pop, 1.0)]
+
+def test_entitlement_linked_pop_scaled():
+    origin_id = uuid4()
+    linked_id = uuid4()
+    origin_pop = MagicMock()
+    origin_pop.linked_pop_ids = {str(linked_id): 0.6}
+    linked_pop = MagicMock()
+    state = MagicMock()
+    state.pops = {str(origin_id): origin_pop, str(linked_id): linked_pop}
+    mortal = MagicMock()
+    mortal.pop_id = origin_id
+    mortal.pop_milieu = linked_id
+    assert entitlement_resolver(mortal, state) == [(linked_pop, 0.6)]
+
+def test_entitlement_unrelated_pop_empty():
+    origin_id = uuid4()
+    other_id = uuid4()
+    origin_pop = MagicMock()
+    origin_pop.linked_pop_ids = {}
+    state = MagicMock()
+    state.pops = {str(origin_id): origin_pop, str(other_id): MagicMock()}
+    mortal = MagicMock()
+    mortal.pop_id = origin_id
+    mortal.pop_milieu = other_id
+    assert entitlement_resolver(mortal, state) == []
+
+def test_entitlement_no_milieu_empty():
+    mortal = MagicMock()
+    mortal.pop_milieu = None
+    assert entitlement_resolver(mortal, MagicMock()) == []
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+```bash
+pytest tests/test_resource_system.py -k "mortal_inventory or mortal_agent_state or entitlement" -v
+```
+
+Expected: ImportError — `MortalInventory` and `entitlement_resolver` don't exist yet.
+
+- [ ] **Step 3: Add `MortalInventory` to `core/agent_core.py`**
+
+After the `Resource` class definition (~line 218), add:
+
+```python
+class MortalInventory(BaseModel):
+    items: list[Resource] = Field(default_factory=list)
+
+    def get_resource(self, resource_type: str) -> Optional[Resource]:
+        return next((r for r in self.items if r.resource_type == resource_type), None)
+
+    def add_resource(
+        self,
+        resource_type: str,
+        quantity: float,
+        biochem_tags: Optional[list[str]] = None,
+    ) -> Resource:
+        res = self.get_resource(resource_type)
+        if res is None:
+            res = Resource(resource_type=resource_type,
+                           biochem_tags=biochem_tags or [])
+            self.items.append(res)
+        res.quantity += quantity
+        return res
+```
+
+- [ ] **Step 4: Update `MortalAgentState` in `core/agent_core.py`**
+
+Add `model_validator` to the imports (alongside the existing `Field`):
+```python
+from pydantic import BaseModel, Field, model_validator
+```
+
+In `MortalAgentState`, replace:
+```python
+inventory: list[Resource] = Field(default_factory=list)
+```
+with:
+```python
+mortal_inventory: MortalInventory = Field(default_factory=MortalInventory)
+```
+
+Add a `model_validator` above the existing methods to handle old serialized format:
+```python
+@model_validator(mode="before")
+@classmethod
+def _migrate_inventory(cls, data):
+    if isinstance(data, dict) and "inventory" in data and "mortal_inventory" not in data:
+        data["mortal_inventory"] = {"items": data.pop("inventory")}
+    return data
+```
+
+Remove the `get_resource` method from `MortalAgentState` — it now lives on `MortalInventory`.
+
+- [ ] **Step 5: Update callsites in `logic/tick_logic.py`**
+
+Find all occurrences of the old API:
+```bash
+grep -n "cs\.inventory\|cs\.get_resource\|mortal_state\.inventory\|\.mortal_state\.get_resource" logic/tick_logic.py
+```
+
+Replace each:
+- `cs.inventory` → `cs.mortal_inventory.items`
+- `cs.get_resource(x)` → `cs.mortal_inventory.get_resource(x)`
+- `cs.inventory.append(res)` → `cs.mortal_inventory.items.append(res)`
+
+Also grep `mortal_agent_logic.py` and any other files that reference `mortal_state.inventory` or `cs.get_resource`:
+```bash
+grep -rn "\.inventory\b\|\.get_resource(" logic/ core/ utilities/ --include="*.py" | grep -v "mortal_inventory\|MortalInventory"
+```
+
+Fix every hit.
+
+- [ ] **Step 6: Add `entitlement_resolver` to `logic/tick_logic.py`**
+
+Add this module-level function (near the other `_tick_*` helpers):
+
+```python
+def entitlement_resolver(mortal, state) -> list[tuple]:
+    """Returns [(Pop, draw_factor)] pairs the mortal can passively draw sustenance from.
+
+    Entitled if pop_milieu == pop_id (factor 1.0) or pop_milieu is in
+    the pop_id Pop's linked_pop_ids (factor = link factor).
+    """
+    if mortal.pop_milieu is None:
+        return []
+    milieu_pop = state.pops.get(str(mortal.pop_milieu))
+    if milieu_pop is None:
+        return []
+    if mortal.pop_id and str(mortal.pop_milieu) == str(mortal.pop_id):
+        return [(milieu_pop, 1.0)]
+    if mortal.pop_id:
+        origin_pop = state.pops.get(str(mortal.pop_id))
+        if origin_pop:
+            factor = origin_pop.linked_pop_ids.get(str(mortal.pop_milieu))
+            if factor is not None:
+                return [(milieu_pop, factor)]
+    return []
+```
+
+- [ ] **Step 7: Run full test suite**
+
+```bash
+pytest -v
+```
+
+Expected: all pass. Fix any remaining `.inventory` references that weren't caught in Step 5.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add core/agent_core.py logic/tick_logic.py tests/test_resource_system.py
+git commit -m "feat(mortal): MortalInventory type + entitlement_resolver; migrate MortalAgentState.inventory"
+```
+
+---
+
+## Task 7: Mortal passive sustenance — three-source priority
 
 **Files:**
 - Modify: `logic/tick_logic.py`
@@ -1107,18 +1352,15 @@ if loc and _effective_commerce_quality(loc, state) > 0:
         sust.satisfaction = min(1.0, sust.satisfaction + 0.03)
 ```
 
-This needs to be replaced with: (1) passive draw from KB inventory for basis:* resources → nourishment; (2) passive draw from inventory for solvent:* resources → hydration; (3) retain commerce-quality fallback for mortals without resources but in a market location.
+Replace with a three-source priority chain: (1) draw `basis:*`/`solvent:*` resources from the entitled Pop's `resource_stockpile` at `loc`, scaled by entitlement factor; (2) draw from `mortal_inventory`; (3) commerce-quality fallback. Sources 1 and 2 are tried per-category (nourishment, hydration) independently — a mortal can get nourishment from the Pop stockpile and hydration from their own inventory in the same tick.
 
-The mortal's KB inventory is `mortal.mortal_state.inventory: list[Resource]`. `Resource` has `biochem_tags: list[str]`.
+`_tick_mortal_passive_sustenance` gains a `state` parameter to call `entitlement_resolver`. The well-known `_RESOURCE_BIOCHEM` lookup dict from Task 4 should be reused here (move it to module level in `tick_logic.py` if it isn't already, or import from `pop_agent_logic.py`).
 
 - [ ] **Step 1: Write failing tests**
 
 Add to `tests/test_resource_system.py`:
 
 ```python
-from core.agent_core import MortalAgentState, MortalNeed, Resource
-
-
 def _make_mortal_with_needs(**sats):
     needs = []
     defaults = {"nourishment": 1.0, "hydration": 1.0, "safety": 1.0,
@@ -1128,96 +1370,121 @@ def _make_mortal_with_needs(**sats):
         needs.append(MortalNeed(name=name, satisfaction=sat,
                                  decay_rate=0.02, pressing_threshold=0.55,
                                  urgent_threshold=0.20))
-    return MortalAgentState(needs=needs, inventory=[])
+    return MortalAgentState(needs=needs)
 
 
-def test_mortal_with_food_in_inventory_gains_nourishment():
+def _make_state_with_entitled_pop(pop_id, stockpile: dict):
+    pop = MagicMock()
+    pop.linked_pop_ids = {}
+    loc = PopLocation(id=pop_id, name="Plains", parent_id=uuid4(),
+                      resource_stockpile=stockpile)
+    state = MagicMock()
+    state.pops = {str(pop_id): pop}
+    state.locations = {str(pop_id): loc}
+    return state, loc
+
+
+def test_mortal_draws_nourishment_from_entitled_stockpile():
+    pop_id = uuid4()
+    state, loc = _make_state_with_entitled_pop(pop_id, {"food_flora": 10.0})
     cs = _make_mortal_with_needs(nourishment=0.3)
-    food = Resource(resource_type="food_flora", biochem_tags=["basis:carbon"],
-                    quantity=10.0)
-    cs.inventory.append(food)
-
     mortal = MagicMock()
     mortal.mortal_state = cs
-    mortal.current_location = uuid4()
-    loc = MagicMock()
-    loc.collectible_resources = []
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
 
     from logic.tick_logic import _tick_mortal_passive_sustenance
-    _tick_mortal_passive_sustenance(mortal, loc)
+    _tick_mortal_passive_sustenance(mortal, loc, state)
 
-    nour = cs.get_need("nourishment")
-    assert nour.satisfaction > 0.3
+    assert cs.get_need("nourishment").satisfaction > 0.3
+    assert loc.resource_stockpile["food_flora"] < 10.0
 
-def test_mortal_with_water_in_inventory_gains_hydration():
-    cs = _make_mortal_with_needs(hydration=0.2)
-    water = Resource(resource_type="potable_water", biochem_tags=["solvent:water"],
-                     quantity=10.0)
-    cs.inventory.append(water)
-
-    mortal = MagicMock()
-    mortal.mortal_state = cs
-    loc = MagicMock()
-    loc.collectible_resources = []
-
-    from logic.tick_logic import _tick_mortal_passive_sustenance
-    _tick_mortal_passive_sustenance(mortal, loc)
-
-    hydr = cs.get_need("hydration")
-    assert hydr.satisfaction > 0.2
-
-def test_mortal_food_consumed_from_inventory():
+def test_mortal_stockpile_draw_scaled_by_link_factor():
+    origin_id = uuid4()
+    linked_id = uuid4()
+    origin_pop = MagicMock()
+    origin_pop.linked_pop_ids = {str(linked_id): 0.5}
+    linked_pop = MagicMock()
+    loc = PopLocation(id=linked_id, name="Plains", parent_id=uuid4(),
+                      resource_stockpile={"food_flora": 10.0})
+    state = MagicMock()
+    state.pops = {str(origin_id): origin_pop, str(linked_id): linked_pop}
+    state.locations = {str(linked_id): loc}
     cs = _make_mortal_with_needs(nourishment=0.3)
-    food = Resource(resource_type="food_flora", biochem_tags=["basis:carbon"],
-                    quantity=1.0)
-    cs.inventory.append(food)
-
     mortal = MagicMock()
     mortal.mortal_state = cs
-    loc = MagicMock()
-    loc.collectible_resources = []
+    mortal.pop_id = origin_id
+    mortal.pop_milieu = linked_id
 
     from logic.tick_logic import _tick_mortal_passive_sustenance
-    _tick_mortal_passive_sustenance(mortal, loc)
+    _tick_mortal_passive_sustenance(mortal, loc, state)
 
-    assert food.quantity < 1.0  # some consumed
+    drawn = 10.0 - loc.resource_stockpile["food_flora"]
+    assert 0 < drawn <= _MORTAL_FOOD_CONSUME_RATE * 0.5 + 1e-9
 
-def test_mortal_commerce_fallback_fills_nourishment():
+def test_mortal_falls_back_to_inventory_when_stockpile_empty():
+    pop_id = uuid4()
+    state, loc = _make_state_with_entitled_pop(pop_id, {})  # empty stockpile
     cs = _make_mortal_with_needs(nourishment=0.3)
-    # No food in inventory
+    food = Resource(resource_type="food_flora", biochem_tags=["basis:carbon"], quantity=5.0)
+    cs.mortal_inventory.items.append(food)
     mortal = MagicMock()
     mortal.mortal_state = cs
-    loc = MagicMock()
-    loc.collectible_resources = []
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
 
     from logic.tick_logic import _tick_mortal_passive_sustenance
-    # commerce_quality > 0 triggers fallback
-    _tick_mortal_passive_sustenance(mortal, loc, commerce_quality=0.8)
+    _tick_mortal_passive_sustenance(mortal, loc, state)
 
-    nour = cs.get_need("nourishment")
-    assert nour.satisfaction > 0.3
+    assert cs.get_need("nourishment").satisfaction > 0.3
+    assert food.quantity < 5.0
+
+def test_mortal_commerce_fallback_fills_when_no_resources():
+    pop_id = uuid4()
+    state, loc = _make_state_with_entitled_pop(pop_id, {})
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+    _tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality=0.8)
+
+    assert cs.get_need("nourishment").satisfaction > 0.3
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-pytest tests/test_resource_system.py -k "mortal_with_food or mortal_with_water or mortal_food_consumed or mortal_commerce" -v
+pytest tests/test_resource_system.py -k "mortal_draws or mortal_stockpile or mortal_falls_back or mortal_commerce" -v
 ```
 
-Expected: ImportError — `_tick_mortal_passive_sustenance` doesn't exist.
+Expected: ImportError or TypeError — `_tick_mortal_passive_sustenance` doesn't exist or has wrong signature.
 
-- [ ] **Step 3: Extract `_tick_mortal_passive_sustenance` in `logic/tick_logic.py`**
+- [ ] **Step 3: Implement `_tick_mortal_passive_sustenance` in `logic/tick_logic.py`**
 
-Add this module-level helper function:
+Add these module-level constants (alongside existing `_tick_*` helpers):
 
 ```python
 _MORTAL_FOOD_CONSUME_RATE  = 0.05
 _MORTAL_DRINK_CONSUME_RATE = 0.05
 _MORTAL_NOURISHMENT_FILL   = 0.03
 _MORTAL_HYDRATION_FILL     = 0.025
+```
 
-def _tick_mortal_passive_sustenance(mortal, loc, commerce_quality: float = 0.0) -> None:
-    """Passive nourishment + hydration restore from inventory; falls back to commerce."""
+Add the function:
+
+```python
+def _tick_mortal_passive_sustenance(
+    mortal, loc, state, commerce_quality: float = 0.0
+) -> None:
+    """Three-source nourishment + hydration restore.
+
+    Priority: (1) entitled Pop stockpile at loc, (2) mortal_inventory, (3) commerce fallback.
+    Sources are tried independently per need — nourishment and hydration can come
+    from different sources in the same tick.
+    """
     cs = mortal.mortal_state
     nour = cs.get_need("nourishment")
     hydr = cs.get_need("hydration")
@@ -1225,7 +1492,29 @@ def _tick_mortal_passive_sustenance(mortal, loc, commerce_quality: float = 0.0) 
     food_consumed = False
     drink_consumed = False
 
-    for res in cs.inventory:
+    # Source 1: entitled Pop stockpile at current location
+    entitled = entitlement_resolver(mortal, state)
+    if entitled and loc is not None and hasattr(loc, "resource_stockpile"):
+        _, factor = entitled[0]
+        for resource_type, quantity in list(loc.resource_stockpile.items()):
+            if quantity <= 0:
+                continue
+            category = _RESOURCE_BIOCHEM.get(resource_type)
+            if category == "basis" and not food_consumed and nour and nour.satisfaction < 1.0:
+                consumed = min(quantity, _MORTAL_FOOD_CONSUME_RATE * factor)
+                loc.resource_stockpile[resource_type] -= consumed
+                nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL * factor)
+                food_consumed = True
+            elif category == "solvent" and not drink_consumed and hydr and hydr.satisfaction < 1.0:
+                consumed = min(quantity, _MORTAL_DRINK_CONSUME_RATE * factor)
+                loc.resource_stockpile[resource_type] -= consumed
+                hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL * factor)
+                drink_consumed = True
+            if food_consumed and drink_consumed:
+                break
+
+    # Source 2: mortal_inventory
+    for res in cs.mortal_inventory.items:
         if not food_consumed and nour and nour.satisfaction < 1.0:
             if any(t.startswith("basis:") for t in res.biochem_tags) and res.quantity > 0:
                 consumed = min(res.quantity, _MORTAL_FOOD_CONSUME_RATE)
@@ -1241,6 +1530,7 @@ def _tick_mortal_passive_sustenance(mortal, loc, commerce_quality: float = 0.0) 
         if food_consumed and drink_consumed:
             break
 
+    # Source 3: commerce fallback
     if commerce_quality > 0:
         if not food_consumed and nour and nour.satisfaction < 1.0:
             nour.satisfaction = min(1.0, nour.satisfaction + 0.02)
@@ -1248,9 +1538,14 @@ def _tick_mortal_passive_sustenance(mortal, loc, commerce_quality: float = 0.0) 
             hydr.satisfaction = min(1.0, hydr.satisfaction + 0.015)
 ```
 
+`_RESOURCE_BIOCHEM` is defined in Task 4 inside `pop_agent_logic.py`. Move it to module level in `tick_logic.py` (or import it) so both files share the same lookup. If it stays in `pop_agent_logic.py`, import it here:
+```python
+from logic.pop_agent_logic import _RESOURCE_BIOCHEM
+```
+
 - [ ] **Step 4: Replace the old passive restore block in `logic/tick_logic.py`**
 
-Find lines 5487–5490:
+Find:
 ```python
 if loc and _effective_commerce_quality(loc, state) > 0:
     sust = cs.get_need(NEED_SUSTENANCE)
@@ -1261,12 +1556,10 @@ if loc and _effective_commerce_quality(loc, state) > 0:
 Replace with:
 ```python
 _cq = _effective_commerce_quality(loc, state) if loc else 0.0
-_tick_mortal_passive_sustenance(mortal, loc, commerce_quality=_cq)
+_tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality=_cq)
 ```
 
-Remove the now-unused `NEED_SUSTENANCE` import from `needs_config` (or just leave the import cleanup to Task 3 if not already done).
-
-- [ ] **Step 5: Run tests**
+- [ ] **Step 5: Run full test suite**
 
 ```bash
 pytest -v
@@ -1278,12 +1571,12 @@ Expected: all pass.
 
 ```bash
 git add logic/tick_logic.py tests/test_resource_system.py
-git commit -m "feat(mortal): passive nourishment+hydration from inventory; commerce fallback"
+git commit -m "feat(mortal): three-source passive sustenance — Pop stockpile → inventory → commerce"
 ```
 
 ---
 
-## Task 7: Mortal forage + hunt autonomous actions
+## Task 8: Mortal forage + hunt autonomous actions
 
 **Files:**
 - Modify: `logic/mortal_agent_logic.py`
@@ -1442,12 +1735,9 @@ def _resolve_mortal_forage(mortal, loc, state, narratives: list) -> None:
             continue
         gained = min(cr.max_yield * _MORTAL_FORAGE_YIELD_FRACTION, cr.current_yield)
         cr.current_yield = max(0.0, cr.current_yield - gained)
-        res = cs.get_resource(cr.resource_type)
-        if res is None:
-            from core.agent_core import Resource as _Resource
-            res = _Resource(resource_type=cr.resource_type,
-                            biochem_tags=list(cr.biochem_tags))
-            cs.inventory.append(res)
+        res = cs.mortal_inventory.add_resource(
+            cr.resource_type, 0.0, biochem_tags=list(cr.biochem_tags)
+        )
         res.quantity += gained
         mortal.fatigue = min(1.0, mortal.fatigue + 0.10)
         if mortal.pinned:
@@ -1489,7 +1779,7 @@ git commit -m "feat(mortal): forage + hunt autonomous actions for pressing nouri
 
 ---
 
-## Task 8: Documentation
+## Task 9: Documentation
 
 **Files:**
 - Modify: `docs/.dev/Mechanics/needs-and-directives.md`
@@ -1530,7 +1820,7 @@ class CollectibleResource(BaseModel):
 
 **Passive sustenance:** Resources are not consumed by explicit "eat" or "drink" actions. Instead:
 - Pops: a consumption pass each tick draws `basis:*`-tagged resources from `resource_stockpile` → fills `nourishment`; draws `solvent:*`-tagged resources → fills `hydration`.
-- Mortals: `_tick_mortal_passive_sustenance` draws from KB inventory each tick before other action evaluation.
+- Mortals: `_tick_mortal_passive_sustenance` runs a three-source priority — (1) entitled Pop stockpile at current location (scaled by entitlement factor), (2) `MortalInventory`, (3) commerce-quality fallback.
 ```
 
 - [ ] **Step 2: Update `agent-system.md` Pop needs table**
@@ -1566,23 +1856,30 @@ git commit -m "docs: update needs + CollectibleResource docs for resource system
 
 **Spec coverage check:**
 - ✅ CollectibleResource list field, max_yield/yield_renew_rate/current_yield, action_types — Task 1
+- ✅ Resource.decay_rate stub — Task 1
 - ✅ DB schema + backward compat migration — Task 2
 - ✅ Sustenance → nourishment + hydration, hydration faster decay — Task 3
 - ✅ Pop action_types gating + current_yield depletion — Task 4
 - ✅ Yield renewal tick phase — Task 5
-- ✅ Mortal passive sustenance from inventory — Task 6
-- ✅ Mortal forage + hunt autonomous actions — Task 7
-- ✅ Documentation — Task 8
+- ✅ MortalInventory type + entitlement_resolver — Task 6
+- ✅ Three-source mortal passive sustenance — Task 7
+- ✅ Mortal forage + hunt autonomous actions — Task 8
+- ✅ Documentation — Task 9
 
 **Out of scope (do not implement):**
 - ResourceStockpile shared-ownership system — separate plan
+- Species-specific consumption enforcement — separate plan
+- Stockpile draw rate limits / drain prevention — separate plan
+- Mortal inventory capacity / encumbrance — separate plan
 - Dedicated mortal hydration action — covered by collect + passive consume
 - Pop "leak" migration — future
 
 **Type consistency check:**
-- `CollectibleResource.current_yield: Optional[float]` initialized via `model_validator` — consistent across Tasks 1, 2, 3, 4, 5, 7
-- `PopLocation.collectible_resources: list[CollectibleResource]` — consistent across Tasks 1, 2, 4, 5, 7
-- `_find_matching_resources(collectible_resources, action)` defined in Task 4 and tested in Task 4 — consistent
-- `NEED_NOURISHMENT`, `NEED_HYDRATION` defined in Task 3 and used in Tasks 4, 6, 7 — consistent
-- `_tick_mortal_passive_sustenance(mortal, loc, commerce_quality)` — consistent across Tasks 6 and 7
-- `_resolve_mortal_forage(mortal, loc, state, narratives)` — defined in Task 7, called in Task 7
+- `CollectibleResource.current_yield: Optional[float]` initialized via `model_validator` — consistent across Tasks 1, 2, 3, 4, 5, 8
+- `PopLocation.collectible_resources: list[CollectibleResource]` — consistent across Tasks 1, 2, 4, 5, 8
+- `_find_matching_resources(collectible_resources, action)` defined in Task 4 — consistent
+- `NEED_NOURISHMENT`, `NEED_HYDRATION` defined in Task 3 and used in Tasks 4, 7, 8 — consistent
+- `MortalInventory` defined in Task 6 and used in Tasks 7, 8 — consistent
+- `entitlement_resolver(mortal, state)` defined in Task 6 and used in Task 7 — consistent
+- `_tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality)` — consistent across Tasks 7 and 8
+- `_resolve_mortal_forage(mortal, loc, state, narratives)` — defined in Task 8, called in Task 8

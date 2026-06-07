@@ -16,32 +16,58 @@ Rewrite all six NarrativeConstraints from scratch with this principle in mind.
 
 ---
 
-### TravelNetwork expansion: requirements, benefits, and agent route selection
+### MortalAsset subtype canonization
 
-TravelNetworks currently encode only connectivity (membership). The intended expansion has two parts:
+`MortalAsset` is a generic flat model. As vehicle-specific properties accumulate, it needs typed subtypes — `VehicleAsset` is the first candidate:
+- `cargo_capacity` is already a field sitting on the generic class that belongs specifically on vehicles
+- `NetworkCondition.asset_type: str` will eventually need to specify required travel capability (sublight vs. warp, ship vs. ground vehicle) rather than a freeform string
+- Other asset types may emerge as the system grows (permissions, structures, instruments)
 
-**1. Network properties** — each TravelNetwork gains requirements and benefits:
-- *Requirements*: citizenship/faction affiliation, possession of a specific Asset (e.g. a capable vessel docked at the route's origin node), payment of a cost, etc. Multiple networks may connect the same two nodes but with different access conditions. Whether a requirement is a hard gate or a soft benefit condition depends on the faction's enforcement capacity — a tribal faction can offer preferential access to trusted travelers but can't stop a determined outsider; a spacefaring civilization with orbital checkpoints can enforce hard restrictions. Both cases should be expressible in the model.
-- *Benefits/costs*: expected travel time, cost in credits, average danger (once danger becomes a PopLocation property), and potentially others.
+Hold until vehicle properties multiply further.
 
-**2. Routing and agent selection** — the current `find_route` returns the shortest valid path regardless of traveler. The expanded system works in two layers:
-- A router function (extending or wrapping `find_route`) filters out genuinely inaccessible routes given the traveler's current state, then labels each viable route with its objective properties.
-- An agent-side selection function chooses between those routes based on the mortal's knowledge (`RouteFact`s in their KB), active directives, personality, and current goal. The same mortal may prefer different routes on different trips — Durenn takes his own ship when collecting cargo, commercial transit otherwise.
+---
 
-The router handles objective facts; the agent handles subjective preference. Neither layer bleeds into the other.
+### Resource system: deferred expansions
 
-**Related:** `MortalAsset` likely needs a `VehicleAsset` subclass once vehicle-specific properties multiply — `cargo_capacity` is already a candidate field sitting on the generic class, and `NetworkCondition.asset_type: str` may eventually need to specify required travel capability (sublight vs. warp) rather than just an asset type string. Hold until vehicle properties actually multiply.
+Future work building on the resource system plan (`2026-06-07-resource-system.md`). Each item below is a distinct plan candidate:
 
-**Status:** `TravelNetwork` now has `edges: list[TravelEdge]` (per-pair privileged costs) and `conditions: list[NetworkCondition]` (faction, civilization, asset, stratum, occupation; hard gate or soft benefit). Model, schema, loader, and exporter are all updated. Not yet implemented: condition evaluation in routing, privileged cost lookup in `leg_cost`, or agent-side route selection logic.
+**Environment-dependent resource decay**
+Resources in `ResourceStockpile` and `MortalInventory` should decay over time at rates that vary by environment. The model: `Resource.decay_rate` carries a base rate (already stubbed as `decay_rate: float = 0.0`); a `SignificantLocation` (world/planet) carries `resource_decay_modifiers: dict[str, float]` scaling base rates for its environment; `PopLocation` can override the parent world's modifier locally (e.g., a preserving cave vs. a hot open desert on the same planet). Decay runs as a tick phase over all stockpiles and inventories. What decays is environment-specific — organic food rots in carbon-water worlds; metals corrode in sulfuric-acid worlds like Kiddis; silicon-based foodstuffs may be stable indefinitely in the right conditions.
 
-**Prerequisite:** `RouteFact` already exists in `agent_core.py` and can be extended to carry network requirement/benefit data once the TravelNetwork model is expanded.
+**ResourceStockpile shared-ownership system**
+`resource_stockpile` on `PopLocation` is currently a `dict[str, float]` with no ownership semantics. The intended design is a `ResourceStockpile` object with explicit ownership: which Pops or factions hold shares, how contributions and withdrawals are tracked, and how ownership is distributed when Pops migrate or diverge.
 
-**Reference implementation — Oros sandbox:** The Oros scenario already implies four TravelNetworks and should serve as the first test case:
+**Species-specific consumption enforcement**
+`species_can_consume()` exists in `agent_core.py` but is not wired into either the Pop or mortal passive consumption passes. A mortal or Pop currently consumes any `basis:*`-tagged resource regardless of their species' `life_basis`. Consumption passes should check `species_can_consume()` before drawing — which requires `species` to be resolvable from the consuming entity at tick time.
 
-1. **General overland network** — Plains of Kir'an, Asvelim Savannah, Qaebdol Cave Village, Dunes of Tor, Ancestor Stones, Ulum Highlands. No requirements.
-2. **Asha Dunewalker network** — Dunes of Tor, Taem's Oasis, Salt Flats. Open to all travelers at normal `max(1, a.dfc+b.dfc)` cost. Asha Dunewalker Clan membership or their permission unlocks reduced travel times: Dunes↔Oasis in 1 tick (vs. 3), Dunes/Oasis↔Salt Flats in 3/5 ticks (vs. 5/6).
-3. **Stonecallers network** — Qaebdol Cave Village ↔ Ancestor Stones. Open to all travelers at normal cost. Stonecallers membership or their permission unlocks: 1 tick (vs. 2). Both nodes remain on the general network as fallback.
-4. **Hiparunite network** — Ulum Highlands ↔ Hiparun's Rift. Open to all travelers at normal cost. Hiparunite membership or their permission unlocks: 2 ticks (vs. 5).
+**Stockpile draw rate limits**
+The `entitlement_resolver` grants mortals access to Pop stockpiles but imposes no cap on per-tick draw volume. A drain-prevention mechanic is needed — likely a per-mortal ration rate proportional to Pop size or stockpile depth, scaled by entitlement factor.
+
+**Mortal inventory capacity / encumbrance**
+`MortalInventory` has no capacity limit; mortals who forage and hunt could accumulate resources indefinitely. A capacity model (weight- or slot-based) would gate this and connect naturally to `MortalAsset` vehicle cargo capacity once that is formalized.
+
+**Resource-scarcity-driven Pop migration**
+Persistent unmet `nourishment` or `hydration` needs should create migration pressure beyond the general `wanderlust` need. Pops unable to sustain themselves at their current location should seek resource-rich destinations. Requires routing logic to be aware of resource availability at destination PopLocations.
+
+**Resource trade and market economy**
+`Resource.base_value` and `Resource.converts_to` are already stubbed in the model, anticipating a sell/trade system. Full design: mortals sell resources at locations with market infrastructure; Pops trade stockpile surpluses with linked Pops; `base_value` drives pricing and `converts_to` enables commodity chains (raw ore → refined metal). Likely a large standalone plan.
+
+---
+
+### Canonize occupation; rename SocialClass → SocialStratum; occupation-based action bonuses
+
+Three related changes best done together:
+
+**1. Occupation enum**
+`Pop.occupation` and `NotableMortal.occupation` are currently free strings. Canonize them into an `Occupation` enum (analogous to `SocialClass`) so that occupations are a closed, validated set. Existing string values in scenario DBs need a loader migration.
+
+**2. SocialClass → SocialStratum**
+Rename the `SocialClass` enum and all references (`Pop.social_class`, loader, exporter, display, tests) to `SocialStratum`. The values themselves (common, elite, etc.) may stay the same; this is a naming-only change but touches many files.
+
+**3. Occupation-based action return bonuses**
+Currently, action output modifiers (forage/hunt/collect yield, etc.) are keyed on social stratum. Shift the primary modifier to occupation: a farmer gets a larger forage bonus than a warrior, a scholar gets a knowledge-action bonus, etc. Stratum modifiers remain but are smaller and more generic — the two stack, with occupation providing the specific signal and stratum providing a mild background modifier. Requires auditing every place `social_class` is used to compute output or priority and replacing or supplementing with an occupation lookup table.
+
+**Prerequisite:** Occupation enum must be defined and migration complete before the bonus redesign can land cleanly.
 
 ---
 
@@ -69,13 +95,7 @@ The router handles objective facts; the agent handles subjective preference. Nei
 
 5. Speaking of Luminary audits, I still think that your various footprint scores fall **way** too fast. They should be something that you pump up when you don't think Luminaries who care about particular categories are watching—and then worry about whether they'll go down in time before a Luminary audit comes in or a Luminary starts taking notice. It would be interesting if decay weren't linear—the higher it reaches, the longer it takes to fall. This could lead to several tactics: using Luminary interactions to try to trigger an audit so that you have breathing room afterwards, before the next audit comes; perhaps there could be a Proxius Directive to "clean up" a stubborn local footprint in specific locations, with the goal of reducing your universal footprint in that category.
 
-6. There are a few oddities in the UI for Explore Beliefs, Reveal Imāgō and Change Affiliated Domain (in particular, more than once I found I was Exploring Beliefs in the wrong Domain), but that is literally the very next thing we're doing in the action audit.
-
-7. Manifest Omen and Preach Imāgō's  Imāgō selectors are broken, having most of the bottom of them cut off, ostensibly because we have been messing around with what it expects the Imāgō tree display code to be. But, along with Scry, those are the next three actions we'll focus on next after we finish with the Self-Refinement actions. So fixing that is very close in the pipeline.
-
-8. Scry is **still** odd. Notable mortals (except on Neran, for some reason) are still almost impossible to detect, even when scrying at world scope. Details about worlds in entirely different systems (except their notable mortals, naturally) also show up too readily. We may want to rethink the Scrying mechanic, especially since the UI redesign I have in mind will feature an "auto-pause when all entities discovered in target location" check box; we may want to shift toward world-scrying being **intensely** focused on that world, and it becomes less getting lucky and more of a time investment. (It also couldn't hurt to introduce more Observation actions that tempt you to switch away from scrying.) That said, though, the splash discovery mechanic works well for discovering Pops "near" a targeted mortal.
-
-9. Since we introduced RTwP, the Proxius preaching agent comes across as extremely impatient, sometimes abandoning their mission in just a few ticks. There are a few things in the pipeline to help with this, such as making Agent actions have cooldown much like your own actions do, and having mortals function as a kind of "super-Agent" that chooses between the goals of various Agent objects attached to it, meaning that there won't be as much of a need to have directed Proxiī get frustrated and quit entirely when they could just... do something else (like their day job).
+6. Scry is **still** odd. Notable mortals (except on Neran, for some reason) are still almost impossible to detect, even when scrying at world scope. Details about worlds in entirely different systems (except their notable mortals, naturally) also show up too readily. We may want to rethink the Scrying mechanic, especially since the UI redesign I have in mind will feature an "auto-pause when all entities discovered in target location" check box; we may want to shift toward world-scrying being **intensely** focused on that world, and it becomes less getting lucky and more of a time investment. (It also couldn't hurt to introduce more Observation actions that tempt you to switch away from scrying.) That said, though, the splash discovery mechanic works well for discovering Pops "near" a targeted mortal.
 
 ---
 ### Human-readable Documentation
@@ -89,10 +109,13 @@ In the future, we will fold a lot of this information into a redesign of the Div
 
 ---
 
-### Pick the next big feature
-> → plan: [next-big-feature.md](plans/next-big-feature.md)
+### Mortal ritual + Imāgō system integration
 
-Choose the next major system: Agent expansion, Factions, Governments, or resources↔tech-progress. Note that `Faction` is the data-model prerequisite for expanding the agent phase, so Agent-expansion and Factions are largely the same fork.
+Currently the Imāgō system is exclusively a Demiurge tool — mortal priests can perform the `ritual` action, but it has no mechanical connection to Imāginēs. The intended expansion: priests should be able to invoke specific Imāginēs as part of their ritual practice, allowing belief effects, domain expression, and possibly revelation to propagate through mortal religious activity without any direct Demiurge involvement.
+
+This gives the Imāgō system a bottom-up path alongside the top-down Demiurge-authored one. Priests in high-belief locations could sustain and amplify Imāgō influence through their own rituals; the Demiurge could cultivate this as a passive force multiplier that keeps working between ticks.
+
+Design questions to resolve before planning: how priests discover which Imāginēs are available to them (belief threshold? explicitly revealed by the Demiurge?); what ritual actions trigger which Imāgō effects; and how mortal-driven Imāgō expression differs mechanically from Demiurge-driven (lower magnitude? less directional control? different domain profile contribution?).
 
 ---
 
