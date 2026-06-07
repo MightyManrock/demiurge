@@ -11,6 +11,10 @@ from core.agent_core import PopAgentState, PopNeed
 # Constants
 # ---------------------------------------------------------------------------
 
+POP_FOOD_RESOURCE_TYPES = ("food_flora", "food_fauna")
+NEED_FILL_RATE = 0.08
+SUSTENANCE_CONSUME_RATE = 0.05
+
 ACTION_NEED_MAP: dict[str, str] = {
     "forage":        "sustenance",
     "hunt":          "sustenance",
@@ -145,3 +149,105 @@ def compute_active_slots(pop, factions: dict) -> int:
         modifier = _max_slot_modifier(pop, factions)
         base = max(1, base + modifier)
     return base
+
+
+def resolve_pop_actions(
+    pop,
+    pop_loc,
+    priorities: dict[str, float],
+    n_slots: int,
+    factions: dict,
+    current_tick: int,
+) -> list[str]:
+    """Execute top-N priority actions; return narrative strings for notable events."""
+    narratives: list[str] = []
+    ps = pop.pop_state
+    if ps is None:
+        return narratives
+
+    needs_by_name = {n.name: n for n in ps.needs}
+
+    # Select top-N active (non-stub, non-zero) actions by weight
+    ranked = sorted(
+        [(a, w) for a, w in priorities.items() if a not in STUB_ACTIONS and w > 0],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    active = [action for action, _ in ranked[:n_slots]]
+
+    for action in active:
+        weight = priorities[action]
+        competency = _pop_competency_modifier(pop, action)
+        output = weight * pop.size_fractional * competency
+
+        if action == "forage":
+            pop_loc.resource_stockpile["food_flora"] = (
+                pop_loc.resource_stockpile.get("food_flora", 0.0) + output
+            )
+
+        elif action == "hunt":
+            pop_loc.resource_stockpile["food_fauna"] = (
+                pop_loc.resource_stockpile.get("food_fauna", 0.0) + output
+            )
+
+        elif action == "collect":
+            cr = pop_loc.collectible_resource
+            if cr:
+                deposited = min(output, cr.resource_yield)
+                pop_loc.resource_stockpile[cr.resource_type] = (
+                    pop_loc.resource_stockpile.get(cr.resource_type, 0.0) + deposited
+                )
+
+        elif action == "commune":
+            need = needs_by_name.get("cohesion")
+            if need:
+                need.satisfaction = min(1.0, need.satisfaction + output * 0.10)
+
+        elif action == "revel":
+            need = needs_by_name.get("cohesion")
+            if need:
+                need.satisfaction = min(1.0, need.satisfaction + output * 0.15)
+
+        elif action == "enact_rituals":
+            need = needs_by_name.get("purpose")
+            if need:
+                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE)
+
+        elif action == "build":
+            need = needs_by_name.get("shelter")
+            if need:
+                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE)
+
+        elif action == "fortify":
+            need = needs_by_name.get("safety")
+            if need:
+                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE)
+            pop_loc.danger = max(0.0, pop_loc.danger - output * 0.005)
+
+        elif action == "migrate":
+            pass  # routing handled by tick_logic; migrate weight signals intent only
+
+    # Consumption pass: draw food from stockpile → fill sustenance need
+    sustenance = needs_by_name.get("sustenance")
+    if sustenance:
+        food_available = sum(pop_loc.resource_stockpile.get(rt, 0.0) for rt in POP_FOOD_RESOURCE_TYPES)
+        if food_available > 0.0:
+            consume_amount = min(food_available, pop.size_fractional * 0.5)
+            remaining = consume_amount
+            for rt in POP_FOOD_RESOURCE_TYPES:
+                if rt in pop_loc.resource_stockpile and pop_loc.resource_stockpile[rt] > 0.0:
+                    take = min(pop_loc.resource_stockpile[rt], remaining)
+                    pop_loc.resource_stockpile[rt] -= take
+                    remaining -= take
+                    if remaining <= 0.0:
+                        break
+            sustenance.satisfaction = min(1.0, sustenance.satisfaction + SUSTENANCE_CONSUME_RATE)
+        elif sustenance.is_pressing:
+            from core.universe_core import pop_label
+            pop_id = str(pop.id) if hasattr(pop, "id") else "unknown"
+            pop_name = pop_label(pop) if callable(getattr(pop, "name", None)) else (pop.name or "Pop")
+            narratives.append(
+                f"§pop§{pop_id}§{pop_name}§ has no food — sustenance need unmet."
+            )
+
+    return narratives

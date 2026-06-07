@@ -302,3 +302,102 @@ def test_slot_modifier_applied_when_not_fatigued():
     pop = _make_pop_with_state([], size=3.0, directives=[Directive(slot_modifier=1)])
     pop.pop_state.fatigue = 0.0
     assert compute_active_slots(pop, {}) == 4
+
+
+from logic.pop_agent_logic import resolve_pop_actions
+from core.agent_core import CollectibleResource
+from uuid import uuid4
+
+
+def _make_pop_loc(resource_type=None, resource_yield=2.0):
+    loc = PopLocation(id=uuid4(), name="Test Location", location_type="city")
+    if resource_type:
+        loc.collectible_resource = CollectibleResource(
+            resource_type=resource_type, resource_yield=resource_yield
+        )
+    return loc
+
+
+def _make_pop_for_resolution(needs, social_class=SocialClass.COMMON, size=3.0):
+    return _make_pop_with_state(needs, social_class=social_class, size=size)
+
+
+def _full_priorities(dominant: str) -> dict:
+    """Return a priorities dict with dominant action at 1.0, all others 0.0."""
+    from logic.pop_agent_logic import ALL_ACTIONS
+    return {a: (1.0 if a == dominant else 0.0) for a in ALL_ACTIONS}
+
+
+def test_forage_deposits_to_stockpile():
+    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
+    pop = _make_pop_for_resolution(needs)
+    loc = _make_pop_loc()
+    resolve_pop_actions(pop, loc, _full_priorities("forage"), n_slots=1, factions={}, current_tick=1)
+    assert loc.resource_stockpile.get("food_flora", 0.0) > 0.0
+
+
+def test_collect_uses_collectible_resource():
+    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
+    pop = _make_pop_for_resolution(needs)
+    loc = _make_pop_loc(resource_type="amber_resin", resource_yield=3.0)
+    resolve_pop_actions(pop, loc, _full_priorities("collect"), n_slots=1, factions={}, current_tick=1)
+    assert loc.resource_stockpile.get("amber_resin", 0.0) > 0.0
+
+
+def test_commune_fills_cohesion_need():
+    needs = [
+        PopNeed(name="sustenance", satisfaction=1.0),
+        PopNeed(name="cohesion", satisfaction=0.2, pressing_threshold=0.45, urgent_threshold=0.20),
+        PopNeed(name="safety", satisfaction=1.0),
+        PopNeed(name="purpose", satisfaction=1.0),
+        PopNeed(name="shelter", satisfaction=1.0),
+        PopNeed(name="wanderlust", satisfaction=1.0),
+    ]
+    pop = _make_pop_for_resolution(needs)
+    loc = _make_pop_loc()
+    initial = pop.pop_state.get_need("cohesion").satisfaction
+    resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
+    assert pop.pop_state.get_need("cohesion").satisfaction > initial
+
+
+def test_sustenance_filled_from_stockpile():
+    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
+             PopNeed(name="safety", satisfaction=1.0),
+             PopNeed(name="cohesion", satisfaction=1.0),
+             PopNeed(name="purpose", satisfaction=1.0),
+             PopNeed(name="shelter", satisfaction=1.0),
+             PopNeed(name="wanderlust", satisfaction=1.0)]
+    pop = _make_pop_for_resolution(needs, size=3.0)
+    loc = _make_pop_loc()
+    loc.resource_stockpile["food_flora"] = 10.0
+    initial = pop.pop_state.get_need("sustenance").satisfaction
+    resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
+    assert pop.pop_state.get_need("sustenance").satisfaction > initial
+
+
+def test_empty_stockpile_leaves_sustenance_unmet():
+    needs = [PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
+             PopNeed(name="safety", satisfaction=1.0),
+             PopNeed(name="cohesion", satisfaction=1.0),
+             PopNeed(name="purpose", satisfaction=1.0),
+             PopNeed(name="shelter", satisfaction=1.0),
+             PopNeed(name="wanderlust", satisfaction=1.0)]
+    pop = _make_pop_for_resolution(needs, size=3.0)
+    loc = _make_pop_loc()
+    initial = pop.pop_state.get_need("sustenance").satisfaction
+    resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
+    assert pop.pop_state.get_need("sustenance").satisfaction == initial
+
+
+def test_fortify_reduces_location_danger():
+    needs = [PopNeed(name="safety", satisfaction=0.2, pressing_threshold=0.50, urgent_threshold=0.20),
+             PopNeed(name="sustenance", satisfaction=1.0),
+             PopNeed(name="cohesion", satisfaction=1.0),
+             PopNeed(name="purpose", satisfaction=1.0),
+             PopNeed(name="shelter", satisfaction=1.0),
+             PopNeed(name="wanderlust", satisfaction=1.0)]
+    pop = _make_pop_for_resolution(needs, social_class=SocialClass.WARRIOR, size=3.0)
+    loc = _make_pop_loc()
+    loc.danger = 0.5
+    resolve_pop_actions(pop, loc, _full_priorities("fortify"), n_slots=1, factions={}, current_tick=1)
+    assert loc.danger < 0.5
