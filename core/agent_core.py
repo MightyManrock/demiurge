@@ -230,6 +230,26 @@ class Resource(BaseModel):
     decay_rate: float = 0.0   # future: environment-dependent resource spoilage rate
 
 
+class MortalInventory(BaseModel):
+    items: list[Resource] = Field(default_factory=list)
+
+    def get_resource(self, resource_type: str) -> Optional[Resource]:
+        return next((r for r in self.items if r.resource_type == resource_type), None)
+
+    def add_resource(
+        self,
+        resource_type: str,
+        quantity: float,
+        biochem_tags: Optional[list[str]] = None,
+    ) -> Resource:
+        res = self.get_resource(resource_type)
+        if res is None:
+            res = Resource(resource_type=resource_type, biochem_tags=biochem_tags or [])
+            self.items.append(res)
+        res.quantity += quantity
+        return res
+
+
 def species_can_consume(species: "Species", resource: Resource) -> bool:
     """True if the species can directly consume this resource for sustenance.
 
@@ -251,21 +271,25 @@ def species_can_consume(species: "Species", resource: Resource) -> bool:
 class MortalAgentState(BaseModel):
     needs: list[MortalNeed] = Field(default_factory=list)
     desires: list[MortalDesire] = Field(default_factory=list)
-    inventory: list[Resource] = Field(default_factory=list)
+    mortal_inventory: MortalInventory = Field(default_factory=MortalInventory)
     action_cooldowns: dict[str, int] = Field(default_factory=dict)
     last_action: Optional[str] = None
     pending_travel_dest: Optional[str] = None
     collecting_ticks_remaining: int = 0
     pending_transfer: bool = False
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_inventory(cls, data):
+        if isinstance(data, dict) and "inventory" in data and "mortal_inventory" not in data:
+            data["mortal_inventory"] = {"items": data.pop("inventory")}
+        return data
+
     def pressing_needs(self) -> list[MortalNeed]:
         return [n for n in self.needs if n.is_pressing]
 
     def cooldown_expired(self, action_type: str, current_tick: int) -> bool:
         return self.action_cooldowns.get(action_type, 0) <= current_tick
-
-    def get_resource(self, resource_type: str) -> Optional[Resource]:
-        return next((r for r in self.inventory if r.resource_type == resource_type), None)
 
     def get_need(self, name: str) -> Optional[MortalNeed]:
         return next((n for n in self.needs if n.name == name), None)

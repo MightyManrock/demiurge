@@ -22,8 +22,8 @@ def _cs(with_sellable=True, with_cargo_space=True):
     cs = MortalAgentState(needs=[_pressing_need()])
     if with_sellable:
         quantity = 2.0 if with_cargo_space else 20.0  # above threshold either way
-        cs.inventory = [Resource(resource_type="ore", quantity=quantity, threshold=2.0,
-                                 usable_for=["sell"], converts_to="credits")]
+        cs.mortal_inventory.items = [Resource(resource_type="ore", quantity=quantity, threshold=2.0,
+                                              usable_for=["sell"], converts_to="credits")]
     return cs
 
 
@@ -99,8 +99,8 @@ def test_intercept_fires_when_travel_beats_local_collect():
     ])
     # No cargo cap; large quantity → sigmoid load_fraction≈0.98 → sell_score >> collect_score.
     # (With a cap, quantity must reach the cap to be sellable; uncapped uses Resource.threshold.)
-    cs.inventory = [Resource(resource_type="ore", quantity=50.0, threshold=2.0,
-                             usable_for=["sell"], converts_to="credits")]
+    cs.mortal_inventory.items = [Resource(resource_type="ore", quantity=50.0, threshold=2.0,
+                                          usable_for=["sell"], converts_to="credits")]
     kb = _kb()
     mortal = _mortal(cs, kb, loc_id=SETHIS)  # cargo_capacity=None (default)
     state = _state(resource_loc=SETHIS)
@@ -129,7 +129,7 @@ def test_pending_travel_fires_before_pressing_needs_check():
     """pending_travel_dest commits even when no pressing needs remain."""
     cs = MortalAgentState()  # no needs at all
     cs.pending_travel_dest = NERAN
-    cs.inventory = []
+    cs.mortal_inventory.items = []
     kb = _kb()
     mortal = _mortal(cs, kb, loc_id=SETHIS)
     state = _state()

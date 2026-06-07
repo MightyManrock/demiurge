@@ -47,34 +47,35 @@ def test_mortal_need_not_urgent():
 
 def test_mortal_state_inventory_default():
     cs = MortalAgentState()
-    assert cs.inventory == []
+    assert cs.mortal_inventory.items == []
 
 
 def test_mortal_state_get_resource_found():
     r = Resource(resource_type="unobtanium", quantity=5.0)
-    cs = MortalAgentState(inventory=[r])
-    found = cs.get_resource("unobtanium")
+    cs = MortalAgentState(mortal_inventory={"items": [r]})
+    found = cs.mortal_inventory.get_resource("unobtanium")
     assert found is r
 
 
 def test_mortal_state_get_resource_missing():
     cs = MortalAgentState()
-    assert cs.get_resource("unobtanium") is None
+    assert cs.mortal_inventory.get_resource("unobtanium") is None
 
 
 def test_mortal_state_round_trips_json():
     r = Resource(resource_type="unobtanium", quantity=3.0, usable_for=["sell"], converts_to="credits")
-    cs = MortalAgentState(inventory=[r])
+    from core.agent_core import MortalInventory
+    cs = MortalAgentState(mortal_inventory=MortalInventory(items=[r]))
     restored = MortalAgentState.model_validate_json(cs.model_dump_json())
-    assert restored.inventory[0].resource_type == "unobtanium"
-    assert restored.inventory[0].usable_for == ["sell"]
+    assert restored.mortal_inventory.items[0].resource_type == "unobtanium"
+    assert restored.mortal_inventory.items[0].usable_for == ["sell"]
 
 
 def test_old_json_with_resources_float_loads_cleanly():
     # Pydantic v2 ignores unknown fields — old DB rows must not crash
     old_json = '{"needs":[],"resources":5.0,"spend_threshold":2.0,"action_cooldowns":{}}'
     cs = MortalAgentState.model_validate_json(old_json)
-    assert cs.inventory == []
+    assert cs.mortal_inventory.items == []
 
 
 # CollectibleResource

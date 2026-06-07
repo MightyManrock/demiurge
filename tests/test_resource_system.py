@@ -2,7 +2,7 @@ import json
 import pytest
 from uuid import uuid4
 from unittest.mock import MagicMock
-from core.agent_core import CollectibleResource, Resource, PopAgentState, PopNeed
+from core.agent_core import CollectibleResource, Resource, PopAgentState, PopNeed, MortalInventory, MortalAgentState, MortalNeed
 from core.universe_core import PopLocation, Pop
 from logic.pop_agent_logic import resolve_pop_actions, ACTION_NEED_MAP
 from utilities.scenario_loader import _load_collectible_resources
@@ -350,3 +350,91 @@ def test_yield_renewal_skips_non_pop_locations():
 
     from logic.tick_logic import _tick_yield_renewal
     _tick_yield_renewal(state)  # should not raise
+
+
+# ── Task 6: MortalInventory ───────────────────────────────────────────────────
+
+def test_mortal_inventory_empty_by_default():
+    inv = MortalInventory()
+    assert inv.items == []
+
+def test_mortal_inventory_get_resource_found():
+    inv = MortalInventory(items=[Resource(resource_type="food_flora", quantity=3.0)])
+    res = inv.get_resource("food_flora")
+    assert res is not None and res.quantity == 3.0
+
+def test_mortal_inventory_get_resource_not_found():
+    assert MortalInventory().get_resource("food_flora") is None
+
+def test_mortal_inventory_add_resource_new():
+    inv = MortalInventory()
+    res = inv.add_resource("food_flora", 2.0, ["basis:carbon"])
+    assert res.quantity == 2.0 and len(inv.items) == 1
+
+def test_mortal_inventory_add_resource_stacks():
+    inv = MortalInventory(items=[Resource(resource_type="food_flora", quantity=1.0)])
+    inv.add_resource("food_flora", 2.0)
+    assert inv.get_resource("food_flora").quantity == 3.0
+
+def test_mortal_agent_state_has_mortal_inventory():
+    cs = MortalAgentState()
+    assert hasattr(cs, "mortal_inventory")
+    assert isinstance(cs.mortal_inventory, MortalInventory)
+
+def test_mortal_agent_state_backward_compat():
+    import json
+    old_json = json.dumps({
+        "needs": [],
+        "inventory": [{"resource_type": "food_flora", "quantity": 5.0,
+                        "biochem_tags": ["basis:carbon"]}]
+    })
+    cs = MortalAgentState.model_validate_json(old_json)
+    assert cs.mortal_inventory.get_resource("food_flora").quantity == 5.0
+
+
+# ── entitlement_resolver ──────────────────────────────────────────────────────
+
+def test_entitlement_home_pop_full_factor():
+    pop_id = uuid4()
+    pop = MagicMock()
+    pop.linked_pop_ids = {}
+    state = MagicMock()
+    state.pops = {str(pop_id): pop}
+    mortal = MagicMock()
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+    from logic.tick_logic import entitlement_resolver
+    assert entitlement_resolver(mortal, state) == [(pop, 1.0)]
+
+def test_entitlement_linked_pop_scaled():
+    origin_id = uuid4()
+    linked_id = uuid4()
+    origin_pop = MagicMock()
+    origin_pop.linked_pop_ids = {str(linked_id): 0.6}
+    linked_pop = MagicMock()
+    state = MagicMock()
+    state.pops = {str(origin_id): origin_pop, str(linked_id): linked_pop}
+    mortal = MagicMock()
+    mortal.pop_id = origin_id
+    mortal.pop_milieu = linked_id
+    from logic.tick_logic import entitlement_resolver
+    assert entitlement_resolver(mortal, state) == [(linked_pop, 0.6)]
+
+def test_entitlement_unrelated_pop_empty():
+    origin_id = uuid4()
+    other_id = uuid4()
+    origin_pop = MagicMock()
+    origin_pop.linked_pop_ids = {}
+    state = MagicMock()
+    state.pops = {str(origin_id): origin_pop, str(other_id): MagicMock()}
+    mortal = MagicMock()
+    mortal.pop_id = origin_id
+    mortal.pop_milieu = other_id
+    from logic.tick_logic import entitlement_resolver
+    assert entitlement_resolver(mortal, state) == []
+
+def test_entitlement_no_milieu_empty():
+    mortal = MagicMock()
+    mortal.pop_milieu = None
+    from logic.tick_logic import entitlement_resolver
+    assert entitlement_resolver(mortal, MagicMock()) == []

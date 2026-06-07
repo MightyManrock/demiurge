@@ -1169,6 +1169,28 @@ def _tick_yield_renewal(state: "SimulationState") -> None:
             cr.current_yield = min(cr.max_yield, cr.current_yield + recovered)
 
 
+def entitlement_resolver(mortal, state) -> list[tuple]:
+    """Returns [(Pop, draw_factor)] the mortal can passively draw sustenance from.
+
+    Entitled if pop_milieu == pop_id (factor 1.0) or pop_milieu is in
+    the pop_id Pop's linked_pop_ids (factor = link factor).
+    """
+    if mortal.pop_milieu is None:
+        return []
+    milieu_pop = state.pops.get(str(mortal.pop_milieu))
+    if milieu_pop is None:
+        return []
+    if mortal.pop_id and str(mortal.pop_milieu) == str(mortal.pop_id):
+        return [(milieu_pop, 1.0)]
+    if mortal.pop_id:
+        origin_pop = state.pops.get(str(mortal.pop_id))
+        if origin_pop:
+            factor = origin_pop.linked_pop_ids.get(str(mortal.pop_milieu))
+            if factor is not None:
+                return [(milieu_pop, factor)]
+    return []
+
+
 class TickLoop:
 
     def __init__(self, rng_seed: Optional[int] = None):
@@ -5577,15 +5599,15 @@ class TickLoop:
                     (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
                     None,
                 )
-                _bg_load = sum(r.quantity for r in cs.inventory if "sell" in r.usable_for)
+                _bg_load = sum(r.quantity for r in cs.mortal_inventory.items if "sell" in r.usable_for)
                 if _bg_cap is not None and _bg_load >= _bg_cap:
                     cs.collecting_ticks_remaining = 0          # hold full — stop loading
                 elif _bg_cr:
-                    _bg_res = cs.get_resource(_bg_cr.resource_type)
+                    _bg_res = cs.mortal_inventory.get_resource(_bg_cr.resource_type)
                     if _bg_res is None:
                         from core.agent_core import Resource as _Resource
                         _bg_res = _Resource(resource_type=_bg_cr.resource_type, biochem_tags=list(_bg_cr.biochem_tags))
-                        cs.inventory.append(_bg_res)
+                        cs.mortal_inventory.items.append(_bg_res)
                     _bg_gained = min(_bg_cr.max_yield * 0.15, _bg_cr.current_yield)
                     _bg_cr.current_yield = max(0.0, _bg_cr.current_yield - _bg_gained)
                     _bg_res.quantity += _bg_gained
@@ -5649,12 +5671,12 @@ class TickLoop:
                         continue
                     if cr.current_yield <= 0:
                         continue
-                    res = cs.get_resource(cr.resource_type)
+                    res = cs.mortal_inventory.get_resource(cr.resource_type)
                     if res is None:
                         from core.agent_core import Resource as _Resource
                         res = _Resource(resource_type=cr.resource_type,
                                         biochem_tags=list(cr.biochem_tags))
-                        cs.inventory.append(res)
+                        cs.mortal_inventory.items.append(res)
                     gained = min(cr.max_yield * 0.15, cr.current_yield)
                     cr.current_yield = max(0.0, cr.current_yield - gained)
                     res.quantity += gained
@@ -5669,7 +5691,7 @@ class TickLoop:
             elif action == "sell":
                 loc = state.locations.get(str(mortal.current_location))
                 quality = _effective_commerce_quality(loc, state) if loc else 0.5
-                for res in cs.inventory:
+                for res in cs.mortal_inventory.items:
                     if "sell" not in res.usable_for or res.quantity < res.threshold:
                         continue
                     if res.converts_to is None:
@@ -5679,11 +5701,11 @@ class TickLoop:
                         continue
                     credits_gained = units * res.base_value * quality
                     res.quantity -= units
-                    target = cs.get_resource(res.converts_to)
+                    target = cs.mortal_inventory.get_resource(res.converts_to)
                     if target is None:
                         from core.agent_core import Resource as _Resource
                         target = _Resource(resource_type=res.converts_to)
-                        cs.inventory.append(target)
+                        cs.mortal_inventory.items.append(target)
                     target.quantity += credits_gained
                     if res.fills_need:
                         need = next((n for n in cs.needs if n.name == res.fills_need), None)
@@ -5749,7 +5771,7 @@ class TickLoop:
             elif action == "spend":
                 loc = state.locations.get(str(mortal.current_location))
                 quality = _effective_commerce_quality(loc, state) if loc else 0.5
-                for res in cs.inventory:
+                for res in cs.mortal_inventory.items:
                     if "spend" not in res.usable_for or res.quantity < res.threshold:
                         continue
                     base_per_unit = 0.12

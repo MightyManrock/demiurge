@@ -48,8 +48,8 @@ def _print_status(state: SimulationState, tick: int) -> None:
 
     cs = vail.mortal_state
     inv_str = ""
-    if cs and cs.inventory:
-        parts = [f"{r.resource_type}={r.quantity:.1f}" for r in cs.inventory]
+    if cs and cs.mortal_inventory.items:
+        parts = [f"{r.resource_type}={r.quantity:.1f}" for r in cs.mortal_inventory.items]
         inv_str = "  inv:[" + ", ".join(parts) + "]"
 
     ti = vail.travel_intent
@@ -84,8 +84,8 @@ def decide(loop: TickLoop, state: SimulationState, tick: int) -> str:
         elif loc == "Neran Surface" and _arrived_sethis:
             _returned_neran = True
 
-        unobtanium = next((r.quantity for r in cs.inventory if r.resource_type == "unobtanium"), 0.0)
-        credits = next((r.quantity for r in cs.inventory if r.resource_type == "credits"), 0.0)
+        unobtanium = next((r.quantity for r in cs.mortal_inventory.items if r.resource_type == "unobtanium"), 0.0)
+        credits = next((r.quantity for r in cs.mortal_inventory.items if r.resource_type == "credits"), 0.0)
 
         if unobtanium < _prev_unobtanium and credits > _prev_credits:
             _sold_unobtanium = True
