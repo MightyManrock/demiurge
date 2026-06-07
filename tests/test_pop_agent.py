@@ -171,3 +171,122 @@ def test_initialize_pop_state_returns_pop_agent_state():
     assert isinstance(state, PopAgentState)
     assert len(state.needs) == len(POP_CANONICAL_NEEDS)
     assert state.fatigue == 0.0
+
+
+from logic.pop_agent_logic import (
+    compute_pop_priorities,
+    compute_active_slots,
+    _pop_need_urgency,
+    _pop_competency_modifier,
+)
+from core.universe_core import SocialClass
+import math
+
+
+def _make_pop_with_state(needs, social_class=SocialClass.COMMON, size=3.0, directives=None):
+    pop = MagicMock()
+    pop.pop_state = PopAgentState(needs=needs)
+    pop.social_class = social_class
+    pop.stratum = social_class.value
+    pop.wild_stratum = None
+    pop.size_fractional = size
+    pop.active_directives = directives or []
+    pop.faction_ids = []
+    return pop
+
+
+def test_urgency_zero_when_satisfied():
+    n = PopNeed(name="sustenance", satisfaction=1.0, pressing_threshold=0.55)
+    assert _pop_need_urgency(n) == 0.0
+
+
+def test_urgency_zero_when_satiation_hold():
+    n = PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, satiation_hold=3)
+    assert _pop_need_urgency(n) == 0.0
+
+
+def test_urgency_positive_when_pressing():
+    n = PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)
+    u = _pop_need_urgency(n)
+    assert 0 < u <= 1.0
+
+
+def test_urgency_above_one_when_urgent():
+    n = PopNeed(name="sustenance", satisfaction=0.05, pressing_threshold=0.55, urgent_threshold=0.20)
+    assert _pop_need_urgency(n) > 1.0
+
+
+def test_competency_warrior_fortify():
+    pop = _make_pop_with_state([], social_class=SocialClass.WARRIOR)
+    assert _pop_competency_modifier(pop, "fortify") > 1.0
+
+
+def test_competency_common_forage():
+    pop = _make_pop_with_state([], social_class=SocialClass.COMMON)
+    assert _pop_competency_modifier(pop, "forage") > 1.0
+
+
+def test_competency_default_one():
+    pop = _make_pop_with_state([], social_class=SocialClass.COMMON)
+    assert _pop_competency_modifier(pop, "build") == 1.0
+
+
+def test_priorities_sum_to_one():
+    needs = [
+        PopNeed(name="sustenance", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20),
+        PopNeed(name="safety", satisfaction=0.8),
+        PopNeed(name="cohesion", satisfaction=0.8),
+        PopNeed(name="purpose", satisfaction=0.8),
+        PopNeed(name="shelter", satisfaction=0.8),
+        PopNeed(name="wanderlust", satisfaction=0.8),
+    ]
+    pop = _make_pop_with_state(needs)
+    priorities = compute_pop_priorities(pop, {})
+    assert abs(sum(priorities.values()) - 1.0) < 1e-6
+
+
+def test_stubs_have_zero_weight():
+    needs = [PopNeed(name=n, satisfaction=0.3) for n in
+             ["sustenance", "safety", "cohesion", "purpose", "shelter", "wanderlust"]]
+    pop = _make_pop_with_state(needs)
+    priorities = compute_pop_priorities(pop, {})
+    assert priorities["raid"] == 0.0
+    assert priorities["fight"] == 0.0
+    assert priorities["rout"] == 0.0
+
+
+def test_directive_boosts_action():
+    needs = [PopNeed(name="sustenance", satisfaction=0.5, pressing_threshold=0.55),
+             PopNeed(name="safety", satisfaction=0.9),
+             PopNeed(name="cohesion", satisfaction=0.9),
+             PopNeed(name="purpose", satisfaction=0.9),
+             PopNeed(name="shelter", satisfaction=0.9),
+             PopNeed(name="wanderlust", satisfaction=0.9)]
+    d = Directive(action_weight_modifiers={"fortify": 5.0})
+    pop_with = _make_pop_with_state(needs, directives=[d])
+    pop_without = _make_pop_with_state(needs, directives=[])
+    p_with = compute_pop_priorities(pop_with, {})
+    p_without = compute_pop_priorities(pop_without, {})
+    assert p_with["fortify"] > p_without["fortify"]
+
+
+def test_active_slots_floor_two():
+    pop = _make_pop_with_state([], size=1.0)
+    assert compute_active_slots(pop, {}) == 2
+
+
+def test_active_slots_scales_with_size():
+    pop = _make_pop_with_state([], size=5.0)
+    assert compute_active_slots(pop, {}) == 5
+
+
+def test_slot_modifier_blocked_when_fatigued():
+    pop = _make_pop_with_state([], size=3.0, directives=[Directive(slot_modifier=1)])
+    pop.pop_state.fatigue = 1.0
+    assert compute_active_slots(pop, {}) == 3
+
+
+def test_slot_modifier_applied_when_not_fatigued():
+    pop = _make_pop_with_state([], size=3.0, directives=[Directive(slot_modifier=1)])
+    pop.pop_state.fatigue = 0.0
+    assert compute_active_slots(pop, {}) == 4
