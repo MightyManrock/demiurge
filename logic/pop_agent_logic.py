@@ -225,7 +225,11 @@ def resolve_pop_actions(
             pop_loc.danger = max(0.0, pop_loc.danger - output * 0.005)
 
         elif action == "migrate":
-            pass  # routing handled by tick_logic; migrate weight signals intent only
+            # Actual leg-by-leg routing is future work; provide placeholder satisfaction
+            # so wanderlust doesn't drain to zero before movement is implemented
+            need = needs_by_name.get("wanderlust")
+            if need:
+                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE * 0.5)
 
     # Consumption pass: draw food from stockpile → fill sustenance need
     sustenance = needs_by_name.get("sustenance")

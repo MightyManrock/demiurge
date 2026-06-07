@@ -402,3 +402,17 @@ def test_fortify_reduces_location_danger():
     loc.danger = 0.5
     resolve_pop_actions(pop, loc, _full_priorities("fortify"), n_slots=1, factions={}, current_tick=1)
     assert loc.danger < 0.5
+
+
+def test_migrate_partially_fills_wanderlust():
+    needs = [PopNeed(name="wanderlust", satisfaction=0.2, pressing_threshold=0.40, urgent_threshold=0.18),
+             PopNeed(name="sustenance", satisfaction=1.0),
+             PopNeed(name="safety", satisfaction=1.0),
+             PopNeed(name="cohesion", satisfaction=1.0),
+             PopNeed(name="purpose", satisfaction=1.0),
+             PopNeed(name="shelter", satisfaction=1.0)]
+    pop = _make_pop_for_resolution(needs)
+    loc = _make_pop_loc()
+    initial = pop.pop_state.get_need("wanderlust").satisfaction
+    resolve_pop_actions(pop, loc, _full_priorities("migrate"), n_slots=1, factions={}, current_tick=1)
+    assert pop.pop_state.get_need("wanderlust").satisfaction > initial
