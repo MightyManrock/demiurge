@@ -46,6 +46,9 @@ The `entitlement_resolver` grants mortals access to Pop stockpiles but imposes n
 **Mortal inventory capacity / encumbrance**
 `MortalInventory` has no capacity limit; mortals who forage and hunt could accumulate resources indefinitely. A capacity model (weight- or slot-based) would gate this and connect naturally to `MortalAsset` vehicle cargo capacity once that is formalized.
 
+**KnowledgeBase on PopAgentState**
+`PopAgentState` has no `KnowledgeBase`; Pops currently have omniscient access to all `CollectibleResource` objects at their current `PopLocation` and no awareness model for other locations. Add `knowledge_base: KnowledgeBase = Field(default_factory=KnowledgeBase)` to `PopAgentState`, with loader/exporter/schema support. Once present, the KB can gate resource-aware travel decisions (a Pop should only migrate toward a resource-rich location it actually knows about) and support the same seeding/discovery mechanics that mortals already have.
+
 **Resource-scarcity-driven Pop migration**
 Persistent unmet `nourishment` or `hydration` needs should create migration pressure beyond the general `wanderlust` need. Pops unable to sustain themselves at their current location should seek resource-rich destinations. Requires routing logic to be aware of resource availability at destination PopLocations.
 
