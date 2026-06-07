@@ -1,8 +1,10 @@
 import json
 import pytest
 from uuid import uuid4
-from core.agent_core import CollectibleResource, Resource
-from core.universe_core import PopLocation
+from unittest.mock import MagicMock
+from core.agent_core import CollectibleResource, Resource, PopAgentState, PopNeed
+from core.universe_core import PopLocation, Pop
+from logic.pop_agent_logic import resolve_pop_actions, ACTION_NEED_MAP
 from utilities.scenario_loader import _load_collectible_resources
 from logic.needs_config import (
     NEED_NOURISHMENT, NEED_HYDRATION,
@@ -11,7 +13,6 @@ from logic.needs_config import (
     POP_NEED_DEFAULTS, compute_pop_need_profile, initialize_pop_state,
     compute_need_profile,
 )
-from unittest.mock import MagicMock
 
 
 # ── CollectibleResource ───────────────────────────────────────────────────────
@@ -175,3 +176,124 @@ def test_initialize_pop_state_has_nourishment_and_hydration():
     assert "nourishment" in names
     assert "hydration" in names
     assert "sustenance" not in names
+
+
+# ── Task 4: Pop agent action_types gating ────────────────────────────────────
+
+def _make_pop_state_with_needs(**need_satisfactions):
+    needs = []
+    defaults = {
+        "nourishment": 1.0, "hydration": 1.0, "safety": 1.0,
+        "cohesion": 1.0, "purpose": 1.0, "shelter": 1.0, "wanderlust": 1.0,
+    }
+    defaults.update(need_satisfactions)
+    for name, sat in defaults.items():
+        needs.append(PopNeed(name=name, satisfaction=sat,
+                              decay_rate=0.02, pressing_threshold=0.55, urgent_threshold=0.20))
+    return PopAgentState(needs=needs)
+
+def _make_loc_with_resource(resource_type, max_yield, action_types, biochem_tags=None):
+    cr = CollectibleResource(
+        resource_type=resource_type, max_yield=max_yield,
+        current_yield=max_yield, action_types=action_types,
+        biochem_tags=biochem_tags or []
+    )
+    loc = PopLocation(id=uuid4(), name="Plains", location_type="city", parent_id=uuid4(),
+                      collectible_resources=[cr])
+    return loc
+
+
+def test_action_need_map_forage_maps_to_nourishment():
+    assert ACTION_NEED_MAP["forage"] == "nourishment"
+
+def test_action_need_map_hunt_maps_to_nourishment():
+    assert ACTION_NEED_MAP["hunt"] == "nourishment"
+
+def test_action_need_map_no_sustenance_key():
+    assert "sustenance" not in ACTION_NEED_MAP.values()
+
+def test_forage_depletes_current_yield():
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.pop_state = _make_pop_state_with_needs(nourishment=0.1)
+    pop.size_fractional = 1.0
+    pop.social_class = MagicMock()
+    pop.social_class.value = "common"
+    pop.occupation = "farmer"
+    pop.active_directives = []
+    pop.faction_ids = []
+
+    loc = _make_loc_with_resource("food_flora", 10.0, ["forage"],
+                                   biochem_tags=["basis:carbon"])
+    state = MagicMock()
+    state.factions = {}
+
+    resolve_pop_actions(pop, loc, [], 1, state)
+
+    assert loc.resource_stockpile.get("food_flora", 0.0) > 0
+    assert loc.collectible_resources[0].current_yield < 10.0  # depleted
+
+def test_forage_bounded_by_current_yield():
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.pop_state = _make_pop_state_with_needs(nourishment=0.1)
+    pop.size_fractional = 5.0
+    pop.social_class = MagicMock()
+    pop.social_class.value = "common"
+    pop.occupation = "farmer"
+    pop.active_directives = []
+    pop.faction_ids = []
+
+    loc = _make_loc_with_resource("food_flora", 2.0, ["forage"])
+    loc.collectible_resources[0].current_yield = 0.5  # nearly depleted
+    state = MagicMock()
+    state.factions = {}
+
+    resolve_pop_actions(pop, loc, [], 1, state)
+
+    assert loc.resource_stockpile.get("food_flora", 0.0) <= 0.5
+    assert loc.collectible_resources[0].current_yield >= 0.0
+
+def test_consumption_pass_basis_resource_fills_nourishment():
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.pop_state = _make_pop_state_with_needs(nourishment=0.3)
+    pop.size_fractional = 1.0
+    pop.social_class = MagicMock()
+    pop.social_class.value = "common"
+    pop.occupation = "farmer"
+    pop.active_directives = []
+    pop.faction_ids = []
+
+    loc = PopLocation(id=uuid4(), name="Plains", location_type="city", parent_id=uuid4(),
+                      resource_stockpile={"food_flora": 10.0},
+                      collectible_resources=[])
+    state = MagicMock()
+    state.factions = {}
+
+    before = pop.pop_state.get_need("nourishment").satisfaction
+    resolve_pop_actions(pop, loc, [], 1, state)
+    after = pop.pop_state.get_need("nourishment").satisfaction
+    assert after >= before
+
+def test_consumption_pass_solvent_resource_fills_hydration():
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.pop_state = _make_pop_state_with_needs(hydration=0.3)
+    pop.size_fractional = 1.0
+    pop.social_class = MagicMock()
+    pop.social_class.value = "common"
+    pop.occupation = "farmer"
+    pop.active_directives = []
+    pop.faction_ids = []
+
+    loc = PopLocation(id=uuid4(), name="Plains", location_type="city", parent_id=uuid4(),
+                      resource_stockpile={"potable_water": 10.0},
+                      collectible_resources=[])
+    state = MagicMock()
+    state.factions = {}
+
+    before = pop.pop_state.get_need("hydration").satisfaction
+    resolve_pop_actions(pop, loc, [], 1, state)
+    after = pop.pop_state.get_need("hydration").satisfaction
+    assert after >= before

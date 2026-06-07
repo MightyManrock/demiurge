@@ -13,7 +13,27 @@ from core.agent_core import PopAgentState, PopNeed
 
 POP_FOOD_RESOURCE_TYPES = ("food_flora", "food_fauna")
 NEED_FILL_RATE = 0.08
-SUSTENANCE_CONSUME_RATE = 0.05
+SUSTENANCE_CONSUME_RATE = 0.05  # kept for back-compat; superseded by split rates below
+
+NOURISHMENT_CONSUME_RATE = 0.05
+HYDRATION_CONSUME_RATE   = 0.05
+NOURISHMENT_FILL_RATE    = 0.08
+HYDRATION_FILL_RATE      = 0.08
+BASE_FORAGE_YIELD        = 0.1   # fallback when no matching collectible_resource
+
+# Resource types → biochem categories for consumption pass
+_RESOURCE_BIOCHEM: dict[str, str] = {
+    "food_flora":            "basis",
+    "food_fauna":            "basis",
+    "silicate_flora":        "basis",
+    "silicate_fauna":        "basis",
+    "methane_flora":         "basis",
+    "methane_fauna":         "basis",
+    "potable_water":         "solvent",
+    "potable_sulfuric_acid": "solvent",
+    "potable_ammonia":       "solvent",
+    "potable_methane_liq":   "solvent",
+}
 
 ACTION_NEED_MAP: dict[str, str] = {
     "forage":        "nourishment",
@@ -48,6 +68,14 @@ _COMPETENCY: dict[str, dict[str, float]] = {
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _find_matching_resources(collectible_resources: list, action: str) -> list:
+    """Return CollectibleResources usable by this action (action_types=[] means any)."""
+    return [
+        cr for cr in collectible_resources
+        if (not cr.action_types or action in cr.action_types)
+        and cr.current_yield > 0
+    ]
 
 def _pop_need_urgency(need: PopNeed) -> float:
     """Continuous urgency in [0, ~1.5]. 0 when satisfied or held; >1 when urgent."""
@@ -157,15 +185,24 @@ def resolve_pop_actions(
     priorities: dict[str, float],
     n_slots: int,
     factions: dict,
-    current_tick: int,
+    current_tick: int = 0,
 ) -> list[str]:
-    """Execute top-N priority actions; return narrative strings for notable events."""
+    """Execute top-N priority actions; return narrative strings for notable events.
+
+    If ``priorities`` is empty (``{}`` or ``[]``), priorities are computed from
+    the pop's current needs via ``compute_pop_priorities``.
+    """
     narratives: list[str] = []
     ps = pop.pop_state
     if ps is None:
         return narratives
 
     needs_by_name = {n.name: n for n in ps.needs}
+
+    # Compute priorities on demand when caller passes none
+    if not priorities:
+        factions_dict = factions if isinstance(factions, dict) else {}
+        priorities = compute_pop_priorities(pop, factions_dict)
 
     # Select top-N active (non-stub, non-zero) actions by weight
     ranked = sorted(
@@ -180,23 +217,27 @@ def resolve_pop_actions(
         competency = _pop_competency_modifier(pop, action)
         output = weight * pop.size_fractional * competency
 
-        if action == "forage":
-            pop_loc.resource_stockpile["food_flora"] = (
-                pop_loc.resource_stockpile.get("food_flora", 0.0) + output
-            )
-
-        elif action == "hunt":
-            pop_loc.resource_stockpile["food_fauna"] = (
-                pop_loc.resource_stockpile.get("food_fauna", 0.0) + output
-            )
-
-        elif action == "collect":
-            cr = pop_loc.collectible_resources[0] if pop_loc.collectible_resources else None
-            if cr:
-                deposited = min(output, cr.current_yield if cr.current_yield is not None else cr.max_yield)
-                pop_loc.resource_stockpile[cr.resource_type] = (
-                    pop_loc.resource_stockpile.get(cr.resource_type, 0.0) + deposited
-                )
+        if action in ("forage", "hunt", "collect"):
+            matching = _find_matching_resources(pop_loc.collectible_resources, action)
+            if matching:
+                per_resource_output = output / len(matching)
+                for cr in matching:
+                    actual = min(per_resource_output, cr.current_yield)
+                    cr.current_yield = max(0.0, cr.current_yield - actual)
+                    pop_loc.resource_stockpile[cr.resource_type] = (
+                        pop_loc.resource_stockpile.get(cr.resource_type, 0.0) + actual
+                    )
+            else:
+                # Environment fallback
+                if action == "forage":
+                    pop_loc.resource_stockpile["food_flora"] = (
+                        pop_loc.resource_stockpile.get("food_flora", 0.0) + output * BASE_FORAGE_YIELD
+                    )
+                elif action == "hunt":
+                    pop_loc.resource_stockpile["food_fauna"] = (
+                        pop_loc.resource_stockpile.get("food_fauna", 0.0) + output * BASE_FORAGE_YIELD
+                    )
+                # collect with no matching resource → no output
 
         elif action == "commune":
             need = needs_by_name.get("cohesion")
@@ -231,25 +272,48 @@ def resolve_pop_actions(
             if need:
                 need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE * 0.5)
 
-    # Consumption pass: draw food from stockpile → fill nourishment need
+    # Consumption pass: draw basis/solvent resources from stockpile → fill nourishment/hydration
+    # Build resource_type → "basis" | "solvent" map (collectible_resource biochem_tags take priority)
+    _biochem_map: dict[str, str] = dict(_RESOURCE_BIOCHEM)
+    for _cr in pop_loc.collectible_resources:
+        if _cr.biochem_tags:
+            if any(t.startswith("basis:") for t in _cr.biochem_tags):
+                _biochem_map[_cr.resource_type] = "basis"
+            elif any(t.startswith("solvent:") for t in _cr.biochem_tags):
+                _biochem_map[_cr.resource_type] = "solvent"
+
     nourishment = needs_by_name.get("nourishment")
-    if nourishment:
-        food_available = sum(pop_loc.resource_stockpile.get(rt, 0.0) for rt in POP_FOOD_RESOURCE_TYPES)
-        if food_available > 0.0:
-            consume_amount = min(food_available, pop.size_fractional * 0.5)
-            remaining = consume_amount
-            for rt in POP_FOOD_RESOURCE_TYPES:
-                if rt in pop_loc.resource_stockpile and pop_loc.resource_stockpile[rt] > 0.0:
-                    take = min(pop_loc.resource_stockpile[rt], remaining)
-                    pop_loc.resource_stockpile[rt] -= take
-                    remaining -= take
-                    if remaining <= 0.0:
-                        break
-            nourishment.satisfaction = min(1.0, nourishment.satisfaction + SUSTENANCE_CONSUME_RATE)
-        elif nourishment.is_pressing:
-            from core.universe_core import pop_label
-            narratives.append(
-                f"§pop§{pop.id}§{pop_label(pop)}§ has no food — nourishment need unmet."
-            )
+    hydration    = needs_by_name.get("hydration")
+
+    for resource_type, quantity in list(pop_loc.resource_stockpile.items()):
+        if quantity <= 0:
+            continue
+        category = _biochem_map.get(resource_type)
+        if category == "basis" and nourishment and nourishment.satisfaction < 1.0:
+            consumed = min(quantity, NOURISHMENT_CONSUME_RATE)
+            pop_loc.resource_stockpile[resource_type] -= consumed
+            nourishment.satisfaction = min(1.0, nourishment.satisfaction + NOURISHMENT_FILL_RATE)
+        elif category == "solvent" and hydration and hydration.satisfaction < 1.0:
+            consumed = min(quantity, HYDRATION_CONSUME_RATE)
+            pop_loc.resource_stockpile[resource_type] -= consumed
+            hydration.satisfaction = min(1.0, hydration.satisfaction + HYDRATION_FILL_RATE)
+
+    # Narrative: unmet nourishment or hydration
+    if nourishment and nourishment.is_pressing and not any(
+        _biochem_map.get(rt) == "basis" and q > 0
+        for rt, q in pop_loc.resource_stockpile.items()
+    ):
+        from core.universe_core import pop_label as _pop_label
+        narratives.append(
+            f"§pop§{pop.id}§{_pop_label(pop)}§ has no food — nourishment unmet."
+        )
+    if hydration and hydration.is_pressing and not any(
+        _biochem_map.get(rt) == "solvent" and q > 0
+        for rt, q in pop_loc.resource_stockpile.items()
+    ):
+        from core.universe_core import pop_label as _pop_label
+        narratives.append(
+            f"§pop§{pop.id}§{_pop_label(pop)}§ has no water — hydration unmet."
+        )
 
     return narratives
