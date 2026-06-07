@@ -1,6 +1,7 @@
 import pytest
-from uuid import UUID
+from uuid import UUID, uuid4
 from core.agent_core import PopNeed, PopAgentState
+from core.universe_core import Directive, Pop, PopLocation
 
 
 def test_pop_need_defaults():
@@ -46,3 +47,38 @@ def test_pop_agent_state_get_need():
     s = PopAgentState(needs=[n])
     assert s.get_need("sustenance") is n
     assert s.get_need("shelter") is None
+
+
+def test_directive_new_fields_defaults():
+    d = Directive()
+    assert d.action_weight_modifiers == {}
+    assert d.slot_modifier == 0
+
+
+def test_directive_serializes_new_fields():
+    d = Directive(
+        action_weight_modifiers={"fortify": 0.5, "revel": -0.2},
+        slot_modifier=1,
+    )
+    data = d.model_dump()
+    assert data["action_weight_modifiers"] == {"fortify": 0.5, "revel": -0.2}
+    assert data["slot_modifier"] == 1
+
+
+def test_directive_roundtrips_via_model_validate():
+    d = Directive(action_weight_modifiers={"build": 0.3}, slot_modifier=-1)
+    restored = Directive.model_validate(d.model_dump())
+    assert restored.action_weight_modifiers == {"build": 0.3}
+    assert restored.slot_modifier == -1
+
+
+def test_pop_pop_state_default_none():
+    from core.agent_core import PopAgentState  # noqa: F401 — triggers forward-ref resolution
+    Pop.model_rebuild()
+    p = Pop(current_location=uuid4())
+    assert p.pop_state is None
+
+
+def test_pop_location_resource_stockpile_default():
+    loc = PopLocation(id=uuid4(), name="test", location_type="city")
+    assert loc.resource_stockpile == {}

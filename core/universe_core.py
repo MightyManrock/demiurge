@@ -6,9 +6,12 @@ Classes connected to the universe simulation.
 
 from __future__ import annotations
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from enum import Enum
 from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from core.agent_core import PopAgentState
 
 from core.agent_core import (
     ProxiusGoal, TravelIntent,
@@ -333,6 +336,7 @@ class PopLocation(Location):
     collectible_resource: Optional[CollectibleResource] = None
     wealth: float = Field(ge=0.0, le=1.0, default=0.5)
     danger: float = Field(ge=0.0, le=1.0, default=0.0)
+    resource_stockpile: dict[str, float] = Field(default_factory=dict)
 
 
 class TravelLocation(Location):
@@ -449,6 +453,8 @@ class Directive(BaseModel):
     target_location_id: Optional[UUID] = None
     issued_at_tick: int = 0
     required_skill: Optional[str] = None
+    action_weight_modifiers: dict[str, float] = Field(default_factory=dict)
+    slot_modifier: int = 0
 
 
 class Pop(BaseModel):
@@ -540,6 +546,7 @@ class Pop(BaseModel):
     faction_ids: list[UUID] = Field(default_factory=list)
     active_directives: list[Directive] = Field(default_factory=list)
     asset_crew_for: Optional[str] = None  # asset_type; marks this as a vessel crew pop
+    pop_state: Optional["PopAgentState"] = None
 
 
 class Faction(BaseModel):
