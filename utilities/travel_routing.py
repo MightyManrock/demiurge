@@ -289,6 +289,41 @@ _SUBLIGHT_SPEED = 50.0   # AU/tick  (intra-system travel)
 _WARP_SPEED     = 80.0   # pc/tick  (interstellar warpspace travel)
 
 
+def route_fact_cost(state, from_id: UUID, to_id: UUID, mortal=None) -> int:
+    """Return the tick cost to use in a KB RouteFact from from_id to to_id.
+
+    Checks privileged TravelEdges the mortal qualifies for (if provided),
+    then falls back to the standard leg_cost (distance_from_core formula).
+    """
+    from core.universe_core import PopLocation
+    from_str = str(from_id)
+    to_str   = str(to_id)
+    from_loc = state.locations.get(from_str)
+    to_loc   = state.locations.get(to_str)
+
+    baseline = leg_cost(state, from_id, to_id)
+    if mortal is None:
+        return baseline
+
+    if not isinstance(from_loc, PopLocation) or not isinstance(to_loc, PopLocation):
+        return baseline
+
+    a_nets = {str(n) for n in from_loc.travel_network_ids}
+    b_nets = {str(n) for n in to_loc.travel_network_ids}
+    best = baseline
+    for net_str in a_nets & b_nets:
+        net = state.travel_networks.get(net_str)
+        if net is None:
+            continue
+        for cond in net.conditions:
+            if not _mortal_meets_condition(cond, mortal, state):
+                continue
+            for edge in net.edges:
+                if ({str(edge.node_a), str(edge.node_b)} == {from_str, to_str}):
+                    best = min(best, edge.privileged_cost)
+    return max(1, best)
+
+
 def leg_cost(state, origin_id: UUID, dest_id: UUID) -> int:
     """Compute tick cost for one hop.
     Intra-world: distance_from_core formula.
