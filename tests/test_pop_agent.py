@@ -385,8 +385,9 @@ def test_empty_stockpile_leaves_sustenance_unmet():
     pop = _make_pop_for_resolution(needs, size=3.0)
     loc = _make_pop_loc()
     initial = pop.pop_state.get_need("sustenance").satisfaction
-    resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
+    narratives = resolve_pop_actions(pop, loc, _full_priorities("commune"), n_slots=1, factions={}, current_tick=1)
     assert pop.pop_state.get_need("sustenance").satisfaction == initial
+    assert any("has no food" in n for n in narratives)
 
 
 def test_fortify_reduces_location_danger():

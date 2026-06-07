@@ -244,10 +244,8 @@ def resolve_pop_actions(
             sustenance.satisfaction = min(1.0, sustenance.satisfaction + SUSTENANCE_CONSUME_RATE)
         elif sustenance.is_pressing:
             from core.universe_core import pop_label
-            pop_id = str(pop.id) if hasattr(pop, "id") else "unknown"
-            pop_name = pop_label(pop) if callable(getattr(pop, "name", None)) else (pop.name or "Pop")
             narratives.append(
-                f"§pop§{pop_id}§{pop_name}§ has no food — sustenance need unmet."
+                f"§pop§{pop.id}§{pop_label(pop)}§ has no food — sustenance need unmet."
             )
 
     return narratives
