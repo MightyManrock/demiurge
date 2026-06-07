@@ -201,16 +201,17 @@ class CollectibleResource(BaseModel):
     resource_type: str = "unobtanium"
     max_yield: float = 1.0
     yield_renew_rate: float = 0.2      # fraction of max_yield restored per tick
-    current_yield: Optional[float] = None
+    current_yield: float = 0.0
     cooldown_ticks: int = 3
     action_types: list[str] = Field(default_factory=list)  # [] = any action can use
     biochem_tags: list[str] = Field(default_factory=list)
 
-    @model_validator(mode="after")
-    def _init_current_yield(self) -> "CollectibleResource":
-        if self.current_yield is None:
-            self.current_yield = self.max_yield
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def _set_current_yield(cls, data: object) -> object:
+        if isinstance(data, dict) and data.get("current_yield") is None:
+            data["current_yield"] = data.get("max_yield", 1.0)
+        return data
 
 
 # ---------------------------------------------------------------------------

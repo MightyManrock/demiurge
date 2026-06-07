@@ -40,6 +40,10 @@ def test_cr_no_resource_yield_field():
     with pytest.raises(Exception):
         CollectibleResource(resource_type="food_flora", resource_yield=5.0)
 
+def test_cr_current_yield_zero_is_not_none():
+    cr = CollectibleResource(resource_type="food_flora", max_yield=5.0, current_yield=0.0)
+    assert cr.current_yield == 0.0
+
 
 # ── PopLocation.collectible_resources ─────────────────────────────────────────
 
