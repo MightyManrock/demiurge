@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from core.agent_core import (
     MortalAgentState, Resource, MortalNeed, KnowledgeBase,
     RouteFact, LocationQualityFact, ResourceFact, DirectiveFact,
+    CollectibleResource,
 )
 from core.universe_core import NotableMortal
 from logic.mortal_agent_logic import evaluate_mortal_action, _trip_too_long_for_urgent_need, _cross_factor, _pop_social_quality, _has_skill, _skill_rating
@@ -116,7 +117,7 @@ def test_spend_at_spend_location():
 def test_collect_at_resource_location():
     loc_id = "sethis-surface"
     loc = MagicMock()
-    loc.collectible_resource = MagicMock()
+    loc.collectible_resources = [CollectibleResource(resource_type="food_flora", max_yield=5.0)]
     loc.location_type = "pop_location"
     # Collect scores via purpose urgency — mortal collects when purpose is pressing
     cs = MortalAgentState(needs=[MortalNeed(name="purpose", satisfaction=0.5, pressing_threshold=0.65)])
@@ -143,7 +144,7 @@ def test_spend_skipped_when_target_need_not_pressing():
     spend_loc_id = "neran-surface"
     resource_loc_id = "sethis-surface"
     loc = MagicMock()
-    loc.collectible_resource = MagicMock()
+    loc.collectible_resources = [CollectibleResource(resource_type="food_flora", max_yield=5.0)]
     loc.location_type = "pop_location"
     cs = MortalAgentState(
         needs=[
@@ -309,8 +310,6 @@ def test_leisure_priority_above_collect():
     kb = KnowledgeBase(facts=[ResourceFact(location_id=resource_loc)])
     mortal = _mortal_with_pop(cs)
     mortal.knowledge_base = kb
-    loc = MagicMock()
-    loc.collectible_resource = MagicMock()
     result = evaluate_mortal_action(
         mortal,
         _state_with_pop(),
@@ -347,7 +346,7 @@ def test_might_as_well_roll_succeeds_triggers_collect():
     """When roll succeeds the mortal collects despite purpose not being pressing."""
     mortal = _directive_mortal()
     loc = MagicMock()
-    loc.collectible_resource = MagicMock()
+    loc.collectible_resources = [CollectibleResource(resource_type="food_flora", max_yield=5.0)]
     loc.location_type = "pop_location"
     state = MagicMock()
     state.locations = {"res-loc": loc}
@@ -644,7 +643,7 @@ def test_collect_blocked_when_skill_system_engaged_without_trade():
     kb = _kb_with_resource_and_sell(resource_loc, "sell-loc")
     mortal = _mortal(cs, kb, loc_id=resource_loc, skill_tags={"skill:craft": 0.9})
     loc = MagicMock()
-    loc.collectible_resource = "ore"
+    loc.collectible_resources = [CollectibleResource(resource_type="ore", max_yield=5.0)]
     result = evaluate_mortal_action(mortal, _state({resource_loc: loc}), 0)
     assert result != "collect"
 
@@ -660,7 +659,7 @@ def test_collect_allowed_when_skill_trade_present():
     kb = _kb_with_resource_and_sell(resource_loc, "sell-loc")
     mortal = _mortal(cs, kb, loc_id=resource_loc, skill_tags={"skill:trade": 0.8})
     loc = MagicMock()
-    loc.collectible_resource = "ore"
+    loc.collectible_resources = [CollectibleResource(resource_type="ore", max_yield=5.0)]
     result = evaluate_mortal_action(mortal, _state({resource_loc: loc}), 0)
     assert result == "collect"
 
@@ -676,7 +675,7 @@ def test_collect_allowed_legacy_no_skill_tags():
     kb = _kb_with_resource_and_sell(resource_loc, "sell-loc")
     mortal = _mortal(cs, kb, loc_id=resource_loc, skill_tags={})
     loc = MagicMock()
-    loc.collectible_resource = "ore"
+    loc.collectible_resources = [CollectibleResource(resource_type="ore", max_yield=5.0)]
     result = evaluate_mortal_action(mortal, _state({resource_loc: loc}), 0)
     assert result == "collect"
 

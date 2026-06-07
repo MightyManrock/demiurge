@@ -320,11 +320,16 @@ def _begin_loading(cs, cur_loc, cargo_cap: Optional[float], cargo_load: float) -
     Only applied when cargo capacity is known and resource yield is a real number."""
     if cargo_cap is None or cur_loc is None:
         return
-    cr = getattr(cur_loc, "collectible_resource", None)
+    crs = getattr(cur_loc, "collectible_resources", [])
+    cr = next(
+        (c for c in crs
+         if (not c.action_types or "collect" in c.action_types) and c.current_yield > 0),
+        None,
+    )
     if cr is None:
         return
-    yield_per_tick = getattr(cr, "resource_yield", None)
-    if not isinstance(yield_per_tick, (int, float)) or yield_per_tick <= 0:
+    yield_per_tick = cr.max_yield * 0.15
+    if yield_per_tick <= 0:
         return
     remaining = max(0.0, cargo_cap - cargo_load)
     additional_ticks = max(0, math.ceil(remaining / yield_per_tick) - 1)
@@ -456,7 +461,10 @@ def evaluate_mortal_action(
     _cur_loc = state.locations.get(current_loc_id)
     _at_resource = (
         _cur_loc is not None
-        and getattr(_cur_loc, "collectible_resource", None) is not None
+        and any(
+            (not c.action_types or "collect" in c.action_types) and c.current_yield > 0
+            for c in getattr(_cur_loc, "collectible_resources", [])
+        )
         and current_loc_id in kb.known_resource_locations()
     )
 

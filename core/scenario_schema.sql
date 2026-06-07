@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS locations (
     -- PopLocation addition
     travel_network_ids    TEXT    NOT NULL DEFAULT '[]',   -- JSON array of TravelNetwork UUIDs
     commerce_quality      REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; spend effectiveness multiplier
-    collectible_resource  TEXT    DEFAULT NULL,            -- JSON of CollectibleResource, or NULL
+    collectible_resources TEXT    NOT NULL DEFAULT '[]',   -- JSON array of CollectibleResource
     wealth                REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; PopLocation prosperity indicator
     danger                REAL    NOT NULL DEFAULT 0.0,    -- 0.0–1.0; base hazard level of this location
     resource_stockpile            TEXT NOT NULL DEFAULT '{}',

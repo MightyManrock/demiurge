@@ -1,7 +1,9 @@
+import json
 import pytest
 from uuid import uuid4
 from core.agent_core import CollectibleResource, Resource
 from core.universe_core import PopLocation
+from utilities.scenario_loader import _load_collectible_resources
 
 
 # ── CollectibleResource ───────────────────────────────────────────────────────
@@ -73,3 +75,47 @@ def test_pop_location_accepts_multiple_collectible_resources():
 def test_resource_decay_rate_defaults_to_zero():
     r = Resource(resource_type="food_flora")
     assert r.decay_rate == 0.0
+
+
+# ── Persistence ───────────────────────────────────────────────────────────────
+
+def test_load_collectible_resources_empty_list():
+    assert _load_collectible_resources("[]", None) == []
+
+def test_load_collectible_resources_from_none():
+    assert _load_collectible_resources(None, None) == []
+
+def test_load_collectible_resources_from_new_format():
+    raw = json.dumps([{
+        "resource_type": "food_flora", "max_yield": 5.0, "yield_renew_rate": 0.2,
+        "action_types": ["forage"], "biochem_tags": ["basis:carbon"]
+    }])
+    result = _load_collectible_resources(raw, None)
+    assert len(result) == 1
+    assert result[0].resource_type == "food_flora"
+    assert result[0].max_yield == 5.0
+    assert result[0].current_yield == 5.0   # initialized from max_yield
+
+def test_load_collectible_resources_preserves_depleted_current_yield():
+    raw = json.dumps([{
+        "resource_type": "food_flora", "max_yield": 10.0, "current_yield": 3.0,
+        "yield_renew_rate": 0.1, "action_types": []
+    }])
+    result = _load_collectible_resources(raw, None)
+    assert result[0].current_yield == 3.0  # not reset to max
+
+def test_load_collectible_resources_old_format_fallback():
+    # Old single-object with resource_yield (not max_yield)
+    old_raw = json.dumps({"resource_yield": 3.0, "cooldown_ticks": 3,
+                           "resource_type": "food_flora"})
+    result = _load_collectible_resources(None, old_raw)
+    assert len(result) == 1
+    assert result[0].max_yield == 3.0
+    assert result[0].current_yield == 3.0
+
+def test_load_collectible_resources_old_format_already_max_yield():
+    # Old format that somehow already has max_yield
+    old_raw = json.dumps({"max_yield": 4.0, "cooldown_ticks": 3,
+                           "resource_type": "potable_water"})
+    result = _load_collectible_resources(None, old_raw)
+    assert result[0].max_yield == 4.0

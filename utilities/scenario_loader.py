@@ -583,7 +583,10 @@ def _load_locations(conn, universe_age: EntityAge) -> dict[str, Location]:
                 distance_from_core=int(row.get("distance_from_core", 0) or 0),
                 travel_network_ids=[UUID(x) for x in _j(row.get("travel_network_ids", "[]"))],
                 commerce_quality=float(row.get("commerce_quality") or 0.5),
-                collectible_resource=_load_collectible_resource(row.get("collectible_resource")),
+                collectible_resources=_load_collectible_resources(
+                    row.get("collectible_resources"),
+                    row.get("collectible_resource"),
+                ),
                 wealth=float(row.get("wealth", 0.5) or 0.5),
                 danger=float(row.get("danger", 0.0) or 0.0),
                 resource_stockpile=_jd(row.get("resource_stockpile", "{}")),
@@ -945,13 +948,30 @@ def _load_factions(conn) -> "dict[str, Faction]":
     return result
 
 
-def _load_collectible_resource(raw: Optional[str]) -> Optional[CollectibleResource]:
-    if not raw:
-        return None
-    try:
-        return CollectibleResource.model_validate_json(raw)
-    except Exception:
-        return None
+def _load_collectible_resources(
+    raw: Optional[str],
+    old_raw: Optional[str],
+) -> list[CollectibleResource]:
+    """Load list-format collectible_resources; falls back to old single-object format."""
+    if raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, list):
+                return [CollectibleResource.model_validate(item) for item in data]
+        except Exception:
+            pass
+    if old_raw:
+        try:
+            data = json.loads(old_raw)
+            if isinstance(data, dict):
+                if "resource_yield" in data and "max_yield" not in data:
+                    data["max_yield"] = data.pop("resource_yield")
+                # remove unknown fields before validating
+                data.pop("cooldown_ticks", None)
+                return [CollectibleResource.model_validate(data)]
+        except Exception:
+            pass
+    return []
 
 
 def _load_proxius_goal(raw: Optional[str]) -> Optional[ProxiusGoal]:

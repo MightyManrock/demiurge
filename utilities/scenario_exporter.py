@@ -305,7 +305,7 @@ def _write_locations(conn, state: SimulationState):
         distance_from_core = 0
         travel_network_ids_val = "[]"
         commerce_quality = 0.5
-        collectible_resource_val = None
+        collectible_resources_val = "[]"
         wealth_val = 0.5
         danger_val = 0.0
         legs = "{}"
@@ -336,7 +336,9 @@ def _write_locations(conn, state: SimulationState):
             distance_from_core = int(loc.distance_from_core)
             travel_network_ids_val = _j(loc.travel_network_ids)
             commerce_quality = loc.commerce_quality
-            collectible_resource_val = loc.collectible_resource.model_dump_json() if loc.collectible_resource else None
+            collectible_resources_val = json.dumps(
+                [cr.model_dump(mode="json") for cr in loc.collectible_resources]
+            )
             wealth_val = loc.wealth
             danger_val = loc.danger
             resource_stockpile_val = _j(loc.resource_stockpile)
@@ -365,7 +367,7 @@ def _write_locations(conn, state: SimulationState):
                 formation_year, formation_month, formation_day,
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids, travel_network_ids,
-                commerce_quality, collectible_resource, wealth, danger,
+                commerce_quality, collectible_resources, wealth, danger,
                 resource_stockpile,
                 visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -401,7 +403,7 @@ def _write_locations(conn, state: SimulationState):
                 fd[0], fd[1], fd[2], fd[3], fd[4], fd[5],
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids_val, travel_network_ids_val,
-                commerce_quality, collectible_resource_val, wealth_val, danger_val,
+                commerce_quality, collectible_resources_val, wealth_val, danger_val,
                 resource_stockpile_val,
                 loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),

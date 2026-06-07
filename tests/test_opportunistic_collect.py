@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from core.agent_core import (
     MortalAgentState, MortalNeed, KnowledgeBase,
     RouteFact, LocationQualityFact, ResourceFact, Resource,
+    CollectibleResource,
 )
 from logic.mortal_agent_logic import evaluate_mortal_action
 
@@ -51,7 +52,7 @@ def _mortal(cs, kb, loc_id=SETHIS):
 
 def _state(resource_loc=SETHIS):
     loc = MagicMock()
-    loc.collectible_resource = MagicMock()
+    loc.collectible_resources = [CollectibleResource(resource_type="food_flora", max_yield=5.0)]
     loc.location_type = "pop_location"
     s = MagicMock()
     s.locations = {resource_loc: loc}

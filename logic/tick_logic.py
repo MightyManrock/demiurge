@@ -5553,7 +5553,12 @@ class TickLoop:
             # (leisure / socialize / idle) rather than collect or travel.
             if cs.collecting_ticks_remaining > 0:
                 _bg_loc = state.locations.get(str(mortal.current_location))
-                _bg_cr  = getattr(_bg_loc, "collectible_resource", None)
+                _bg_crs = getattr(_bg_loc, "collectible_resources", [])
+                _bg_cr = next(
+                    (c for c in _bg_crs
+                     if (not c.action_types or "collect" in c.action_types) and c.current_yield > 0),
+                    None,
+                )
                 _bg_cap = next(
                     (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
                     None,
@@ -5567,11 +5572,12 @@ class TickLoop:
                         from core.agent_core import Resource as _Resource
                         _bg_res = _Resource(resource_type=_bg_cr.resource_type)
                         cs.inventory.append(_bg_res)
-                    _bg_res.quantity += _bg_cr.resource_yield
+                    _bg_gained = _bg_cr.max_yield * 0.15
+                    _bg_res.quantity += _bg_gained
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
                     if mortal.pinned:
                         narratives.append(
-                            f"{mortal.name} loads {_bg_cr.resource_yield} {_bg_cr.resource_type} "
+                            f"{mortal.name} loads {_bg_gained:.2f} {_bg_cr.resource_type} "
                             f"(hold: {_bg_res.quantity:.0f}/{_bg_cap:.0f})."
                         )
                     cs.collecting_ticks_remaining = max(0, cs.collecting_ticks_remaining - 1)
@@ -5622,20 +5628,28 @@ class TickLoop:
 
             if action == "collect":
                 loc = state.locations.get(str(mortal.current_location))
-                cr = getattr(loc, "collectible_resource", None)
-                if cr:
+                crs = getattr(loc, "collectible_resources", []) if loc else []
+                for cr in crs:
+                    if cr.action_types and "collect" not in cr.action_types:
+                        continue
+                    if cr.current_yield <= 0:
+                        continue
                     res = cs.get_resource(cr.resource_type)
                     if res is None:
                         from core.agent_core import Resource as _Resource
-                        res = _Resource(resource_type=cr.resource_type)
+                        res = _Resource(resource_type=cr.resource_type,
+                                        biochem_tags=list(cr.biochem_tags))
                         cs.inventory.append(res)
-                    res.quantity += cr.resource_yield
+                    gained = min(cr.max_yield * 0.15, cr.current_yield)
+                    cr.current_yield = max(0.0, cr.current_yield - gained)
+                    res.quantity += gained
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
                     if mortal.pinned:
                         narratives.append(
-                            f"{mortal.name} collects {cr.resource_yield} {cr.resource_type} "
-                            f"(total: {res.quantity:.0f})."
+                            f"{mortal.name} collects {gained:.2f} {cr.resource_type} "
+                            f"(total: {res.quantity:.1f})."
                         )
+                    break
 
             elif action == "sell":
                 loc = state.locations.get(str(mortal.current_location))
