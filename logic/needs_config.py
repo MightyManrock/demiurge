@@ -222,3 +222,88 @@ def initialize_mortal_state(mortal: NotableMortal) -> MortalAgentState:
         needs=compute_need_profile(mortal.culture_tags),
         desires=compute_desire_profile(mortal.culture_tags),
     )
+
+
+# ---------------------------------------------------------------------------
+# Pop canonical needs
+# ---------------------------------------------------------------------------
+
+POP_NEED_SUSTENANCE  = "sustenance"
+POP_NEED_SAFETY      = "safety"
+POP_NEED_COHESION    = "cohesion"
+POP_NEED_PURPOSE     = "purpose"
+POP_NEED_SHELTER     = "shelter"
+POP_NEED_WANDERLUST  = "wanderlust"
+
+POP_CANONICAL_NEEDS = (
+    POP_NEED_SUSTENANCE,
+    POP_NEED_SAFETY,
+    POP_NEED_COHESION,
+    POP_NEED_PURPOSE,
+    POP_NEED_SHELTER,
+    POP_NEED_WANDERLUST,
+)
+
+POP_NEED_DEFAULTS: dict[str, dict[str, float]] = {
+    POP_NEED_SUSTENANCE: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
+    POP_NEED_SAFETY:     {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
+    POP_NEED_COHESION:   {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
+    POP_NEED_PURPOSE:    {"decay_rate": 0.015, "pressing_threshold": 0.50, "urgent_threshold": 0.25},
+    POP_NEED_SHELTER:    {"decay_rate": 0.010, "pressing_threshold": 0.50, "urgent_threshold": 0.20},
+    POP_NEED_WANDERLUST: {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
+}
+
+# (Δdecay, Δpressing, Δurgent) per 1.0 of signed trait value
+POP_NEED_TRAIT_MODIFIERS: dict[str, dict[str, tuple[float, float, float]]] = {
+    POP_NEED_SHELTER: {
+        "values:sedentism": (0.005,  0.05, 0.02),
+    },
+    POP_NEED_WANDERLUST: {
+        "values:sedentism": (-0.004, -0.08, -0.05),
+    },
+    POP_NEED_COHESION: {
+        "values:solidarity": (0.003,  0.05, 0.03),
+        "values:autonomy":   (-0.003, -0.05, -0.03),
+    },
+    POP_NEED_PURPOSE: {
+        "values:idealism":   (0.010,  0.08, 0.05),
+        "values:pragmatism": (-0.005, -0.04, -0.02),
+    },
+}
+
+
+def compute_pop_need_profile(culture_tags: dict[str, float]) -> list:
+    """Return a PopNeed for every canonical Pop need, parameters modulated by culture_tags."""
+    from core.agent_core import PopNeed
+    needs = []
+    for need_name in POP_CANONICAL_NEEDS:
+        defaults = POP_NEED_DEFAULTS[need_name]
+        decay    = defaults["decay_rate"]
+        pressing = defaults["pressing_threshold"]
+        urgent   = defaults["urgent_threshold"]
+
+        for trait, (dd, dp, du) in POP_NEED_TRAIT_MODIFIERS.get(need_name, {}).items():
+            v = culture_tags.get(trait, 0.0)
+            if v:
+                decay    += dd * v
+                pressing += dp * v
+                urgent   += du * v
+
+        decay    = max(0.005, round(decay, 4))
+        pressing = max(0.10, min(0.90, round(pressing, 3)))
+        urgent   = max(0.05, min(pressing - 0.05, round(urgent, 3)))
+
+        needs.append(PopNeed(
+            name=need_name,
+            satisfaction=1.0,
+            decay_rate=decay,
+            pressing_threshold=pressing,
+            urgent_threshold=urgent,
+        ))
+    return needs
+
+
+def initialize_pop_state(pop) -> "PopAgentState":
+    """Build a fresh PopAgentState for a Pop from its culture_tags."""
+    from core.agent_core import PopAgentState
+    return PopAgentState(needs=compute_pop_need_profile(pop.culture_tags))
