@@ -265,6 +265,67 @@ def test_hold_position_directive_suppresses_migrate_priority():
     assert priorities.get("migrate", 0.0) <= 0.0
 
 
+# ── Group 9: territory_pop_ids scoping on faction directives ──────────────────
+
+def _pop_with_faction_hold_position(pop_id, faction_id, target_loc_id, territory_ids):
+    """Pop belonging to a faction that has a scoped hold_position directive."""
+    from core.agent_core import PopAgentState
+    from unittest.mock import MagicMock
+    d = Directive(
+        directive_type="hold_position",
+        target_location_id=target_loc_id,
+        territory_pop_ids=territory_ids,
+    )
+    faction = MagicMock()
+    faction.active_directives = [d]
+
+    pop = MagicMock()
+    pop.id = pop_id
+    pop.occupation = MagicMock()
+    pop.occupation.value = "nomad"
+    pop.active_directives = []
+    pop.culture_tags = {}
+    pop.dominant_beliefs = {}
+    pop.size_fractional = 1.0
+    pop.current_location = target_loc_id
+    pop.pop_state = PopAgentState(
+        needs=[
+            PopNeed(name="nourishment", satisfaction=1.0),
+            PopNeed(name="hydration",   satisfaction=1.0),
+            PopNeed(name="safety",      satisfaction=1.0),
+            PopNeed(name="cohesion",    satisfaction=1.0),
+            PopNeed(name="shelter",     satisfaction=1.0),
+            PopNeed(name="wanderlust",  satisfaction=0.05),
+        ]
+    )
+    return pop, {str(faction_id): faction}
+
+
+def test_hold_position_suppresses_migrate_for_pop_in_territory():
+    """Pop listed in territory_pop_ids gets migration suppressed."""
+    from logic.pop_agent_logic import compute_pop_priorities
+    pop_id = uuid4()
+    faction_id = uuid4()
+    target = uuid4()
+    pop, factions = _pop_with_faction_hold_position(pop_id, faction_id, target, [pop_id])
+    pop.faction_ids = [faction_id]
+    priorities = compute_pop_priorities(pop, factions=factions)
+    assert priorities.get("migrate", 0.0) <= 0.0
+
+
+def test_hold_position_does_not_suppress_migrate_for_pop_outside_territory():
+    """Pop NOT in territory_pop_ids is unaffected by the directive."""
+    from logic.pop_agent_logic import compute_pop_priorities
+    other_pop_id = uuid4()
+    faction_id = uuid4()
+    target = uuid4()
+    pop_id = uuid4()  # different from territory list
+    pop, factions = _pop_with_faction_hold_position(pop_id, faction_id, target, [other_pop_id])
+    pop.faction_ids = [faction_id]
+    priorities = compute_pop_priorities(pop, factions=factions)
+    assert priorities.get("migrate", 0.0) > 0.0
+
+
 # ── Group 7: initialize_pop_state passes has_directives through ───────────────
 
 def test_initialize_pop_state_no_directives_excludes_purpose():

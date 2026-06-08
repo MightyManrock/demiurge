@@ -199,7 +199,11 @@ def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
         faction = factions.get(str(fid))
         if faction:
             directives.extend(faction.active_directives)
+    pop_id_str = str(pop.id)
     for d in directives:
+        # territory_pop_ids non-empty → directive only applies to listed pops
+        if d.territory_pop_ids and pop_id_str not in {str(tid) for tid in d.territory_pop_ids}:
+            continue
         for action, delta in d.action_weight_modifiers.items():
             mods[action] = mods.get(action, 0.0) + delta
         if d.directive_type == "hold_position":
