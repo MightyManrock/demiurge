@@ -8,7 +8,7 @@
 
 `ProxiusDirectiveIntent` and `ProxiusGoal` both carry `culture_vectors` alongside `domain_vectors` — a preach directive applies its framing Imago's `culture:*` riders too. The Proxius bolstering step emits `POP_CULTURE_SHIFT` on the splinter Pop B (and a culture splash back to Pop A), and the splinter-creation step bakes the Imago's culture mechanics into Pop B's starting `culture_tags`.
 
-When a `preach_imago` directive is issued and the chosen Pop A doesn't already have a splinter for the target imago, the UI prompts the player for a name (defaulting to `f"New {pop_a.social_class.value.title()}"`). The string is carried on `ProxiusDirectiveIntent.goal_pop_name`, copied to `ProxiusGoal.goal_pop_name`, and applied as `Pop.name` on the splinter Pop B the moment it forms.
+When a `preach_imago` directive is issued and the chosen Pop A doesn't already have a splinter for the target imago, the UI prompts the player for a name (defaulting to `f"New {pop_a.social_class.value.title()}"`  — the `SocialStratum` value string, e.g. `"New Common"`). The string is carried on `ProxiusDirectiveIntent.goal_pop_name`, copied to `ProxiusGoal.goal_pop_name`, and applied as `Pop.name` on the splinter Pop B the moment it forms.
 
 Demiurge-authored splinters set `Pop.demiurge_authored = True` at creation. The flag grants the player ongoing naming rights via a `[ Rename ]` button in the pop detail tab's header strip. Clicking it opens a `TextFormModal` pre-filled with the current name; clearing the field reverts to the stratum label. Scenario-authored pops always keep `demiurge_authored=False`.
 
@@ -18,7 +18,7 @@ Any `NotableMortal` with a non-None `mortal_state: MortalAgentState` runs as a m
 
 ### Decision loop (`evaluate_mortal_action`)
 
-`logic/civilian_agent_logic.py` returns one action string per tick, evaluated in priority order:
+`logic/mortal_agent_logic.py` returns one action string per tick, evaluated in priority order:
 
 | Priority | Action | Condition |
 |----------|--------|-----------|
@@ -87,10 +87,11 @@ Any `Pop` with a non-None `pop_state: PopAgentState` runs as a Pop agent in Phas
 
 Recomputed each tick via `compute_pop_priorities()` in `logic/pop_agent_logic.py`:
 
-1. **Need urgency → raw weights** — continuous urgency from each `PopNeed`'s satisfaction vs. thresholds; urgency is 0 when satisfied or held, scales linearly between pressing and urgent thresholds, >1 when urgent
-2. **Competency scaling** — multiplied by stratum/occupation modifier (WARRIOR → fortify 1.5×; ARTISAN → build 1.5×; SCHOLAR → enact_rituals 1.5×; COMMON/WILD/FERAL → forage/hunt 1.2–1.5×)
-3. **Directive weight modifiers** — `Directive.action_weight_modifiers` adds/subtracts from action weights; sourced from `Pop.active_directives` and member Factions' `active_directives`
-4. **Normalize** — divide by total to produce distribution summing to 1.0
+1. **Need urgency → raw weights** — urgency from each `PopNeed`'s satisfaction: 0.0 when held (`satiation_hold > 0`); a small background signal proportional to `decay_rate` when satisfied but below 1.0; scales linearly from 0 → 1 between pressing and urgent thresholds; >1 when urgent. Actions that map to the same need share its urgency evenly.
+2. **Occupation baseline** — `OCCUPATION_BASELINE_WEIGHTS` table adds a small additive offset (0.1–0.3) to role-appropriate actions (e.g. `clergy → enact_rituals+0.3, commune+0.2`). Applied before competency so it gets amplified by stratum bonuses. Provides meaningful differentiation when all needs are healthy.
+3. **Competency scaling** — multiplied by `_COMPETENCY` table keyed on `social_class.value` (WARRIOR → fortify 1.5×; ARTISAN → build 1.5×; SCHOLAR → enact_rituals 1.5×; COMMON/WILD/FERAL → forage/hunt 1.2–1.5×)
+4. **Directive weight modifiers** — `Directive.action_weight_modifiers` adds/subtracts from action weights; sourced from `Pop.active_directives` and member Factions' `active_directives`
+5. **Normalize** — divide by total to produce distribution summing to 1.0
 
 Stub actions (`raid`, `fight`, `rout`) always have weight 0.0.
 

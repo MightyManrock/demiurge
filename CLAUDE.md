@@ -91,7 +91,7 @@ The codebase is strictly layered. `logic/tick_logic.py` knows nothing about SQL 
 | File | What lives here |
 |---|---|
 | `core/onto_core.py` | `Power`, `Domain`, `Luminary`, `Pantheon`, `Demiurge` (incl. `puissance`, `lifetime_revelation`), `Disposition`, `NarrativeConstraint`, `FootprintConstraint`, `ResultsConstraint`, `Constraint` (discriminated union), `FootprintProfile` |
-| `core/universe_core.py` | `Universe`, `Location`, `System`, `SignificantLocation`, `PopLocation` (incl. `wealth`, `danger`), `TravelNetwork`, `NetworkCondition`, `TravelEdge`, `TravelLocation`, `Civilization`, `Faction`, `Species` (incl. `life_basis`, `solvent`), `LifeBasis`, `Solvent`, `NotableMortal`, `Pop` (incl. `active_directives`), `Directive`, all enums |
+| `core/universe_core.py` | `Universe`, `Location`, `System`, `SignificantLocation`, `PopLocation` (incl. `wealth`, `danger`), `TravelNetwork`, `NetworkCondition`, `TravelEdge`, `TravelLocation`, `Civilization`, `Faction`, `Species` (incl. `life_basis`, `solvent`), `LifeBasis`, `Solvent`, `NotableMortal`, `Pop` (incl. `active_directives`), `Directive`, `SocialStratum` (9-value enum; field: `social_class`), `Occupation` (30-value str-enum; field: `occupation`), all other enums |
 | `core/action_core.py` | Action taxonomy: `ActionDefinition`, `ActionInstance`, `OngoingAction`, all `*Intent` types, `build_action_library()` |
 | `core/eval_core.py` | Luminary evaluation: `UniverseDomainProfile`, `LuminaryEvaluation`, `DispositionDelta`, `EvaluationEngine` |
 | `core/event_core.py` | Multi-tick effect system: `Event`, `EventType`, `StrengthCurve` |
@@ -101,9 +101,10 @@ The codebase is strictly layered. `logic/tick_logic.py` knows nothing about SQL 
 
 | File | What it does |
 |---|---|
-| `logic/tick_logic.py` | The simulation engine: `SimulationState`, `TickLoop`, all six tick phases + Phase 2.55 mortal agents |
+| `logic/tick_logic.py` | The simulation engine: `SimulationState`, `TickLoop`, all six tick phases + Phase 2.55 mortal agents + Phase 2.57 pop agents |
 | `logic/mortal_agent_logic.py` | `evaluate_mortal_action()` — autonomous decision loop for mortals with `mortal_state` (sell → spend → leisure → socialize → collect priority) |
-| `logic/needs_config.py` | Canonical need names, default params, trait-modifier table, `compute_need_profile()`, `initialize_mortal_state()` |
+| `logic/pop_agent_logic.py` | `compute_pop_priorities()`, `compute_active_slots()`, `resolve_pop_actions()` — pop agent tick; `OCCUPATION_BASELINE_WEIGHTS`, `_COMPETENCY` tables |
+| `logic/needs_config.py` | Canonical need names, default params, trait-modifier table, `compute_need_profile()`, `initialize_mortal_state()`, `initialize_pop_state()` |
 | `utilities/domain_registry.py` | Canonical `domain:...` list, pairwise similarity, `luminary_approval()` |
 | `utilities/culture_registry.py` | Canonical `culture:...` traits, pairwise synergy |
 | `utilities/imago_registry.py` | 112 `ImagoNode` records across 16 trees |
