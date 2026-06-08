@@ -5,7 +5,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.universe_core import Pop, PopLocation, Faction
 
-from core.agent_core import PopAgentState, PopNeed, ResourceStockpile, can_access_stockpile
+from core.agent_core import (
+    PopAgentState, PopNeed, ResourceStockpile, can_access_stockpile,
+    load_cargo as _load_cargo_fn, unload_cargo as _unload_cargo_fn,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -265,8 +268,11 @@ def _supply_run_phase(pop, directive, pops: dict):
     def _same(a, b) -> bool:
         return a is not None and b is not None and UUID(str(a)) == UUID(str(b))
 
-    resource_type = directive.cargo_resource_type or ""
-    has_cargo = (pop.pop_state.cargo.quantities.get(resource_type, 0.0) > 0.0)
+    # cargo_manifest overrides single-type fields when non-empty
+    manifest: dict[str, float] = directive.cargo_manifest or {}
+    if not manifest and directive.cargo_resource_type:
+        manifest = {directive.cargo_resource_type: float(directive.cargo_quantity)}
+    has_cargo = any(pop.pop_state.cargo.quantities.get(rt, 0.0) > 0.0 for rt in manifest)
 
     if _same(pop.current_location, directive.target_location_id):
         return "travel_to_dest" if has_cargo else "load"
@@ -403,6 +409,29 @@ def resolve_pop_actions(
         factions_dict = factions if isinstance(factions, dict) else {}
         priorities = compute_pop_priorities(pop, factions_dict)
 
+    # Supply-run travel: set pending destination and boost migrate priority
+    _pops_dict: dict = getattr(state, "pops", {}) if state else {}
+    _factions_dict_sr = factions if isinstance(factions, dict) else {}
+    _sr_directives = [d for d in pop.active_directives if d.directive_type == "supply_run"]
+    for _fid_sr in pop.faction_ids:
+        _f_sr = _factions_dict_sr.get(str(_fid_sr))
+        if _f_sr:
+            _sr_directives.extend(d for d in _f_sr.active_directives if d.directive_type == "supply_run")
+    for _sd in _sr_directives:
+        _sr_phase = _supply_run_phase(pop, _sd, _pops_dict)
+        if _sr_phase == "travel_to_dest":
+            _dest_pop_sr = _pops_dict.get(str(_sd.target_pop_id))
+            if _dest_pop_sr is not None and _dest_pop_sr.current_location is not None:
+                ps.pending_migration_dest = _dest_pop_sr.current_location
+                priorities["migrate"] = priorities.get("migrate", 0.0) + 1.0
+        elif _sr_phase == "travel_home":
+            ps.pending_migration_dest = _sd.target_location_id
+            priorities["migrate"] = priorities.get("migrate", 0.0) + 1.0
+        else:
+            # load or deposit phase: clear any stale pending destination
+            ps.pending_migration_dest = None
+        break  # one supply_run directive at a time
+
     # Select top-N active (non-stub, non-zero) actions by weight
     ranked = sorted(
         [(a, w) for a, w in priorities.items() if a not in STUB_ACTIONS and w > 0],
@@ -468,6 +497,34 @@ def resolve_pop_actions(
                 need.satisfaction = min(1.0, need.satisfaction + gain)
             _apply_spillover(pop, colocated_pops or [], "safety", gain, factions)
             pop_loc.danger = max(0.0, pop_loc.danger - output * 0.005)
+
+        elif action == "load_cargo":
+            for _sd in _sr_directives:
+                if _supply_run_phase(pop, _sd, _pops_dict) == "load":
+                    _pub = _public_stockpile(pop_loc)
+                    _manifest = _sd.cargo_manifest or {}
+                    if not _manifest and _sd.cargo_resource_type:
+                        _manifest = {_sd.cargo_resource_type: float(_sd.cargo_quantity)}
+                    _any_loaded = False
+                    for _rt, _qty in _manifest.items():
+                        if _load_cargo_fn(ps.cargo, _pub, _rt, _qty) > 0:
+                            _any_loaded = True
+                    if _any_loaded:
+                        _purpose = needs_by_name.get("purpose")
+                        if _purpose:
+                            _purpose.satisfaction = min(1.0, _purpose.satisfaction + 0.10)
+                    break
+
+        elif action == "deposit_cargo":
+            for _sd in _sr_directives:
+                if _supply_run_phase(pop, _sd, _pops_dict) == "deposit":
+                    _pub = _public_stockpile(pop_loc)
+                    _manifest = _sd.cargo_manifest or {}
+                    if not _manifest and _sd.cargo_resource_type:
+                        _manifest = {_sd.cargo_resource_type: float(_sd.cargo_quantity)}
+                    for _rt, _qty in _manifest.items():
+                        _unload_cargo_fn(ps.cargo, _pub, _rt, _qty)
+                    break
 
         elif action == "migrate":
             _dest_id = ps.pending_migration_dest
@@ -586,7 +643,7 @@ def resolve_pop_actions(
         _purpose_need = needs_by_name.get("purpose")
         if _purpose_need is not None:
             for _d in _all_directives:
-                _inc = directive_purpose_increment(_d, actor_location_id=pop.current_location)
+                _inc = directive_purpose_increment(_d, actor_location_id=pop.current_location, pop=pop, pops=_pops_dict)
                 if _inc > 0.0:
                     _purpose_need.satisfaction = min(1.0, _purpose_need.satisfaction + _inc)
                     break  # one directive fills purpose per tick

@@ -527,6 +527,8 @@ class Directive(BaseModel):
     # Cargo logistics (for supply_run and similar)
     cargo_resource_type: Optional[str] = None
     cargo_quantity: int = 0
+    # Multi-resource manifest: resource_type → quantity. Overrides cargo_resource_type when non-empty.
+    cargo_manifest: dict[str, float] = Field(default_factory=dict)
     # Pop-scoped targeting
     target_pop_id: Optional[UUID] = None
     territory_pop_ids: list[UUID] = Field(default_factory=list)
