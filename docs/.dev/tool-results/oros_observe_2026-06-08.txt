@@ -1,0 +1,1183 @@
+================================================================================
+  OROS TEST SANDBOX — 100-tick passive observation
+  Demiurge absent. Watching Pops and mortals.
+================================================================================
+
+  Scenario: oros_test_sandbox.db
+  Mortals: Asha Keln, Kael Osh, Urren
+  Pops: 26
+  Locations: 9
+
+── INITIAL RESOURCES ────────────────────────────────────────────────────────────
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=3.0,  food_flora=3.0,  potable_water=1.8
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=1.0,  food_flora=0.5,  potable_water=0.8,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[████████]5.00/5.00,  food_fauna[████████]2.00/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[████████]0.50/0.50
+    stockpile: food_fauna=1.0,  food_flora=1.0,  potable_water=2.5,  salt_mineral=0.2
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=2.0,  food_flora=2.0,  potable_water=1.8
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[████████]2.00/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[████████]0.50/0.50
+    stockpile: food_fauna=1.0,  food_flora=1.0,  potable_water=3.0,  salt_mineral=0.2
+  Taem's Oasis                  
+    yields:  potable_water[████████]8.00/8.00,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=2.0,  food_flora=2.0,  potable_water=4.0
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_flora=0.4
+  Ulum Highlands                
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[████████]0.50/0.50
+    stockpile: food_fauna=2.0,  food_flora=2.0,  potable_water=1.8,  salt_mineral=0.2
+
+── Tick 001 ──────────────────────────────────────────────────────────────────────
+── Tick 002 ──────────────────────────────────────────────────────────────────────
+── Tick 003 ──────────────────────────────────────────────────────────────────────
+── Tick 004 ──────────────────────────────────────────────────────────────────────
+── Tick 005 ──────────────────────────────────────────────────────────────────────
+── Tick 006 ──────────────────────────────────────────────────────────────────────
+── Tick 007 ──────────────────────────────────────────────────────────────────────
+── Tick 008 ──────────────────────────────────────────────────────────────────────
+── Tick 009 ──────────────────────────────────────────────────────────────────────
+── Tick 010 ──────────────────────────────────────────────────────────────────────
+
+  ── SNAPSHOT @tick 10 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.20
+    needs:   nourishm █████████░ 0.98   hydratio ██████████ 1.00   safety   █████████░ 0.99   belongin █████████░ 0.92  ~status   █████░░░░░ 0.57   purpose  ██████░░░░ 0.64   leisure  █████████░ 0.96
+    inv:    potable_water=1.1
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.97   safety   █████████░ 0.99   belongin █████████░ 0.95  ~status   ██████░░░░ 0.62   purpose  ██████░░░░ 0.65   leisure  █████████░ 0.98
+    inv:    potable_water=1.5
+  Urren         @ The Ancestor Stones             fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.89   safety   █████████░ 0.99   belongin █████████░ 0.92   status   ███████░░░ 0.72   purpose  ██████░░░░ 0.70   leisure  █████████░ 0.99
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[███████░]3.37/3.50,  food_fauna[███████░]5.92/6.00,  food_flora[███████░]5.87/6.00
+    stockpile: food_fauna=3.6,  food_flora=4.9,  potable_water=1.6
+  Dunes of Tor                  
+    yields:  potable_water[██████░░]1.27/1.50,  food_fauna[██████░░]1.74/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=2.0,  food_flora=0.5,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.87/5.00,  food_fauna[██████░░]1.56/2.00,  food_flora[█████░░░]1.49/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=0.8,  food_flora=4.1,  potable_water=0.2,  salt_mineral=1.0
+  Plains of Kir'an              
+    yields:  potable_water[███████░]3.33/3.50,  food_fauna[███████░]3.75/4.00,  food_flora[███████░]3.76/4.00
+    stockpile: food_fauna=4.3,  food_flora=5.2,  potable_water=2.6
+  Qaebdol Cave Village          
+    yields:  potable_water[███████░]5.58/6.00,  food_fauna[██████░░]1.64/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=1.6,  food_flora=3.3,  potable_water=1.1,  salt_mineral=1.0
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.73/8.00,  food_fauna[███████░]3.76/4.00,  food_flora[███████░]3.74/4.00
+    stockpile: food_fauna=1.9,  food_flora=5.3,  potable_water=4.2
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=1.0,  food_flora=0.1,  potable_water=1.0
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.38/3.50,  food_fauna[███████░]3.75/4.00,  food_flora[███████░]3.81/4.00,  salt_mineral[░░░░░░░░]0.05/0.50
+    stockpile: food_fauna=4.5,  food_flora=5.6,  potable_water=3.1,  salt_mineral=0.8
+
+  POP NEEDS:
+  Asvelim Savannah                 cohesion=0.92(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =0.85(n=2),   safety  =1.00(n=2),   shelter =0.94(n=2),   wanderlu=0.89(n=2)
+  Dunes of Tor                     cohesion=0.92(n=3),   hydratio=0.85(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =1.00(n=3),   wanderlu=0.88(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.90(n=5)
+  Plains of Kir'an                 cohesion=0.92(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =0.85(n=2),   safety  =1.00(n=2),   shelter =0.94(n=2),   wanderlu=0.89(n=2)
+  Qaebdol Cave Village             cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.98(n=5),   wanderlu=0.92(n=5)
+  Taem's Oasis                     cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.91(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=1.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),   safety  =0.90(n=1),   shelter =0.92(n=1),   wanderlu=0.90(n=1)
+  Ulum Highlands                   cohesion=0.95(n=3),   hydratio=1.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.94(n=3),   wanderlu=0.93(n=3)
+
+── Tick 011 ──────────────────────────────────────────────────────────────────────
+── Tick 012 ──────────────────────────────────────────────────────────────────────
+── Tick 013 ──────────────────────────────────────────────────────────────────────
+── Tick 014 ──────────────────────────────────────────────────────────────────────
+── Tick 015 ──────────────────────────────────────────────────────────────────────
+── Tick 016 ──────────────────────────────────────────────────────────────────────
+── Tick 017 ──────────────────────────────────────────────────────────────────────
+── Tick 018 ──────────────────────────────────────────────────────────────────────
+── Tick 019 ──────────────────────────────────────────────────────────────────────
+── Tick 020 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 20 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.94   safety   █████████░ 0.99   belongin ████████░░ 0.84  !status   █░░░░░░░░░ 0.14  ~purpose  ██░░░░░░░░ 0.27   leisure  █████████░ 0.95
+    inv:    potable_water=0.9
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.92   safety   █████████░ 0.99   belongin █████████░ 0.90  !status   ██░░░░░░░░ 0.24  ~purpose  ██░░░░░░░░ 0.29   leisure  █████████░ 0.98
+    inv:    potable_water=1.3
+  Urren         @ The Ancestor Stones             fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.84   safety   █████████░ 0.99   belongin ████████░░ 0.84  ~status   ████░░░░░░ 0.44  ~purpose  ███░░░░░░░ 0.40   leisure  █████████░ 0.99
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[███████░]3.36/3.50,  food_fauna[███████░]5.77/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=4.0,  food_flora=6.0,  potable_water=1.6
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[███████░]1.77/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=2.5,  food_flora=0.5,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.59/5.00,  food_fauna[██████░░]1.70/2.00,  food_flora[██████░░]1.72/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=0.1,  food_flora=5.4,  potable_water=0.3,  salt_mineral=1.2
+  Plains of Kir'an              
+    yields:  potable_water[███████░]3.33/3.50,  food_fauna[███████░]3.83/4.00,  food_flora[███████░]3.79/4.00
+    stockpile: food_fauna=5.6,  food_flora=7.2,  potable_water=3.2
+  Qaebdol Cave Village          
+    yields:  potable_water[███████░]5.62/6.00,  food_fauna[██████░░]1.67/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=1.9,  food_flora=4.0,  potable_water=1.3,  salt_mineral=1.2
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.75/8.00,  food_fauna[███████░]3.75/4.00,  food_flora[███████░]3.80/4.00
+    stockpile: food_fauna=1.8,  food_flora=7.7,  potable_water=4.3
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=1.7,  potable_water=0.8
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.44/3.50,  food_fauna[███████░]3.93/4.00,  food_flora[███████░]3.86/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=5.1,  food_flora=7.3,  potable_water=2.7,  salt_mineral=1.1
+
+  POP NEEDS:
+  Asvelim Savannah                 cohesion=0.84(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =0.70(n=2),   safety  =1.00(n=2),   shelter =0.89(n=2),   wanderlu=0.77(n=2)
+  Dunes of Tor                     cohesion=0.84(n=3),  ~hydratio=0.55(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =1.00(n=3),   wanderlu=0.77(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=6),   hydratio=1.00(n=6),   nourishm=1.00(n=6),   purpose =0.99(n=6),   safety  =1.00(n=6),   shelter =1.00(n=6),   wanderlu=0.83(n=6)
+  Plains of Kir'an                 cohesion=0.84(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =0.70(n=2),   safety  =1.00(n=2),   shelter =0.89(n=2),   wanderlu=0.77(n=2)
+  Qaebdol Cave Village             cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.98(n=5),   wanderlu=0.83(n=5)
+  Taem's Oasis                     cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.81(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=1.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),   safety  =0.80(n=1),   shelter =0.84(n=1),   wanderlu=0.81(n=1)
+  Ulum Highlands                   cohesion=0.87(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =1.00(n=2),   safety  =1.00(n=2),   shelter =0.87(n=2),   wanderlu=0.78(n=2)
+
+── Tick 021 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 022 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 023 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 024 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 025 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 026 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 027 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 028 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 029 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 030 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 30 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.89   safety   █████████░ 0.99   belongin ███████░░░ 0.76  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.95
+    inv:    potable_water=0.4
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.87   safety   █████████░ 0.99   belongin ████████░░ 0.85  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    potable_water=1.3
+  Urren         @ The Ancestor Stones             fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.79   safety   █████████░ 0.99   belongin ███████░░░ 0.76  !status   █░░░░░░░░░ 0.16  !purpose  ░░░░░░░░░░ 0.10   leisure  █████████░ 0.99
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[███████░]3.38/3.50,  food_fauna[███████░]5.89/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=4.1,  food_flora=6.4,  potable_water=1.9
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[███████░]1.76/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=2.5,  food_flora=0.8,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.68/5.00,  food_fauna[██████░░]1.65/2.00,  food_flora[███████░]1.91/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=0.9,  food_flora=6.5,  potable_water=0.9,  salt_mineral=1.5
+  Plains of Kir'an              
+    yields:  potable_water[███████░]3.38/3.50,  food_fauna[███████░]3.88/4.00,  food_flora[███████░]3.87/4.00
+    stockpile: food_fauna=6.2,  food_flora=8.9,  potable_water=3.6
+  Qaebdol Cave Village          
+    yields:  potable_water[███████░]5.86/6.00,  food_fauna[██████░░]1.71/2.00,  food_flora[███████░]1.76/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=2.0,  food_flora=4.6,  potable_water=0.8,  salt_mineral=1.5
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.65/8.00,  food_fauna[███████░]3.75/4.00,  food_flora[███████░]3.91/4.00
+    stockpile: food_fauna=1.8,  food_flora=9.3,  potable_water=4.6
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=2.4,  potable_water=0.9
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.39/3.50,  food_fauna[███████░]3.80/4.00,  food_flora[███████░]3.87/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=6.2,  food_flora=9.6,  potable_water=3.1,  salt_mineral=1.4
+
+  POP NEEDS:
+  Asvelim Savannah                 cohesion=0.76(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.55(n=2),   safety  =1.00(n=2),   shelter =0.83(n=2),   wanderlu=0.66(n=2)
+  Dunes of Tor                     cohesion=0.76(n=3),  ~hydratio=0.25(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =1.00(n=3),   wanderlu=0.65(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.70(n=5)
+  Plains of Kir'an                 cohesion=0.76(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.55(n=2),   safety  =1.00(n=2),   shelter =0.83(n=2),   wanderlu=0.67(n=2)
+  Qaebdol Cave Village             cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.98(n=5),   wanderlu=0.75(n=5)
+  Taem's Oasis                     cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.72(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=1.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),   safety  =0.70(n=1),   shelter =0.76(n=1),   wanderlu=0.71(n=1)
+  Ulum Highlands                   cohesion=0.85(n=3),   hydratio=1.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.85(n=3),   wanderlu=0.78(n=3)
+
+── Tick 031 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 032 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 033 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 034 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 035 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 036 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 037 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 038 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 039 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 040 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 40 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.82   safety   █████████░ 0.99   belongin ██████░░░░ 0.68  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.95
+    inv:    empty
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.82   safety   █████████░ 0.99   belongin ███████░░░ 0.80  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    potable_water=1.3
+  Urren         @ The Ancestor Stones             fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.74   safety   █████████░ 0.99   belongin ██████░░░░ 0.68  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.99
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=3.5,  food_flora=6.6,  potable_water=1.3
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[███████░]1.79/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=2.7,  food_flora=0.8,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.68/5.00,  food_fauna[██████░░]1.58/2.00,  food_flora[███████░]1.91/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=0.5,  food_flora=6.7,  potable_water=0.9,  salt_mineral=1.7
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=5.7,  food_flora=9.4,  potable_water=3.1
+  Qaebdol Cave Village          
+    yields:  potable_water[███████░]5.87/6.00,  food_fauna[██████░░]1.71/2.00,  food_flora[███████░]1.76/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=2.1,  food_flora=4.8,  potable_water=1.0,  salt_mineral=1.7
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.67/8.00,  food_fauna[███████░]3.75/4.00,  food_flora[███████░]3.93/4.00
+    stockpile: food_fauna=1.8,  food_flora=10.4,  potable_water=5.2
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=3.1,  potable_water=0.5
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.25/3.50,  food_fauna[███████░]3.92/4.00,  food_flora[███████░]3.90/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=7.3,  food_flora=10.9,  potable_water=4.0,  salt_mineral=1.6
+
+  POP NEEDS:
+  Asvelim Savannah                 cohesion=0.68(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.49(n=2),   safety  =1.00(n=2),   shelter =0.77(n=2),   wanderlu=0.55(n=2)
+  Dunes of Tor                     cohesion=0.68(n=3),  !hydratio=0.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =1.00(n=3),  ~wanderlu=0.53(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.59(n=5)
+  Plains of Kir'an                 cohesion=0.68(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.50(n=2),   safety  =1.00(n=2),   shelter =0.77(n=2),   wanderlu=0.56(n=2)
+  Qaebdol Cave Village             cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.98(n=5),   wanderlu=0.66(n=5)
+  Taem's Oasis                     cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),   wanderlu=0.63(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=1.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),   safety  =0.60(n=1),   shelter =0.68(n=1),   wanderlu=0.62(n=1)
+  Ulum Highlands                   cohesion=0.82(n=3),   hydratio=1.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.83(n=3),   wanderlu=0.71(n=3)
+
+── Tick 041 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 042 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 043 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 044 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 045 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 046 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 047 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 048 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 049 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 050 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 50 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████░░░░ 0.67   safety   █████████░ 0.99   belongin █████░░░░░ 0.60  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.95
+    inv:    empty
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.77   safety   █████████░ 0.99   belongin ███████░░░ 0.75  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    potable_water=1.2
+  Urren         @ The Ancestor Stones             fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████░░░░ 0.69   safety   █████████░ 0.99   belongin █████░░░░░ 0.60  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.99
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=2.5,  food_flora=6.6,  potable_water=0.8
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=1.8,  food_flora=0.8,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.45/5.00,  food_fauna[███████░]1.76/2.00,  food_flora[███████░]1.91/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=0.0,  food_flora=6.6,  potable_water=0.2,  salt_mineral=2.0
+  Plains of Kir'an              
+    yields:  potable_water[███████░]3.34/3.50,  food_fauna[███████░]3.85/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=5.2,  food_flora=9.4,  potable_water=2.7
+  Qaebdol Cave Village          
+    yields:  potable_water[███████░]5.87/6.00,  food_fauna[██████░░]1.73/2.00,  food_flora[███████░]1.77/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=2.2,  food_flora=5.0,  potable_water=1.2,  salt_mineral=2.0
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.76/8.00,  food_fauna[███████░]3.84/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=1.3,  food_flora=10.9,  potable_water=5.4
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=3.7,  potable_water=0.1
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.46/3.50,  food_fauna[███████░]3.93/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=7.4,  food_flora=11.6,  potable_water=3.9,  salt_mineral=1.9
+
+  POP NEEDS:
+  Asvelim Savannah                 cohesion=0.60(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.47(n=2),   safety  =1.00(n=2),   shelter =0.71(n=2),  ~wanderlu=0.46(n=2)
+  Dunes of Tor                     cohesion=0.60(n=3),  !hydratio=0.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.99(n=3),  ~wanderlu=0.44(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=6),   hydratio=1.00(n=6),   nourishm=1.00(n=6),   purpose =0.99(n=6),   safety  =1.00(n=6),   shelter =1.00(n=6),   wanderlu=0.58(n=6)
+  Plains of Kir'an                 cohesion=0.60(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.48(n=2),   safety  =1.00(n=2),   shelter =0.71(n=2),  ~wanderlu=0.46(n=2)
+  Qaebdol Cave Village             cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.98(n=5),   wanderlu=0.58(n=5)
+  Taem's Oasis                     cohesion=1.00(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.55(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=1.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.50(n=1),   shelter =0.60(n=1),  ~wanderlu=0.52(n=1)
+  Ulum Highlands                   cohesion=0.68(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =1.00(n=2),   safety  =1.00(n=2),   shelter =0.71(n=2),  ~wanderlu=0.45(n=2)
+
+── Tick 051 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 052 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 053 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 054 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 055 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 056 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 057 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 058 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 059 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 060 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 60 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.05
+    needs:   nourishm █████████░ 0.98   hydratio ██████████ 1.00   safety   █████████░ 0.99   belongin █████░░░░░ 0.52  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.94
+    inv:    potable_water=0.2
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.72   safety   █████████░ 0.99   belongin ██████░░░░ 0.70  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    potable_water=1.0
+  Urren         @ The Ancestor Stones             fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████░░░░ 0.62   safety   █████████░ 0.99   belongin █████░░░░░ 0.52  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.99
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=1.5,  food_flora=6.6
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[██████░░]1.66/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: food_fauna=0.2,  food_flora=0.8,  salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[████████]5.00/5.00,  food_fauna[██████░░]1.71/2.00,  food_flora[███████░]1.91/2.00,  salt_mineral[██░░░░░░]0.15/0.50
+    stockpile: food_fauna=0.1,  food_flora=7.2,  salt_mineral=2.1
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=4.2,  food_flora=9.4,  potable_water=1.9
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[███████░]1.78/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[██░░░░░░]0.15/0.50
+    stockpile: food_fauna=1.4,  food_flora=4.0,  salt_mineral=2.1
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.76/8.00,  food_fauna[███████░]3.82/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=0.4,  food_flora=10.9,  potable_water=5.2
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=4.4,  potable_water=0.3
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.28/3.50,  food_fauna[███████░]3.85/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=8.3,  food_flora=13.0,  potable_water=4.6,  salt_mineral=2.1
+
+  POP NEEDS:
+  Asvelim Savannah                ~cohesion=0.52(n=2),   hydratio=0.98(n=2),   nourishm=1.00(n=2),  ~purpose =0.44(n=2),   safety  =1.00(n=2),   shelter =0.66(n=2),  ~wanderlu=0.44(n=2)
+  Dunes of Tor                    ~cohesion=0.52(n=3),  !hydratio=0.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.94(n=3),  ~wanderlu=0.42(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=5),   hydratio=0.84(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.45(n=5)
+  Plains of Kir'an                ~cohesion=0.52(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.47(n=2),   safety  =1.00(n=2),   shelter =0.66(n=2),  ~wanderlu=0.45(n=2)
+  Qaebdol Cave Village             cohesion=1.00(n=5),   hydratio=0.92(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.98(n=5),  ~wanderlu=0.55(n=5)
+  Taem's Oasis                     cohesion=0.92(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.54(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=1.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.43(n=1),  ~shelter =0.52(n=1),  ~wanderlu=0.42(n=1)
+  Ulum Highlands                   cohesion=0.72(n=3),   hydratio=1.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.76(n=3),   wanderlu=0.56(n=3)
+
+── Tick 061 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 062 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 063 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 064 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 065 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 066 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 067 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 068 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 069 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+── Tick 070 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 70 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.93   safety   █████████░ 0.99   belongin ███████░░░ 0.74  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.94
+    inv:    empty
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████░░░░ 0.67   safety   █████████░ 0.99   belongin ██████░░░░ 0.65  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    potable_water=0.5
+  Urren         @ Plains of Kir'an                fat=0.00
+    needs:   nourishm █████████░ 0.98  ~hydratio █████░░░░░ 0.51   safety   █████████░ 0.99  ~belongin ████░░░░░░ 0.44  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=0.5,  food_flora=6.6
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.86/5.00,  food_fauna[███████░]1.75/2.00,  food_flora[███████░]1.91/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_flora=6.6,  salt_mineral=2.5
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=3.5,  food_flora=9.4,  potable_water=1.5
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[██████░░]1.72/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[██░░░░░░]0.17/0.50
+    stockpile: food_fauna=1.0,  food_flora=3.0,  salt_mineral=2.3
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.76/8.00,  food_fauna[███████░]3.79/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_flora=10.9,  potable_water=5.0
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=5.0,  food_flora=0.0
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.46/3.50,  food_fauna[███████░]3.91/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=8.2,  food_flora=13.3,  potable_water=4.2,  salt_mineral=2.4
+
+  POP NEEDS:
+  Asvelim Savannah                ~cohesion=0.44(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.41(n=2),   safety  =1.00(n=2),   shelter =0.60(n=2),  ~wanderlu=0.44(n=2)
+  Dunes of Tor                    ~cohesion=0.44(n=3),  !hydratio=0.00(n=3),   nourishm=0.90(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.89(n=3),  ~wanderlu=0.42(n=3)
+  Hiparun's Rift                   cohesion=0.98(n=5),   hydratio=0.70(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.44(n=5)
+  Plains of Kir'an                ~cohesion=0.44(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.44(n=2),   safety  =1.00(n=2),   shelter =0.60(n=2),  ~wanderlu=0.45(n=2)
+  Qaebdol Cave Village             cohesion=0.99(n=5),   hydratio=0.73(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =1.00(n=5),   shelter =0.98(n=5),  ~wanderlu=0.55(n=5)
+  Taem's Oasis                     cohesion=0.84(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.54(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),   hydratio=0.79(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.44(n=1),  ~shelter =0.44(n=1),  ~wanderlu=0.33(n=1)
+  Ulum Highlands                   cohesion=0.68(n=3),   hydratio=1.00(n=3),   nourishm=1.00(n=3),   purpose =0.99(n=3),   safety  =1.00(n=3),   shelter =0.76(n=3),  ~wanderlu=0.49(n=3)
+
+── Tick 071 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 072 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 073 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 074 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 075 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 076 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 077 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 078 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 079 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 080 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 80 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.78   safety   █████████░ 0.99   belongin ██████░░░░ 0.69  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.94
+    inv:    empty
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████░░░░ 0.62   safety   █████████░ 0.99   belongin █████░░░░░ 0.60  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.98
+    inv:    potable_water=0.0
+  Urren         @ Plains of Kir'an                fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.95   safety   █████████░ 0.99   belongin ██████░░░░ 0.67  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    potable_water=0.3
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[███████░]5.78/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_fauna=0.2,  food_flora=6.6
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[████████]5.00/5.00,  food_fauna[███████░]1.78/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[███░░░░░]0.25/0.50
+    stockpile: food_fauna=0.0,  food_flora=7.0,  salt_mineral=2.5
+  Plains of Kir'an              
+    yields:  potable_water[███████░]3.25/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=2.7,  food_flora=9.4,  potable_water=1.0
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[██████░░]1.69/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[██░░░░░░]0.17/0.50
+    stockpile: food_fauna=0.7,  food_flora=2.6,  salt_mineral=2.5
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.75/8.00,  food_fauna[███████░]3.80/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_flora=10.8,  potable_water=4.8
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=5.8,  food_flora=0.3
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.28/3.50,  food_fauna[███████░]3.92/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=8.2,  food_flora=14.7,  potable_water=4.2,  salt_mineral=2.6
+
+  POP NEEDS:
+  Asvelim Savannah                ~cohesion=0.37(n=2),   hydratio=0.71(n=2),   nourishm=1.00(n=2),  ~purpose =0.38(n=2),   safety  =1.00(n=2),  ~shelter =0.54(n=2),  ~wanderlu=0.42(n=2)
+  Dunes of Tor                    ~cohesion=0.36(n=3),  !hydratio=0.00(n=3),   nourishm=0.70(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.83(n=3),  ~wanderlu=0.41(n=3)
+  Hiparun's Rift                   cohesion=0.97(n=6),  ~hydratio=0.50(n=6),   nourishm=1.00(n=6),   purpose =1.00(n=6),   safety  =1.00(n=6),   shelter =0.99(n=6),  ~wanderlu=0.52(n=6)
+  Plains of Kir'an                ~cohesion=0.44(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.43(n=2),   safety  =1.00(n=2),  ~shelter =0.54(n=2),  ~wanderlu=0.45(n=2)
+  Qaebdol Cave Village             cohesion=0.99(n=5),   hydratio=0.56(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =1.00(n=5),   shelter =0.99(n=5),  ~wanderlu=0.54(n=5)
+  Taem's Oasis                     cohesion=0.76(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.53(n=5)
+  The Ancestor Stones              cohesion=0.97(n=1),  ~hydratio=0.49(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.44(n=1),  ~shelter =0.43(n=1),  ~wanderlu=0.23(n=1)
+  Ulum Highlands                  ~cohesion=0.48(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =1.00(n=2),   safety  =1.00(n=2),   shelter =0.59(n=2),  !wanderlu=0.13(n=2)
+
+── Tick 081 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 082 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 083 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 084 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 085 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 086 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 087 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 088 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 089 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 090 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 90 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████░░░░ 0.63   safety   █████████░ 0.99   belongin ██████░░░░ 0.61  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.94
+    inv:    empty
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████████ 1.00   safety   █████████░ 0.99   belongin █████░░░░░ 0.55  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    potable_water=0.8
+  Urren         @ Plains of Kir'an                fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ████████░░ 0.87   safety   █████████░ 0.99   belongin █████░░░░░ 0.59  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_flora=5.8
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[████████]5.00/5.00,  food_fauna[███████░]1.77/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[█░░░░░░░]0.10/0.50
+    stockpile: food_fauna=0.0,  food_flora=5.4,  salt_mineral=2.9
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=2.2,  food_flora=9.4,  potable_water=0.9
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[████████]2.00/2.00,  food_flora[██████░░]1.71/2.00,  salt_mineral[██░░░░░░]0.17/0.50
+    stockpile: food_fauna=0.5,  food_flora=2.6,  salt_mineral=2.8
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.77/8.00,  food_fauna[███████░]3.78/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_flora=10.7,  potable_water=4.6
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=6.6,  food_flora=0.4
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.28/3.50,  food_fauna[███████░]3.91/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=8.1,  food_flora=15.8,  potable_water=3.9,  salt_mineral=2.9
+
+  POP NEEDS:
+  Asvelim Savannah                ~cohesion=0.35(n=2),  ~hydratio=0.41(n=2),   nourishm=1.00(n=2),  ~purpose =0.33(n=2),   safety  =1.00(n=2),  ~shelter =0.49(n=2),  ~wanderlu=0.41(n=2)
+  Dunes of Tor                    ~cohesion=0.33(n=3),  !hydratio=0.00(n=3),  ~nourishm=0.50(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.78(n=3),  ~wanderlu=0.39(n=3)
+  Hiparun's Rift                   cohesion=1.00(n=5),  ~hydratio=0.29(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.43(n=5)
+  Plains of Kir'an                ~cohesion=0.39(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.41(n=2),   safety  =1.00(n=2),  ~shelter =0.48(n=2),  ~wanderlu=0.44(n=2)
+  Qaebdol Cave Village             cohesion=0.98(n=5),  ~hydratio=0.39(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =1.00(n=5),   shelter =0.99(n=5),  ~wanderlu=0.55(n=5)
+  Taem's Oasis                     cohesion=0.68(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.53(n=5)
+  The Ancestor Stones              cohesion=0.98(n=1),  !hydratio=0.19(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.43(n=1),  ~shelter =0.42(n=1),  !wanderlu=0.14(n=1)
+  Ulum Highlands                   cohesion=0.58(n=3),   hydratio=1.00(n=3),   nourishm=1.00(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.70(n=3),  ~wanderlu=0.35(n=3)
+
+── Tick 091 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 092 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 093 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 094 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 095 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 096 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+  ◆ §pop§33a484db-f19a-44d3-87f8-67d648466273§Militia§ has no water — hydration unmet.
+── Tick 097 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+  ◆ §pop§8abcca94-8595-4ca8-9ab7-1e9b4460b0de§Bonded§ has no water — hydration unmet.
+  ◆ §pop§33a484db-f19a-44d3-87f8-67d648466273§Militia§ has no water — hydration unmet.
+── Tick 098 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 099 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+── Tick 100 ──────────────────────────────────────────────────────────────────────
+  ◆ §pop§5eff90f2-0a48-40ba-8065-6cb4caa59ced§Producer§ has no water — hydration unmet.
+  ◆ §pop§d3f4437d-b94b-4efe-a341-e0265481d17b§Militia§ has no water — hydration unmet.
+  ◆ §pop§7c072280-0334-4605-957b-3bb7d09bf4b7§Laborer§ has no water — hydration unmet.
+  ◆ §pop§8352e6c7-05d6-4172-8ac2-9a2737067af7§Producer§ has no water — hydration unmet.
+  ◆ §pop§76df0458-a9c2-4bba-8c09-92ecdb0c52eb§Clergy§ has no water — hydration unmet.
+  ◆ §pop§b80de66d-e373-42d6-88be-c3cc254b23a4§Merchant§ has no water — hydration unmet.
+  ◆ §pop§2315d438-eb77-4e9d-9ec2-f5cb463a9b08§Militia§ has no water — hydration unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no food — nourishment unmet.
+  ◆ §pop§06a075d5-7997-48f2-a4a3-9af14e80a7b6§Producer§ has no water — hydration unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no food — nourishment unmet.
+  ◆ §pop§d845ff7a-1946-424a-8b35-4ef9cc7df816§Bonded§ has no water — hydration unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no food — nourishment unmet.
+  ◆ §pop§5e141b9f-0ae4-4e84-a2d2-3c8e378a9cef§Militia§ has no water — hydration unmet.
+  ◆ §pop§03ebb5b6-3bf7-4050-9eca-b0e808f3634e§Clergy§ has no water — hydration unmet.
+  ◆ §pop§208df7ea-a727-43d6-80f1-0a7c77c0f313§Laborer§ has no water — hydration unmet.
+  ◆ §pop§4c4c44fa-6b33-4284-89bf-c341733cdfd2§Producer§ has no water — hydration unmet.
+  ◆ §pop§ca727c3c-aa54-4399-a280-eb3e469d1759§Clergy§ has no water — hydration unmet.
+
+  ── SNAPSHOT @tick 100 ──────────────────────────────────────────────────
+  MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████████ 1.00   safety   █████████░ 0.99   belongin █████░░░░░ 0.53  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.93
+    inv:    potable_water=0.2
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.92   safety   █████████░ 0.99   belongin ████░░░░░░ 0.50  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    potable_water=0.3
+  Urren         @ Plains of Kir'an                fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.72   safety   █████████░ 0.99   belongin █████░░░░░ 0.51  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    empty
+
+  RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_flora=4.8
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.88/5.00,  food_fauna[███████░]1.75/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_flora=3.9,  salt_mineral=3.2
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=1.4,  food_flora=9.4,  potable_water=0.6
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[████████]2.00/2.00,  food_flora[██████░░]1.70/2.00,  salt_mineral[██░░░░░░]0.17/0.50
+    stockpile: food_fauna=0.4,  food_flora=2.6,  salt_mineral=3.0
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.76/8.00,  food_fauna[███████░]3.75/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_flora=10.5,  potable_water=4.5
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=7.3,  food_flora=0.6
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.46/3.50,  food_fauna[███████░]3.92/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=7.8,  food_flora=15.9,  potable_water=3.6,  salt_mineral=3.1
+
+  POP NEEDS:
+  Asvelim Savannah                ~cohesion=0.34(n=2),  !hydratio=0.11(n=2),   nourishm=1.00(n=2),  ~purpose =0.32(n=2),   safety  =1.00(n=2),  ~shelter =0.43(n=2),  ~wanderlu=0.41(n=2)
+  Dunes of Tor                    ~cohesion=0.30(n=3),  !hydratio=0.00(n=3),  ~nourishm=0.46(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.72(n=3),  ~wanderlu=0.38(n=3)
+  Hiparun's Rift                   cohesion=0.98(n=6),  ~hydratio=0.39(n=6),   nourishm=1.00(n=6),   purpose =0.99(n=6),   safety  =1.00(n=6),   shelter =1.00(n=6),  ~wanderlu=0.53(n=6)
+  Plains of Kir'an                ~cohesion=0.38(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.39(n=2),   safety  =1.00(n=2),  ~shelter =0.47(n=2),  ~wanderlu=0.44(n=2)
+  Qaebdol Cave Village             cohesion=0.99(n=5),  ~hydratio=0.26(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.99(n=5),  ~wanderlu=0.55(n=5)
+  Taem's Oasis                     cohesion=0.60(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.53(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),  !hydratio=0.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.43(n=1),  ~shelter =0.41(n=1),  !wanderlu=0.04(n=1)
+  Ulum Highlands                  ~cohesion=0.43(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =1.00(n=2),   safety  =1.00(n=2),  ~shelter =0.51(n=2),  !wanderlu=0.00(n=2)
+
+
+================================================================================
+  FINAL STATE (tick 100)
+================================================================================
+
+MORTALS:
+  Asha Keln     @ Dunes of Tor                    fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ██████████ 1.00   safety   █████████░ 0.99   belongin █████░░░░░ 0.53  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.93
+    inv:    potable_water=0.2
+
+  Kael Osh      @ Hiparun's Rift                  fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio █████████░ 0.92   safety   █████████░ 0.99   belongin ████░░░░░░ 0.50  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    potable_water=0.3
+
+  Urren         @ Plains of Kir'an                fat=0.00
+    needs:   nourishm █████████░ 0.98   hydratio ███████░░░ 0.72   safety   █████████░ 0.99   belongin █████░░░░░ 0.51  !status   ░░░░░░░░░░ 0.00  !purpose  ░░░░░░░░░░ 0.00   leisure  █████████░ 0.97
+    inv:    empty
+
+RESOURCES:
+  Asvelim Savannah              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]6.00/6.00,  food_flora[████████]6.00/6.00
+    stockpile: food_flora=4.8
+  Dunes of Tor                  
+    yields:  potable_water[████████]1.50/1.50,  food_fauna[████████]2.00/2.00,  food_flora[████████]1.00/1.00,  salt_mineral[████████]2.00/2.00
+    stockpile: salt_mineral=1.0
+  Hiparun's Rift                
+    yields:  potable_water[███████░]4.88/5.00,  food_fauna[███████░]1.75/2.00,  food_flora[████████]2.00/2.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_flora=3.9,  salt_mineral=3.2
+  Plains of Kir'an              
+    yields:  potable_water[████████]3.50/3.50,  food_fauna[████████]4.00/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_fauna=1.4,  food_flora=9.4,  potable_water=0.6
+  Qaebdol Cave Village          
+    yields:  potable_water[████████]6.00/6.00,  food_fauna[████████]2.00/2.00,  food_flora[██████░░]1.70/2.00,  salt_mineral[██░░░░░░]0.17/0.50
+    stockpile: food_fauna=0.4,  food_flora=2.6,  salt_mineral=3.0
+  Taem's Oasis                  
+    yields:  potable_water[███████░]7.76/8.00,  food_fauna[███████░]3.75/4.00,  food_flora[████████]4.00/4.00
+    stockpile: food_flora=10.5,  potable_water=4.5
+  The Ancestor Stones           
+    yields:  food_flora[████████]0.80/0.80
+    stockpile: food_fauna=7.3,  food_flora=0.6
+  Ulum Highlands                
+    yields:  potable_water[███████░]3.46/3.50,  food_fauna[███████░]3.92/4.00,  food_flora[████████]4.00/4.00,  salt_mineral[░░░░░░░░]0.00/0.50
+    stockpile: food_fauna=7.8,  food_flora=15.9,  potable_water=3.6,  salt_mineral=3.1
+
+POP NEEDS:
+  Asvelim Savannah                ~cohesion=0.34(n=2),  !hydratio=0.11(n=2),   nourishm=1.00(n=2),  ~purpose =0.32(n=2),   safety  =1.00(n=2),  ~shelter =0.43(n=2),  ~wanderlu=0.41(n=2)
+  Dunes of Tor                    ~cohesion=0.30(n=3),  !hydratio=0.00(n=3),  ~nourishm=0.46(n=3),   purpose =1.00(n=3),   safety  =1.00(n=3),   shelter =0.72(n=3),  ~wanderlu=0.38(n=3)
+  Hiparun's Rift                   cohesion=0.98(n=6),  ~hydratio=0.39(n=6),   nourishm=1.00(n=6),   purpose =0.99(n=6),   safety  =1.00(n=6),   shelter =1.00(n=6),  ~wanderlu=0.53(n=6)
+  Plains of Kir'an                ~cohesion=0.38(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),  ~purpose =0.39(n=2),   safety  =1.00(n=2),  ~shelter =0.47(n=2),  ~wanderlu=0.44(n=2)
+  Qaebdol Cave Village             cohesion=0.99(n=5),  ~hydratio=0.26(n=5),   nourishm=1.00(n=5),   purpose =1.00(n=5),   safety  =0.99(n=5),   shelter =0.99(n=5),  ~wanderlu=0.55(n=5)
+  Taem's Oasis                     cohesion=0.60(n=5),   hydratio=1.00(n=5),   nourishm=1.00(n=5),   purpose =0.99(n=5),   safety  =1.00(n=5),   shelter =1.00(n=5),  ~wanderlu=0.53(n=5)
+  The Ancestor Stones              cohesion=1.00(n=1),  !hydratio=0.00(n=1),   nourishm=1.00(n=1),   purpose =1.00(n=1),  ~safety  =0.43(n=1),  ~shelter =0.41(n=1),  !wanderlu=0.04(n=1)
+  Ulum Highlands                  ~cohesion=0.43(n=2),   hydratio=1.00(n=2),   nourishm=1.00(n=2),   purpose =1.00(n=2),   safety  =1.00(n=2),  ~shelter =0.51(n=2),  !wanderlu=0.00(n=2)
