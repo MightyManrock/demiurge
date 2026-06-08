@@ -134,9 +134,14 @@ def test_pop_all_canonical_needs_present():
 
 
 def test_pop_need_defaults_with_no_traits():
+    from logic.needs_config import POP_NEED_PURPOSE
     needs = compute_pop_need_profile({})
     by_name = {n.name: n for n in needs}
     for need_name, defaults in POP_NEED_DEFAULTS.items():
+        if need_name == POP_NEED_PURPOSE:
+            # purpose is gated behind has_directives=True; not present by default
+            assert need_name not in by_name
+            continue
         n = by_name[need_name]
         assert abs(n.decay_rate - defaults["decay_rate"]) < 1e-6
         assert abs(n.pressing_threshold - defaults["pressing_threshold"]) < 1e-6

@@ -202,6 +202,9 @@ def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
     for d in directives:
         for action, delta in d.action_weight_modifiers.items():
             mods[action] = mods.get(action, 0.0) + delta
+        if d.directive_type == "hold_position":
+            # Fully suppress migration: -10 exceeds max possible urgency (~1.5 * 1.5 competency)
+            mods["migrate"] = mods.get("migrate", 0.0) - 10.0
     return mods
 
 
@@ -215,6 +218,36 @@ def _max_slot_modifier(pop, factions: dict) -> int:
         if d.slot_modifier != 0:
             return d.slot_modifier
     return 0
+
+# ---------------------------------------------------------------------------
+# Directive fulfillment
+# ---------------------------------------------------------------------------
+
+_MIGHT_AS_WELL_FORAGE  = 0.05
+_MIGHT_AS_WELL_COLLECT = 0.03
+
+
+def directive_purpose_increment(directive, actor_location_id) -> float:
+    """Return the purpose satisfaction increment earned by executing a directive this tick.
+
+    Each directive_type defines its own completion condition.  Types not yet
+    wired return 0.0 so callers don't need to guard for missing cases.
+    """
+    from uuid import UUID
+
+    def _same_loc(a, b) -> bool:
+        if a is None or b is None:
+            return False
+        return UUID(str(a)) == UUID(str(b))
+
+    if directive.directive_type == "hold_position":
+        if _same_loc(directive.target_location_id, actor_location_id):
+            return 0.25
+        return 0.0
+
+    # Other types not yet implemented
+    return 0.0
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -248,6 +281,13 @@ def compute_pop_priorities(pop, factions: dict) -> dict[str, float]:
     for action, baseline in OCCUPATION_BASELINE_WEIGHTS.get(occ_key, {}).items():
         if action in raw and action not in STUB_ACTIONS:
             raw[action] += baseline
+
+    # 'Might as well' baseline: small always-on weight so pops opportunistically
+    # forage/collect even when no needs are pressing.
+    if "forage" in raw:
+        raw["forage"] += _MIGHT_AS_WELL_FORAGE
+    if "collect" in raw:
+        raw["collect"] += _MIGHT_AS_WELL_COLLECT
 
     # Pass 2: competency scaling
     weighted = {action: raw[action] * _pop_competency_modifier(pop, action) for action in ALL_ACTIONS}
@@ -476,5 +516,20 @@ def resolve_pop_actions(
         narratives.append(
             f"§pop§{pop.id}§{_pop_label(pop)}§ has no water — hydration unmet."
         )
+
+    # Directive fulfillment: purpose satisfaction for hold_position and future types
+    _all_directives = list(pop.active_directives)
+    for _fid in pop.faction_ids:
+        _faction = factions.get(str(_fid)) if factions else None
+        if _faction:
+            _all_directives.extend(_faction.active_directives)
+    if _all_directives:
+        _purpose_need = needs_by_name.get("purpose")
+        if _purpose_need is not None:
+            for _d in _all_directives:
+                _inc = directive_purpose_increment(_d, actor_location_id=pop.current_location)
+                if _inc > 0.0:
+                    _purpose_need.satisfaction = min(1.0, _purpose_need.satisfaction + _inc)
+                    break  # one directive fills purpose per tick
 
     return narratives

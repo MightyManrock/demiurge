@@ -515,12 +515,21 @@ class Directive(BaseModel):
     """An instruction issued by a Pop to its notable mortals."""
     id: UUID = Field(default_factory=uuid4)
     label: str = ""
-    directive_type: str = "commerce"       # extensible: "preach", "research", …
+    directive_type: str = "commerce"       # extensible: "hold_position", "patrol", …
     target_location_id: Optional[UUID] = None
     issued_at_tick: int = 0
     required_skill: Optional[str] = None
     action_weight_modifiers: dict[str, float] = Field(default_factory=dict)
     slot_modifier: int = 0
+    # Scheduling / recurrence
+    interval_ticks: int = 0
+    last_triggered_tick: int = 0
+    # Cargo logistics (for supply_run and similar)
+    cargo_resource_type: Optional[str] = None
+    cargo_quantity: int = 0
+    # Pop-scoped targeting
+    target_pop_id: Optional[UUID] = None
+    territory_pop_ids: list[UUID] = Field(default_factory=list)
 
 
 class Pop(BaseModel):

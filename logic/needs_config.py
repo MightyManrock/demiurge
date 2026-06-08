@@ -49,8 +49,8 @@ NEED_DEFAULTS: dict[str, dict[str, float]] = {
     NEED_HYDRATION:   {"decay_rate": 0.03,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     NEED_SAFETY:      {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
     NEED_BELONGING:   {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
-    # NEED_STATUS:    {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
-    # NEED_PURPOSE:   {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
+    NEED_STATUS:      {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
+    NEED_PURPOSE:     {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
     NEED_LEISURE:     {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
 }
 
@@ -150,10 +150,17 @@ DESIRE_TRAIT_MODIFIERS: dict[str, dict[str, tuple[float, float]]] = {
 # Profile generator
 # ---------------------------------------------------------------------------
 
-def compute_need_profile(culture_tags: dict[str, float]) -> list[MortalNeed]:
-    """Return a MortalNeed for every canonical need, parameters modulated by culture_tags."""
+def compute_need_profile(culture_tags: dict[str, float], has_directives: bool = False) -> list[MortalNeed]:
+    """Return a MortalNeed for every canonical need, parameters modulated by culture_tags.
+
+    Status and purpose needs are only included when has_directives=True — they require
+    directive infrastructure to satisfy and cause permanent misery without it.
+    """
+    active_needs = list(CANONICAL_NEEDS)
+    if has_directives:
+        active_needs += [NEED_STATUS, NEED_PURPOSE]
     needs = []
-    for need_name in CANONICAL_NEEDS:
+    for need_name in active_needs:
         defaults  = NEED_DEFAULTS[need_name]
         decay     = defaults["decay_rate"]
         pressing  = defaults["pressing_threshold"]
@@ -265,7 +272,7 @@ POP_NEED_DEFAULTS: dict[str, dict[str, float]] = {
     POP_NEED_HYDRATION:   {"decay_rate": 0.03,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     POP_NEED_SAFETY:      {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
     POP_NEED_COHESION:    {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
-    # POP_NEED_PURPOSE:   {"decay_rate": 0.015, "pressing_threshold": 0.50, "urgent_threshold": 0.25},
+    POP_NEED_PURPOSE:     {"decay_rate": 0.015, "pressing_threshold": 0.50, "urgent_threshold": 0.25},
     POP_NEED_SHELTER:     {"decay_rate": 0.010, "pressing_threshold": 0.50, "urgent_threshold": 0.20},
     POP_NEED_WANDERLUST:  {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
 }
@@ -289,11 +296,17 @@ POP_NEED_TRAIT_MODIFIERS: dict[str, dict[str, tuple[float, float, float]]] = {
 }
 
 
-def compute_pop_need_profile(culture_tags: dict[str, float]) -> list:
-    """Return a PopNeed for every canonical Pop need, parameters modulated by culture_tags."""
+def compute_pop_need_profile(culture_tags: dict[str, float], has_directives: bool = False) -> list:
+    """Return a PopNeed for every canonical Pop need, parameters modulated by culture_tags.
+
+    Purpose need is only included when has_directives=True — it requires a directive to satisfy.
+    """
     from core.agent_core import PopNeed
     needs = []
-    for need_name in POP_CANONICAL_NEEDS:
+    active_needs = list(POP_CANONICAL_NEEDS)
+    if has_directives:
+        active_needs.append(POP_NEED_PURPOSE)
+    for need_name in active_needs:
         defaults = POP_NEED_DEFAULTS[need_name]
         decay    = defaults["decay_rate"]
         pressing = defaults["pressing_threshold"]
