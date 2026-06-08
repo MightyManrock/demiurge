@@ -1,12 +1,13 @@
 from __future__ import annotations
 import math
+import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.universe_core import Pop, PopLocation, Faction
 
 from core.agent_core import (
-    PopAgentState, PopNeed, ResourceStockpile, can_access_stockpile,
+    PopAgentState, PopNeed, ResourceFact, ResourceStockpile, can_access_stockpile,
     load_cargo as _load_cargo_fn, unload_cargo as _unload_cargo_fn,
 )
 
@@ -243,8 +244,7 @@ def _max_slot_modifier(pop, factions: dict) -> int:
 # Directive fulfillment
 # ---------------------------------------------------------------------------
 
-_MIGHT_AS_WELL_FORAGE  = 0.05
-_MIGHT_AS_WELL_COLLECT = 0.03
+_IDLE_FLOOR            = 0.01   # small uniform baseline preventing all-zero distributions
 _PATROL_FORTIFY_BOOST  = 0.30
 _PATROL_HUNT_BOOST     = 0.20
 _SUPPLY_RUN_CARGO_BOOST = 0.40
@@ -347,12 +347,10 @@ def compute_pop_priorities(pop, factions: dict) -> dict[str, float]:
         if action in raw and action not in STUB_ACTIONS:
             raw[action] += baseline
 
-    # 'Might as well' baseline: small always-on weight so pops opportunistically
-    # forage/collect even when no needs are pressing.
-    if "forage" in raw:
-        raw["forage"] += _MIGHT_AS_WELL_FORAGE
-    if "collect" in raw:
-        raw["collect"] += _MIGHT_AS_WELL_COLLECT
+    # Uniform idle floor: prevents all-zero distributions when no needs are pressing.
+    for action in raw:
+        if action not in STUB_ACTIONS:
+            raw[action] += _IDLE_FLOOR
 
     # Pass 2: competency scaling
     weighted = {action: raw[action] * _pop_competency_modifier(pop, action) for action in ALL_ACTIONS}
@@ -408,6 +406,60 @@ def resolve_pop_actions(
     if not priorities:
         factions_dict = factions if isinstance(factions, dict) else {}
         priorities = compute_pop_priorities(pop, factions_dict)
+
+    # KB co-location sync + yield-aware priority dampening.
+    # Pops update their ResourceFacts from the actual current yield at their
+    # location each tick, then dampen gathering priorities when yield is low
+    # relative to the demand from entitled co-located Pops.
+    if pop_loc is not None:
+        _loc_id_str = str(pop_loc.id)
+        _cr_by_type = {cr.resource_type: cr for cr in pop_loc.collectible_resources}
+        # Sync KB ResourceFacts to actual current yields
+        for _cr in pop_loc.collectible_resources:
+            _rf = next(
+                (f for f in ps.knowledge_base.facts
+                 if f.fact_type == "resource"
+                 and f.location_id == _loc_id_str
+                 and f.resource_type == _cr.resource_type),
+                None,
+            )
+            if _rf is not None:
+                _rf.resource_yield = _cr.current_yield
+                _rf.learned_at_tick = current_tick
+            else:
+                ps.knowledge_base.facts.append(ResourceFact(
+                    location_id=_loc_id_str,
+                    resource_type=_cr.resource_type,
+                    resource_yield=_cr.current_yield,
+                    confidence=1.0,
+                    learned_at_tick=current_tick,
+                ))
+        # Demand = log-sum of sizes of entitled co-located Pops, with noise
+        _pub_d = _public_stockpile(pop_loc)
+        _demand = sum(
+            math.log(p.size_fractional + 1)
+            for p in (colocated_pops or [])
+            if can_access_stockpile(p, _pub_d)
+        ) * random.uniform(0.6, 1.4)
+        _demand = max(_demand, 1e-6)
+        # Apply asymptotic dampening: ratio / (ratio + 1), where ratio = yield / demand
+        for _ga in ("forage", "hunt", "collect"):
+            if _ga not in priorities:
+                continue
+            _mf = [
+                f for f in ps.knowledge_base.facts
+                if f.fact_type == "resource"
+                and f.location_id == _loc_id_str
+                and f.resource_type in _cr_by_type
+                and (
+                    not _cr_by_type[f.resource_type].action_types
+                    or _ga in _cr_by_type[f.resource_type].action_types
+                )
+            ]
+            if _mf:
+                _avg_yield = sum(f.resource_yield for f in _mf) / len(_mf)
+                _ratio = _avg_yield / _demand
+                priorities[_ga] *= _ratio / (_ratio + 1.0)
 
     # Supply-run travel: set pending destination and boost migrate priority
     _pops_dict: dict = getattr(state, "pops", {}) if state else {}
