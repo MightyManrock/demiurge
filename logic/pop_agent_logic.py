@@ -136,6 +136,52 @@ def _pop_competency_modifier(pop, action: str) -> float:
     return mod if mod is not None else 1.0
 
 
+def _pop_spillover_factor(actor, neighbor, factions: dict) -> float:
+    """Return the need-satisfaction spillover multiplier from actor to neighbor.
+
+    Tiers:
+      cross-factional (both in factions, no overlap) → 0.0
+      co-factional (share ≥1 faction)               → max(link_factor, 0.75)
+      linked only                                    → link_factor
+      neither / one unfactioned                      → 0.5
+    """
+    from logic.sim_utils import compute_link_factor
+    actor_fids    = {str(fid) for fid in actor.faction_ids}
+    neighbor_fids = {str(fid) for fid in neighbor.faction_ids}
+    shared_fids   = actor_fids & neighbor_fids
+
+    if actor_fids and neighbor_fids and not shared_fids:
+        return 0.0  # cross-factional rivals
+
+    base = actor.linked_pop_ids.get(str(neighbor.id))
+    lf   = compute_link_factor(actor, neighbor, base) if base is not None else None
+
+    if shared_fids:
+        return max(lf if lf is not None else 0.0, 0.75)
+
+    if lf is not None:
+        return lf
+
+    return 0.5
+
+
+# Civic actions whose effects spill over to co-located pops.
+_CIVIC_ACTIONS: frozenset[str] = frozenset({"fortify", "build", "commune", "revel", "enact_rituals"})
+
+
+def _apply_spillover(actor, colocated_pops: list, need_name: str, gain: float, factions: dict) -> None:
+    """Apply a fraction of `gain` to `need_name` on each co-located pop."""
+    for neighbor in colocated_pops:
+        if neighbor.pop_state is None:
+            continue
+        factor = _pop_spillover_factor(actor, neighbor, factions)
+        if factor <= 0.0:
+            continue
+        nb_need = next((n for n in neighbor.pop_state.needs if n.name == need_name), None)
+        if nb_need is not None:
+            nb_need.satisfaction = min(1.0, nb_need.satisfaction + gain * factor)
+
+
 def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
     mods: dict[str, float] = {}
     directives = list(pop.active_directives)
@@ -228,6 +274,7 @@ def resolve_pop_actions(
     n_slots: int,
     factions: dict,
     current_tick: int = 0,
+    colocated_pops: list | None = None,
 ) -> list[str]:
     """Execute top-N priority actions; return narrative strings for notable events.
 
@@ -282,29 +329,39 @@ def resolve_pop_actions(
                 # collect with no matching resource → no output
 
         elif action == "commune":
+            gain = output * 0.10
             need = needs_by_name.get("cohesion")
             if need:
-                need.satisfaction = min(1.0, need.satisfaction + output * 0.10)
+                need.satisfaction = min(1.0, need.satisfaction + gain)
+            _apply_spillover(pop, colocated_pops or [], "cohesion", gain, factions)
 
         elif action == "revel":
+            gain = output * 0.15
             need = needs_by_name.get("cohesion")
             if need:
-                need.satisfaction = min(1.0, need.satisfaction + output * 0.15)
+                need.satisfaction = min(1.0, need.satisfaction + gain)
+            _apply_spillover(pop, colocated_pops or [], "cohesion", gain, factions)
 
         elif action == "enact_rituals":
+            gain = output * NEED_FILL_RATE
             need = needs_by_name.get("purpose")
             if need:
-                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE)
+                need.satisfaction = min(1.0, need.satisfaction + gain)
+            _apply_spillover(pop, colocated_pops or [], "purpose", gain, factions)
 
         elif action == "build":
+            gain = output * NEED_FILL_RATE
             need = needs_by_name.get("shelter")
             if need:
-                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE)
+                need.satisfaction = min(1.0, need.satisfaction + gain)
+            _apply_spillover(pop, colocated_pops or [], "shelter", gain, factions)
 
         elif action == "fortify":
+            gain = output * NEED_FILL_RATE
             need = needs_by_name.get("safety")
             if need:
-                need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE)
+                need.satisfaction = min(1.0, need.satisfaction + gain)
+            _apply_spillover(pop, colocated_pops or [], "safety", gain, factions)
             pop_loc.danger = max(0.0, pop_loc.danger - output * 0.005)
 
         elif action == "migrate":

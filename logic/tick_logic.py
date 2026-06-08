@@ -5544,9 +5544,16 @@ class TickLoop:
         """Phase 2.57 — run PopAgent logic for each Pop with pop_state."""
         from logic.pop_agent_logic import compute_pop_priorities, compute_active_slots, resolve_pop_actions
         from core.universe_core import PopLocation
+        from collections import defaultdict
 
         narratives: list[str] = []
         factions = getattr(state, "factions", {})
+
+        # Pre-build location → pops index for spillover lookups
+        _loc_pops: dict[str, list] = defaultdict(list)
+        for _p in state.pops.values():
+            if _p.pop_state is not None:
+                _loc_pops[str(_p.current_location)].append(_p)
 
         for pop in state.pops.values():
             ps = pop.pop_state
@@ -5582,7 +5589,9 @@ class TickLoop:
             n_slots = compute_active_slots(pop, factions)
 
             # 5–6. Resolve actions + consumption
-            events = resolve_pop_actions(pop, pop_loc, priorities, n_slots, factions, current_tick)
+            _colocated = [p for p in _loc_pops[str(pop.current_location)] if p.id != pop.id]
+            events = resolve_pop_actions(pop, pop_loc, priorities, n_slots, factions, current_tick,
+                                         colocated_pops=_colocated)
             narratives.extend(events)
 
         return narratives
