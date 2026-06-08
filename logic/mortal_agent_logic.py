@@ -493,8 +493,9 @@ def evaluate_mortal_action(
     _local_pop_id = str(mortal.pop_milieu or mortal.pop_id or "")
     _local_pop = state.pops.get(_local_pop_id) if _local_pop_id else None
 
-    # Need urgency map
-    urgency = {n.name: _need_urgency(n) for n in cs.needs}
+    # Need urgency map (status/purpose suspended until FactionAgent infrastructure exists)
+    _SUSPENDED_NEEDS = frozenset({"status", "purpose"})
+    urgency = {n.name: _need_urgency(n) for n in cs.needs if n.name not in _SUSPENDED_NEEDS}
     _desire_u = {d.name: d.urgency() for d in cs.desires}
 
     _best_sell_loc  = kb.best_known_sell_location()  if _sellable  else None
@@ -502,22 +503,24 @@ def evaluate_mortal_action(
 
     # ── Action scores ─────────────────────────────────────────────────────────
 
-    # Sell: follow-through from loaded hold + purpose + status urgency + accumulation desire
-    _sell_score = (
-        _load_fraction
-        + urgency.get("purpose", 0.0) * 1.0
-        + urgency.get("status",  0.0) * 0.5
-        + _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_SELL_WEIGHT
-    ) if _sellable else 0.0
-    if _directive_active and _sell_score > 0:
-        _sell_score *= DIRECTIVE_MULTIPLIER
-    if _sell_score > 0:
-        _sell_score *= _skill_rating(mortal, "skill:trade") if _has_skill(mortal, "skill:trade") else 0.0
+    # Sell: suspended on oros-test-agent-behavior branch — focus on sustenance/survival loop
+    # _sell_score = (
+    #     _load_fraction
+    #     + urgency.get("purpose", 0.0) * 1.0
+    #     + urgency.get("status",  0.0) * 0.5
+    #     + _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_SELL_WEIGHT
+    # ) if _sellable else 0.0
+    # if _directive_active and _sell_score > 0:
+    #     _sell_score *= DIRECTIVE_MULTIPLIER
+    # if _sell_score > 0:
+    #     _sell_score *= _skill_rating(mortal, "skill:trade") if _has_skill(mortal, "skill:trade") else 0.0
+    _sell_score = 0.0
 
-    # Collect: purpose urgency drives it; a small baseline fires on a "might as well" roll.
-    # Accumulation desire also lifts the base score even without purpose pressure.
+    # Collect: sustenance needs + purpose urgency drive it; small baseline on "might as well" roll.
+    # Accumulation desire also lifts the base score.
     _directive_base = MIGHT_AS_WELL_COLLECT_BASE if _might_as_well else 0.0
-    _collect_base = max(urgency.get("purpose", 0.0), _directive_base, _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_COLLECT_WEIGHT)
+    _sustenance_u = max(urgency.get("nourishment", 0.0), urgency.get("hydration", 0.0))
+    _collect_base = max(_sustenance_u, urgency.get("purpose", 0.0), _directive_base, _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_COLLECT_WEIGHT)
     _collect_score = (
         (1.0 - _load_fraction) * _collect_base
     ) if not _hold_full else 0.0

@@ -24,8 +24,8 @@ CANONICAL_NEEDS = (
     NEED_HYDRATION,
     NEED_SAFETY,
     NEED_BELONGING,
-    NEED_STATUS,
-    NEED_PURPOSE,
+    # NEED_STATUS,   # suspended: no FactionAgent/directive infrastructure yet
+    # NEED_PURPOSE,  # suspended: no FactionAgent/directive infrastructure yet
     NEED_LEISURE,
 )
 
@@ -48,10 +48,10 @@ NEED_DEFAULTS: dict[str, dict[str, float]] = {
     NEED_NOURISHMENT: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     NEED_HYDRATION:   {"decay_rate": 0.03,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     NEED_SAFETY:      {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
-    NEED_BELONGING:  {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
-    NEED_STATUS:     {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
-    NEED_PURPOSE:    {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
-    NEED_LEISURE:    {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
+    NEED_BELONGING:   {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
+    # NEED_STATUS:    {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
+    # NEED_PURPOSE:   {"decay_rate": 0.03,  "pressing_threshold": 0.60, "urgent_threshold": 0.25},
+    NEED_LEISURE:     {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
 }
 
 # Alias for external code/tests
@@ -255,7 +255,7 @@ POP_CANONICAL_NEEDS = (
     POP_NEED_HYDRATION,
     POP_NEED_SAFETY,
     POP_NEED_COHESION,
-    POP_NEED_PURPOSE,
+    # POP_NEED_PURPOSE,  # suspended: no FactionAgent/directive infrastructure yet
     POP_NEED_SHELTER,
     POP_NEED_WANDERLUST,
 )
@@ -264,10 +264,10 @@ POP_NEED_DEFAULTS: dict[str, dict[str, float]] = {
     POP_NEED_NOURISHMENT: {"decay_rate": 0.02,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     POP_NEED_HYDRATION:   {"decay_rate": 0.03,  "pressing_threshold": 0.55, "urgent_threshold": 0.20},
     POP_NEED_SAFETY:      {"decay_rate": 0.01,  "pressing_threshold": 0.50, "urgent_threshold": 0.20},
-    POP_NEED_COHESION:   {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
-    POP_NEED_PURPOSE:    {"decay_rate": 0.015, "pressing_threshold": 0.50, "urgent_threshold": 0.25},
-    POP_NEED_SHELTER:    {"decay_rate": 0.010, "pressing_threshold": 0.50, "urgent_threshold": 0.20},
-    POP_NEED_WANDERLUST: {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
+    POP_NEED_COHESION:    {"decay_rate": 0.008, "pressing_threshold": 0.45, "urgent_threshold": 0.20},
+    # POP_NEED_PURPOSE:   {"decay_rate": 0.015, "pressing_threshold": 0.50, "urgent_threshold": 0.25},
+    POP_NEED_SHELTER:     {"decay_rate": 0.010, "pressing_threshold": 0.50, "urgent_threshold": 0.20},
+    POP_NEED_WANDERLUST:  {"decay_rate": 0.008, "pressing_threshold": 0.40, "urgent_threshold": 0.18},
 }
 
 # (Δdecay, Δpressing, Δurgent) per 1.0 of signed trait value

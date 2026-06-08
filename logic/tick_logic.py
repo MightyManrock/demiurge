@@ -5801,85 +5801,81 @@ class TickLoop:
                 if loc:
                     _resolve_mortal_forage(mortal, loc, action, state, narratives)
 
-            elif action == "sell":
-                loc = state.locations.get(str(mortal.current_location))
-                quality = _effective_commerce_quality(loc, state) if loc else 0.5
-                for res in cs.mortal_inventory.items:
-                    if "sell" not in res.usable_for or res.quantity < res.threshold:
-                        continue
-                    if res.converts_to is None:
-                        continue
-                    units = int(res.quantity)
-                    if units == 0:
-                        continue
-                    credits_gained = units * res.base_value * quality
-                    res.quantity -= units
-                    target = cs.mortal_inventory.get_resource(res.converts_to)
-                    if target is None:
-                        from core.agent_core import Resource as _Resource
-                        target = _Resource(resource_type=res.converts_to)
-                        cs.mortal_inventory.items.append(target)
-                    target.quantity += credits_gained
-                    if res.fills_need:
-                        need = next((n for n in cs.needs if n.name == res.fills_need), None)
-                        if need:
-                            need.satisfaction = 1.0
-                            need.satiation_hold = round(8 * quality)
-                    # Find sell pop by location: prefer own pop if present, else any local pop.
-                    # Do NOT use pop_milieu here — milieu selection optimises for social needs
-                    # and may point to a non-merchant pop even while Durenn is at his trade hub.
-                    _sell_cur_loc = str(mortal.current_location)
-                    _sell_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
-                    if _sell_pop is None or str(_sell_pop.current_location) != _sell_cur_loc:
-                        _sell_pop = next(
-                            (p for p in state.pops.values()
-                             if str(p.current_location) == _sell_cur_loc),
-                            None,
-                        )
-                    if _sell_pop:
-                        _pop_loc = state.locations.get(str(_sell_pop.current_location))
-                        if _pop_loc and hasattr(_pop_loc, "wealth"):
-                            wealth_gain = min(0.05, credits_gained * 0.005)
-                            _pop_loc.wealth = min(1.0, _pop_loc.wealth + wealth_gain)
-                        # Pop recognition → Status satisfaction
-                        _s_gain, _s_hold = _status_recognition_from_pop(
-                            mortal, _sell_pop, state, strong=True
-                        )
-                        _status_need = cs.get_need(NEED_STATUS)
-                        if _status_need:
-                            _status_need.satisfaction = min(1.0, _status_need.satisfaction + _s_gain)
-                            if _s_hold:
-                                _status_need.satiation_hold = _s_hold
-                        if kb := mortal.knowledge_base:
-                            for _df in kb.directive_facts():
-                                if _df.directive_type == "commerce" and _df.satisfying_action == "sell":
-                                    purpose_need = cs.get_need(NEED_PURPOSE)
-                                    if purpose_need:
-                                        _origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
-                                        _is_own = _origin_pop and str(_sell_pop.id) == str(_origin_pop.id)
-                                        if _is_own:
-                                            purpose_need.satisfaction = 1.0
-                                            purpose_need.satiation_hold = 10
-                                        elif _origin_pop and str(_sell_pop.id) in _origin_pop.linked_pop_ids:
-                                            _p_base = _origin_pop.linked_pop_ids[str(_sell_pop.id)]
-                                            _p_lf = compute_link_factor(_origin_pop, _sell_pop, _p_base)
-                                            purpose_need.satisfaction = min(1.0, purpose_need.satisfaction + _p_lf)
-                                            purpose_need.satiation_hold = round(10 * _p_lf)
-                                    break
-                    # Accumulation desire satisfaction from completing a trade
-                    _acc_desire = next((d for d in cs.desires if d.name == DESIRE_ACCUMULATION), None)
-                    if _acc_desire is not None:
-                        _acc_desire.satisfaction = min(1.0, _acc_desire.satisfaction + 0.25)
-                        _acc_desire.satiation_hold = 3
-                    mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
-                    if mortal.pinned:
-                        _sell_loc = state.locations.get(str(mortal.current_location))
-                        _sell_loc_str = f" at {_sell_loc.name}" if _sell_loc else ""
-                        narratives.append(
-                            f"{mortal.name} sells {units} {res.resource_type} "
-                            f"for {credits_gained:.0f} credits{_sell_loc_str}."
-                        )
-                    break
+            # sell action suspended on oros-test-agent-behavior branch
+            # elif action == "sell":
+            #     loc = state.locations.get(str(mortal.current_location))
+            #     quality = _effective_commerce_quality(loc, state) if loc else 0.5
+            #     for res in cs.mortal_inventory.items:
+            #         if "sell" not in res.usable_for or res.quantity < res.threshold:
+            #             continue
+            #         if res.converts_to is None:
+            #             continue
+            #         units = int(res.quantity)
+            #         if units == 0:
+            #             continue
+            #         credits_gained = units * res.base_value * quality
+            #         res.quantity -= units
+            #         target = cs.mortal_inventory.get_resource(res.converts_to)
+            #         if target is None:
+            #             from core.agent_core import Resource as _Resource
+            #             target = _Resource(resource_type=res.converts_to)
+            #             cs.mortal_inventory.items.append(target)
+            #         target.quantity += credits_gained
+            #         if res.fills_need:
+            #             need = next((n for n in cs.needs if n.name == res.fills_need), None)
+            #             if need:
+            #                 need.satisfaction = 1.0
+            #                 need.satiation_hold = round(8 * quality)
+            #         _sell_cur_loc = str(mortal.current_location)
+            #         _sell_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+            #         if _sell_pop is None or str(_sell_pop.current_location) != _sell_cur_loc:
+            #             _sell_pop = next(
+            #                 (p for p in state.pops.values()
+            #                  if str(p.current_location) == _sell_cur_loc),
+            #                 None,
+            #             )
+            #         if _sell_pop:
+            #             _pop_loc = state.locations.get(str(_sell_pop.current_location))
+            #             if _pop_loc and hasattr(_pop_loc, "wealth"):
+            #                 wealth_gain = min(0.05, credits_gained * 0.005)
+            #                 _pop_loc.wealth = min(1.0, _pop_loc.wealth + wealth_gain)
+            #             _s_gain, _s_hold = _status_recognition_from_pop(
+            #                 mortal, _sell_pop, state, strong=True
+            #             )
+            #             _status_need = cs.get_need(NEED_STATUS)
+            #             if _status_need:
+            #                 _status_need.satisfaction = min(1.0, _status_need.satisfaction + _s_gain)
+            #                 if _s_hold:
+            #                     _status_need.satiation_hold = _s_hold
+            #             if kb := mortal.knowledge_base:
+            #                 for _df in kb.directive_facts():
+            #                     if _df.directive_type == "commerce" and _df.satisfying_action == "sell":
+            #                         purpose_need = cs.get_need(NEED_PURPOSE)
+            #                         if purpose_need:
+            #                             _origin_pop = state.pops.get(str(mortal.pop_id)) if mortal.pop_id else None
+            #                             _is_own = _origin_pop and str(_sell_pop.id) == str(_origin_pop.id)
+            #                             if _is_own:
+            #                                 purpose_need.satisfaction = 1.0
+            #                                 purpose_need.satiation_hold = 10
+            #                             elif _origin_pop and str(_sell_pop.id) in _origin_pop.linked_pop_ids:
+            #                                 _p_base = _origin_pop.linked_pop_ids[str(_sell_pop.id)]
+            #                                 _p_lf = compute_link_factor(_origin_pop, _sell_pop, _p_base)
+            #                                 purpose_need.satisfaction = min(1.0, purpose_need.satisfaction + _p_lf)
+            #                                 purpose_need.satiation_hold = round(10 * _p_lf)
+            #                             break
+            #         _acc_desire = next((d for d in cs.desires if d.name == DESIRE_ACCUMULATION), None)
+            #         if _acc_desire is not None:
+            #             _acc_desire.satisfaction = min(1.0, _acc_desire.satisfaction + 0.25)
+            #             _acc_desire.satiation_hold = 3
+            #         mortal.fatigue = min(1.0, mortal.fatigue + 0.1)
+            #         if mortal.pinned:
+            #             _sell_loc = state.locations.get(str(mortal.current_location))
+            #             _sell_loc_str = f" at {_sell_loc.name}" if _sell_loc else ""
+            #             narratives.append(
+            #                 f"{mortal.name} sells {units} {res.resource_type} "
+            #                 f"for {credits_gained:.0f} credits{_sell_loc_str}."
+            #             )
+            #         break
 
             elif action == "spend":
                 loc = state.locations.get(str(mortal.current_location))

@@ -105,19 +105,8 @@ def test_compute_desire_profile_expression_included():
 
 # ── Group 3: Action scoring with desires ─────────────────────────────────────
 
-def test_accumulation_desire_boosts_sell_without_purpose_pressure():
-    """With Accumulation desire pressing and no purpose urgency, sell score is boosted enough to beat idle."""
-    sell_loc_id = "loc-A"
-    cs = MortalAgentState(
-        needs=[MortalNeed(name="purpose", satisfaction=1.0)],
-        desires=[MortalDesire(name="accumulation", satisfaction=0.1, pressing_threshold=0.5)],
-        inventory=[Resource(resource_type="unobtanium", quantity=5.0, threshold=2.0, usable_for=["sell"])],
-    )
-    kb = KnowledgeBase(facts=[
-        LocationQualityFact(location_id=sell_loc_id, quality=0.9, quality_type="sell"),
-    ])
-    result = evaluate_mortal_action(_mortal_with_desires(cs, kb, loc_id=sell_loc_id), _state(), 0)
-    assert result == "sell"
+# Suspended on oros-test-agent-behavior branch: sell action disabled
+# def test_accumulation_desire_boosts_sell_without_purpose_pressure(): ...
 
 
 def test_wander_action_selected_for_unvisited_location():

@@ -52,33 +52,9 @@ def test_fatigue_blocks_action():
 
 # Sell priority: already at sell location
 
-def test_sell_at_sell_location():
-    sell_loc_id = "neran-surface"
-    cs = MortalAgentState(
-        needs=[_pressing_need()],
-        inventory=[Resource(resource_type="unobtanium", quantity=5.0, threshold=2.0, usable_for=["sell"])],
-    )
-    kb = KnowledgeBase(facts=[
-        LocationQualityFact(location_id=sell_loc_id, quality=0.9, quality_type="sell"),
-    ])
-    result = evaluate_mortal_action(_mortal(cs, kb, loc_id=sell_loc_id), _state(), 0)
-    assert result == "sell"
-
-
-# Sell priority: needs to travel to sell location
-
-def test_sell_triggers_travel_to_sell_location():
-    sell_loc_id = "neran-surface"
-    cs = MortalAgentState(
-        needs=[_pressing_need()],
-        inventory=[Resource(resource_type="unobtanium", quantity=5.0, threshold=2.0, usable_for=["sell"])],
-    )
-    kb = KnowledgeBase(facts=[
-        LocationQualityFact(location_id=sell_loc_id, quality=0.9, quality_type="sell"),
-        RouteFact(from_id="sethis", to_id=sell_loc_id, ticks_cost=12),
-    ])
-    result = evaluate_mortal_action(_mortal(cs, kb, loc_id="sethis"), _state(), 0)
-    assert result == f"travel:{sell_loc_id}"
+# Suspended on oros-test-agent-behavior branch: sell action disabled
+# def test_sell_at_sell_location(): ...
+# def test_sell_triggers_travel_to_sell_location(): ...
 
 
 # Sell skipped when unobtanium below threshold
@@ -119,8 +95,8 @@ def test_collect_at_resource_location():
     loc = MagicMock()
     loc.collectible_resources = [CollectibleResource(resource_type="food_flora", max_yield=5.0)]
     loc.location_type = "pop_location"
-    # Collect scores via purpose urgency — mortal collects when purpose is pressing
-    cs = MortalAgentState(needs=[MortalNeed(name="purpose", satisfaction=0.5, pressing_threshold=0.65)])
+    # Collect scores via nourishment urgency — mortal collects when nourishment is pressing
+    cs = MortalAgentState(needs=[MortalNeed(name="nourishment", satisfaction=0.5, pressing_threshold=0.65)])
     kb = KnowledgeBase(facts=[ResourceFact(location_id=loc_id)])
     result = evaluate_mortal_action(_mortal(cs, kb, loc_id=loc_id), _state({loc_id: loc}), 0)
     assert result == "collect"
@@ -148,7 +124,7 @@ def test_spend_skipped_when_target_need_not_pressing():
     loc.location_type = "pop_location"
     cs = MortalAgentState(
         needs=[
-            MortalNeed(name="purpose", satisfaction=0.5, pressing_threshold=0.65),
+            MortalNeed(name="nourishment", satisfaction=0.5, pressing_threshold=0.65),
             MortalNeed(name="indulgence", satisfaction=1.0, pressing_threshold=0.65),
         ],
         inventory=[
@@ -652,7 +628,7 @@ def test_collect_allowed_when_skill_trade_present():
     """Mortal with skill:trade → collect proceeds normally."""
     resource_loc = "loc-A"
     cs = MortalAgentState(
-        needs=[MortalNeed(name="purpose", satisfaction=0.1, pressing_threshold=0.6)],
+        needs=[MortalNeed(name="nourishment", satisfaction=0.1, pressing_threshold=0.6)],
         inventory=[Resource(resource_type="ore", quantity=0, base_value=10,
                             converts_to="wealth", threshold=1, usable_for=["sell", "collect"])],
     )
@@ -668,7 +644,7 @@ def test_collect_allowed_legacy_no_skill_tags():
     """Empty skill_tags (legacy) → collect ungated."""
     resource_loc = "loc-A"
     cs = MortalAgentState(
-        needs=[MortalNeed(name="purpose", satisfaction=0.1, pressing_threshold=0.6)],
+        needs=[MortalNeed(name="nourishment", satisfaction=0.1, pressing_threshold=0.6)],
         inventory=[Resource(resource_type="ore", quantity=0, base_value=10,
                             converts_to="wealth", threshold=1, usable_for=["sell", "collect"])],
     )
