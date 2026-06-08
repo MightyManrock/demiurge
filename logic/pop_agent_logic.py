@@ -412,11 +412,14 @@ def resolve_pop_actions(
     # Supply-run travel: set pending destination and boost migrate priority
     _pops_dict: dict = getattr(state, "pops", {}) if state else {}
     _factions_dict_sr = factions if isinstance(factions, dict) else {}
-    _sr_directives = [d for d in pop.active_directives if d.directive_type == "supply_run"]
+    _pop_id_str = str(pop.id)
+    def _sr_scoped(d) -> bool:
+        return not d.territory_pop_ids or _pop_id_str in {str(t) for t in d.territory_pop_ids}
+    _sr_directives = [d for d in pop.active_directives if d.directive_type == "supply_run" and _sr_scoped(d)]
     for _fid_sr in pop.faction_ids:
         _f_sr = _factions_dict_sr.get(str(_fid_sr))
         if _f_sr:
-            _sr_directives.extend(d for d in _f_sr.active_directives if d.directive_type == "supply_run")
+            _sr_directives.extend(d for d in _f_sr.active_directives if d.directive_type == "supply_run" and _sr_scoped(d))
     for _sd in _sr_directives:
         _sr_phase = _supply_run_phase(pop, _sd, _pops_dict)
         if _sr_phase == "travel_to_dest":
@@ -427,8 +430,14 @@ def resolve_pop_actions(
         elif _sr_phase == "travel_home":
             ps.pending_migration_dest = _sd.target_location_id
             priorities["migrate"] = priorities.get("migrate", 0.0) + 1.0
+        elif _sr_phase == "load":
+            priorities["load_cargo"] = priorities.get("load_cargo", 0.0) + _SUPPLY_RUN_CARGO_BOOST
+            ps.pending_migration_dest = None
+        elif _sr_phase == "deposit":
+            priorities["deposit_cargo"] = priorities.get("deposit_cargo", 0.0) + _SUPPLY_RUN_CARGO_BOOST
+            ps.pending_migration_dest = None
         else:
-            # load or deposit phase: clear any stale pending destination
+            # None (dest pop unresolved) — clear stale pending destination
             ps.pending_migration_dest = None
         break  # one supply_run directive at a time
 
