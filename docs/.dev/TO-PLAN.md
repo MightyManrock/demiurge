@@ -10,6 +10,38 @@ Full spec in the plan file. Summary of what's covered: real Pop routing using th
 
 ---
 
+### Faction directive refinements
+
+Improvements to Phase 2 directive types identified during Oros playtesting.
+
+**supply_run: smart delivery interval**
+Carriers currently run a continuous tight loop regardless of how full the destination stockpile is or how satisfied the destination Pops are. Two tiers of improvement:
+
+- *At-deposit check (no KB required):* on a successful `deposit_cargo`, the carrier is co-located with the destination Pop and has direct access to its stockpile and need state. If both stockpile depth and Pop satisfaction are above a threshold, set a longer `interval_ticks` before the next run — carrier stays home longer, contributing to the local economy rather than making redundant trips. Resets to tight interval when destination dips back below threshold.
+- *Pre-travel check (requires Pop KB):* before beginning the outbound leg, carrier checks its KB for the last-known stockpile and need state at the destination. If destination is already well-supplied, skips the trip entirely for this interval. Deferred until Pop KBs exist.
+
+**hold_position: wanderlust relief valve**
+`hold_position` currently suppresses migration with a hard −10 modifier, which saturates purpose but lets wanderlust decay unchecked. Two additions:
+- Lower wanderlust decay rate significantly while the directive is active — pops that have a place and a role accumulate wanderlust pressure much more slowly.
+- Relent when wanderlust reaches urgent: temporarily drop the migration suppression and let the pop wander. Once wanderlust is satisfied, issue a "return home" summons — `pending_migration_dest` is set back to `target_location_id` and migration priority boosted until the pop returns. Directive resumes suppression on arrival.
+
+Note: directive priority ordering matters here. A supply_run carrier that also has hold_position should not have the relent logic fire mid-circuit; in-progress supply_run should take precedence.
+
+**resupply directive** (new type)
+Need-triggered reactive resupply, distinct from the continuous `supply_run`. Intended for bands in resource-scarce locations (e.g. Dunes of Tor) that need to periodically top up from a richer nearby source.
+
+Trigger condition: any sustenance need (`nourishment`, `hydration`) at pressing threshold AND local `ResourceStockpile` below a low-water mark. Fields: `target_location_id` (the resupply source), `return_location_id` (home base), `cargo_manifest` (what to collect).
+
+Four-phase loop:
+1. Trigger fires → travel to `target_location_id`.
+2. Dwell at source until all sustenance needs reach 1.0 AND `CargoStockpile` is full per `cargo_manifest`. Purpose held at a moderate value during dwell (pop is on a meaningful errand, not idle).
+3. Load cargo from source stockpile.
+4. Travel home → deposit cargo to home `ResourceStockpile`. Purpose tops off on successful deposit.
+
+Directive sleeps (no-op) until trigger conditions are met again. Unlike `supply_run`, this is self-scheduling — it only activates when genuinely needed.
+
+---
+
 ### Thrall capture
 
 When a raid succeeds against a sufficiently weakened Pop, a fraction of that Pop's population is extracted — either absorbed into the raiding Pop, added to a new subjugated Pop in the raider's Faction, or held as a distinct enslaved-stratum Pop at the raider's home location. Requires: on-demand pop-splitting (not just divergence-driven), a `subjugated_by: Optional[UUID]` relationship field on Pop, and a `captive` or `thrall` SocialStratum value. Deferred until contested raid mechanics (Phase 5 of pop-migration-and-directives.md) exist.
