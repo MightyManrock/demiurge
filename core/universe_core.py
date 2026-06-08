@@ -581,7 +581,7 @@ class Pop(BaseModel):
     visibility: float = 0.0
     pinned: bool = False
     visibility_stall_remaining: int = 0
-    occupation: str = ""
+    occupation: Occupation = Occupation.UNSPECIFIED
 
     # Links to other Pops that represent the same demographic in different
     # circumstances. Keys are pop ID strings; values are the base link factor
@@ -761,7 +761,7 @@ class NotableMortal(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     description: str = ""
-    occupation: str = ""
+    occupation: Occupation = Occupation.UNSPECIFIED
     civilization_id: Optional[UUID] = None
     role: MortalRole = MortalRole.OTHER
     status: MortalStatus = MortalStatus.ACTIVE

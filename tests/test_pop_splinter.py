@@ -78,7 +78,7 @@ def test_splinter_check_runs_on_stride():
 
 from uuid import uuid4 as _uuid4
 
-def _make_pop_for_redistrib(beliefs, occupation="Artist"):
+def _make_pop_for_redistrib(beliefs, occupation="artist"):
     from core.universe_core import Pop, SocialStratum
     return Pop(
         social_class=SocialStratum.COMMON,
@@ -145,7 +145,7 @@ def _make_loop_r():
     from logic.tick_logic import TickLoop
     return TickLoop(rng_seed=42)
 
-def _make_pop_r(beliefs, size, location_id, civ_id, occupation="Artist", social_class_str="common"):
+def _make_pop_r(beliefs, size, location_id, civ_id, occupation="artist", social_class_str="common"):
     from core.universe_core import Pop, SocialStratum
     sc = SocialStratum(social_class_str)
     return Pop(
@@ -270,7 +270,7 @@ def _make_splinter_state(pop_beliefs, pop_culture, civ_beliefs, civ_culture):
     civ_id = uuid4()
     pop = Pop(
         social_class=SocialStratum.COMMON,
-        occupation="Artist",
+        occupation="artist",
         current_location=uuid4(),
         size_fractional=7.0,
         dominant_beliefs=dict(pop_beliefs),
@@ -429,7 +429,7 @@ def test_splinter_pop_gets_name_from_parent_label():
     )
     parent = Pop(
         social_class=SocialStratum.COMMON,
-        occupation="Merchant",
+        occupation="merchant",
         current_location=loc_id,
         size_fractional=6.0,
         dominant_beliefs={"domain:order": 0.9},
@@ -575,7 +575,7 @@ def test_identity_anchor_cleared_when_cooldown_transitions_to_zero():
     civ_id = uuid4()
     pop = Pop(
         social_class=SocialStratum.COMMON,
-        occupation="Artist",
+        occupation="artist",
         current_location=uuid4(),
         size_fractional=6.0,
         dominant_beliefs={"domain:order": 0.5},

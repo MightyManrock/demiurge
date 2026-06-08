@@ -66,6 +66,16 @@ _INTENT_CLASSES: dict[str, type] = {
 SCHEMA_PATH = Path(__file__).parent.parent / "core" / "scenario_schema.sql"
 
 
+def _load_occupation(raw: str | None) -> "Occupation":
+    from core.universe_core import Occupation
+    if not raw:
+        return Occupation.UNSPECIFIED
+    try:
+        return Occupation(raw)
+    except ValueError:
+        return Occupation.UNSPECIFIED
+
+
 def _load_universe_age(meta: dict) -> EntityAge:
     """Load universe EntityAge; prefers 6-component columns, falls back to legacy age_year, then current_age float."""
     if meta.get("age_billions") is not None:
@@ -813,7 +823,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             visibility_stall_remaining=int(row.get("visibility_stall_remaining", 0)),
             preaching_imago_id=row.get("preaching_imago_id"),
             preaching_goal_cooldown_until=int(row.get("preaching_goal_cooldown_until") or 0),
-            occupation=row.get("occupation", ""),
+            occupation=_load_occupation(row.get("occupation")),
             linked_pop_ids=_jd(row.get("linked_pop_ids", "{}")),
             active_directives=_load_directives(row.get("active_directives", "[]")),
             asset_crew_for=row.get("asset_crew_for") or None,
@@ -869,7 +879,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             origin_pop_subsumed=bool(row.get("origin_pop_subsumed", 0)),
             last_audit_text=row.get("last_audit_text"),
             last_audit_tick=(int(row["last_audit_tick"]) if row.get("last_audit_tick") is not None else None),
-            occupation=row.get("occupation", ""),
+            occupation=_load_occupation(row.get("occupation")),
         )
         out[str(m.id)] = m
     return out
