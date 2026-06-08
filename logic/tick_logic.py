@@ -1187,6 +1187,7 @@ def _resolve_mortal_forage(mortal, loc, action: str, state, narratives: list) ->
             cr.resource_type, gained, biochem_tags=list(cr.biochem_tags)
         )
         mortal.fatigue = min(1.0, mortal.fatigue + 0.10)
+        _apply_resource_need_topoff(cs, cr.resource_type)
         if mortal.pinned:
             narratives.append(
                 f"{mortal.name} forages {gained:.2f} {cr.resource_type}."
@@ -1198,6 +1199,22 @@ _MORTAL_FOOD_CONSUME_RATE  = 0.05
 _MORTAL_DRINK_CONSUME_RATE = 0.05
 _MORTAL_NOURISHMENT_FILL   = 0.03
 _MORTAL_HYDRATION_FILL     = 0.025
+_COLLECT_TOPOFF_HOLD       = 4
+
+
+def _apply_resource_need_topoff(cs, resource_type: str) -> None:
+    """Top off the need associated with a collected resource."""
+    category = _RESOURCE_BIOCHEM.get(resource_type)
+    if category == "solvent":
+        need = cs.get_need(NEED_HYDRATION)
+        if need:
+            need.satisfaction = 1.0
+            need.satiation_hold = _COLLECT_TOPOFF_HOLD
+    elif category == "basis":
+        need = cs.get_need(NEED_NOURISHMENT)
+        if need:
+            need.satisfaction = 1.0
+            need.satiation_hold = _COLLECT_TOPOFF_HOLD
 
 
 def _tick_mortal_passive_sustenance(
@@ -5771,6 +5788,7 @@ class TickLoop:
                     cr.current_yield = max(0.0, cr.current_yield - gained)
                     res.quantity += gained
                     mortal.fatigue = min(1.0, mortal.fatigue + 0.15)
+                    _apply_resource_need_topoff(cs, cr.resource_type)
                     if mortal.pinned:
                         narratives.append(
                             f"{mortal.name} collects {gained:.2f} {cr.resource_type} "
