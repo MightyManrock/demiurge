@@ -874,9 +874,11 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             fatigue=float(row.get("fatigue") or 0.0),
             faction_ids=[UUID(x) for x in _j(row.get("faction_ids", "[]"))],
             led_faction_ids=[UUID(x) for x in _j(row.get("led_faction_ids", "[]"))],
-            assets=_load_mortal_assets(row.get("assets")),
             knowledge_base=_load_knowledge_base(row.get("knowledge_base")),
-            mortal_state=_load_mortal_state(row.get("mortal_state") or row.get("civilian_state")),
+            mortal_state=_load_mortal_state(
+                row.get("mortal_state") or row.get("civilian_state"),
+                legacy_assets_raw=row.get("assets"),
+            ),
             pop_id=_uuid(row.get("pop_id")),
             pop_milieu=_uuid(row.get("pop_milieu")),
             band_id=_uuid(row.get("band_id")),
@@ -909,12 +911,14 @@ def _load_knowledge_base(raw: Optional[str]) -> Optional[KnowledgeBase]:
         return None
 
 
-def _load_mortal_state(raw: Optional[str]) -> Optional[MortalAgentState]:
+def _load_mortal_state(raw: Optional[str], legacy_assets_raw: Optional[str] = None) -> Optional[MortalAgentState]:
     if not raw:
         return None
     try:
         state = MortalAgentState.model_validate_json(raw)
         state.needs = _migrate_needs_sustenance_split(state.needs)
+        if not state.assets and legacy_assets_raw:
+            state.assets = _load_mortal_assets(legacy_assets_raw)
         return state
     except Exception:
         return None

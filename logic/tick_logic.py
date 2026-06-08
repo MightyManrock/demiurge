@@ -5795,7 +5795,7 @@ class TickLoop:
                     None,
                 )
                 _bg_cap = next(
-                    (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
+                    (a.cargo_capacity for a in cs.assets if a.cargo_capacity is not None),
                     None,
                 )
                 _bg_load = sum(r.quantity for r in cs.mortal_inventory.items if "sell" in r.usable_for)
@@ -6124,7 +6124,7 @@ class TickLoop:
                         _crew_pop = next(
                             (p for p in state.pops.values()
                              if getattr(p, "asset_crew_for", None) is not None
-                             and any(a.asset_type == p.asset_crew_for for a in mortal.assets)),
+                             and any(a.asset_type == p.asset_crew_for for a in (_cs.assets if _cs else []))),
                             None,
                         )
                         if _crew_pop:
@@ -6166,7 +6166,7 @@ class TickLoop:
                         _crew_pop = next(
                             (p for p in state.pops.values()
                              if getattr(p, "asset_crew_for", None) is not None
-                             and any(a.asset_type == p.asset_crew_for for a in mortal.assets)),
+                             and any(a.asset_type == p.asset_crew_for for a in (_cs.assets if _cs else []))),
                             None,
                         )
                         if _crew_pop:

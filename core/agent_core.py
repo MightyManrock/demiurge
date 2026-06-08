@@ -65,12 +65,22 @@ class PopFact(BaseModel):
     fact_type: Literal["pop"] = "pop"
     pop_id: str
     label: str = ""
+    confidence: float = 1.0
     interaction_count: int = 0
     last_interaction_tick: int = 0
 
 
+class MortalFact(BaseModel):
+    fact_type: Literal["mortal"] = "mortal"
+    mortal_id: str
+    name: str = ""
+    faction_ids: list[str] = Field(default_factory=list)
+    confidence: float = 1.0
+    learned_at_tick: int = 0
+
+
 KnowledgeFact = Annotated[
-    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact | PopFact,
+    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact | PopFact | MortalFact,
     Field(discriminator="fact_type"),
 ]
 
@@ -137,6 +147,12 @@ class KnowledgeBase(BaseModel):
 
     def get_pop_fact(self, pop_id: str) -> Optional[PopFact]:
         return next((f for f in self.facts if f.fact_type == "pop" and f.pop_id == pop_id), None)
+
+    def mortal_facts(self) -> list[MortalFact]:
+        return [f for f in self.facts if f.fact_type == "mortal"]
+
+    def get_mortal_fact(self, mortal_id: str) -> Optional[MortalFact]:
+        return next((f for f in self.facts if f.fact_type == "mortal" and f.mortal_id == mortal_id), None)
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +224,7 @@ class PopAgentState(BaseModel):
     pending_migration_dest: Optional[UUID] = None
     migration_ticks_remaining: int = 0
     cargo: CargoStockpile = Field(default_factory=CargoStockpile)
+    knowledge_base: KnowledgeBase = Field(default_factory=KnowledgeBase)
 
     def get_need(self, name: str) -> Optional[PopNeed]:
         return next((n for n in self.needs if n.name == name), None)
@@ -402,6 +419,7 @@ class MortalAgentState(BaseModel):
     needs: list[MortalNeed] = Field(default_factory=list)
     desires: list[MortalDesire] = Field(default_factory=list)
     mortal_inventory: MortalInventory = Field(default_factory=MortalInventory)
+    assets: list[MortalAsset] = Field(default_factory=list)
     action_cooldowns: dict[str, int] = Field(default_factory=dict)
     last_action: Optional[str] = None
     pending_travel_dest: Optional[str] = None

@@ -91,10 +91,6 @@ Future work building on the resource system plan (`2026-06-07-resource-system.md
 **Environment-dependent resource decay**
 Resources in `ResourceStockpile` and `MortalInventory` should decay over time at rates that vary by environment. The model: `Resource.decay_rate` carries a base rate (already stubbed as `decay_rate: float = 0.0`); a `SignificantLocation` (world/planet) carries `resource_decay_modifiers: dict[str, float]` scaling base rates for its environment; `PopLocation` can override the parent world's modifier locally (e.g., a preserving cave vs. a hot open desert on the same planet). Decay runs as a tick phase over all stockpiles and inventories. What decays is environment-specific — organic food rots in carbon-water worlds; metals corrode in sulfuric-acid worlds like Kiddis; silicon-based foodstuffs may be stable indefinitely in the right conditions.
 
-**ResourceStockpile shared-ownership system**
-→ plan: [pop-migration-and-directives.md](plans/pop-migration-and-directives.md) (Phase 0)
-`resource_stockpile` on `PopLocation` is currently a `dict[str, float]` with no ownership semantics. The intended design is a `ResourceStockpile` object with explicit ownership: which Pops or factions hold shares, how contributions and withdrawals are tracked, and how ownership is distributed when Pops migrate or diverge.
-
 **Species-specific consumption enforcement**
 `species_can_consume()` exists in `agent_core.py` but is not wired into either the Pop or mortal passive consumption passes. A mortal or Pop currently consumes any `basis:*`-tagged resource regardless of their species' `life_basis`. Consumption passes should check `species_can_consume()` before drawing — which requires `species` to be resolvable from the consuming entity at tick time.
 

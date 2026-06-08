@@ -628,7 +628,7 @@ def _write_mortals(conn, state: SimulationState):
                 m.last_audit_tick,
                 m.travel_intent.model_dump_json() if m.travel_intent else None,
                 m.fatigue,
-                json.dumps([a.model_dump() for a in m.assets]),
+                json.dumps([]),  # assets migrated into mortal_state JSON blob
                 m.knowledge_base.model_dump_json() if m.knowledge_base else None,
                 m.mortal_state.model_dump_json() if m.mortal_state else None,
                 m.occupation.value,

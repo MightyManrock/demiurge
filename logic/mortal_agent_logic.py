@@ -424,7 +424,7 @@ def evaluate_mortal_action(
 
     # ── Cargo state ──────────────────────────────────────────────────────────
     _cargo_cap = next(
-        (a.cargo_capacity for a in mortal.assets if a.cargo_capacity is not None),
+        (a.cargo_capacity for a in cs.assets if a.cargo_capacity is not None),
         None,
     )
     _cargo_load = sum(r.quantity for r in cs.mortal_inventory.items if "sell" in r.usable_for)
@@ -632,7 +632,7 @@ def evaluate_mortal_action(
                 return
             route = kb.route_to(dest_id)
             can_travel = not (route and route.vehicle_type) or any(
-                a.asset_type == route.vehicle_type for a in mortal.assets
+                a.asset_type == route.vehicle_type for a in cs.assets
             )
             if not can_travel or _trip_too_long_for_urgent_need(cs, kb, dest_id):
                 return
@@ -676,7 +676,7 @@ def evaluate_mortal_action(
             # Only wander to reachable locations
             route = kb.route_to(dest_id)
             can_travel = not (route and route.vehicle_type) or any(
-                a.asset_type == route.vehicle_type for a in mortal.assets
+                a.asset_type == route.vehicle_type for a in cs.assets
             )
             if not can_travel:
                 continue

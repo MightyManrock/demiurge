@@ -886,7 +886,6 @@ class NotableMortal(BaseModel):
     # Faction membership — mirrors Faction.member_mortal_ids / .mortal_leader_ids
     faction_ids: list[UUID] = Field(default_factory=list)     # factions this mortal belongs to
     led_faction_ids: list[UUID] = Field(default_factory=list)  # factions this mortal leads
-    assets: list[MortalAsset] = Field(default_factory=list)
     knowledge_base: Optional[KnowledgeBase] = None
     mortal_state: Optional[MortalAgentState] = None
 
