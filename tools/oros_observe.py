@@ -75,7 +75,7 @@ def _resource_snapshot(state: SimulationState) -> str:
         if getattr(loc, "location_type", "") == "pop_location"
     }
     for lid, loc in sorted(pop_locs.items(), key=lambda kv: kv[1].name):
-        if not loc.collectible_resources and not loc.resource_stockpile:
+        if not loc.collectible_resources and not any(s.quantities for s in loc.stockpiles):
             continue
         res_parts = []
         for r in loc.collectible_resources:
@@ -83,7 +83,9 @@ def _resource_snapshot(state: SimulationState) -> str:
             bar = "█" * int(pct * 8) + "░" * (8 - int(pct * 8))
             res_parts.append(f"{r.resource_type}[{bar}]{r.current_yield:.2f}/{r.max_yield:.2f}")
         stock_parts = [
-            f"{rtype}={qty:.1f}" for rtype, qty in sorted(loc.resource_stockpile.items())
+            f"{rtype}={qty:.1f}"
+            for s in loc.stockpiles
+            for rtype, qty in sorted(s.quantities.items())
             if qty > 0.01
         ]
         lines.append(f"  {loc.name:30s}")

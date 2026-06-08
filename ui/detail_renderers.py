@@ -1531,7 +1531,8 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
     if not any_m:
         a("  [#5a7090](none in Window)[/]")
 
-    if loc.collectible_resources or loc.resource_stockpile:
+    _has_stock = any(s.quantities for s in loc.stockpiles)
+    if loc.collectible_resources or _has_stock:
         a("")
         a("[bold #4a80b0]RESOURCES[/]")
         if loc.collectible_resources:
@@ -1541,10 +1542,11 @@ def render_poploc_detail(state: "SimulationState", poploc_id: str) -> Text:
                 bar = "█" * filled + "░" * (10 - filled)
                 actions = ", ".join(cr.action_types) if cr.action_types else "any"
                 a(f"    {_e(cr.resource_type):16s} [{bar}] {cr.current_yield:.2f}/{cr.max_yield:.2f}  [#5a7090]({_e(actions)})[/]")
-        if loc.resource_stockpile:
+        if _has_stock:
             a("  [#7090b0]stockpile:[/]")
-            for resource_type, quantity in sorted(loc.resource_stockpile.items()):
-                a(f"    {_e(resource_type):16s} {quantity:.2f}")
+            for s in loc.stockpiles:
+                for resource_type, quantity in sorted(s.quantities.items()):
+                    a(f"    {_e(resource_type):16s} {quantity:.2f}")
 
     return Text.from_markup("\n".join(lines))
 

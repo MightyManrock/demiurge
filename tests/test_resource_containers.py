@@ -236,3 +236,77 @@ class TestPopLocationStockpiles:
         loc = PopLocation(name="Test", location_type="pop_location")
         loc.resource_stockpile["food_flora"] = 3.0
         assert loc.stockpiles[0].quantities["food_flora"] == 3.0
+
+
+# ── Mortal inventory ↔ stockpile transfer functions ──────────────────────────
+
+class TestMortalStockpileTransfer:
+    def _inv(self, max_slots=4, slot_capacity=10.0, **quantities):
+        from core.agent_core import MortalInventory, Resource
+        inv = MortalInventory(max_slots=max_slots, slot_capacity=slot_capacity)
+        for rt, qty in quantities.items():
+            inv.items.append(Resource(resource_type=rt, quantity=qty))
+        return inv
+
+    def _stockpile(self, **quantities):
+        from core.agent_core import ResourceStockpile
+        return ResourceStockpile(quantities=dict(quantities))
+
+    def test_mortal_draw_basic(self):
+        from core.agent_core import mortal_draw_from_stockpile
+        inv = self._inv()
+        s = self._stockpile(potable_water=8.0)
+        drawn = mortal_draw_from_stockpile(inv, s, "potable_water", 5.0)
+        assert drawn == 5.0
+        assert inv.get_resource("potable_water").quantity == 5.0
+        assert s.quantities["potable_water"] == 3.0
+
+    def test_mortal_draw_limited_by_stockpile(self):
+        from core.agent_core import mortal_draw_from_stockpile
+        inv = self._inv()
+        s = self._stockpile(potable_water=2.0)
+        drawn = mortal_draw_from_stockpile(inv, s, "potable_water", 10.0)
+        assert drawn == 2.0
+        assert s.quantities["potable_water"] == 0.0
+
+    def test_mortal_draw_limited_by_inventory_capacity(self):
+        from core.agent_core import mortal_draw_from_stockpile
+        inv = self._inv(slot_capacity=5.0, potable_water=4.0)  # 1.0 room left
+        s = self._stockpile(potable_water=10.0)
+        drawn = mortal_draw_from_stockpile(inv, s, "potable_water", 5.0)
+        assert drawn == 1.0
+        assert inv.get_resource("potable_water").quantity == 5.0
+        assert s.quantities["potable_water"] == 9.0
+
+    def test_mortal_draw_zero_when_stockpile_empty(self):
+        from core.agent_core import mortal_draw_from_stockpile
+        inv = self._inv()
+        s = self._stockpile()
+        drawn = mortal_draw_from_stockpile(inv, s, "potable_water", 5.0)
+        assert drawn == 0.0
+        assert inv.get_resource("potable_water") is None
+
+    def test_mortal_donate_basic(self):
+        from core.agent_core import mortal_donate_to_stockpile
+        inv = self._inv(potable_water=8.0)
+        s = self._stockpile(potable_water=2.0)
+        donated = mortal_donate_to_stockpile(inv, s, "potable_water", 5.0)
+        assert donated == 5.0
+        assert inv.get_resource("potable_water").quantity == 3.0
+        assert s.quantities["potable_water"] == 7.0
+
+    def test_mortal_donate_limited_by_held(self):
+        from core.agent_core import mortal_donate_to_stockpile
+        inv = self._inv(potable_water=2.0)
+        s = self._stockpile()
+        donated = mortal_donate_to_stockpile(inv, s, "potable_water", 10.0)
+        assert donated == 2.0
+        assert s.quantities["potable_water"] == 2.0
+
+    def test_mortal_donate_nothing_when_not_held(self):
+        from core.agent_core import mortal_donate_to_stockpile
+        inv = self._inv()
+        s = self._stockpile(potable_water=5.0)
+        donated = mortal_donate_to_stockpile(inv, s, "potable_water", 3.0)
+        assert donated == 0.0
+        assert s.quantities["potable_water"] == 5.0

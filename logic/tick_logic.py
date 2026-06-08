@@ -54,7 +54,7 @@ from utilities.culture_registry import (
 )
 from utilities.imago_registry import get_registry as get_imago_registry
 from core.event_core import Event, EventType, StrengthCurve
-from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent, DirectiveFact, KnowledgeBase
+from core.agent_core import ProxiusGoal, AgentActionChoice, TravelIntent, DirectiveFact, KnowledgeBase, can_access_stockpile
 from logic.mortal_agent_logic import (
     evaluate_mortal_action,
     _select_local_pop,
@@ -1233,24 +1233,32 @@ def _tick_mortal_passive_sustenance(
     food_consumed = False
     drink_consumed = False
 
-    # Source 1: entitled Pop stockpile at current location
+    # Source 1: accessible stockpiles at current location, scaled by entitlement factor
     entitled = entitlement_resolver(mortal, state)
-    if entitled and loc is not None and hasattr(loc, "resource_stockpile"):
+    if entitled and loc is not None and hasattr(loc, "stockpiles"):
         _, factor = entitled[0]
-        for resource_type, quantity in list(loc.resource_stockpile.items()):
-            if quantity <= 0:
-                continue
-            category = _RESOURCE_BIOCHEM.get(resource_type)
-            if category == "basis" and not food_consumed and nour and nour.satisfaction < 1.0:
-                consumed = min(quantity, _MORTAL_FOOD_CONSUME_RATE * factor)
-                loc.resource_stockpile[resource_type] -= consumed
-                nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL * factor)
-                food_consumed = True
-            elif category == "solvent" and not drink_consumed and hydr and hydr.satisfaction < 1.0:
-                consumed = min(quantity, _MORTAL_DRINK_CONSUME_RATE * factor)
-                loc.resource_stockpile[resource_type] -= consumed
-                hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL * factor)
-                drink_consumed = True
+        _accessible = sorted(
+            [s for s in loc.stockpiles if can_access_stockpile(mortal, s)],
+            key=lambda s: sum(s.quantities.values()),
+            reverse=True,
+        )
+        for _s in _accessible:
+            for resource_type, quantity in list(_s.quantities.items()):
+                if quantity <= 0:
+                    continue
+                category = _RESOURCE_BIOCHEM.get(resource_type)
+                if category == "basis" and not food_consumed and nour and nour.satisfaction < 1.0:
+                    consumed = min(quantity, _MORTAL_FOOD_CONSUME_RATE * factor)
+                    _s.quantities[resource_type] -= consumed
+                    nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL * factor)
+                    food_consumed = True
+                elif category == "solvent" and not drink_consumed and hydr and hydr.satisfaction < 1.0:
+                    consumed = min(quantity, _MORTAL_DRINK_CONSUME_RATE * factor)
+                    _s.quantities[resource_type] -= consumed
+                    hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL * factor)
+                    drink_consumed = True
+                if food_consumed and drink_consumed:
+                    break
             if food_consumed and drink_consumed:
                 break
 

@@ -346,6 +346,38 @@ def unload_cargo(
     return amount
 
 
+def mortal_draw_from_stockpile(
+    inventory: "MortalInventory",
+    stockpile: ResourceStockpile,
+    resource_type: str,
+    amount: float,
+) -> float:
+    """Draw up to `amount` of `resource_type` from stockpile into mortal inventory. Returns amount moved."""
+    available = stockpile.quantities.get(resource_type, 0.0)
+    amount = min(amount, available)
+    if amount <= 0.0:
+        return 0.0
+    actually_added = inventory.add_resource(resource_type, amount)
+    stockpile.quantities[resource_type] = available - actually_added
+    return actually_added
+
+
+def mortal_donate_to_stockpile(
+    inventory: "MortalInventory",
+    stockpile: ResourceStockpile,
+    resource_type: str,
+    amount: float,
+) -> float:
+    """Move up to `amount` of `resource_type` from mortal inventory into stockpile. Returns amount moved."""
+    held = inventory.get_resource(resource_type)
+    if held is None or held.quantity <= 0.0:
+        return 0.0
+    amount = min(amount, held.quantity)
+    held.quantity -= amount
+    stockpile.quantities[resource_type] = stockpile.quantities.get(resource_type, 0.0) + amount
+    return amount
+
+
 def species_can_consume(species: "Species", resource: Resource) -> bool:
     """True if the species can directly consume this resource for sustenance.
 
