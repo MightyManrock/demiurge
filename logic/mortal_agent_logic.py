@@ -496,7 +496,10 @@ def evaluate_mortal_action(
     # Need urgency map (status/purpose suspended until FactionAgent infrastructure exists)
     _SUSPENDED_NEEDS = frozenset({"status", "purpose"})
     urgency = {n.name: _need_urgency(n) for n in cs.needs if n.name not in _SUSPENDED_NEEDS}
-    _desire_u = {d.name: d.urgency() for d in cs.desires}
+    # Desire urgency map (accumulation suspended on oros-test-agent-behavior branch — meant for
+    # wealth/valuables, not survival resources; re-enable when commerce loop is active)
+    _SUSPENDED_DESIRES = frozenset({DESIRE_ACCUMULATION})
+    _desire_u = {d.name: d.urgency() for d in cs.desires if d.name not in _SUSPENDED_DESIRES}
 
     _best_sell_loc  = kb.best_known_sell_location()  if _sellable  else None
     _best_spend_loc = kb.best_known_spend_location() if _spendable else None
@@ -516,8 +519,8 @@ def evaluate_mortal_action(
     #     _sell_score *= _skill_rating(mortal, "skill:trade") if _has_skill(mortal, "skill:trade") else 0.0
     _sell_score = 0.0
 
-    # Collect: sustenance needs + purpose urgency drive it; small baseline on "might as well" roll.
-    # Accumulation desire also lifts the base score.
+    # Collect: sustenance needs drive it; small baseline on "might as well" roll.
+    # (Accumulation desire contribution suspended with _SUSPENDED_DESIRES above)
     _directive_base = MIGHT_AS_WELL_COLLECT_BASE if _might_as_well else 0.0
     _sustenance_u = max(urgency.get("nourishment", 0.0), urgency.get("hydration", 0.0))
     _collect_base = max(_sustenance_u, urgency.get("purpose", 0.0), _directive_base, _desire_u.get(DESIRE_ACCUMULATION, 0.0) * ACCUMULATION_COLLECT_WEIGHT)
