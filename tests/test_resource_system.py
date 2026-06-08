@@ -669,3 +669,74 @@ def test_supply_run_skip_until_is_mutable_per_instance():
     ps2 = PopAgentState()
     ps1.supply_run_skip_until["dir-1"] = 10
     assert ps2.supply_run_skip_until == {}
+
+
+# ── Task 2 (KB stockpile sync) ────────────────────────────────────────────────
+
+def test_resolve_pop_actions_syncs_stockpile_fact_to_kb():
+    from uuid import uuid4
+    from unittest.mock import MagicMock
+    from core.agent_core import PopAgentState, ResourceStockpile
+    from core.universe_core import PopLocation
+    from logic.pop_agent_logic import resolve_pop_actions
+
+    loc_id = uuid4()
+    pop_loc = PopLocation(id=loc_id, name="Test", location_type="city", parent_id=uuid4())
+    stockpile = ResourceStockpile(quantities={"food_flora": 7.5})
+    pop_loc.stockpiles = [stockpile]
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.faction_ids = []
+    pop.active_directives = []
+    pop.band_id = None
+    pop.size_fractional = 1.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.current_location = loc_id
+    pop.migration_travel_location_id = None
+    ps = PopAgentState()
+    pop.pop_state = ps
+
+    resolve_pop_actions(pop, pop_loc, {}, 0, factions={}, current_tick=5, colocated_pops=[pop])
+
+    sf = ps.knowledge_base.get_stockpile_fact(str(loc_id))
+    assert sf is not None
+    assert sf.quantities.get("food_flora", 0.0) == pytest.approx(7.5)
+    assert sf.learned_at_tick == 5
+
+def test_resolve_pop_actions_updates_existing_stockpile_fact():
+    from uuid import uuid4
+    from unittest.mock import MagicMock
+    from core.agent_core import PopAgentState, ResourceStockpile, StockpileFact
+    from core.universe_core import PopLocation
+    from logic.pop_agent_logic import resolve_pop_actions
+
+    loc_id = uuid4()
+    pop_loc = PopLocation(id=loc_id, name="Test", location_type="city", parent_id=uuid4())
+    stockpile = ResourceStockpile(quantities={"food_flora": 3.0})
+    pop_loc.stockpiles = [stockpile]
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.faction_ids = []
+    pop.active_directives = []
+    pop.band_id = None
+    pop.size_fractional = 1.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.current_location = loc_id
+    pop.migration_travel_location_id = None
+    ps = PopAgentState()
+    # Pre-populate a stale fact
+    ps.knowledge_base.facts.append(StockpileFact(location_id=str(loc_id), quantities={"food_flora": 99.0}, learned_at_tick=0))
+    pop.pop_state = ps
+
+    resolve_pop_actions(pop, pop_loc, {}, 0, factions={}, current_tick=10, colocated_pops=[pop])
+
+    sf = ps.knowledge_base.get_stockpile_fact(str(loc_id))
+    assert sf is not None
+    assert sf.quantities.get("food_flora", 0.0) == pytest.approx(3.0)
+    assert sf.learned_at_tick == 10
+    # Should be one fact, not two
+    assert len(ps.knowledge_base.stockpile_facts()) == 1

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from core.universe_core import Pop, PopLocation, Faction
 
 from core.agent_core import (
-    PopAgentState, PopNeed, ResourceFact, ResourceStockpile, can_access_stockpile,
+    PopAgentState, PopNeed, ResourceFact, StockpileFact, ResourceStockpile, can_access_stockpile,
     load_cargo as _load_cargo_fn, unload_cargo as _unload_cargo_fn,
 )
 
@@ -434,8 +434,21 @@ def resolve_pop_actions(
                     confidence=1.0,
                     learned_at_tick=current_tick,
                 ))
-        # Demand = log-sum of sizes of entitled co-located Pops, with noise
         _pub_d = _public_stockpile(pop_loc)
+
+        # Sync StockpileFact: snapshot the public stockpile for this location
+        _sf = ps.knowledge_base.get_stockpile_fact(_loc_id_str)
+        if _sf is not None:
+            _sf.quantities = dict(_pub_d.quantities)
+            _sf.learned_at_tick = current_tick
+        else:
+            ps.knowledge_base.facts.append(StockpileFact(
+                location_id=_loc_id_str,
+                quantities=dict(_pub_d.quantities),
+                learned_at_tick=current_tick,
+            ))
+
+        # Demand = log-sum of sizes of entitled co-located Pops, with noise
         _demand = sum(
             math.log(p.size_fractional + 1)
             for p in (colocated_pops or [])
