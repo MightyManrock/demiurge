@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS locations (
     collectible_resources TEXT    NOT NULL DEFAULT '[]',   -- JSON array of CollectibleResource
     wealth                REAL    NOT NULL DEFAULT 0.5,    -- 0.0–1.0; PopLocation prosperity indicator
     danger                REAL    NOT NULL DEFAULT 0.0,    -- 0.0–1.0; base hazard level of this location
-    resource_stockpile            TEXT NOT NULL DEFAULT '{}',
+    stockpiles                    TEXT NOT NULL DEFAULT '[]',  -- JSON array of ResourceStockpile objects
     -- Window visibility
     visibility  REAL    NOT NULL DEFAULT 0.0,   -- 0.0–1.0; how clearly Demiurge perceives this
     pinned      INTEGER NOT NULL DEFAULT 0,      -- bool; 1 = never decays (all starting locations)
@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS pops (
     active_directives             TEXT NOT NULL DEFAULT '[]',  -- JSON array of Directive objects
     asset_crew_for                TEXT DEFAULT NULL,           -- asset_type if this is a vessel crew pop
     faction_ids                   TEXT NOT NULL DEFAULT '[]',  -- JSON array of Faction UUIDs
+    band_id                       TEXT DEFAULT NULL,           -- UUID of Band; NULL if not in a band
     pop_state                     TEXT DEFAULT NULL
 );
 
@@ -329,7 +330,15 @@ CREATE TABLE IF NOT EXISTS mortals (
     assets                 TEXT NOT NULL DEFAULT '[]',   -- JSON array of MortalAsset
     knowledge_base         TEXT DEFAULT NULL,            -- JSON of KnowledgeBase, or NULL
     mortal_state         TEXT DEFAULT NULL,            -- JSON of MortalAgentState, or NULL
-    occupation             TEXT NOT NULL DEFAULT ''
+    occupation             TEXT NOT NULL DEFAULT '',
+    band_id                TEXT DEFAULT NULL            -- UUID of Band; NULL if not in a band
+);
+
+CREATE TABLE IF NOT EXISTS bands (
+    id          TEXT PRIMARY KEY,
+    label       TEXT NOT NULL DEFAULT '',
+    pop_ids     TEXT NOT NULL DEFAULT '[]',    -- JSON array of Pop UUIDs
+    mortal_ids  TEXT NOT NULL DEFAULT '[]'     -- JSON array of NotableMortal UUIDs
 );
 
 -- ─────────────────────────────────────────

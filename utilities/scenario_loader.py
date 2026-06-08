@@ -366,6 +366,7 @@ def _build_state(conn: sqlite3.Connection) -> SimulationState:
         tick_number=meta.get("tick_number", 0),
         rich_log_name=rich_log_name,
         factions=_load_factions(conn),
+        bands=_load_bands(conn),
     )
 
     # If the scenario DB didn't specify starting affiliated domains, derive them:
@@ -599,7 +600,7 @@ def _load_locations(conn, universe_age: EntityAge) -> dict[str, Location]:
                 ),
                 wealth=float(row.get("wealth", 0.5) or 0.5),
                 danger=float(row.get("danger", 0.0) or 0.0),
-                resource_stockpile=_jd(row.get("resource_stockpile", "{}")),
+                stockpiles=_load_stockpiles(row.get("stockpiles"), row.get("resource_stockpile")),
                 age=entity_age,
             )
         elif subclass == "travel_location":
@@ -828,6 +829,7 @@ def _load_pops(conn) -> dict[str, Pop]:
             active_directives=_load_directives(row.get("active_directives", "[]")),
             asset_crew_for=row.get("asset_crew_for") or None,
             faction_ids=[UUID(fid) for fid in _j(row.get("faction_ids", "[]"))],
+            band_id=_uuid(row.get("band_id")),
             pop_state=_load_pop_agent_state(row.get("pop_state")),
         )
         out[str(p.id)] = p
@@ -874,6 +876,7 @@ def _load_mortals(conn, universe_age: UniverseAge) -> dict[str, NotableMortal]:
             mortal_state=_load_mortal_state(row.get("mortal_state") or row.get("civilian_state")),
             pop_id=_uuid(row.get("pop_id")),
             pop_milieu=_uuid(row.get("pop_milieu")),
+            band_id=_uuid(row.get("band_id")),
             proxius_appointed_tick=row.get("proxius_appointed_tick"),
             herald_appointed_tick=row.get("herald_appointed_tick"),
             origin_pop_subsumed=bool(row.get("origin_pop_subsumed", 0)),
@@ -1003,6 +1006,46 @@ def _load_factions(conn) -> "dict[str, Faction]":
             pinned=bool(row.get("pinned", 0)),
         )
         result[str(f.id)] = f
+    return result
+
+
+def _load_stockpiles(raw_new: Optional[str], raw_legacy: Optional[str]) -> list:
+    """Load list of ResourceStockpile objects; falls back to old resource_stockpile dict format."""
+    from core.agent_core import ResourceStockpile
+    if raw_new:
+        try:
+            data = json.loads(raw_new)
+            if isinstance(data, list) and data:
+                return [ResourceStockpile.model_validate(s) for s in data]
+        except Exception:
+            pass
+    if raw_legacy:
+        try:
+            qs = json.loads(raw_legacy)
+            if isinstance(qs, dict) and qs:
+                return [ResourceStockpile(quantities=qs)]
+        except Exception:
+            pass
+    return []
+
+
+def _load_bands(conn) -> dict:
+    """Load Band objects; returns empty dict if table absent (old DBs)."""
+    from core.universe_core import Band
+    try:
+        rows = conn.execute("SELECT * FROM bands").fetchall()
+    except Exception:
+        return {}
+    result = {}
+    for raw in rows:
+        row = dict(raw)
+        b = Band(
+            id=UUID(row["id"]),
+            label=row.get("label", ""),
+            pop_ids=[UUID(x) for x in _j(row.get("pop_ids", "[]"))],
+            mortal_ids=[UUID(x) for x in _j(row.get("mortal_ids", "[]"))],
+        )
+        result[str(b.id)] = b
     return result
 
 

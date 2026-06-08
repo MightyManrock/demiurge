@@ -369,8 +369,8 @@ def test_mortal_inventory_get_resource_not_found():
 
 def test_mortal_inventory_add_resource_new():
     inv = MortalInventory()
-    res = inv.add_resource("food_flora", 2.0, ["basis:carbon"])
-    assert res.quantity == 2.0 and len(inv.items) == 1
+    added = inv.add_resource("food_flora", 2.0, ["basis:carbon"])
+    assert added == 2.0 and len(inv.items) == 1
 
 def test_mortal_inventory_add_resource_stacks():
     inv = MortalInventory(items=[Resource(resource_type="food_flora", quantity=1.0)])

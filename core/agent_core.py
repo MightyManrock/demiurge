@@ -250,8 +250,24 @@ class Resource(BaseModel):
     decay_rate: float = 0.0   # future: environment-dependent resource spoilage rate
 
 
+class ResourceStockpile(BaseModel):
+    """Immobile resource store attached to a location. Public when both owner fields are None."""
+    quantities: dict[str, float] = Field(default_factory=dict)
+    owner_faction_id: Optional[UUID] = None
+    owner_band_id: Optional[UUID] = None
+
+
+class CargoStockpile(BaseModel):
+    """Mobile resource store carried by a Pop or vehicle. Slot-limited."""
+    quantities: dict[str, float] = Field(default_factory=dict)
+    max_slots: int = 4
+    slot_capacity: float = 20.0
+
+
 class MortalInventory(BaseModel):
     items: list[Resource] = Field(default_factory=list)
+    max_slots: Optional[int] = None       # max distinct resource types; None = unlimited
+    slot_capacity: Optional[float] = None  # max quantity per type; None = unlimited
 
     def get_resource(self, resource_type: str) -> Optional[Resource]:
         return next((r for r in self.items if r.resource_type == resource_type), None)
@@ -261,13 +277,73 @@ class MortalInventory(BaseModel):
         resource_type: str,
         quantity: float,
         biochem_tags: Optional[list[str]] = None,
-    ) -> Resource:
+    ) -> float:
         res = self.get_resource(resource_type)
         if res is None:
+            if self.max_slots is not None and len(self.items) >= self.max_slots:
+                return 0.0
             res = Resource(resource_type=resource_type, biochem_tags=biochem_tags or [])
             self.items.append(res)
+        if self.slot_capacity is not None:
+            available = self.slot_capacity - res.quantity
+            if available <= 0.0:
+                return 0.0
+            quantity = min(quantity, available)
         res.quantity += quantity
-        return res
+        return quantity
+
+
+def can_access_stockpile(entity: object, stockpile: ResourceStockpile) -> bool:
+    """True if entity can access the stockpile (public, faction match, or band match)."""
+    if stockpile.owner_faction_id is None and stockpile.owner_band_id is None:
+        return True
+    if stockpile.owner_faction_id is not None:
+        if stockpile.owner_faction_id in getattr(entity, "faction_ids", []):
+            return True
+    if stockpile.owner_band_id is not None:
+        if stockpile.owner_band_id == getattr(entity, "band_id", None):
+            return True
+    return False
+
+
+def load_cargo(
+    cargo: CargoStockpile,
+    stockpile: ResourceStockpile,
+    resource_type: str,
+    amount: float,
+) -> float:
+    """Transfer up to `amount` of `resource_type` from stockpile into cargo. Returns amount moved."""
+    available = stockpile.quantities.get(resource_type, 0.0)
+    amount = min(amount, available)
+    if amount <= 0.0:
+        return 0.0
+    if resource_type not in cargo.quantities:
+        if len(cargo.quantities) >= cargo.max_slots:
+            return 0.0
+    current = cargo.quantities.get(resource_type, 0.0)
+    room = cargo.slot_capacity - current
+    amount = min(amount, room)
+    if amount <= 0.0:
+        return 0.0
+    cargo.quantities[resource_type] = current + amount
+    stockpile.quantities[resource_type] = available - amount
+    return amount
+
+
+def unload_cargo(
+    cargo: CargoStockpile,
+    stockpile: ResourceStockpile,
+    resource_type: str,
+    amount: float,
+) -> float:
+    """Transfer up to `amount` of `resource_type` from cargo into stockpile. Returns amount moved."""
+    in_cargo = cargo.quantities.get(resource_type, 0.0)
+    amount = min(amount, in_cargo)
+    if amount <= 0.0:
+        return 0.0
+    cargo.quantities[resource_type] = in_cargo - amount
+    stockpile.quantities[resource_type] = stockpile.quantities.get(resource_type, 0.0) + amount
+    return amount
 
 
 def species_can_consume(species: "Species", resource: Resource) -> bool:

@@ -76,6 +76,7 @@ def export_scenario(
         _write_civilizations(conn, state)
         _write_pops(conn, state)
         _write_factions(conn, state)
+        _write_bands(conn, state)
         _write_mortals(conn, state)
         _write_demiurge(conn, state)
         _write_essence(conn, state)
@@ -313,7 +314,7 @@ def _write_locations(conn, state: SimulationState):
         travel_ticks_rem = 0
         travel_occupants = "[]"
         travel_pop_ids_val = "[]"
-        resource_stockpile_val = "{}"
+        stockpiles_val = "[]"
 
         if isinstance(loc, System):
             star_type = loc.star_type.value
@@ -341,7 +342,7 @@ def _write_locations(conn, state: SimulationState):
             )
             wealth_val = loc.wealth
             danger_val = loc.danger
-            resource_stockpile_val = _j(loc.resource_stockpile)
+            stockpiles_val = json.dumps([s.model_dump(mode="json") for s in loc.stockpiles])
         elif isinstance(loc, TravelLocation):
             legs             = _j(loc.legs)
             travel_current_wp = loc.current_waypoint
@@ -368,7 +369,7 @@ def _write_locations(conn, state: SimulationState):
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids, travel_network_ids,
                 commerce_quality, collectible_resources, wealth, danger,
-                resource_stockpile,
+                stockpiles,
                 visibility, pinned, visibility_stall_remaining)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?, ?, ?,
@@ -404,7 +405,7 @@ def _write_locations(conn, state: SimulationState):
                 pop_ids, distance_from_core,
                 legs, travel_current_wp, travel_ticks_rem, travel_occupants, travel_pop_ids_val, travel_network_ids_val,
                 commerce_quality, collectible_resources_val, wealth_val, danger_val,
-                resource_stockpile_val,
+                stockpiles_val,
                 loc.visibility, int(loc.pinned), loc.visibility_stall_remaining,
             ),
         )
@@ -503,8 +504,8 @@ def _write_pops(conn, state: SimulationState):
                 visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until,
                 occupation, linked_pop_ids, active_directives, asset_crew_for,
-                faction_ids, pop_state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                faction_ids, band_id, pop_state)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -533,6 +534,7 @@ def _write_pops(conn, state: SimulationState):
                 _j([d.model_dump() for d in p.active_directives]),
                 p.asset_crew_for,
                 _j([str(fid) for fid in p.faction_ids]),
+                str(p.band_id) if p.band_id else None,
                 p.pop_state.model_dump_json() if p.pop_state else None,
             ),
         )
@@ -579,8 +581,8 @@ def _write_mortals(conn, state: SimulationState):
                 origin_pop_subsumed, last_audit_text, last_audit_tick,
                 travel_intent_json,
                 fatigue, assets, knowledge_base, mortal_state,
-                occupation, faction_ids, led_faction_ids)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                occupation, faction_ids, led_faction_ids, band_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(m.id),
                 m.name,
@@ -628,6 +630,22 @@ def _write_mortals(conn, state: SimulationState):
                 m.occupation.value,
                 _j([str(fid) for fid in m.faction_ids]),
                 _j([str(fid) for fid in m.led_faction_ids]),
+                str(m.band_id) if m.band_id else None,
+            ),
+        )
+
+
+def _write_bands(conn, state: "SimulationState") -> None:
+    bands = getattr(state, "bands", {})
+    for b in bands.values():
+        conn.execute(
+            """INSERT INTO bands (id, label, pop_ids, mortal_ids)
+               VALUES (?, ?, ?, ?)""",
+            (
+                str(b.id),
+                b.label,
+                _j([str(pid) for pid in b.pop_ids]),
+                _j([str(mid) for mid in b.mortal_ids]),
             ),
         )
 

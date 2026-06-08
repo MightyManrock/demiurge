@@ -46,7 +46,7 @@ from core.universe_core import (
     Civilization, NotableMortal, EntityAge,
     MortalRole, MortalStatus, MortalProminence, LocCondition,
     Species, SpeciesCondition,
-    Pop, SocialStratum, is_wild_civ, pop_label, Faction,
+    Pop, SocialStratum, is_wild_civ, pop_label, Faction, Band,
 )
 from utilities.domain_registry import DomainRegistry, LuminaryPersonality, get_registry as get_domain_registry
 from utilities.culture_registry import (
@@ -937,6 +937,7 @@ class SimulationState(BaseModel):
     species:          dict[str, "Species"] = Field(default_factory=dict)
     travel_networks:  dict[str, "TravelNetwork"] = Field(default_factory=dict)
     factions:         dict[str, "Faction"] = Field(default_factory=dict)
+    bands:            dict[str, "Band"] = Field(default_factory=dict)
 
     @property
     def worlds(self) -> "dict[str, SignificantLocation]":
@@ -5014,8 +5015,8 @@ class TickLoop:
                 ),
             )
 
-        # Defeat: all Luminaries hostile
-        all_hostile = all(
+        # Defeat: all Luminaries hostile (guard: no Luminaries → not applicable)
+        all_hostile = bool(state.luminaries) and all(
             lum.disposition.overall < -0.8
             for lum in state.luminaries.values()
         )

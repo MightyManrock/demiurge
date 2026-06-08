@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 from core.agent_core import (
     ProxiusGoal, TravelIntent,
     KnowledgeBase, MortalAgentState, MortalAsset, CollectibleResource,
-    PopAgentState,
+    PopAgentState, ResourceStockpile,
 )
 
 # ─────────────────────────────────────────
@@ -337,7 +337,28 @@ class PopLocation(Location):
     collectible_resources: list["CollectibleResource"] = Field(default_factory=list)
     wealth: float = Field(ge=0.0, le=1.0, default=0.5)
     danger: float = Field(ge=0.0, le=1.0, default=0.0)
-    resource_stockpile: dict[str, float] = Field(default_factory=dict)
+    stockpiles: list[ResourceStockpile] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_resource_stockpile(cls, data: object) -> object:
+        if isinstance(data, dict) and "resource_stockpile" in data:
+            qs = data.pop("resource_stockpile")
+            if isinstance(qs, dict) and qs:
+                data.setdefault("stockpiles", []).insert(0, ResourceStockpile(quantities=qs))
+        return data
+
+    def _public_stockpile(self) -> ResourceStockpile:
+        for s in self.stockpiles:
+            if s.owner_faction_id is None and s.owner_band_id is None:
+                return s
+        s = ResourceStockpile()
+        self.stockpiles.append(s)
+        return s
+
+    @property
+    def resource_stockpile(self) -> dict[str, float]:
+        return self._public_stockpile().quantities
 
 
 class TravelLocation(Location):
@@ -589,6 +610,7 @@ class Pop(BaseModel):
     # (0.0–1.0). Asymmetric: each Pop stores its own perspective.
     linked_pop_ids: dict[str, float] = Field(default_factory=dict)
     faction_ids: list[UUID] = Field(default_factory=list)
+    band_id: Optional[UUID] = None
     active_directives: list[Directive] = Field(default_factory=list)
     asset_crew_for: Optional[str] = None  # asset_type; marks this as a vessel crew pop
     pop_state: Optional["PopAgentState"] = None
@@ -606,6 +628,15 @@ class Faction(BaseModel):
     active_directives: list[Directive] = Field(default_factory=list)
     visibility: float = Field(ge=0.0, le=1.0, default=1.0)
     pinned: bool = False
+
+
+class Band(BaseModel):
+    """A tight-knit group of Pops (and their embedded mortals) that travel and share resources together.
+    Politically invisible — no diplomatic weight, not treated as a separate faction."""
+    id: UUID = Field(default_factory=uuid4)
+    label: str
+    pop_ids: list[UUID] = Field(default_factory=list)
+    mortal_ids: list[UUID] = Field(default_factory=list)
 
 
 def pop_label(pop: "Pop") -> str:
@@ -789,6 +820,7 @@ class NotableMortal(BaseModel):
     species_id: Optional[UUID] = None
     pop_id: Optional[UUID] = None   # Pop this mortal belongs to; cleared when they age out
     pop_milieu: Optional[UUID] = None  # Pop the mortal is currently embedded among; defaults to pop_id on load
+    band_id: Optional[UUID] = None
 
     # Tick at which the mortal was first elevated to each divine-appointment role.
     # Set once at appointment; never reset on dormancy/reactivation.

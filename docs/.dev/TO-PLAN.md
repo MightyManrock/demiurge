@@ -3,6 +3,31 @@
 
 ---
 
+### Pop migration, Faction Directives, and sacred-site mechanics
+→ plan: [pop-migration-and-directives.md](plans/pop-migration-and-directives.md)
+
+Full spec in the plan file. Summary of what's covered: real Pop routing using the existing TravelLocation infrastructure; band cascade migration via linked_pop_ids; mortal embedding (mortal travels with their Pop); six Faction Directive types for Pops (`hold_position`, `supply_run`, `pilgrimage`, `patrol`, `raid`, `support_garrison`); location action bonuses on `PopLocation` for sacred sites; mass ritual scaling for co-located Pops; `POP_NEED_PURPOSE` re-activation tied to directive execution. Contested mechanics (raid resistance, thrall capture, path interdiction, charity/appeal) are acknowledged but deferred to Phase 5 pending a conflict layer.
+
+---
+
+### Thrall capture
+
+When a raid succeeds against a sufficiently weakened Pop, a fraction of that Pop's population is extracted — either absorbed into the raiding Pop, added to a new subjugated Pop in the raider's Faction, or held as a distinct enslaved-stratum Pop at the raider's home location. Requires: on-demand pop-splitting (not just divergence-driven), a `subjugated_by: Optional[UUID]` relationship field on Pop, and a `captive` or `thrall` SocialStratum value. Deferred until contested raid mechanics (Phase 5 of pop-migration-and-directives.md) exist.
+
+---
+
+### Nomadic ranging patterns
+
+Beyond simple migration, nomadic bands should follow seasonal or resource-driven *circuits* — a repeating sequence of locations rather than a one-off move. Mechanically: a `patrol` directive already covers some of this, but true nomadism needs a `circuit: list[UUID]` field on Directive (ordered stops with optional dwell-ticks at each) and a `circuit_position: int` tracking current leg. The band advances to the next stop when dwell ticks expire or resources drop below a threshold. Deferred until basic Pop migration (Phase 1) and Directive infrastructure (Phase 2) are in place.
+
+---
+
+### Charity and appeal between Pops
+
+A resource-poor Pop arriving at a wealthy Pop's location should be able to appeal for a resource transfer, with success gated by faction relationship and target surplus. Distinct from raid: appeal is voluntary on the target's part, costs no `danger`, and succeeds based on `linked_pop_ids` / shared Faction membership. Failed appeal with a hostile Pop could trigger a raid instead. Requires Pop migration and stockpile ownership semantics (see resource system deferred expansions).
+
+---
+
 ### Rewrite Ledger and the Ash Luminary constraints
 
 The current NarrativeConstraints in the scenario read as domain evaluation preferences
@@ -35,6 +60,7 @@ Future work building on the resource system plan (`2026-06-07-resource-system.md
 Resources in `ResourceStockpile` and `MortalInventory` should decay over time at rates that vary by environment. The model: `Resource.decay_rate` carries a base rate (already stubbed as `decay_rate: float = 0.0`); a `SignificantLocation` (world/planet) carries `resource_decay_modifiers: dict[str, float]` scaling base rates for its environment; `PopLocation` can override the parent world's modifier locally (e.g., a preserving cave vs. a hot open desert on the same planet). Decay runs as a tick phase over all stockpiles and inventories. What decays is environment-specific — organic food rots in carbon-water worlds; metals corrode in sulfuric-acid worlds like Kiddis; silicon-based foodstuffs may be stable indefinitely in the right conditions.
 
 **ResourceStockpile shared-ownership system**
+→ plan: [pop-migration-and-directives.md](plans/pop-migration-and-directives.md) (Phase 0)
 `resource_stockpile` on `PopLocation` is currently a `dict[str, float]` with no ownership semantics. The intended design is a `ResourceStockpile` object with explicit ownership: which Pops or factions hold shares, how contributions and withdrawals are tracked, and how ownership is distributed when Pops migrate or diverge.
 
 **Species-specific consumption enforcement**
