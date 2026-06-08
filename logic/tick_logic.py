@@ -1565,6 +1565,10 @@ class TickLoop:
         pop_agent_narratives = self._tick_pop_agents(state, state.tick_number)
         result.mortal_narratives.extend(pop_agent_narratives)
 
+        # ── Phase 2.58: Pop Migration Travel ────────────
+        pop_travel_narratives = self._process_pop_travel(state)
+        result.mortal_narratives.extend(pop_travel_narratives)
+
         # ── Phase 2.6: Mortal Travel ────────────────────
         travel_decisions = self._resolve_mortal_travel_decisions(state)
         travel_arrivals  = self._process_mortal_travel(state)
@@ -5549,6 +5553,72 @@ class TickLoop:
 
         return narratives
 
+    def _process_pop_travel(self, state: "SimulationState") -> list[str]:
+        """Phase 2.58 — advance pop migration countdowns; land pops on arrival."""
+        from core.universe_core import TravelLocation, PopLocation
+        from uuid import UUID
+
+        narratives: list[str] = []
+        tls_to_check: set[str] = set()
+
+        for pop in state.pops.values():
+            if pop.migration_travel_location_id is None:
+                continue
+            tl_id = str(pop.migration_travel_location_id)
+            tl = state.locations.get(tl_id)
+            if not isinstance(tl, TravelLocation):
+                # TravelLocation gone (already arrived or cleaned up); clear stale state
+                pop.migration_ticks_remaining = 0
+                pop.migration_destination_id = None
+                pop.migration_travel_location_id = None
+                continue
+
+            if tl.skip_initial_tick:
+                tls_to_check.add(tl_id)
+                continue
+
+            pop.migration_ticks_remaining = max(0, pop.migration_ticks_remaining - 1)
+            tls_to_check.add(tl_id)
+
+        # Clear skip_initial_tick for any TravelLocation that was skipped this pass
+        for tl_id in tls_to_check:
+            tl = state.locations.get(tl_id)
+            if isinstance(tl, TravelLocation) and tl.skip_initial_tick:
+                tl.skip_initial_tick = False
+
+        # Arrive pops whose countdown hit 0
+        to_remove: list[str] = []
+        for pop in state.pops.values():
+            if pop.migration_travel_location_id is None:
+                continue
+            if pop.migration_ticks_remaining > 0:
+                continue
+
+            dest_id = pop.migration_destination_id
+            tl_id = str(pop.migration_travel_location_id)
+            tl = state.locations.get(tl_id)
+
+            if dest_id is not None:
+                pop.current_location = dest_id
+                dest_loc = state.locations.get(str(dest_id))
+                if isinstance(dest_loc, PopLocation):
+                    if pop.id not in dest_loc.pop_ids:
+                        dest_loc.pop_ids.append(pop.id)
+
+            if tl is not None and pop.id in tl.pop_ids:
+                tl.pop_ids.remove(pop.id)
+            if tl is not None and not tl.pop_ids and not tl.occupants:
+                to_remove.append(tl_id)
+
+            pop.migration_ticks_remaining = 0
+            pop.migration_destination_id = None
+            pop.migration_travel_location_id = None
+
+        for tl_id in to_remove:
+            state.locations.pop(tl_id, None)
+
+        return narratives
+
     def _tick_pop_agents(self, state: "SimulationState", current_tick: int) -> list[str]:
         """Phase 2.57 — run PopAgent logic for each Pop with pop_state."""
         from logic.pop_agent_logic import compute_pop_priorities, compute_active_slots, resolve_pop_actions
@@ -5600,7 +5670,7 @@ class TickLoop:
             # 5–6. Resolve actions + consumption
             _colocated = [p for p in _loc_pops[str(pop.current_location)] if p.id != pop.id]
             events = resolve_pop_actions(pop, pop_loc, priorities, n_slots, factions, current_tick,
-                                         colocated_pops=_colocated)
+                                         colocated_pops=_colocated, state=state)
             narratives.extend(events)
 
         return narratives

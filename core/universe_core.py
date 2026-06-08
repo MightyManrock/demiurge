@@ -615,6 +615,11 @@ class Pop(BaseModel):
     asset_crew_for: Optional[str] = None  # asset_type; marks this as a vessel crew pop
     pop_state: Optional["PopAgentState"] = None
 
+    # Migration travel state (set while pop is in transit between PopLocations)
+    migration_ticks_remaining: int = 0
+    migration_destination_id: Optional[UUID] = None
+    migration_travel_location_id: Optional[UUID] = None
+
 
 class Faction(BaseModel):
     """An institutional interest group that issues Directives to qualifying member mortals."""

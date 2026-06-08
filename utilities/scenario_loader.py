@@ -831,6 +831,9 @@ def _load_pops(conn) -> dict[str, Pop]:
             faction_ids=[UUID(fid) for fid in _j(row.get("faction_ids", "[]"))],
             band_id=_uuid(row.get("band_id")),
             pop_state=_load_pop_agent_state(row.get("pop_state")),
+            migration_ticks_remaining=int(row.get("migration_ticks_remaining") or 0),
+            migration_destination_id=_uuid(row.get("migration_destination_id")),
+            migration_travel_location_id=_uuid(row.get("migration_travel_location_id")),
         )
         out[str(p.id)] = p
     return out

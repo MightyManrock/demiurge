@@ -268,7 +268,10 @@ CREATE TABLE IF NOT EXISTS pops (
     asset_crew_for                TEXT DEFAULT NULL,           -- asset_type if this is a vessel crew pop
     faction_ids                   TEXT NOT NULL DEFAULT '[]',  -- JSON array of Faction UUIDs
     band_id                       TEXT DEFAULT NULL,           -- UUID of Band; NULL if not in a band
-    pop_state                     TEXT DEFAULT NULL
+    pop_state                     TEXT DEFAULT NULL,
+    migration_ticks_remaining     INTEGER NOT NULL DEFAULT 0,
+    migration_destination_id      TEXT DEFAULT NULL,           -- UUID of destination PopLocation
+    migration_travel_location_id  TEXT DEFAULT NULL            -- UUID of current TravelLocation
 );
 
 CREATE TABLE IF NOT EXISTS factions (

@@ -504,8 +504,9 @@ def _write_pops(conn, state: SimulationState):
                 visibility, pinned, visibility_stall_remaining,
                 preaching_imago_id, preaching_goal_cooldown_until,
                 occupation, linked_pop_ids, active_directives, asset_crew_for,
-                faction_ids, band_id, pop_state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                faction_ids, band_id, pop_state,
+                migration_ticks_remaining, migration_destination_id, migration_travel_location_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(p.id),
                 p.name,
@@ -536,6 +537,9 @@ def _write_pops(conn, state: SimulationState):
                 _j([str(fid) for fid in p.faction_ids]),
                 str(p.band_id) if p.band_id else None,
                 p.pop_state.model_dump_json() if p.pop_state else None,
+                p.migration_ticks_remaining,
+                str(p.migration_destination_id) if p.migration_destination_id else None,
+                str(p.migration_travel_location_id) if p.migration_travel_location_id else None,
             ),
         )
 

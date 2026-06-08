@@ -285,6 +285,7 @@ def resolve_pop_actions(
     factions: dict,
     current_tick: int = 0,
     colocated_pops: list | None = None,
+    state=None,
 ) -> list[str]:
     """Execute top-N priority actions; return narrative strings for notable events.
 
@@ -370,8 +371,60 @@ def resolve_pop_actions(
             pop_loc.danger = max(0.0, pop_loc.danger - output * 0.005)
 
         elif action == "migrate":
-            # Actual leg-by-leg routing is future work; provide placeholder satisfaction
-            # so wanderlust doesn't drain to zero before movement is implemented
+            _dest_id = ps.pending_migration_dest
+            if _dest_id is not None and state is not None and pop.migration_travel_location_id is None:
+                _origin_id = pop.current_location
+                from utilities.travel_routing import find_route, route_fact_cost
+                from utilities.travel_routing import get_or_create_travel_location
+                _route = find_route(state, _origin_id, _dest_id)
+                if _route and len(_route) >= 2:
+                    # Build legs dict: each waypoint → tick cost for leg starting there
+                    _legs: dict[str, int] = {}
+                    for _i, _wp in enumerate(_route):
+                        _wp_str = str(_wp)
+                        if _i < len(_route) - 1:
+                            _cost = route_fact_cost(state, _route[_i], _route[_i + 1])
+                            _legs[_wp_str] = _cost
+                        else:
+                            _legs[_wp_str] = 0  # destination marker
+                    _total_ticks = sum(v for v in _legs.values())
+                    _tl = get_or_create_travel_location(state, _legs)
+                    _tl.skip_initial_tick = True
+                    if pop.id not in _tl.pop_ids:
+                        _tl.pop_ids.append(pop.id)
+                    pop.migration_ticks_remaining = _total_ticks
+                    pop.migration_destination_id = _dest_id
+                    pop.migration_travel_location_id = _tl.id
+
+                    # Band cascade: other band members at this location join automatically
+                    _band_id = pop.band_id
+                    if _band_id is not None and state is not None:
+                        for _bp in state.pops.values():
+                            if (
+                                _bp.id != pop.id
+                                and _bp.band_id == _band_id
+                                and _bp.current_location == _origin_id
+                                and _bp.migration_travel_location_id is None
+                            ):
+                                if _bp.id not in _tl.pop_ids:
+                                    _tl.pop_ids.append(_bp.id)
+                                _bp.migration_ticks_remaining = _total_ticks
+                                _bp.migration_destination_id = _dest_id
+                                _bp.migration_travel_location_id = _tl.id
+
+                    # Mortal embedding: mortals with matching band_id and no pending travel
+                    if _band_id is not None and state is not None:
+                        for _m in state.mortals.values():
+                            if (
+                                getattr(_m, "band_id", None) == _band_id
+                                and _m.current_location == _origin_id
+                                and getattr(_m, "travel_intent", None) is None
+                            ):
+                                if _m.id not in _tl.occupants:
+                                    _tl.occupants.append(_m.id)
+                                _m.current_location = _tl.id
+
+            # Partial wanderlust satisfaction for initiating or continuing migration
             need = needs_by_name.get("wanderlust")
             if need:
                 need.satisfaction = min(1.0, need.satisfaction + output * NEED_FILL_RATE * 0.5)
