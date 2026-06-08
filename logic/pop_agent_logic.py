@@ -442,7 +442,11 @@ def resolve_pop_actions(
             if can_access_stockpile(p, _pub_d)
         ) * random.uniform(0.6, 1.4)
         _demand = max(_demand, 1e-6)
-        # Apply asymptotic dampening: ratio / (ratio + 1), where ratio = yield / demand
+        # Apply asymptotic dampening: yield × stockpile each via ratio / (ratio + 1).
+        # Yield dampening: low current yield → deprioritise gathering.
+        # Stockpile dampening: large existing stockpile → no need to gather more.
+        # Both are multiplied together so either signal independently reduces priority.
+        _stockpile_qtys = _pub_d.quantities
         for _ga in ("forage", "hunt", "collect"):
             if _ga not in priorities:
                 continue
@@ -458,8 +462,12 @@ def resolve_pop_actions(
             ]
             if _mf:
                 _avg_yield = sum(f.resource_yield for f in _mf) / len(_mf)
-                _ratio = _avg_yield / _demand
-                priorities[_ga] *= _ratio / (_ratio + 1.0)
+                _yield_ratio = _avg_yield / _demand
+                _yield_d = _yield_ratio / (_yield_ratio + 1.0)
+                _stk_qty = sum(_stockpile_qtys.get(f.resource_type, 0.0) for f in _mf) / len(_mf)
+                _stk_ratio = _stk_qty / _demand
+                _stk_d = 1.0 / (_stk_ratio + 1.0)
+                priorities[_ga] *= _yield_d * _stk_d
 
     # Supply-run travel: set pending destination and boost migrate priority
     _pops_dict: dict = getattr(state, "pops", {}) if state else {}
