@@ -43,7 +43,7 @@ class NetworkCondition(BaseModel):
     faction_ids: list[UUID]        # allowed factions (empty = no faction gate)
     civilization_ids: list[UUID]   # allowed civs (empty = no civ gate)
     asset_types: list[str]         # required asset types (empty = no asset gate)
-    pop_strata: list[SocialClass]  # allowed social classes (empty = no stratum gate)
+    pop_strata: list[SocialStratum]  # allowed strata (empty = no stratum gate)
     pop_occupations: list[str]     # allowed occupations (empty = no occupation gate)
     hard_gate: bool = False        # if True, non-qualifying mortals are blocked entirely
     resource_cost: list[ResourceCost]  # resources consumed on entry
