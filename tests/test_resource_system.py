@@ -220,7 +220,7 @@ def test_forage_depletes_current_yield():
     pop.size_fractional = 1.0
     pop.social_class = MagicMock()
     pop.social_class.value = "common"
-    pop.occupation = "forager"
+    pop.occupation = "producer"
     pop.active_directives = []
     pop.faction_ids = []
 
