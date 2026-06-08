@@ -42,6 +42,8 @@ ACTION_NEED_MAP: dict[str, str] = {
     "commune":       "cohesion",
     "revel":         "cohesion",
     "enact_rituals": "purpose",
+    "load_cargo":    "purpose",
+    "deposit_cargo": "purpose",
     "build":         "shelter",
     "fortify":       "safety",
     "migrate":       "wanderlust",
@@ -192,7 +194,7 @@ def _apply_spillover(actor, colocated_pops: list, need_name: str, gain: float, f
             nb_need.satisfaction = min(1.0, nb_need.satisfaction + gain * factor)
 
 
-def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
+def _collect_directive_modifiers(pop, factions: dict, pops: dict | None = None) -> dict[str, float]:
     mods: dict[str, float] = {}
     directives = list(pop.active_directives)
     for fid in pop.faction_ids:
@@ -214,6 +216,12 @@ def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
             if loc_ids and str(pop.current_location) in loc_ids:
                 mods["fortify"] = mods.get("fortify", 0.0) + _PATROL_FORTIFY_BOOST
                 mods["hunt"]    = mods.get("hunt",    0.0) + _PATROL_HUNT_BOOST
+        elif d.directive_type == "supply_run":
+            phase = _supply_run_phase(pop, d, pops or {})
+            if phase == "load":
+                mods["load_cargo"]    = mods.get("load_cargo",    0.0) + _SUPPLY_RUN_CARGO_BOOST
+            elif phase == "deposit":
+                mods["deposit_cargo"] = mods.get("deposit_cargo", 0.0) + _SUPPLY_RUN_CARGO_BOOST
     return mods
 
 
@@ -236,9 +244,38 @@ _MIGHT_AS_WELL_FORAGE  = 0.05
 _MIGHT_AS_WELL_COLLECT = 0.03
 _PATROL_FORTIFY_BOOST  = 0.30
 _PATROL_HUNT_BOOST     = 0.20
+_SUPPLY_RUN_CARGO_BOOST = 0.40
 
 
-def directive_purpose_increment(directive, actor_location_id) -> float:
+def _supply_run_phase(pop, directive, pops: dict):
+    """Return the current phase of a supply_run directive for this pop.
+
+    Phases: "load", "travel_to_dest", "deposit", "travel_home", or None if the
+    destination pop cannot be resolved this tick.
+    """
+    from uuid import UUID
+
+    target_pop = pops.get(str(directive.target_pop_id)) if directive.target_pop_id else None
+    if target_pop is None:
+        return None
+    dest_loc = target_pop.current_location
+    if dest_loc is None:
+        return None
+
+    def _same(a, b) -> bool:
+        return a is not None and b is not None and UUID(str(a)) == UUID(str(b))
+
+    resource_type = directive.cargo_resource_type or ""
+    has_cargo = (pop.pop_state.cargo.quantities.get(resource_type, 0.0) > 0.0)
+
+    if _same(pop.current_location, directive.target_location_id):
+        return "travel_to_dest" if has_cargo else "load"
+    if _same(pop.current_location, dest_loc):
+        return "deposit" if has_cargo else "travel_home"
+    return "travel_to_dest" if has_cargo else "travel_home"
+
+
+def directive_purpose_increment(directive, actor_location_id, *, pop=None, pops=None) -> float:
     """Return the purpose satisfaction increment earned by executing a directive this tick.
 
     Each directive_type defines its own completion condition.  Types not yet
@@ -260,6 +297,11 @@ def directive_purpose_increment(directive, actor_location_id) -> float:
         loc_ids = {str(lid) for lid in directive.territory_location_ids}
         if loc_ids and str(actor_location_id) in loc_ids:
             return 0.20
+        return 0.0
+
+    if directive.directive_type == "supply_run":
+        if pop is not None and _supply_run_phase(pop, directive, pops or {}) == "deposit":
+            return 0.30
         return 0.0
 
     # Other types not yet implemented

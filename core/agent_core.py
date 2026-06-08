@@ -194,12 +194,20 @@ class PopNeed(BaseModel):
         return self.satisfaction < self.urgent_threshold
 
 
+class CargoStockpile(BaseModel):
+    """Mobile resource store carried by a Pop. Slot-limited."""
+    quantities: dict[str, float] = Field(default_factory=dict)
+    max_slots: int = 4
+    slot_capacity: float = 20.0
+
+
 class PopAgentState(BaseModel):
     needs: list[PopNeed] = Field(default_factory=list)
     action_priorities: dict[str, float] = Field(default_factory=dict)
     fatigue: float = Field(ge=0.0, le=1.0, default=0.0)
     pending_migration_dest: Optional[UUID] = None
     migration_ticks_remaining: int = 0
+    cargo: CargoStockpile = Field(default_factory=CargoStockpile)
 
     def get_need(self, name: str) -> Optional[PopNeed]:
         return next((n for n in self.needs if n.name == name), None)
@@ -256,12 +264,6 @@ class ResourceStockpile(BaseModel):
     owner_faction_id: Optional[UUID] = None
     owner_band_id: Optional[UUID] = None
 
-
-class CargoStockpile(BaseModel):
-    """Mobile resource store carried by a Pop or vehicle. Slot-limited."""
-    quantities: dict[str, float] = Field(default_factory=dict)
-    max_slots: int = 4
-    slot_capacity: float = 20.0
 
 
 class MortalInventory(BaseModel):

@@ -429,3 +429,108 @@ def test_initialize_mortal_state_with_directives_includes_purpose_and_status():
     names = [n.name for n in state.needs]
     assert "purpose" in names
     assert "status" in names
+
+
+# ── Group 11: supply_run directive ────────────────────────────────────────────
+
+def _make_supply_run_directive(src_id, dst_pop_id):
+    return Directive(
+        directive_type="supply_run",
+        target_location_id=src_id,
+        target_pop_id=dst_pop_id,
+        cargo_resource_type="food:grain",
+        cargo_quantity=10,
+    )
+
+
+def test_supply_run_phase_load_at_source_empty_cargo():
+    from logic.pop_agent_logic import _supply_run_phase
+    from core.agent_core import PopAgentState
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    d = _make_supply_run_directive(src_id, dst_pop_id)
+    pop = MagicMock()
+    pop.current_location = src_id
+    pop.pop_state = PopAgentState()
+    dest_pop = MagicMock(); dest_pop.current_location = uuid4()
+    assert _supply_run_phase(pop, d, {str(dst_pop_id): dest_pop}) == "load"
+
+
+def test_supply_run_phase_travel_to_dest_at_source_with_cargo():
+    from logic.pop_agent_logic import _supply_run_phase
+    from core.agent_core import PopAgentState
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    d = _make_supply_run_directive(src_id, dst_pop_id)
+    pop = MagicMock()
+    pop.current_location = src_id
+    state = PopAgentState()
+    state.cargo.quantities["food:grain"] = 10.0
+    pop.pop_state = state
+    dest_pop = MagicMock(); dest_pop.current_location = uuid4()
+    assert _supply_run_phase(pop, d, {str(dst_pop_id): dest_pop}) == "travel_to_dest"
+
+
+def test_supply_run_phase_deposit_at_dest_with_cargo():
+    from logic.pop_agent_logic import _supply_run_phase
+    from core.agent_core import PopAgentState
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    dst_loc_id = uuid4()
+    d = _make_supply_run_directive(src_id, dst_pop_id)
+    pop = MagicMock()
+    pop.current_location = dst_loc_id
+    state = PopAgentState()
+    state.cargo.quantities["food:grain"] = 10.0
+    pop.pop_state = state
+    dest_pop = MagicMock(); dest_pop.current_location = dst_loc_id
+    assert _supply_run_phase(pop, d, {str(dst_pop_id): dest_pop}) == "deposit"
+
+
+def test_supply_run_phase_travel_home_elsewhere_empty_cargo():
+    from logic.pop_agent_logic import _supply_run_phase
+    from core.agent_core import PopAgentState
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    d = _make_supply_run_directive(src_id, dst_pop_id)
+    pop = MagicMock()
+    pop.current_location = uuid4()  # neither source nor dest
+    pop.pop_state = PopAgentState()
+    dest_pop = MagicMock(); dest_pop.current_location = uuid4()
+    assert _supply_run_phase(pop, d, {str(dst_pop_id): dest_pop}) == "travel_home"
+
+
+def test_supply_run_load_cargo_modifier_boosted_at_source():
+    from logic.pop_agent_logic import _collect_directive_modifiers
+    from core.agent_core import PopAgentState
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    d = _make_supply_run_directive(src_id, dst_pop_id)
+    faction = MagicMock(); faction.active_directives = [d]
+    faction_id = uuid4()
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = []
+    pop.faction_ids = [faction_id]
+    pop.current_location = src_id
+    pop.pop_state = PopAgentState()  # empty cargo → load phase
+    dest_pop = MagicMock(); dest_pop.current_location = uuid4()
+    mods = _collect_directive_modifiers(pop, {str(faction_id): faction}, pops={str(dst_pop_id): dest_pop})
+    assert mods.get("load_cargo", 0.0) > 0.0
+
+
+def test_supply_run_purpose_increment_on_deposit():
+    from logic.pop_agent_logic import directive_purpose_increment
+    from core.agent_core import PopAgentState
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    dst_loc_id = uuid4()
+    d = _make_supply_run_directive(src_id, dst_pop_id)
+    state = PopAgentState()
+    state.cargo.quantities["food:grain"] = 10.0
+    pop = MagicMock()
+    pop.current_location = dst_loc_id
+    pop.pop_state = state
+    dest_pop = MagicMock(); dest_pop.current_location = dst_loc_id
+    inc = directive_purpose_increment(d, actor_location_id=dst_loc_id, pop=pop, pops={str(dst_pop_id): dest_pop})
+    assert inc > 0.0
