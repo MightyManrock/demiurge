@@ -534,3 +534,180 @@ def test_supply_run_purpose_increment_on_deposit():
     dest_pop = MagicMock(); dest_pop.current_location = dst_loc_id
     inc = directive_purpose_increment(d, actor_location_id=dst_loc_id, pop=pop, pops={str(dst_pop_id): dest_pop})
     assert inc > 0.0
+
+
+# ── Group 12: supply_run skip logic ──────────────────────────────────────────
+
+def _make_supply_run_directive_with_interval(src_id, dst_pop_id, interval_ticks=0):
+    return Directive(
+        directive_type="supply_run",
+        target_location_id=src_id,
+        target_pop_id=dst_pop_id,
+        cargo_resource_type="food_flora",
+        cargo_quantity=5,
+        interval_ticks=interval_ticks,
+    )
+
+
+def test_supply_run_skip_prevents_travel_home_dest():
+    """Carrier mid-journey home with active skip does not get pending_migration_dest set.
+
+    Without skip: travel_home phase sets pending_migration_dest = src_id.
+    With skip active: supply_run loop is bypassed, so pending_migration_dest stays None.
+    """
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, ResourceStockpile
+    from core.universe_core import PopLocation
+
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    d = _make_supply_run_directive_with_interval(src_id, dst_pop_id)
+
+    arbitrary_loc_id = uuid4()
+    pop_loc = PopLocation(id=arbitrary_loc_id, name="Nowhere", location_type="city")
+
+    dest_pop = MagicMock()
+    dest_pop.current_location = uuid4()
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = [d]
+    pop.faction_ids = []
+    pop.band_id = None
+    pop.size_fractional = 1.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.current_location = arbitrary_loc_id
+    pop.migration_travel_location_id = None
+    ps = PopAgentState()
+    # No cargo — would be "travel_home" phase, but skip is active
+    ps.supply_run_skip_until[str(d.id)] = 999
+    pop.pop_state = ps
+
+    state = MagicMock()
+    state.pops = {str(dst_pop_id): dest_pop}
+
+    resolve_pop_actions(
+        pop, pop_loc=pop_loc, priorities={}, n_slots=3,
+        factions={}, current_tick=5,
+        colocated_pops=[pop], state=state,
+    )
+    # Skip was active: pending_migration_dest must NOT have been set by supply_run
+    assert ps.pending_migration_dest is None
+
+
+def test_supply_run_deposit_sets_skip_when_stockpile_adequate():
+    """After depositing into a well-stocked destination, carrier sets skip_until.
+
+    random.uniform is patched to 1.0 for determinism.
+    Pre-stocked stockpile: 50 units; carrier delivers 5 → post-deposit = 55.
+    1 small co-located Pop (demand = log(2) ≈ 0.69). Ratio ≈ 79 >> 1.0 → skip set.
+    skip_until = current_tick + interval_ticks = 10 + 8 = 18.
+    """
+    from unittest.mock import patch
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, ResourceStockpile
+    from core.universe_core import PopLocation
+
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    dst_loc_id = uuid4()
+    d = _make_supply_run_directive_with_interval(src_id, dst_pop_id, interval_ticks=8)
+
+    pop_loc = PopLocation(id=dst_loc_id, name="Dest", location_type="city")
+    # Pre-stock public stockpile with 50 units so post-deposit becomes 55
+    pop_loc._public_stockpile().quantities["food_flora"] = 50.0
+
+    dest_pop = MagicMock()
+    dest_pop.current_location = dst_loc_id
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = [d]
+    pop.faction_ids = []
+    pop.band_id = None
+    pop.size_fractional = 2.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.current_location = dst_loc_id
+    pop.migration_travel_location_id = None
+    ps = PopAgentState()
+    ps.cargo.quantities["food_flora"] = 5.0
+    pop.pop_state = ps
+
+    state = MagicMock()
+    state.pops = {str(dst_pop_id): dest_pop}
+
+    colocated = MagicMock()
+    colocated.id = dst_pop_id
+    colocated.size_fractional = 1.0
+    colocated.faction_ids = []
+    colocated.band_id = None
+
+    with patch("logic.pop_agent_logic.random.uniform", return_value=1.0):
+        resolve_pop_actions(
+            pop, pop_loc=pop_loc, priorities={}, n_slots=3,
+            factions={}, current_tick=10,
+            colocated_pops=[pop, colocated], state=state,
+        )
+    # skip_until = current_tick + interval_ticks = 10 + 8 = 18
+    assert ps.supply_run_skip_until.get(str(d.id), 0) == 18
+
+
+def test_supply_run_deposit_no_skip_when_demand_exceeds_stockpile():
+    """After depositing a small amount into a high-demand destination, no skip is set.
+
+    random.uniform is patched to 1.0 for determinism.
+    5 large co-located Pops (demand = 5 * log(6) ≈ 8.97).
+    Carrier delivers 5 units into empty stockpile → post-deposit = 5 units.
+    Ratio = 5 / 8.97 ≈ 0.56 < 1.0 → no skip.
+    """
+    from unittest.mock import patch
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, ResourceStockpile
+    from core.universe_core import PopLocation
+
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    dst_loc_id = uuid4()
+    d = _make_supply_run_directive_with_interval(src_id, dst_pop_id, interval_ticks=8)
+
+    pop_loc = PopLocation(id=dst_loc_id, name="Dest", location_type="city")
+
+    dest_pop = MagicMock()
+    dest_pop.current_location = dst_loc_id
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = [d]
+    pop.faction_ids = []
+    pop.band_id = None
+    pop.size_fractional = 2.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.current_location = dst_loc_id
+    pop.migration_travel_location_id = None
+    ps = PopAgentState()
+    ps.cargo.quantities["food_flora"] = 5.0
+    pop.pop_state = ps
+
+    state = MagicMock()
+    state.pops = {str(dst_pop_id): dest_pop}
+
+    # 5 large co-located Pops (size=5.0 each), all different from carrier
+    colocated_pops = [pop]
+    for _ in range(5):
+        cp = MagicMock()
+        cp.id = uuid4()
+        cp.size_fractional = 5.0
+        cp.faction_ids = []
+        cp.band_id = None
+        colocated_pops.append(cp)
+
+    with patch("logic.pop_agent_logic.random.uniform", return_value=1.0):
+        resolve_pop_actions(
+            pop, pop_loc=pop_loc, priorities={}, n_slots=3,
+            factions={}, current_tick=10,
+            colocated_pops=colocated_pops, state=state,
+        )
+    assert ps.supply_run_skip_until.get(str(d.id), 0) == 0

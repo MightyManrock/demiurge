@@ -494,6 +494,8 @@ def resolve_pop_actions(
         if _f_sr:
             _sr_directives.extend(d for d in _f_sr.active_directives if d.directive_type == "supply_run" and _sr_scoped(d))
     for _sd in _sr_directives:
+        if current_tick < ps.supply_run_skip_until.get(str(_sd.id), 0):
+            continue  # skip active: carrier acts on normal need priorities this tick
         _sr_phase = _supply_run_phase(pop, _sd, _pops_dict)
         if _sr_phase == "travel_to_dest":
             _dest_pop_sr = _pops_dict.get(str(_sd.target_pop_id))
@@ -606,6 +608,19 @@ def resolve_pop_actions(
                         _manifest = {_sd.cargo_resource_type: float(_sd.cargo_quantity)}
                     for _rt, _qty in _manifest.items():
                         _unload_cargo_fn(ps.cargo, _pub, _rt, _qty)
+                    # At-deposit check: if destination is well-stocked relative to demand,
+                    # delay the next run by interval_ticks (default 5).
+                    _post_qtys = _pub.quantities
+                    _total_stocked = sum(_post_qtys.get(_rt, 0.0) for _rt in _manifest)
+                    _dest_demand = sum(
+                        math.log(p.size_fractional + 1)
+                        for p in (colocated_pops or [])
+                        if can_access_stockpile(p, _pub) and p.id != pop.id
+                    ) * random.uniform(0.6, 1.4)
+                    _dest_demand = max(_dest_demand, 1e-6)
+                    if _total_stocked / _dest_demand >= 1.0:
+                        _delay = _sd.interval_ticks if _sd.interval_ticks > 0 else 5
+                        ps.supply_run_skip_until[str(_sd.id)] = current_tick + _delay
                     break
 
         elif action == "migrate":
