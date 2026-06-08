@@ -1,4 +1,4 @@
-> status: active | last updated: 2026-06-07
+> status: active | last updated: 2026-06-08
 
 # Pop Migration and Faction Directives
 
@@ -166,6 +166,8 @@ When a Pop begins migration, any mortal whose `band_id` matches the Pop's band (
 
 ## Phase 2: Faction Directive Types for Pops
 
+**Status:** `hold_position` and `supply_run` complete and playtested (2026-06-08). `patrol` implemented but not yet playtested end-to-end. `pilgrimage`, `raid`, `support_garrison` deferred.
+
 **Goal:** A Faction can issue typed directives to Pops it owns. Each directive type drives a specific behavior pattern that overrides the Pop's default welfare-maximizing logic.
 
 ### Data model changes
@@ -180,6 +182,8 @@ When a Pop begins migration, any mortal whose `band_id` matches the Pop's band (
 
 `Pop` gains:
 - `cargo: Optional[CargoStockpile] = None` — active only while executing a `supply_run` or `raid` directive; created on directive assignment, cleared on completion
+
+**Implementation note:** cargo was placed on `PopAgentState` (not directly on `Pop`), mirroring how `MortalInventory` lives on `MortalAgentState`. Serialized as part of the `pop_state` JSON blob. Lifecycle is always-present with empty `quantities` rather than `Optional`.
 
 ### Directive types
 
