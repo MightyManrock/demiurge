@@ -348,6 +348,7 @@ class TravelLocation(Location):
     # Last entry always has value 0 — that key IS the destination.
     current_waypoint: str = ""   # UUID str of the leg currently in progress
     ticks_remaining: int = 0
+    skip_initial_tick: bool = False  # True when created mid-tick; cleared on first _process_mortal_travel pass
     occupants: list[UUID] = Field(default_factory=list)
     pop_ids: list[UUID] = Field(default_factory=list)
 

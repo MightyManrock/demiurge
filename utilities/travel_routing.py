@@ -444,6 +444,7 @@ def get_or_create_travel_location(state, legs: dict[str, int]):
         legs=legs,
         current_waypoint=first_wp,
         ticks_remaining=legs[first_wp],
+        skip_initial_tick=True,
         age=EntityAge(
             billions=u.billions, millions=u.millions, thousands=u.thousands,
             years=u.years, month=u.month, day=u.day,

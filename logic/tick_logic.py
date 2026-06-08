@@ -5422,6 +5422,10 @@ class TickLoop:
             if not isinstance(loc, TravelLocation):
                 continue
 
+            if loc.skip_initial_tick:
+                loc.skip_initial_tick = False
+                continue
+
             loc.ticks_remaining -= 1
             if loc.ticks_remaining > 0:
                 # Still crossing this leg — move occupants into the TravelLocation
