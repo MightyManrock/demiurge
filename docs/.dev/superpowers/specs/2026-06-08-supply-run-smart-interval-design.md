@@ -112,9 +112,11 @@ When `_supply_run_phase` would return `"load"` (carrier is at home, about to sta
 1. Resolve destination location from `directive.target_pop_id`.
 2. Look up `ps.knowledge_base.get_stockpile_fact(str(dest_loc_id))`.
 3. If **absent**: carrier has never visited — proceed unconditionally.
-4. If **present**: apply same demand check using stale `quantities`. If well-stocked → set skip.
+4. If **present**: compare stale `quantities` against `cargo_manifest`. If the stockpile holds at least one full manifest-worth of every resource (`quantities.get(rt, 0.0) >= manifest_qty * noise` for all `rt` in manifest, where `noise = random.uniform(0.6, 1.4)`) → set skip.
 
-Staleness is intentional and realistic. Noise absorbs uncertainty from stale data. If the skip proves wrong (destination ran dry), the carrier will re-assess on the next deposit and shorten or clear the skip.
+The threshold here is deliberately simpler than the at-deposit check: "they still have at least as much as I was planning to bring, so the trip isn't needed yet." No demand calculation is attempted pre-travel because the carrier is at home and does not have current knowledge of who is co-located at the destination.
+
+Staleness is intentional and realistic. If the skip proves wrong (destination ran dry), the carrier will re-assess on the next deposit and shorten or clear the skip.
 
 ### Skip enforcement
 
