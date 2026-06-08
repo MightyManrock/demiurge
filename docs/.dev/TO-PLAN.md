@@ -70,6 +70,12 @@ Rename the `SocialClass` enum and all references (`Pop.social_class`, loader, ex
 **3. Occupation-based action return bonuses**
 Currently, action output modifiers (forage/hunt/collect yield, etc.) are keyed on social stratum. Shift the primary modifier to occupation: a farmer gets a larger forage bonus than a warrior, a scholar gets a knowledge-action bonus, etc. Stratum modifiers remain but are smaller and more generic — the two stack, with occupation providing the specific signal and stratum providing a mild background modifier. Requires auditing every place `social_class` is used to compute output or priority and replacing or supplementing with an occupation lookup table.
 
+**4. Occupation-based baseline priority weights**
+When all Pop needs are satisfied, `compute_pop_priorities` falls back to a uniform distribution across all non-stub actions (~11% each). Add a per-occupation baseline weight table applied as a small additive offset in Pass 1 — before competency scaling and normalization — so the fallback reflects the Pop's role instead of equal noise. Example groupings: `producer → {forage, hunt}`, `warrior → {fortify, revel}`, `laborer → {build, collect}`, `priest → {ritual}`. This is a prerequisite companion to the occupation-based action return bonuses in item 3, and the two should land in the same plan.
+
+**5. Continuous urgency gradient in `_pop_need_urgency`**
+Currently hard-zeros when `satisfaction >= pressing_threshold`. Add a background signal — proportional to `decay_rate × (1.0 − satisfaction) / (1.0 − pressing_threshold)` — so Pops begin shifting priorities toward a need before it becomes pressing, reflecting that they can tell they're running low. The full urgency formula activates unchanged once satisfaction drops below `pressing_threshold`. Combines naturally with item 4: baseline weights set routine behavior when healthy; the gradient provides early warning; urgency overwhelms when pressing.
+
 **Prerequisite:** Occupation enum must be defined and migration complete before the bonus redesign can land cleanly.
 
 ---
