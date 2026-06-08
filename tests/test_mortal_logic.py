@@ -134,7 +134,7 @@ def test_spend_skipped_when_target_need_not_pressing():
     )
     kb = KnowledgeBase(facts=[
         LocationQualityFact(location_id=spend_loc_id, quality=0.9, quality_type="spend"),
-        ResourceFact(location_id=resource_loc_id),
+        ResourceFact(location_id=resource_loc_id, resource_type="food_flora"),
         RouteFact(from_id=spend_loc_id, to_id=resource_loc_id, ticks_cost=2),
     ])
     result = evaluate_mortal_action(

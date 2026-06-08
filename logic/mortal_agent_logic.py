@@ -54,6 +54,20 @@ EXPLORATION_NOVELTY_THRESHOLD = 0.50  # novelty above this grants Exploration sa
 MIGHT_AS_WELL_BASE_PROB   = 0.15
 MIGHT_AS_WELL_COLLECT_BASE = 0.15   # collect-score baseline injected on a successful roll
 
+# Maps pressing need names → resource types that satisfy them.
+# Used to filter travel candidates to only locations that address the actual need.
+_NEED_RESOURCE_TYPES: dict[str, frozenset[str]] = {
+    "nourishment": frozenset({
+        "food_flora", "food_fauna",
+        "silicate_flora", "silicate_fauna",
+        "methane_flora", "methane_fauna",
+    }),
+    "hydration": frozenset({
+        "potable_water", "potable_sulfuric_acid",
+        "potable_ammonia", "potable_methane_liq",
+    }),
+}
+
 _MIGHT_AS_WELL_CULTURE_MODS: dict[str, float] = {
     "values:tenacity":   +0.15,
     "values:prowess":    +0.15,
@@ -633,7 +647,13 @@ def evaluate_mortal_action(
         if _best_sell_loc:
             _try_travel(_best_sell_loc, _sell_score)
         if not _hold_full:
-            for res_loc in kb.known_resource_locations():
+            _needed_res: set[str] = set()
+            for _need_name, _u in urgency.items():
+                if _u > 0 and _need_name in _NEED_RESOURCE_TYPES:
+                    _needed_res.update(_NEED_RESOURCE_TYPES[_need_name])
+            _res_locs = (kb.known_resource_locations_for(_needed_res)
+                         if _needed_res else kb.known_resource_locations())
+            for res_loc in _res_locs:
                 _try_travel(res_loc, _collect_score)
         if _best_spend_loc:
             _try_travel(_best_spend_loc, _spend_score)

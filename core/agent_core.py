@@ -97,13 +97,33 @@ class KnowledgeBase(BaseModel):
         return max(quality_facts, key=lambda f: f.quality * f.confidence).location_id
 
     def known_resource_locations(self) -> list[str]:
-        return [f.location_id for f in self.facts if f.fact_type == "resource"]
+        seen: set[str] = set()
+        result: list[str] = []
+        for f in self.facts:
+            if f.fact_type == "resource" and f.location_id not in seen:
+                seen.add(f.location_id)
+                result.append(f.location_id)
+        return result
+
+    def known_resource_locations_for(self, resource_types: set[str]) -> list[str]:
+        """Unique location IDs that have at least one ResourceFact matching resource_types."""
+        if not resource_types:
+            return []
+        seen: set[str] = set()
+        result: list[str] = []
+        for f in self.facts:
+            if f.fact_type == "resource" and f.resource_type in resource_types and f.location_id not in seen:
+                seen.add(f.location_id)
+                result.append(f.location_id)
+        return result
 
     def route_to(self, to_id: str) -> Optional[RouteFact]:
+        best: Optional[RouteFact] = None
         for f in self.facts:
             if f.fact_type == "route" and f.to_id == to_id:
-                return f
-        return None
+                if best is None or f.ticks_cost < best.ticks_cost:
+                    best = f
+        return best
 
     def route_ticks_to(self, to_id: str) -> int:
         fact = self.route_to(to_id)
