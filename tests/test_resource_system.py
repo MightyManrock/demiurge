@@ -2,7 +2,7 @@ import json
 import pytest
 from uuid import uuid4
 from unittest.mock import MagicMock
-from core.agent_core import CollectibleResource, Resource, PopAgentState, PopNeed, MortalInventory, MortalAgentState, MortalNeed
+from core.agent_core import CollectibleResource, Resource, PopAgentState, PopNeed, MortalInventory, MortalAgentState, MortalNeed, StockpileFact, KnowledgeBase
 from core.universe_core import PopLocation, Pop
 from logic.pop_agent_logic import resolve_pop_actions, ACTION_NEED_MAP
 from utilities.scenario_loader import _load_collectible_resources
@@ -625,3 +625,47 @@ def test_mortal_hunt_fires_when_nourishment_pressing_and_hunt_resource():
 
     action = evaluate_mortal_action(mortal, state, 1)
     assert action == "hunt"
+
+
+# ── StockpileFact ─────────────────────────────────────────────────────────────
+
+def test_stockpile_fact_fact_type():
+    sf = StockpileFact(location_id="loc-1", quantities={"food_flora": 5.0})
+    assert sf.fact_type == "stockpile"
+
+def test_stockpile_fact_stores_quantities():
+    sf = StockpileFact(location_id="loc-1", quantities={"food_flora": 5.0, "potable_water": 3.0})
+    assert sf.quantities["food_flora"] == 5.0
+    assert sf.quantities["potable_water"] == 3.0
+
+def test_stockpile_fact_defaults():
+    sf = StockpileFact(location_id="loc-1", quantities={})
+    assert sf.confidence == 1.0
+    assert sf.learned_at_tick == 0
+
+def test_kb_get_stockpile_fact_found():
+    kb = KnowledgeBase()
+    sf = StockpileFact(location_id="loc-1", quantities={"food_flora": 5.0})
+    kb.facts.append(sf)
+    assert kb.get_stockpile_fact("loc-1") is sf
+
+def test_kb_get_stockpile_fact_absent():
+    kb = KnowledgeBase()
+    assert kb.get_stockpile_fact("loc-1") is None
+
+def test_kb_stockpile_facts_returns_all():
+    kb = KnowledgeBase()
+    sf1 = StockpileFact(location_id="loc-1", quantities={})
+    sf2 = StockpileFact(location_id="loc-2", quantities={})
+    kb.facts.extend([sf1, sf2])
+    assert set(id(f) for f in kb.stockpile_facts()) == {id(sf1), id(sf2)}
+
+def test_pop_agent_state_has_supply_run_skip_until():
+    ps = PopAgentState()
+    assert ps.supply_run_skip_until == {}
+
+def test_supply_run_skip_until_is_mutable_per_instance():
+    ps1 = PopAgentState()
+    ps2 = PopAgentState()
+    ps1.supply_run_skip_until["dir-1"] = 10
+    assert ps2.supply_run_skip_until == {}

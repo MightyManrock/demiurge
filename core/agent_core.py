@@ -79,8 +79,16 @@ class MortalFact(BaseModel):
     learned_at_tick: int = 0
 
 
+class StockpileFact(BaseModel):
+    fact_type: Literal["stockpile"] = "stockpile"
+    location_id: str
+    quantities: dict[str, float] = Field(default_factory=dict)
+    confidence: float = 1.0
+    learned_at_tick: int = 0
+
+
 KnowledgeFact = Annotated[
-    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact | PopFact | MortalFact,
+    LocationFact | ResourceFact | RouteFact | LocationQualityFact | DirectiveFact | PopFact | MortalFact | StockpileFact,
     Field(discriminator="fact_type"),
 ]
 
@@ -154,6 +162,15 @@ class KnowledgeBase(BaseModel):
     def get_mortal_fact(self, mortal_id: str) -> Optional[MortalFact]:
         return next((f for f in self.facts if f.fact_type == "mortal" and f.mortal_id == mortal_id), None)
 
+    def stockpile_facts(self) -> list[StockpileFact]:
+        return [f for f in self.facts if f.fact_type == "stockpile"]
+
+    def get_stockpile_fact(self, location_id: str) -> Optional[StockpileFact]:
+        return next(
+            (f for f in self.facts if f.fact_type == "stockpile" and f.location_id == location_id),
+            None,
+        )
+
 
 # ---------------------------------------------------------------------------
 # Needs
@@ -225,6 +242,7 @@ class PopAgentState(BaseModel):
     migration_ticks_remaining: int = 0
     cargo: CargoStockpile = Field(default_factory=CargoStockpile)
     knowledge_base: KnowledgeBase = Field(default_factory=KnowledgeBase)
+    supply_run_skip_until: dict[str, int] = Field(default_factory=dict)
 
     def get_need(self, name: str) -> Optional[PopNeed]:
         return next((n for n in self.needs if n.name == name), None)
