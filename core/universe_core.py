@@ -530,6 +530,8 @@ class Directive(BaseModel):
     # Pop-scoped targeting
     target_pop_id: Optional[UUID] = None
     territory_pop_ids: list[UUID] = Field(default_factory=list)
+    # Location-scoped targeting (patrol stops, etc.)
+    territory_location_ids: list[UUID] = Field(default_factory=list)
 
 
 class Pop(BaseModel):

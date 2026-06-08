@@ -209,6 +209,11 @@ def _collect_directive_modifiers(pop, factions: dict) -> dict[str, float]:
         if d.directive_type == "hold_position":
             # Fully suppress migration: -10 exceeds max possible urgency (~1.5 * 1.5 competency)
             mods["migrate"] = mods.get("migrate", 0.0) - 10.0
+        elif d.directive_type == "patrol":
+            loc_ids = {str(lid) for lid in d.territory_location_ids}
+            if loc_ids and str(pop.current_location) in loc_ids:
+                mods["fortify"] = mods.get("fortify", 0.0) + _PATROL_FORTIFY_BOOST
+                mods["hunt"]    = mods.get("hunt",    0.0) + _PATROL_HUNT_BOOST
     return mods
 
 
@@ -229,6 +234,8 @@ def _max_slot_modifier(pop, factions: dict) -> int:
 
 _MIGHT_AS_WELL_FORAGE  = 0.05
 _MIGHT_AS_WELL_COLLECT = 0.03
+_PATROL_FORTIFY_BOOST  = 0.30
+_PATROL_HUNT_BOOST     = 0.20
 
 
 def directive_purpose_increment(directive, actor_location_id) -> float:
@@ -247,6 +254,12 @@ def directive_purpose_increment(directive, actor_location_id) -> float:
     if directive.directive_type == "hold_position":
         if _same_loc(directive.target_location_id, actor_location_id):
             return 0.25
+        return 0.0
+
+    if directive.directive_type == "patrol":
+        loc_ids = {str(lid) for lid in directive.territory_location_ids}
+        if loc_ids and str(actor_location_id) in loc_ids:
+            return 0.20
         return 0.0
 
     # Other types not yet implemented

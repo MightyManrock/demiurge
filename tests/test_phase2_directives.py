@@ -326,6 +326,63 @@ def test_hold_position_does_not_suppress_migrate_for_pop_outside_territory():
     assert priorities.get("migrate", 0.0) > 0.0
 
 
+# ── Group 10: patrol directive ────────────────────────────────────────────────
+
+def test_patrol_adds_fortify_and_hunt_modifier_at_patrol_location():
+    """_collect_directive_modifiers adds fortify+hunt boost when pop is at a patrol location."""
+    from logic.pop_agent_logic import _collect_directive_modifiers
+    loc_id = uuid4()
+    d = Directive(directive_type="patrol", territory_location_ids=[loc_id])
+    faction = MagicMock()
+    faction.active_directives = [d]
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = []
+    faction_id = uuid4()
+    pop.faction_ids = [faction_id]
+    pop.current_location = loc_id
+    mods = _collect_directive_modifiers(pop, {str(faction_id): faction})
+    assert mods.get("fortify", 0.0) > 0.0
+    assert mods.get("hunt", 0.0) > 0.0
+    assert mods.get("migrate", 0.0) == 0.0
+
+
+def test_patrol_no_modifier_outside_patrol_location():
+    """No modifiers applied when pop is not at any patrol location."""
+    from logic.pop_agent_logic import _collect_directive_modifiers
+    patrol_loc = uuid4()
+    other_loc = uuid4()
+    d = Directive(directive_type="patrol", territory_location_ids=[patrol_loc])
+    faction = MagicMock()
+    faction.active_directives = [d]
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = []
+    faction_id = uuid4()
+    pop.faction_ids = [faction_id]
+    pop.current_location = other_loc
+    mods = _collect_directive_modifiers(pop, {str(faction_id): faction})
+    assert mods.get("fortify", 0.0) == 0.0
+    assert mods.get("hunt", 0.0) == 0.0
+
+
+def test_patrol_purpose_increment_at_patrol_location():
+    """directive_purpose_increment returns > 0 when actor is at a patrol location."""
+    from logic.pop_agent_logic import directive_purpose_increment
+    loc_id = uuid4()
+    d = Directive(directive_type="patrol", territory_location_ids=[loc_id])
+    assert directive_purpose_increment(d, actor_location_id=loc_id) > 0.0
+
+
+def test_patrol_no_purpose_increment_outside_patrol():
+    """directive_purpose_increment returns 0 when not at any patrol location."""
+    from logic.pop_agent_logic import directive_purpose_increment
+    patrol_loc = uuid4()
+    other_loc = uuid4()
+    d = Directive(directive_type="patrol", territory_location_ids=[patrol_loc])
+    assert directive_purpose_increment(d, actor_location_id=other_loc) == 0.0
+
+
 # ── Group 7: initialize_pop_state passes has_directives through ───────────────
 
 def test_initialize_pop_state_no_directives_excludes_purpose():
