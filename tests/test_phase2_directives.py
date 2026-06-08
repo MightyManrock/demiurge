@@ -549,11 +549,11 @@ def _make_supply_run_directive_with_interval(src_id, dst_pop_id, interval_ticks=
     )
 
 
-def test_supply_run_skip_prevents_travel_home_dest():
-    """Carrier mid-journey home with active skip does not get pending_migration_dest set.
+def test_supply_run_skip_still_executes_travel_home():
+    """Carrier at destination with active skip still gets travel_home: pending_migration_dest = src_id.
 
-    Without skip: travel_home phase sets pending_migration_dest = src_id.
-    With skip active: supply_run loop is bypassed, so pending_migration_dest stays None.
+    Skip only blocks the load phase. A carrier returning home after depositing must
+    still be sent home even while the skip is active.
     """
     from logic.pop_agent_logic import resolve_pop_actions
     from core.agent_core import PopAgentState, ResourceStockpile
@@ -580,7 +580,7 @@ def test_supply_run_skip_prevents_travel_home_dest():
     pop.current_location = arbitrary_loc_id
     pop.migration_travel_location_id = None
     ps = PopAgentState()
-    # No cargo — would be "travel_home" phase, but skip is active
+    # No cargo at non-home location → travel_home phase; skip is active
     ps.supply_run_skip_until[str(d.id)] = 999
     pop.pop_state = ps
 
@@ -592,8 +592,56 @@ def test_supply_run_skip_prevents_travel_home_dest():
         factions={}, current_tick=5,
         colocated_pops=[pop], state=state,
     )
-    # Skip was active: pending_migration_dest must NOT have been set by supply_run
-    assert ps.pending_migration_dest is None
+    # travel_home still runs during skip — carrier is pointed home
+    assert ps.pending_migration_dest == src_id
+
+
+def test_supply_run_skip_prevents_load():
+    """Carrier at home with active skip does not boost load_cargo priority.
+
+    Skip blocks the load phase so the carrier acts on normal need priorities instead
+    of immediately starting another outbound run.
+    """
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, ResourceStockpile
+    from core.universe_core import PopLocation
+
+    src_id = uuid4()
+    dst_pop_id = uuid4()
+    d = _make_supply_run_directive_with_interval(src_id, dst_pop_id)
+
+    # Carrier is at home (src_id) with no cargo → load phase
+    home_loc = PopLocation(id=src_id, name="Home", location_type="city")
+
+    dest_pop = MagicMock()
+    dest_pop.current_location = uuid4()
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.active_directives = [d]
+    pop.faction_ids = []
+    pop.band_id = None
+    pop.size_fractional = 1.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.current_location = src_id
+    pop.migration_travel_location_id = None
+    ps = PopAgentState()
+    # Skip is active
+    ps.supply_run_skip_until[str(d.id)] = 999
+    pop.pop_state = ps
+
+    state = MagicMock()
+    state.pops = {str(dst_pop_id): dest_pop}
+
+    priorities: dict = {}
+    resolve_pop_actions(
+        pop, pop_loc=home_loc, priorities=priorities, n_slots=3,
+        factions={}, current_tick=5,
+        colocated_pops=[pop], state=state,
+    )
+    # Skip active at home → load_cargo should NOT be boosted
+    assert "load_cargo" not in priorities or priorities.get("load_cargo", 0.0) == 0.0
 
 
 def test_supply_run_deposit_sets_skip_when_stockpile_adequate():

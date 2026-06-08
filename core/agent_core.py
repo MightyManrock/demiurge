@@ -85,6 +85,7 @@ class StockpileFact(BaseModel):
     quantities: dict[str, float] = Field(default_factory=dict)
     confidence: float = 1.0
     learned_at_tick: int = 0
+    last_deposit_qty: dict[str, float] = Field(default_factory=dict)
 
 
 KnowledgeFact = Annotated[
@@ -243,6 +244,7 @@ class PopAgentState(BaseModel):
     cargo: CargoStockpile = Field(default_factory=CargoStockpile)
     knowledge_base: KnowledgeBase = Field(default_factory=KnowledgeBase)
     supply_run_skip_until: dict[str, int] = Field(default_factory=dict)
+    supply_run_interval: dict[str, int] = Field(default_factory=dict)
 
     def get_need(self, name: str) -> Optional[PopNeed]:
         return next((n for n in self.needs if n.name == name), None)
