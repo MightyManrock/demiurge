@@ -240,7 +240,7 @@ def initialize_mortal_state(mortal: NotableMortal) -> MortalAgentState:
     """
     from core.agent_core import MortalAgentState
     return MortalAgentState(
-        needs=compute_need_profile(mortal.culture_tags),
+        needs=compute_need_profile(mortal.culture_tags, has_directives=bool(mortal.active_directives)),
         desires=compute_desire_profile(mortal.culture_tags),
     )
 
@@ -336,4 +336,4 @@ def compute_pop_need_profile(culture_tags: dict[str, float], has_directives: boo
 def initialize_pop_state(pop) -> "PopAgentState":
     """Build a fresh PopAgentState for a Pop from its culture_tags."""
     from core.agent_core import PopAgentState
-    return PopAgentState(needs=compute_pop_need_profile(pop.culture_tags))
+    return PopAgentState(needs=compute_pop_need_profile(pop.culture_tags, has_directives=bool(pop.active_directives)))

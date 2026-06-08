@@ -263,3 +263,51 @@ def test_hold_position_directive_suppresses_migrate_priority():
     )
     priorities = compute_pop_priorities(pop, factions={})
     assert priorities.get("migrate", 0.0) <= 0.0
+
+
+# ── Group 7: initialize_pop_state passes has_directives through ───────────────
+
+def test_initialize_pop_state_no_directives_excludes_purpose():
+    from logic.needs_config import initialize_pop_state
+    from unittest.mock import MagicMock
+    pop = MagicMock()
+    pop.culture_tags = {}
+    pop.active_directives = []
+    state = initialize_pop_state(pop)
+    assert "purpose" not in [n.name for n in state.needs]
+
+
+def test_initialize_pop_state_with_directives_includes_purpose():
+    from logic.needs_config import initialize_pop_state
+    from unittest.mock import MagicMock
+    pop = MagicMock()
+    pop.culture_tags = {}
+    pop.active_directives = [Directive(directive_type="hold_position")]
+    state = initialize_pop_state(pop)
+    assert "purpose" in [n.name for n in state.needs]
+
+
+# ── Group 8: initialize_mortal_state passes has_directives through ────────────
+
+def test_initialize_mortal_state_no_directives_excludes_purpose_and_status():
+    from logic.needs_config import initialize_mortal_state
+    from unittest.mock import MagicMock
+    mortal = MagicMock()
+    mortal.culture_tags = {}
+    mortal.active_directives = []
+    state = initialize_mortal_state(mortal)
+    names = [n.name for n in state.needs]
+    assert "purpose" not in names
+    assert "status" not in names
+
+
+def test_initialize_mortal_state_with_directives_includes_purpose_and_status():
+    from logic.needs_config import initialize_mortal_state
+    from unittest.mock import MagicMock
+    mortal = MagicMock()
+    mortal.culture_tags = {}
+    mortal.active_directives = [Directive(directive_type="hold_position")]
+    state = initialize_mortal_state(mortal)
+    names = [n.name for n in state.needs]
+    assert "purpose" in names
+    assert "status" in names

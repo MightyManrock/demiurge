@@ -124,6 +124,7 @@ from logic.needs_config import (
 def _make_pop(culture_tags: dict) -> MagicMock:
     pop = MagicMock()
     pop.culture_tags = culture_tags
+    pop.active_directives = []
     return pop
 
 
