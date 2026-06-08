@@ -65,6 +65,39 @@ _COMPETENCY: dict[str, dict[str, float]] = {
     "elite":      {"commune": 1.1, "enact_rituals": 1.1},
 }
 
+OCCUPATION_BASELINE_WEIGHTS: dict[str, dict[str, float]] = {
+    "forager":      {"forage": 0.25, "hunt": 0.20, "migrate": 0.15},
+    "raider":       {"hunt": 0.25,   "migrate": 0.20, "forage": 0.10},
+    "outcast":      {"forage": 0.20, "migrate": 0.25, "hunt": 0.15},
+    "criminal":     {"forage": 0.15, "migrate": 0.20, "hunt": 0.15},
+    "bonded":       {"build": 0.20,  "forage": 0.15},
+    "dispossessed": {"forage": 0.20, "migrate": 0.15},
+    "producer":     {"forage": 0.20, "collect": 0.15, "hunt": 0.10},
+    "laborer":      {"build": 0.20,  "forage": 0.15},
+    "service":      {"commune": 0.15, "collect": 0.10},
+    "transport":    {"migrate": 0.20, "collect": 0.15},
+    "professional": {"collect": 0.20, "commune": 0.10},
+    "crafter":      {"build": 0.25,  "collect": 0.15},
+    "builder":      {"build": 0.30,  "fortify": 0.15},
+    "engineer":     {"build": 0.25,  "fortify": 0.20},
+    "technician":   {"build": 0.20,  "fortify": 0.15},
+    "healer":       {"commune": 0.20, "enact_rituals": 0.10},
+    "artist":       {"revel": 0.20,  "commune": 0.15},
+    "merchant":     {"collect": 0.30, "migrate": 0.15},
+    "financier":    {"collect": 0.25, "commune": 0.10},
+    "executive":    {"collect": 0.20, "commune": 0.15},
+    "soldier":      {"fortify": 0.25, "hunt": 0.15},
+    "officer":      {"fortify": 0.20, "commune": 0.10},
+    "guard":        {"fortify": 0.25, "build": 0.10},
+    "mercenary":    {"fortify": 0.20, "hunt": 0.20},
+    "militia":      {"fortify": 0.20, "forage": 0.10},
+    "clergy":       {"enact_rituals": 0.30, "commune": 0.20},
+    "scientist":    {"collect": 0.20, "commune": 0.15},
+    "academic":     {"commune": 0.20, "enact_rituals": 0.15},
+    "poli_admin":   {"commune": 0.20, "revel": 0.15},
+    "noble":        {"revel": 0.25,  "commune": 0.15},
+}
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -78,9 +111,12 @@ def _find_matching_resources(collectible_resources: list, action: str) -> list:
     ]
 
 def _pop_need_urgency(need: PopNeed) -> float:
-    """Continuous urgency in [0, ~1.5]. 0 when satisfied or held; >1 when urgent."""
-    if need.satiation_hold > 0 or need.satisfaction >= need.pressing_threshold:
+    """Continuous urgency in [0, ~1.5]. 0 when held; small background when satisfied; >1 when urgent."""
+    if need.satiation_hold > 0:
         return 0.0
+    if need.satisfaction >= need.pressing_threshold:
+        span = max(1.0 - need.pressing_threshold, 0.01)
+        return need.decay_rate * (1.0 - need.satisfaction) / span
     if need.satisfaction <= need.urgent_threshold:
         return 1.0 + (need.urgent_threshold - need.satisfaction) / max(need.urgent_threshold, 0.01) * 0.5
     span = need.pressing_threshold - need.urgent_threshold
@@ -150,6 +186,12 @@ def compute_pop_priorities(pop, factions: dict) -> dict[str, float]:
             if a not in STUB_ACTIONS and ACTION_NEED_MAP.get(a) == need_name
         )
         raw[action] = urgency / max(sharing_count, 1)
+
+    # Occupation baseline: additive offset before competency scaling.
+    occ_key = pop.occupation.value if hasattr(pop.occupation, "value") else str(pop.occupation)
+    for action, baseline in OCCUPATION_BASELINE_WEIGHTS.get(occ_key, {}).items():
+        if action in raw and action not in STUB_ACTIONS:
+            raw[action] += baseline
 
     # Pass 2: competency scaling
     weighted = {action: raw[action] * _pop_competency_modifier(pop, action) for action in ALL_ACTIONS}

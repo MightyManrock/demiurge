@@ -416,3 +416,96 @@ def test_migrate_partially_fills_wanderlust():
     initial = pop.pop_state.get_need("wanderlust").satisfaction
     resolve_pop_actions(pop, loc, _full_priorities("migrate"), n_slots=1, factions={}, current_tick=1)
     assert pop.pop_state.get_need("wanderlust").satisfaction > initial
+
+
+# ---------------------------------------------------------------------------
+# Fix A: continuous urgency gradient tests
+# ---------------------------------------------------------------------------
+
+def _make_need(name, satisfaction, decay_rate=0.02, pressing_threshold=0.55, urgent_threshold=0.20):
+    return PopNeed(
+        name=name,
+        satisfaction=satisfaction,
+        decay_rate=decay_rate,
+        pressing_threshold=pressing_threshold,
+        urgent_threshold=urgent_threshold,
+    )
+
+
+def test_urgency_small_nonzero_when_satisfied_but_not_full():
+    """Background gradient is positive when satisfied-but-not-full (no satiation_hold)."""
+    n = _make_need("nourishment", satisfaction=0.8)  # above pressing_threshold=0.55
+    u = _pop_need_urgency(n)
+    assert 0.0 < u < 0.05
+
+
+def test_urgency_zero_at_full_satisfaction():
+    """At satisfaction=1.0, background gradient formula yields exactly 0."""
+    n = _make_need("nourishment", satisfaction=1.0)
+    assert _pop_need_urgency(n) == 0.0
+
+
+def test_urgency_satiation_hold_overrides_gradient():
+    """satiation_hold > 0 short-circuits before background gradient branch."""
+    n = _make_need("nourishment", satisfaction=0.8)
+    n.satiation_hold = 1
+    assert _pop_need_urgency(n) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Fix B: occupation baseline weight tests
+# ---------------------------------------------------------------------------
+
+from core.universe_core import Occupation
+from logic.pop_agent_logic import OCCUPATION_BASELINE_WEIGHTS
+
+
+def _make_pop_with_occupation(needs, occupation: Occupation, social_class=SocialStratum.COMMON, size=3.0):
+    pop = _make_pop_with_state(needs, social_class=social_class, size=size)
+    pop.occupation = occupation
+    return pop
+
+
+def _all_needs_full():
+    return [
+        PopNeed(name="nourishment", satisfaction=1.0),
+        PopNeed(name="hydration",   satisfaction=1.0),
+        PopNeed(name="safety",      satisfaction=1.0),
+        PopNeed(name="cohesion",    satisfaction=1.0),
+        PopNeed(name="purpose",     satisfaction=1.0),
+        PopNeed(name="shelter",     satisfaction=1.0),
+        PopNeed(name="wanderlust",  satisfaction=1.0),
+    ]
+
+
+def test_occupation_differentiates_priorities_when_needs_met():
+    """Militia and clergy with all needs at 1.0 show distinct priority distributions."""
+    militia_pop = _make_pop_with_occupation(_all_needs_full(), Occupation.MILITIA, social_class=SocialStratum.WARRIOR)
+    clergy_pop  = _make_pop_with_occupation(_all_needs_full(), Occupation.CLERGY,  social_class=SocialStratum.SCHOLAR)
+
+    militia_p = compute_pop_priorities(militia_pop, {})
+    clergy_p  = compute_pop_priorities(clergy_pop, {})
+
+    # Militia should weight fortify more than clergy does
+    assert militia_p["fortify"] > clergy_p["fortify"]
+    # Clergy should weight enact_rituals more than militia does
+    assert clergy_p["enact_rituals"] > militia_p["enact_rituals"]
+
+
+def test_occupation_baseline_swamped_by_urgent_need():
+    """Urgent nourishment overrides soldier's fortify baseline."""
+    needs = [
+        PopNeed(name="nourishment", satisfaction=0.05, pressing_threshold=0.55, urgent_threshold=0.20),
+        PopNeed(name="hydration",   satisfaction=1.0),
+        PopNeed(name="safety",      satisfaction=1.0),
+        PopNeed(name="cohesion",    satisfaction=1.0),
+        PopNeed(name="purpose",     satisfaction=1.0),
+        PopNeed(name="shelter",     satisfaction=1.0),
+        PopNeed(name="wanderlust",  satisfaction=1.0),
+    ]
+    soldier_pop = _make_pop_with_occupation(needs, Occupation.SOLDIER, social_class=SocialStratum.WARRIOR)
+    p = compute_pop_priorities(soldier_pop, {})
+
+    # Food-gathering actions combined should exceed fortify when nourishment is urgent
+    food_weight = p["forage"] + p["hunt"] + p["collect"]
+    assert food_weight > p["fortify"]
