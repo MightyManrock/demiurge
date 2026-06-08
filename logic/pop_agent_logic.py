@@ -90,7 +90,7 @@ OCCUPATION_BASELINE_WEIGHTS: dict[str, dict[str, float]] = {
     "officer":      {"fortify": 0.20, "commune": 0.10},
     "guard":        {"fortify": 0.25, "build": 0.10},
     "mercenary":    {"fortify": 0.20, "hunt": 0.20},
-    "militia":      {"fortify": 0.20, "forage": 0.10},
+    "militia":      {"fortify": 0.20, "hunt": 0.10},
     "clergy":       {"enact_rituals": 0.30, "commune": 0.20},
     "scientist":    {"collect": 0.20, "commune": 0.15},
     "academic":     {"commune": 0.20, "enact_rituals": 0.15},
