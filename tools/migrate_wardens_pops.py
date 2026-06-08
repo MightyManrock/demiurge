@@ -14,7 +14,7 @@ from uuid import uuid4, UUID
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.universe_core import Pop, SocialStratum
+from core.universe_core import Occupation, Pop, SocialStratum
 from utilities.scenario_loader import load_scenario
 from utilities.scenario_exporter import export_scenario
 
@@ -433,7 +433,7 @@ def migrate():
         if m is None:
             print(f"  WARNING: mortal {name!r} not found in state — skipping update")
             continue
-        m.occupation = updates["occupation"]
+        m.occupation = Occupation(updates["occupation"]) if updates.get("occupation") else Occupation.UNSPECIFIED
         m.belief_tags = dict(updates["belief_tags"])
         m.culture_tags = dict(updates["culture_tags"])
 
