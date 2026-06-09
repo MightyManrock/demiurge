@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 from core.agent_core import (
     PopAgentState, PopNeed, ResourceFact, StockpileFact, ResourceStockpile, can_access_stockpile,
-    load_cargo as _load_cargo_fn, unload_cargo as _unload_cargo_fn,
+    load_cargo as _load_cargo_fn, unload_cargo as _unload_cargo_fn, TravelIntent,
 )
 
 # ---------------------------------------------------------------------------
@@ -735,6 +735,10 @@ def resolve_pop_actions(
                                 if _m.id not in _tl.occupants:
                                     _tl.occupants.append(_m.id)
                                 _m.current_location = _tl.id
+                                _m.travel_intent = TravelIntent(
+                                    travel_location_id=_tl.id,
+                                    target_pop_id=pop.id,
+                                )
 
             # Partial wanderlust satisfaction for initiating or continuing migration
             need = needs_by_name.get("wanderlust")
