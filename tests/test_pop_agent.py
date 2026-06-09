@@ -334,12 +334,13 @@ def _full_priorities(dominant: str) -> dict:
     return {a: (1.0 if a == dominant else 0.0) for a in ALL_ACTIONS}
 
 
-def test_forage_deposits_to_stockpile():
+def test_forage_fills_nourishment():
     needs = [PopNeed(name="nourishment", satisfaction=0.3, pressing_threshold=0.55, urgent_threshold=0.20)]
     pop = _make_pop_for_resolution(needs)
     loc = _make_pop_loc()
     resolve_pop_actions(pop, loc, _full_priorities("forage"), n_slots=1, factions={}, current_tick=1)
-    assert loc.resource_stockpile.get("food_flora", 0.0) > 0.0
+    # Forage deposits food which flows through the consumption pass into nourishment
+    assert pop.pop_state.get_need("nourishment").satisfaction > 0.3
 
 
 def test_collect_uses_collectible_resource():

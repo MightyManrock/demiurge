@@ -999,6 +999,23 @@ def resolve_pop_actions(
     nourishment = needs_by_name.get("nourishment")
     hydration    = needs_by_name.get("hydration")
 
+    _pop_scale = 10 ** pop.size_fractional
+
+    # Source 1: Pop's own CargoStockpile (in-hand resources — consumed before shared stockpiles)
+    for _rt, _qty in list(ps.cargo.quantities.items()):
+        if _qty <= 0:
+            continue
+        _cat = _biochem_map.get(_rt)
+        if _cat == "basis" and nourishment and nourishment.satisfaction < 1.0:
+            _consumed = min(_qty, NOURISHMENT_CONSUME_RATE * _pop_scale)
+            ps.cargo.quantities[_rt] -= _consumed
+            nourishment.satisfaction = min(1.0, nourishment.satisfaction + NOURISHMENT_FILL_RATE)
+        elif _cat == "solvent" and hydration and hydration.satisfaction < 1.0:
+            _consumed = min(_qty, HYDRATION_CONSUME_RATE * _pop_scale)
+            ps.cargo.quantities[_rt] -= _consumed
+            hydration.satisfaction = min(1.0, hydration.satisfaction + HYDRATION_FILL_RATE)
+
+    # Source 2: accessible ResourceStockpiles at location (spillover from cargo if still hungry)
     _accessible = [s for s in pop_loc.stockpiles if can_access_stockpile(pop, s)]
     for _s in _accessible:
         for resource_type, quantity in list(_s.quantities.items()):
@@ -1006,11 +1023,11 @@ def resolve_pop_actions(
                 continue
             category = _biochem_map.get(resource_type)
             if category == "basis" and nourishment and nourishment.satisfaction < 1.0:
-                consumed = min(quantity, NOURISHMENT_CONSUME_RATE)
+                consumed = min(quantity, NOURISHMENT_CONSUME_RATE * _pop_scale)
                 _s.quantities[resource_type] -= consumed
                 nourishment.satisfaction = min(1.0, nourishment.satisfaction + NOURISHMENT_FILL_RATE)
             elif category == "solvent" and hydration and hydration.satisfaction < 1.0:
-                consumed = min(quantity, HYDRATION_CONSUME_RATE)
+                consumed = min(quantity, HYDRATION_CONSUME_RATE * _pop_scale)
                 _s.quantities[resource_type] -= consumed
                 hydration.satisfaction = min(1.0, hydration.satisfaction + HYDRATION_FILL_RATE)
 

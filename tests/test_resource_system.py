@@ -231,8 +231,10 @@ def test_forage_depletes_current_yield():
 
     resolve_pop_actions(pop, loc, [], 1, state)
 
-    assert loc.resource_stockpile.get("food_flora", 0.0) > 0
-    assert loc.collectible_resources[0].current_yield < 10.0  # depleted
+    # Forage ran: yield was depleted
+    assert loc.collectible_resources[0].current_yield < 10.0
+    # Gathered food flowed through stockpile into nourishment (may all be consumed)
+    assert pop.pop_state.get_need("nourishment").satisfaction > 0.1
 
 def test_forage_bounded_by_current_yield():
     pop = MagicMock()
@@ -255,49 +257,82 @@ def test_forage_bounded_by_current_yield():
     assert loc.resource_stockpile.get("food_flora", 0.0) <= 0.5
     assert loc.collectible_resources[0].current_yield >= 0.0
 
-def test_consumption_pass_basis_resource_fills_nourishment():
+def _make_pop_for_consumption(size_fractional=1.0, nourishment=0.3, hydration=0.3):
     pop = MagicMock()
     pop.id = uuid4()
-    pop.pop_state = _make_pop_state_with_needs(nourishment=0.3)
-    pop.size_fractional = 1.0
+    pop.pop_state = _make_pop_state_with_needs(nourishment=nourishment, hydration=hydration)
+    pop.size_fractional = size_fractional
     pop.social_class = MagicMock()
     pop.social_class.value = "common"
     pop.occupation = "farmer"
     pop.active_directives = []
     pop.faction_ids = []
+    return pop
 
+
+def test_consumption_pass_basis_resource_fills_nourishment():
+    pop = _make_pop_for_consumption(size_fractional=1.0, nourishment=0.3)
     loc = PopLocation(id=uuid4(), name="Plains", location_type="city", parent_id=uuid4(),
-                      resource_stockpile={"food_flora": 10.0},
+                      resource_stockpile={"food_flora": 100.0}, collectible_resources=[])
+    state = MagicMock()
+    state.factions = {}
+
+    before = loc.stockpiles[0].quantities["food_flora"]
+    # Pass explicit non-gather priority to isolate the consumption pass
+    resolve_pop_actions(pop, loc, {"build": 1.0}, 1, state)
+    after = loc.stockpiles[0].quantities["food_flora"]
+    assert after < before  # resource was actually drawn
+
+
+def test_consumption_pass_solvent_resource_fills_hydration():
+    pop = _make_pop_for_consumption(size_fractional=1.0, hydration=0.3)
+    loc = PopLocation(id=uuid4(), name="Plains", location_type="city", parent_id=uuid4(),
+                      resource_stockpile={"potable_water": 100.0}, collectible_resources=[])
+    state = MagicMock()
+    state.factions = {}
+
+    before = loc.stockpiles[0].quantities["potable_water"]
+    resolve_pop_actions(pop, loc, {"build": 1.0}, 1, state)
+    after = loc.stockpiles[0].quantities["potable_water"]
+    assert after < before  # resource was actually drawn
+
+
+def test_consumption_pass_scales_with_pop_size():
+    """Larger pops draw proportionally more from stockpile (10^size scaling)."""
+    loc_small = PopLocation(id=uuid4(), name="A", location_type="city", parent_id=uuid4(),
+                            resource_stockpile={"food_flora": 1000.0}, collectible_resources=[])
+    loc_large = PopLocation(id=uuid4(), name="B", location_type="city", parent_id=uuid4(),
+                            resource_stockpile={"food_flora": 1000.0}, collectible_resources=[])
+    state = MagicMock()
+    state.factions = {}
+
+    pop_small = _make_pop_for_consumption(size_fractional=1.0, nourishment=0.3)
+    pop_large = _make_pop_for_consumption(size_fractional=2.0, nourishment=0.3)
+
+    # Explicit non-gather priority: isolates consumption pass, no gather action distorts quantities
+    resolve_pop_actions(pop_small, loc_small, {"build": 1.0}, 1, state)
+    resolve_pop_actions(pop_large, loc_large, {"build": 1.0}, 1, state)
+
+    drawn_small = 1000.0 - loc_small.stockpiles[0].quantities["food_flora"]
+    drawn_large = 1000.0 - loc_large.stockpiles[0].quantities["food_flora"]
+
+    # size 2.0 pop (100 people) should draw 10x more than size 1.0 pop (10 people)
+    assert drawn_large == pytest.approx(drawn_small * 10.0, rel=1e-6)
+
+
+def test_consumption_pass_no_stockpile_leaves_need_unmet():
+    """No stockpile access means nourishment stays unmet — no fallback."""
+    pop = _make_pop_for_consumption(size_fractional=1.0, nourishment=0.3)
+    loc = PopLocation(id=uuid4(), name="Empty", location_type="city", parent_id=uuid4(),
                       collectible_resources=[])
     state = MagicMock()
     state.factions = {}
 
     before = pop.pop_state.get_need("nourishment").satisfaction
-    resolve_pop_actions(pop, loc, [], 1, state)
+    # Explicit non-gather priority: isolates consumption pass with empty stockpile
+    resolve_pop_actions(pop, loc, {"build": 1.0}, 1, state)
     after = pop.pop_state.get_need("nourishment").satisfaction
-    assert after >= before
-
-def test_consumption_pass_solvent_resource_fills_hydration():
-    pop = MagicMock()
-    pop.id = uuid4()
-    pop.pop_state = _make_pop_state_with_needs(hydration=0.3)
-    pop.size_fractional = 1.0
-    pop.social_class = MagicMock()
-    pop.social_class.value = "common"
-    pop.occupation = "farmer"
-    pop.active_directives = []
-    pop.faction_ids = []
-
-    loc = PopLocation(id=uuid4(), name="Plains", location_type="city", parent_id=uuid4(),
-                      resource_stockpile={"potable_water": 10.0},
-                      collectible_resources=[])
-    state = MagicMock()
-    state.factions = {}
-
-    before = pop.pop_state.get_need("hydration").satisfaction
-    resolve_pop_actions(pop, loc, [], 1, state)
-    after = pop.pop_state.get_need("hydration").satisfaction
-    assert after >= before
+    assert after == before  # unchanged — nothing to draw from
 
 
 # ── Task 5: Yield renewal ─────────────────────────────────────────────────────
@@ -521,7 +556,8 @@ def test_mortal_falls_back_to_inventory_when_stockpile_empty():
     assert cs.get_need("nourishment").satisfaction > 0.3
     assert food.quantity < 5.0
 
-def test_mortal_commerce_fallback_fills_when_no_resources():
+def test_mortal_no_stockpile_leaves_need_unmet():
+    """Mortals with no stockpile access and no inventory get no satisfaction — no fallback."""
     pop_id = uuid4()
     state, loc = _make_state_with_entitled_pop(pop_id, {})
     cs = _make_mortal_with_needs(nourishment=0.3)
@@ -533,7 +569,110 @@ def test_mortal_commerce_fallback_fills_when_no_resources():
     from logic.tick_logic import _tick_mortal_passive_sustenance
     _tick_mortal_passive_sustenance(mortal, loc, state, commerce_quality=0.8)
 
+    assert cs.get_need("nourishment").satisfaction == 0.3  # unchanged — no resource drawn
+
+
+def test_mortal_draws_from_embedded_pop_cargo():
+    """Mortals draw nourishment from their embedded pop's CargoStockpile when no inventory."""
+    from core.agent_core import CargoStockpile, PopAgentState
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+
+    pop_id = uuid4()
+    cargo = CargoStockpile(quantities={"food_flora": 5.0})
+    pop_state = PopAgentState(cargo=cargo)
+
+    embedded_pop = MagicMock()
+    embedded_pop.pop_state = pop_state
+
+    loc = MagicMock()
+    loc.stockpiles = []
+
+    state = MagicMock()
+    state.pops = {str(pop_id): embedded_pop}
+
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+
+    before_cargo = cargo.quantities["food_flora"]
+    _tick_mortal_passive_sustenance(mortal, loc, state)
+
+    assert cs.get_need("nourishment").satisfaction > 0.3  # fed from cargo
+    assert cargo.quantities["food_flora"] < before_cargo   # cargo was drawn from
+
+
+def test_mortal_spills_inventory_into_cargo_then_stockpile():
+    """Partial inventory is consumed first, then mortal spills into embedded pop cargo."""
+    from core.agent_core import CargoStockpile, PopAgentState, MortalInventory, Resource
+    from logic.tick_logic import _tick_mortal_passive_sustenance
+
+    pop_id = uuid4()
+    # Inventory has a tiny amount — not enough to top off alone
+    food_item = Resource(resource_type="food_flora", quantity=0.01,
+                         biochem_tags=["basis:carbon"], usable_for=[])
+    inv = MortalInventory(items=[food_item])
+
+    cargo = CargoStockpile(quantities={"food_flora": 5.0})
+    pop_state = PopAgentState(cargo=cargo)
+    embedded_pop = MagicMock()
+    embedded_pop.pop_state = pop_state
+
+    loc = MagicMock()
+    loc.stockpiles = []
+
+    state = MagicMock()
+    state.pops = {str(pop_id): embedded_pop}
+
+    cs = _make_mortal_with_needs(nourishment=0.3)
+    cs.mortal_inventory = inv
+    mortal = MagicMock()
+    mortal.mortal_state = cs
+    mortal.pop_id = pop_id
+    mortal.pop_milieu = pop_id
+
+    _tick_mortal_passive_sustenance(mortal, loc, state)
+
+    assert food_item.quantity == pytest.approx(0.0)          # inventory drained
+    assert cargo.quantities["food_flora"] < 5.0              # spilled into cargo
     assert cs.get_need("nourishment").satisfaction > 0.3
+
+
+def test_pop_draws_from_cargo_before_stockpile():
+    """Pop consumes from CargoStockpile before drawing from ResourceStockpile."""
+    from core.agent_core import CargoStockpile, PopAgentState, ResourceStockpile
+
+    cargo = CargoStockpile(quantities={"food_flora": 5.0})
+    ps = PopAgentState(needs=[
+        PopNeed(name="nourishment", satisfaction=0.95, pressing_threshold=0.55, urgent_threshold=0.20),
+        PopNeed(name="hydration",   satisfaction=1.0,  pressing_threshold=0.55, urgent_threshold=0.20),
+    ], cargo=cargo)
+
+    stockpile = ResourceStockpile(quantities={"food_flora": 10.0})
+    loc = PopLocation(id=uuid4(), name="X", location_type="city", parent_id=uuid4(),
+                      collectible_resources=[])
+    loc.stockpiles = [stockpile]
+
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.pop_state = ps
+    pop.size_fractional = 1.0
+    pop.social_class = MagicMock()
+    pop.social_class.value = "common"
+    pop.occupation = "farmer"
+    pop.active_directives = []
+    pop.faction_ids = []
+
+    state = MagicMock()
+    state.factions = {}
+
+    resolve_pop_actions(pop, loc, {"build": 1.0}, 1, state)
+
+    # Cargo drawn from first
+    assert cargo.quantities["food_flora"] < 5.0
+    # Stockpile untouched if cargo alone was enough to top off need
+    assert stockpile.quantities["food_flora"] == 10.0
 
 
 # ── Task 8: Mortal forage + hunt ─────────────────────────────────────────────

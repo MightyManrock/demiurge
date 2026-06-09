@@ -1221,19 +1221,47 @@ def _apply_resource_need_topoff(cs, resource_type: str) -> None:
 def _tick_mortal_passive_sustenance(
     mortal, loc, state, commerce_quality: float = 0.0
 ) -> None:
-    """Three-source nourishment + hydration restore.
+    """Three-source nourishment + hydration restore with spillover.
 
-    Priority: (1) entitled Pop stockpile at loc, (2) mortal_inventory, (3) commerce fallback.
-    Sources tried independently per need.
+    Priority: (1) MortalInventory, (2) embedded Pop's CargoStockpile, (3) entitled ResourceStockpile.
+    Each source is tried in order; if a need is still unsatisfied after one source, the next is tried.
     """
     cs = mortal.mortal_state
     nour = cs.get_need("nourishment")
     hydr = cs.get_need("hydration")
 
-    food_consumed = False
-    drink_consumed = False
+    # Source 1: MortalInventory (personal carry)
+    for res in cs.mortal_inventory.items:
+        if nour and nour.satisfaction < 1.0:
+            if any(t.startswith("basis:") for t in res.biochem_tags) and res.quantity > 0:
+                consumed = min(res.quantity, _MORTAL_FOOD_CONSUME_RATE)
+                res.quantity = max(0.0, res.quantity - consumed)
+                nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL)
+        if hydr and hydr.satisfaction < 1.0:
+            if any(t.startswith("solvent:") for t in res.biochem_tags) and res.quantity > 0:
+                consumed = min(res.quantity, _MORTAL_DRINK_CONSUME_RATE)
+                res.quantity = max(0.0, res.quantity - consumed)
+                hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL)
 
-    # Source 1: accessible stockpiles at current location, scaled by entitlement factor
+    # Source 2: embedded Pop's CargoStockpile (accessible while traveling with the pop)
+    if mortal.pop_milieu is not None:
+        _milieu = state.pops.get(str(mortal.pop_milieu))
+        if _milieu is not None and _milieu.pop_state is not None:
+            _cargo = _milieu.pop_state.cargo
+            for _rt, _qty in list(_cargo.quantities.items()):
+                if _qty <= 0:
+                    continue
+                _cat = _RESOURCE_BIOCHEM.get(_rt)
+                if _cat == "basis" and nour and nour.satisfaction < 1.0:
+                    _consumed = min(_qty, _MORTAL_FOOD_CONSUME_RATE)
+                    _cargo.quantities[_rt] -= _consumed
+                    nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL)
+                elif _cat == "solvent" and hydr and hydr.satisfaction < 1.0:
+                    _consumed = min(_qty, _MORTAL_DRINK_CONSUME_RATE)
+                    _cargo.quantities[_rt] -= _consumed
+                    hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL)
+
+    # Source 3: entitled ResourceStockpile at current location (spillover from above)
     entitled = entitlement_resolver(mortal, state)
     if entitled and loc is not None and hasattr(loc, "stockpiles"):
         _, factor = entitled[0]
@@ -1247,44 +1275,14 @@ def _tick_mortal_passive_sustenance(
                 if quantity <= 0:
                     continue
                 category = _RESOURCE_BIOCHEM.get(resource_type)
-                if category == "basis" and not food_consumed and nour and nour.satisfaction < 1.0:
+                if category == "basis" and nour and nour.satisfaction < 1.0:
                     consumed = min(quantity, _MORTAL_FOOD_CONSUME_RATE * factor)
                     _s.quantities[resource_type] -= consumed
                     nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL * factor)
-                    food_consumed = True
-                elif category == "solvent" and not drink_consumed and hydr and hydr.satisfaction < 1.0:
+                elif category == "solvent" and hydr and hydr.satisfaction < 1.0:
                     consumed = min(quantity, _MORTAL_DRINK_CONSUME_RATE * factor)
                     _s.quantities[resource_type] -= consumed
                     hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL * factor)
-                    drink_consumed = True
-                if food_consumed and drink_consumed:
-                    break
-            if food_consumed and drink_consumed:
-                break
-
-    # Source 2: mortal_inventory
-    for res in cs.mortal_inventory.items:
-        if not food_consumed and nour and nour.satisfaction < 1.0:
-            if any(t.startswith("basis:") for t in res.biochem_tags) and res.quantity > 0:
-                consumed = min(res.quantity, _MORTAL_FOOD_CONSUME_RATE)
-                res.quantity = max(0.0, res.quantity - consumed)
-                nour.satisfaction = min(1.0, nour.satisfaction + _MORTAL_NOURISHMENT_FILL)
-                food_consumed = True
-        if not drink_consumed and hydr and hydr.satisfaction < 1.0:
-            if any(t.startswith("solvent:") for t in res.biochem_tags) and res.quantity > 0:
-                consumed = min(res.quantity, _MORTAL_DRINK_CONSUME_RATE)
-                res.quantity = max(0.0, res.quantity - consumed)
-                hydr.satisfaction = min(1.0, hydr.satisfaction + _MORTAL_HYDRATION_FILL)
-                drink_consumed = True
-        if food_consumed and drink_consumed:
-            break
-
-    # Source 3: commerce fallback
-    if commerce_quality > 0:
-        if not food_consumed and nour and nour.satisfaction < 1.0:
-            nour.satisfaction = min(1.0, nour.satisfaction + 0.02)
-        if not drink_consumed and hydr and hydr.satisfaction < 1.0:
-            hydr.satisfaction = min(1.0, hydr.satisfaction + 0.015)
 
 
 def entitlement_resolver(mortal, state) -> list[tuple]:
