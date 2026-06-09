@@ -98,8 +98,8 @@ def run(
     loop  = TickLoop(rng_seed=seed)
 
     print("=" * 70)
-    print("  DEMIURGE AUTOPLAY — The Warden's Compact")
-    print(f"  {n_ticks}-tick run  |  Strategy: Essence + Dual Appeasement")
+    print(f"  DEMIURGE AUTOPLAY — {path.stem}")
+    print(f"  {n_ticks}-tick run  |  Strategy: {strategy_name}")
     print("=" * 70)
     print(f"\n  Start: {fmt_disposition(state)}")
     print(f"  Essence: {state.essence.actual:.2f} | Concealment: {state.essence.concealment_integrity:.2f}\n")

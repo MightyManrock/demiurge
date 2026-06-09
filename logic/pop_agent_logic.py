@@ -706,7 +706,7 @@ def resolve_pop_actions(
     for action in active:
         weight = priorities[action]
         competency = _pop_competency_modifier(pop, action)
-        output = weight * pop.size_fractional * competency
+        output = weight * (10 ** pop.size_fractional) * competency
 
         if action in ("forage", "hunt", "collect"):
             matching = _find_matching_resources(pop_loc.collectible_resources, action)

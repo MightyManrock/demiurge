@@ -181,6 +181,12 @@ def main() -> None:
              "available strategies. Skips the TUI.",
     )
     parser.add_argument(
+        "--scenario", default=None,
+        metavar="SCENARIO",
+        help="Scenario to load for --autoplay. Bare name (e.g. oros_test_sandbox) or "
+             "path to a .db file. Defaults to scenarios/wardens_compact.db.",
+    )
+    parser.add_argument(
         "--rebuild", action="store_true",
         help="Launch the database rebuilder (TUI if no further flags; pass "
              "extra flags like --all/--actions/--scenario for CLI mode).",
@@ -215,8 +221,16 @@ def main() -> None:
             strategy = _choose_strategy()
             if strategy is None:
                 sys.exit(0)
+        scenario_path = None
+        if args.scenario:
+            p = Path(args.scenario)
+            if not p.suffix:
+                p = p.with_suffix(".db")
+            if not p.is_absolute():
+                p = Path(__file__).resolve().parent / "scenarios" / p
+            scenario_path = p
         from autoplay.autoplay import run as autoplay_run
-        autoplay_run(strategy_name=strategy)
+        autoplay_run(strategy_name=strategy, scenario_path=scenario_path)
         sys.exit(0)
 
     from ui import display

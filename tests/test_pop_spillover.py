@@ -39,6 +39,7 @@ def _pop(faction_ids=(), linked: dict | None = None, pop_state=None) -> Pop:
         faction_ids=list(faction_ids),
         linked_pop_ids=linked or {},
         pop_state=pop_state,
+        size_fractional=0.0,  # 10^0 = 1 person; keeps output bounded for spillover tests
     )
 
 
