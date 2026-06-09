@@ -451,6 +451,7 @@ def test_supply_run_phase_load_at_source_empty_cargo():
     d = _make_supply_run_directive(src_id, dst_pop_id)
     pop = MagicMock()
     pop.current_location = src_id
+    pop.size_fractional = 1.0
     pop.pop_state = PopAgentState()
     dest_pop = MagicMock(); dest_pop.current_location = uuid4()
     assert _supply_run_phase(pop, d, {str(dst_pop_id): dest_pop}) == "load"
@@ -464,8 +465,10 @@ def test_supply_run_phase_travel_to_dest_at_source_with_cargo():
     d = _make_supply_run_directive(src_id, dst_pop_id)
     pop = MagicMock()
     pop.current_location = src_id
+    pop.size_fractional = 1.0
     state = PopAgentState()
-    state.cargo.quantities["food:grain"] = 10.0
+    # Load enough cargo to meet the readiness threshold
+    state.cargo.quantities["food:grain"] = 200.0
     pop.pop_state = state
     dest_pop = MagicMock(); dest_pop.current_location = uuid4()
     assert _supply_run_phase(pop, d, {str(dst_pop_id): dest_pop}) == "travel_to_dest"
@@ -513,6 +516,7 @@ def test_supply_run_load_cargo_modifier_boosted_at_source():
     pop.active_directives = []
     pop.faction_ids = [faction_id]
     pop.current_location = src_id
+    pop.size_fractional = 1.0
     pop.pop_state = PopAgentState()  # empty cargo → load phase
     dest_pop = MagicMock(); dest_pop.current_location = uuid4()
     mods = _collect_directive_modifiers(pop, {str(faction_id): faction}, pops={str(dst_pop_id): dest_pop})

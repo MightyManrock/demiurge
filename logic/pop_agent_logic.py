@@ -302,7 +302,7 @@ _IDLE_FLOOR            = 0.01   # small uniform baseline preventing all-zero dis
 _PATROL_FORTIFY_BOOST  = 0.30
 _PATROL_HUNT_BOOST     = 0.20
 _SUPPLY_RUN_CARGO_BOOST = 0.40
-_SUPPLY_RUN_READINESS  = 0.80   # fraction of augmented manifest required before departure
+_SUPPLY_RUN_READINESS  = 0.50   # fraction of augmented manifest required before departure
 
 
 def _supply_run_augmented_manifest(pop, directive, pops: dict) -> dict[str, float]:
@@ -310,6 +310,7 @@ def _supply_run_augmented_manifest(pop, directive, pops: dict) -> dict[str, floa
 
     For each consumable resource type in the manifest, adds the carrier's own
     food/water needs for the round trip so they don't arrive thirsty.
+    Capped at the pop's cargo slot capacity so the readiness gate is always reachable.
     """
     ps = pop.pop_state
     manifest: dict[str, float] = directive.cargo_manifest or {}
@@ -328,6 +329,7 @@ def _supply_run_augmented_manifest(pop, directive, pops: dict) -> dict[str, floa
             one_way = route.ticks_cost
     round_trip = one_way * 2 + 1  # there + back + 1 deposit tick
 
+    slot_cap = _cargo_slot_cap(pop)
     pop_scale = 10 ** pop.size_fractional
     augmented: dict[str, float] = {}
     for rt, qty in manifest.items():
@@ -338,7 +340,7 @@ def _supply_run_augmented_manifest(pop, directive, pops: dict) -> dict[str, floa
             travel_need = NOURISHMENT_CONSUME_RATE * pop_scale * round_trip
         else:
             travel_need = 0.0
-        augmented[rt] = qty + travel_need
+        augmented[rt] = min(qty + travel_need, slot_cap)
     return augmented
 
 
