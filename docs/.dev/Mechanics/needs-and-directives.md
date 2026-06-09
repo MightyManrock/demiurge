@@ -197,7 +197,7 @@ class CollectibleResource(BaseModel):
 **Action types:** `action_types` controls which actions can use the resource. `["forage"]` means only Pop forage or mortal forage can draw from it. `[]` means any action. Use this to distinguish flora (forage-only), fauna (hunt-only), and labeled mineral/water sources (collect-only).
 
 **Passive sustenance:** Resources are not consumed by explicit "eat" or "drink" actions. Instead:
-- Pops: a consumption pass each tick draws `basis:*`-tagged resources from `resource_stockpile` → fills `nourishment`; draws `solvent:*`-tagged resources → fills `hydration`.
+- Pops: a consumption pass each tick draws `basis:*`-tagged resources from accessible `ResourceStockpile` entries at `pop.current_location` → fills `nourishment`; draws `solvent:*`-tagged resources → fills `hydration`. Access is gated by `can_access_stockpile(pop, stockpile)`.
 - Mortals: `_tick_mortal_passive_sustenance` runs a three-source priority — (1) entitled Pop stockpile at current location (scaled by entitlement factor), (2) `MortalInventory`, (3) commerce-quality fallback.
 
 ---

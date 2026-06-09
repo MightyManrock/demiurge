@@ -69,6 +69,8 @@ class Faction(BaseModel):
     member_mortal_ids: list[UUID]    # Direct mortal membership (explicit)
     mortal_leader_ids: list[UUID]    # Mortals holding leadership roles
     active_directives: list[Directive]
+    home_location_id: Optional[UUID] # canonical home PopLocation; governs stockpile routing
+    values: dict[str, float]         # faction-level trait floats, e.g. {"charity": 0.3}
     visibility: float
     pinned: bool
 ```
@@ -99,9 +101,15 @@ Stub actions (`raid`, `fight`, `rout`) always have weight 0.0.
 
 `compute_active_slots(pop, factions)` returns `max(2, floor(size_fractional))`, optionally ±1 from `Directive.slot_modifier`. Only the top-N actions by weight resolve each tick. Slot modifications are blocked when `PopAgentState.fatigue == 1.0`.
 
-### Resource stockpile
+### Resource stockpiles
 
-`PopLocation.resource_stockpile: dict[str, float]` accumulates output from `forage`, `hunt`, and `collect` actions. A consumption pass draws `basis:*`-tagged entries each tick to fill the `nourishment` need and `solvent:*`-tagged entries to fill the `hydration` need.
+`PopLocation.stockpiles: list[ResourceStockpile]` holds one or more resource stores. Each `ResourceStockpile` carries `owner_faction_id`, `owner_band_id` (both `None` = public), and `is_charity: bool` (marks stockpiles that exist from charitable donations — exempt from ownership claiming). Access is gated by `can_access_stockpile(entity, stockpile)` in `core/agent_core.py`.
+
+Gather actions (`forage`, `hunt`, `collect`) deposit into the *entitled* stockpile via `_entitled_stockpile(pop, pop_loc, factions)`: faction-owned when the pop is at their faction's `home_location_id`, band-owned when away, public otherwise. Factions with `values["charity"] > 0` split that fraction of each deposit into the public stockpile instead, marking it `is_charity = True`.
+
+Phase 2.61 (`_tick_stockpile_ownership`) runs after all movement and transitions ownership each tick: abandoned band/faction stockpiles release to public (and merge); a sole-occupying band claims any unclaimed public stockpile; a faction member at faction home reclaims any unclaimed public stockpile. `is_charity` stockpiles are exempt from both claiming rules.
+
+A consumption pass draws `basis:*`-tagged resources from accessible stockpiles to fill `nourishment` and `solvent:*`-tagged resources to fill `hydration`.
 
 ### Canonical Pop needs
 
