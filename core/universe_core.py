@@ -534,6 +534,8 @@ class Directive(BaseModel):
     territory_pop_ids: list[UUID] = Field(default_factory=list)
     # Location-scoped targeting (patrol stops, etc.)
     territory_location_ids: list[UUID] = Field(default_factory=list)
+    # Resupply: home base the pop returns to after collecting resources
+    return_location_id: Optional[UUID] = None
 
 
 class Pop(BaseModel):

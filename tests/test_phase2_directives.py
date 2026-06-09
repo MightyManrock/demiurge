@@ -935,3 +935,106 @@ def test_in_transit_forage_goes_to_cargo():
     public_after = sum(s.quantities.get("food_flora", 0.0) for s in pop_loc.stockpiles)
     assert public_after == initial_public  # nothing went to shared stockpile
     assert ps.cargo.quantities.get("food_flora", 0.0) > 0
+
+
+# ── Group 14: resupply directive ──────────────────────────────────────────────
+
+def _make_resupply_directive(source_id, home_id, manifest=None):
+    return Directive(
+        directive_type="resupply",
+        target_location_id=source_id,
+        return_location_id=home_id,
+        cargo_manifest=manifest or {"potable_water": 8.0},
+    )
+
+
+def test_resupply_phase_dormant_when_needs_satisfied():
+    from logic.pop_agent_logic import _resupply_phase
+    from core.agent_core import PopAgentState, PopNeed
+    src_id = uuid4(); home_id = uuid4()
+    d = _make_resupply_directive(src_id, home_id)
+    pop = MagicMock()
+    pop.current_location = home_id
+    ps = PopAgentState()
+    ps.needs = [PopNeed(name="hydration", satisfaction=0.9, pressing_threshold=0.5)]
+    pop.pop_state = ps
+    assert _resupply_phase(pop, d) == "dormant"
+
+
+def test_resupply_phase_travel_to_source_when_needs_pressing():
+    from logic.pop_agent_logic import _resupply_phase
+    from core.agent_core import PopAgentState, PopNeed
+    src_id = uuid4(); home_id = uuid4()
+    d = _make_resupply_directive(src_id, home_id)
+    pop = MagicMock()
+    pop.current_location = home_id
+    ps = PopAgentState()
+    ps.needs = [PopNeed(name="hydration", satisfaction=0.1, pressing_threshold=0.5)]
+    pop.pop_state = ps
+    assert _resupply_phase(pop, d) == "travel_to_source"
+
+
+def test_resupply_phase_dwell_and_load_at_source_needs_unmet():
+    from logic.pop_agent_logic import _resupply_phase
+    from core.agent_core import PopAgentState, PopNeed
+    src_id = uuid4(); home_id = uuid4()
+    d = _make_resupply_directive(src_id, home_id)
+    pop = MagicMock()
+    pop.current_location = src_id
+    ps = PopAgentState()
+    ps.needs = [PopNeed(name="hydration", satisfaction=0.4, pressing_threshold=0.5)]
+    pop.pop_state = ps
+    assert _resupply_phase(pop, d) == "dwell_and_load"
+
+
+def test_resupply_phase_travel_home_when_needs_and_cargo_met():
+    from logic.pop_agent_logic import _resupply_phase
+    from core.agent_core import PopAgentState, PopNeed
+    src_id = uuid4(); home_id = uuid4()
+    d = _make_resupply_directive(src_id, home_id)
+    pop = MagicMock()
+    pop.current_location = src_id
+    ps = PopAgentState()
+    ps.needs = [PopNeed(name="hydration", satisfaction=0.95, pressing_threshold=0.5)]
+    ps.cargo.quantities["potable_water"] = 8.0
+    pop.pop_state = ps
+    assert _resupply_phase(pop, d) == "travel_home"
+
+
+def test_resupply_phase_deposit_at_home_with_cargo():
+    from logic.pop_agent_logic import _resupply_phase
+    from core.agent_core import PopAgentState
+    src_id = uuid4(); home_id = uuid4()
+    d = _make_resupply_directive(src_id, home_id)
+    pop = MagicMock()
+    pop.current_location = home_id
+    ps = PopAgentState()
+    ps.cargo.quantities["potable_water"] = 8.0
+    pop.pop_state = ps
+    assert _resupply_phase(pop, d) == "deposit"
+
+
+def test_resupply_sets_pending_migration_dest_on_trigger():
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, PopNeed
+    from core.universe_core import PopLocation
+    src_id = uuid4(); home_id = uuid4()
+    d = _make_resupply_directive(src_id, home_id)
+    pop_loc = PopLocation(id=home_id, name="Home", location_type="wilderness")
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.current_location = home_id
+    pop.migration_travel_location_id = None
+    pop.band_id = None
+    pop.faction_ids = []
+    pop.size_fractional = 1.0
+    pop.occupation = "forager"
+    pop.stratum = "common"
+    pop.active_directives = [d]
+    ps = PopAgentState()
+    ps.needs = [PopNeed(name="hydration", satisfaction=0.1, pressing_threshold=0.5)]
+    pop.pop_state = ps
+    state = MagicMock(); state.pops = {}; state.mortals = {}
+    resolve_pop_actions(pop, pop_loc=pop_loc, priorities={}, n_slots=0,
+                        factions={}, current_tick=1, state=state)
+    assert ps.pending_migration_dest == src_id
