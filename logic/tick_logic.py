@@ -5688,6 +5688,8 @@ class TickLoop:
                     for other in public_stks[1:]:
                         for rt, qty in other.quantities.items():
                             merged.quantities[rt] = merged.quantities.get(rt, 0.0) + qty
+                        if other.is_charity:
+                            merged.is_charity = True
                     loc.stockpiles = [s for s in loc.stockpiles if s not in public_stks[1:]]
 
             # Phase B: claim unclaimed public stockpile
@@ -5698,6 +5700,7 @@ class TickLoop:
             }
 
             # Faction home takes priority: any faction member present at home reclaims public
+            # Charity-flagged public stockpiles are exempt — they remain available to all.
             faction_claimed = False
             for fid_str in home_faction_ids & present_faction_ids:
                 faction_uuid = UUID(fid_str)
@@ -5708,12 +5711,13 @@ class TickLoop:
                     faction_claimed = True
                     continue
                 for stk in loc.stockpiles:
-                    if stk.owner_faction_id is None and stk.owner_band_id is None:
+                    if stk.owner_faction_id is None and stk.owner_band_id is None and not stk.is_charity:
                         stk.owner_faction_id = faction_uuid
                         faction_claimed = True
                         break
 
-            # Band sole-occupancy: one band, no other pops/mortals, not a faction home
+            # Band sole-occupancy: one band, no other pops/mortals, not a faction home.
+            # Charity-flagged public stockpiles are exempt — donated goods stay communal.
             if not faction_claimed and not home_faction_ids and len(present_band_ids) == 1:
                 band_id_str = next(iter(present_band_ids))
                 all_same_band = all(
@@ -5729,7 +5733,7 @@ class TickLoop:
                     band_uuid = UUID(band_id_str)
                     if not any(s.owner_band_id == band_uuid for s in loc.stockpiles):
                         for stk in loc.stockpiles:
-                            if stk.owner_faction_id is None and stk.owner_band_id is None:
+                            if stk.owner_faction_id is None and stk.owner_band_id is None and not stk.is_charity:
                                 stk.owner_band_id = band_uuid
                                 break
 

@@ -238,3 +238,62 @@ def test_faction_does_not_claim_at_non_home():
     _loop()._tick_stockpile_ownership(state)
 
     assert stk.owner_faction_id is None
+
+
+# ─── Charity protection: is_charity stockpiles resist claiming ────────────────
+
+def test_charity_stockpile_not_claimed_by_sole_band():
+    """A charity-flagged public stockpile is never seized under the band sole-occupancy rule."""
+    band_id = uuid4()
+    stk = ResourceStockpile(quantities={"potable_water": 2.0}, is_charity=True)
+    loc = _make_loc([stk])
+    loc_id = str(loc.id)
+
+    pop = _make_pop(loc_id, band_id=band_id)
+    state = _make_state(locs={loc_id: loc}, pops={"p1": pop})
+
+    _loop()._tick_stockpile_ownership(state)
+
+    assert stk.owner_band_id is None
+    assert stk.is_charity is True
+
+
+def test_charity_stockpile_not_claimed_by_faction_at_home():
+    """A charity-flagged public stockpile at a faction's home is not reclaimed by that faction."""
+    faction_id = uuid4()
+    loc = _make_loc()
+    loc_id = str(loc.id)
+
+    faction = Faction(id=faction_id, name="Test Faction", home_location_id=loc.id)
+    stk = ResourceStockpile(quantities={"potable_water": 3.0}, is_charity=True)
+    loc.stockpiles = [stk]
+
+    pop = _make_pop(loc_id, faction_ids=[faction_id])
+    state = _make_state(
+        locs={loc_id: loc},
+        pops={"p1": pop},
+        factions={str(faction_id): faction},
+    )
+
+    _loop()._tick_stockpile_ownership(state)
+
+    assert stk.owner_faction_id is None
+    assert stk.is_charity is True
+
+
+def test_charity_flag_propagates_through_merge():
+    """When stockpiles merge after a release, is_charity is preserved if any source had it."""
+    band_id = uuid4()
+    stk_band = ResourceStockpile(owner_band_id=band_id, quantities={"food_flora": 2.0})
+    stk_public = ResourceStockpile(quantities={"potable_water": 1.0}, is_charity=True)
+    loc = _make_loc([stk_band, stk_public])
+    loc_id = str(loc.id)
+
+    # Band leaves → stk_band releases, then merges with charity stk_public
+    state = _make_state(locs={loc_id: loc})
+
+    _loop()._tick_stockpile_ownership(state)
+
+    assert len(loc.stockpiles) == 1
+    merged = loc.stockpiles[0]
+    assert merged.is_charity is True

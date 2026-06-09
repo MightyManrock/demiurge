@@ -733,6 +733,7 @@ def resolve_pop_actions(
                         if _charity_amt > 0:
                             _pub_shared = _public_stockpile(pop_loc)
                             _pub_shared.quantities[cr.resource_type] = _pub_shared.quantities.get(cr.resource_type, 0.0) + _charity_amt
+                            _pub_shared.is_charity = True
             elif not in_transit:
                 # Environment fallback (stationary pops only)
                 _charity_amt_f = output * BASE_FORAGE_YIELD * _charity
@@ -740,11 +741,15 @@ def resolve_pop_actions(
                 if action == "forage":
                     _ent.quantities["food_flora"] = _ent.quantities.get("food_flora", 0.0) + _ent_amt_f
                     if _charity_amt_f > 0:
-                        _public_stockpile(pop_loc).quantities["food_flora"] = _public_stockpile(pop_loc).quantities.get("food_flora", 0.0) + _charity_amt_f
+                        _pub_f = _public_stockpile(pop_loc)
+                        _pub_f.quantities["food_flora"] = _pub_f.quantities.get("food_flora", 0.0) + _charity_amt_f
+                        _pub_f.is_charity = True
                 elif action == "hunt":
                     _ent.quantities["food_fauna"] = _ent.quantities.get("food_fauna", 0.0) + _ent_amt_f
                     if _charity_amt_f > 0:
-                        _public_stockpile(pop_loc).quantities["food_fauna"] = _public_stockpile(pop_loc).quantities.get("food_fauna", 0.0) + _charity_amt_f
+                        _pub_h = _public_stockpile(pop_loc)
+                        _pub_h.quantities["food_fauna"] = _pub_h.quantities.get("food_fauna", 0.0) + _charity_amt_f
+                        _pub_h.is_charity = True
                 # collect with no matching resource → no output
 
         elif action == "commune":

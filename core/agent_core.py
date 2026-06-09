@@ -300,6 +300,9 @@ class ResourceStockpile(BaseModel):
     quantities: dict[str, float] = Field(default_factory=dict)
     owner_faction_id: Optional[UUID] = None
     owner_band_id: Optional[UUID] = None
+    # Charity-donated public stockpiles are exempt from Phase 2.61 claiming rules so
+    # voluntary donations persist rather than being immediately seized by the next occupant.
+    is_charity: bool = False
 
 
 
