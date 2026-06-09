@@ -302,6 +302,44 @@ _IDLE_FLOOR            = 0.01   # small uniform baseline preventing all-zero dis
 _PATROL_FORTIFY_BOOST  = 0.30
 _PATROL_HUNT_BOOST     = 0.20
 _SUPPLY_RUN_CARGO_BOOST = 0.40
+_SUPPLY_RUN_READINESS  = 0.80   # fraction of augmented manifest required before departure
+
+
+def _supply_run_augmented_manifest(pop, directive, pops: dict) -> dict[str, float]:
+    """Return manifest quantities plus estimated round-trip self-consumption.
+
+    For each consumable resource type in the manifest, adds the carrier's own
+    food/water needs for the round trip so they don't arrive thirsty.
+    """
+    ps = pop.pop_state
+    manifest: dict[str, float] = directive.cargo_manifest or {}
+    if not manifest and directive.cargo_resource_type:
+        manifest = {directive.cargo_resource_type: float(directive.cargo_quantity)}
+    if not manifest:
+        return {}
+
+    # Estimate one-way travel ticks from KB route; fall back to 8
+    one_way = 8
+    target_pop = pops.get(str(directive.target_pop_id)) if directive.target_pop_id else None
+    dest_loc_id = str(target_pop.current_location) if target_pop and target_pop.current_location else None
+    if ps is not None and dest_loc_id and ps.knowledge_base is not None:
+        route = ps.knowledge_base.route_to(dest_loc_id)
+        if route and route.ticks_cost > 0:
+            one_way = route.ticks_cost
+    round_trip = one_way * 2 + 1  # there + back + 1 deposit tick
+
+    pop_scale = 10 ** pop.size_fractional
+    augmented: dict[str, float] = {}
+    for rt, qty in manifest.items():
+        cat = _RESOURCE_BIOCHEM.get(rt)
+        if cat == "solvent":
+            travel_need = HYDRATION_CONSUME_RATE * pop_scale * round_trip
+        elif cat == "basis":
+            travel_need = NOURISHMENT_CONSUME_RATE * pop_scale * round_trip
+        else:
+            travel_need = 0.0
+        augmented[rt] = qty + travel_need
+    return augmented
 
 
 def _supply_run_phase(pop, directive, pops: dict):
@@ -312,6 +350,7 @@ def _supply_run_phase(pop, directive, pops: dict):
 
     target_location_id = the HOME/SOURCE location (where cargo is loaded).
     Destination = target_pop.current_location.
+    The carrier loads manifest + estimated round-trip self-consumption before departing.
     """
     from uuid import UUID
 
@@ -325,17 +364,23 @@ def _supply_run_phase(pop, directive, pops: dict):
     def _same(a, b) -> bool:
         return a is not None and b is not None and UUID(str(a)) == UUID(str(b))
 
-    # cargo_manifest overrides single-type fields when non-empty
     manifest: dict[str, float] = directive.cargo_manifest or {}
     if not manifest and directive.cargo_resource_type:
         manifest = {directive.cargo_resource_type: float(directive.cargo_quantity)}
-    has_cargo = any(pop.pop_state.cargo.quantities.get(rt, 0.0) > 0.0 for rt in manifest)
+
+    ps = pop.pop_state
+    cargo = ps.cargo.quantities if ps else {}
 
     if _same(pop.current_location, directive.target_location_id):
-        # At home/source: load if empty, travel to dest if loaded
-        return "travel_to_dest" if has_cargo else "load"
+        # At home: wait until augmented manifest is sufficiently loaded
+        augmented = _supply_run_augmented_manifest(pop, directive, pops)
+        ready = bool(augmented) and all(
+            cargo.get(rt, 0.0) >= qty * _SUPPLY_RUN_READINESS
+            for rt, qty in augmented.items() if qty > 0
+        )
+        return "travel_to_dest" if ready else "load"
+    has_cargo = any(cargo.get(rt, 0.0) > 0.0 for rt in manifest)
     if _same(pop.current_location, dest_loc):
-        # At destination: deposit if loaded, head home if empty
         return "deposit" if has_cargo else "travel_home"
     # In transit
     return "travel_to_dest" if has_cargo else "travel_home"
@@ -805,12 +850,10 @@ def resolve_pop_actions(
             for _sd in _sr_directives:
                 if _supply_run_phase(pop, _sd, _pops_dict) == "load":
                     _pub = _entitled_stockpile(pop, pop_loc, factions_dict)
-                    _manifest = _sd.cargo_manifest or {}
-                    if not _manifest and _sd.cargo_resource_type:
-                        _manifest = {_sd.cargo_resource_type: float(_sd.cargo_quantity)}
+                    _augmented = _supply_run_augmented_manifest(pop, _sd, _pops_dict)
                     _any_loaded = False
                     _cap = _cargo_slot_cap(pop)
-                    for _rt, _qty in _manifest.items():
+                    for _rt, _qty in _augmented.items():
                         if _load_cargo_fn(ps.cargo, _pub, _rt, _qty, _cap) > 0:
                             _any_loaded = True
                     if _any_loaded:
@@ -1016,33 +1059,9 @@ def resolve_pop_actions(
 
     _pop_scale = 10 ** pop.size_fractional
 
-    # Collect resource types reserved for active supply_run/resupply deliveries.
-    # These are never consumed from cargo — they are goods in transit, not provisions.
-    _reserved_cargo: set[str] = set()
-    _factions_dict_c = factions if isinstance(factions, dict) else {}
-    _pop_id_str_c = str(pop.id)
-    for _d in pop.active_directives:
-        if _d.directive_type in ("supply_run", "resupply"):
-            _m = _d.cargo_manifest or {}
-            if not _m and _d.cargo_resource_type:
-                _m = {_d.cargo_resource_type: float(_d.cargo_quantity)}
-            _reserved_cargo.update(_m.keys())
-    for _fid_c in pop.faction_ids:
-        _f_c = _factions_dict_c.get(str(_fid_c))
-        if _f_c:
-            for _d in _f_c.active_directives:
-                if _d.directive_type in ("supply_run", "resupply"):
-                    _pop_id_str_c_check = _pop_id_str_c
-                    if _d.territory_pop_ids and _pop_id_str_c_check not in {str(t) for t in _d.territory_pop_ids}:
-                        continue
-                    _m = _d.cargo_manifest or {}
-                    if not _m and _d.cargo_resource_type:
-                        _m = {_d.cargo_resource_type: float(_d.cargo_quantity)}
-                    _reserved_cargo.update(_m.keys())
-
     # Source 1: Pop's own CargoStockpile (in-hand resources — consumed before shared stockpiles)
     for _rt, _qty in list(ps.cargo.quantities.items()):
-        if _qty <= 0 or _rt in _reserved_cargo:
+        if _qty <= 0:
             continue
         _cat = _biochem_map.get(_rt)
         if _cat == "basis" and nourishment and nourishment.satisfaction < 1.0:
