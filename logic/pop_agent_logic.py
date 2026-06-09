@@ -344,7 +344,7 @@ def _supply_run_augmented_manifest(pop, directive, pops: dict) -> dict[str, floa
     return augmented
 
 
-def _supply_run_phase(pop, directive, pops: dict):
+def _supply_run_phase(pop, directive, pops: dict, pop_loc=None):
     """Return the current phase of a supply_run directive for this pop.
 
     Phases: "load", "travel_to_dest", "deposit", "travel_home", or None if the
@@ -353,6 +353,8 @@ def _supply_run_phase(pop, directive, pops: dict):
     target_location_id = the HOME/SOURCE location (where cargo is loaded).
     Destination = target_pop.current_location.
     The carrier loads manifest + estimated round-trip self-consumption before departing.
+    If pop_loc is provided, a resource that has been exhausted at the source no longer
+    blocks departure (depart with whatever was loaded rather than waiting indefinitely).
     """
     from uuid import UUID
 
@@ -374,10 +376,25 @@ def _supply_run_phase(pop, directive, pops: dict):
     cargo = ps.cargo.quantities if ps else {}
 
     if _same(pop.current_location, directive.target_location_id):
-        # At home: wait until augmented manifest is sufficiently loaded
+        # At home: wait until augmented manifest is sufficiently loaded, OR source is dry
         augmented = _supply_run_augmented_manifest(pop, directive, pops)
-        ready = bool(augmented) and all(
+        if not augmented:
+            return "load"
+
+        def _source_available(rt: str) -> float:
+            """Total quantity of rt accessible to this pop at the source location."""
+            if pop_loc is None or not hasattr(pop_loc, "stockpiles"):
+                return float("inf")  # unknown — don't treat as exhausted
+            return sum(
+                stk.quantities.get(rt, 0.0)
+                for stk in pop_loc.stockpiles
+                if can_access_stockpile(pop, stk)
+            )
+
+        _SOURCE_EXHAUSTED_THRESHOLD = 1.0
+        ready = all(
             cargo.get(rt, 0.0) >= qty * _SUPPLY_RUN_READINESS
+            or _source_available(rt) <= _SOURCE_EXHAUSTED_THRESHOLD
             for rt, qty in augmented.items() if qty > 0
         )
         return "travel_to_dest" if ready else "load"
@@ -694,7 +711,7 @@ def resolve_pop_actions(
         if _f_sr:
             _sr_directives.extend(d for d in _f_sr.active_directives if d.directive_type == "supply_run" and _sr_scoped(d))
     for _sd in _sr_directives:
-        _sr_phase = _supply_run_phase(pop, _sd, _pops_dict)
+        _sr_phase = _supply_run_phase(pop, _sd, _pops_dict, pop_loc=pop_loc)
         if current_tick < ps.supply_run_skip_until.get(str(_sd.id), 0) and _sr_phase == "load":
             continue  # skip active: delay next outbound run; travel_home still executes
         if _sr_phase == "travel_to_dest":
@@ -850,7 +867,7 @@ def resolve_pop_actions(
         elif action == "load_cargo":
             _load_handled = False
             for _sd in _sr_directives:
-                if _supply_run_phase(pop, _sd, _pops_dict) == "load":
+                if _supply_run_phase(pop, _sd, _pops_dict, pop_loc=pop_loc) == "load":
                     _pub = _entitled_stockpile(pop, pop_loc, factions_dict)
                     _augmented = _supply_run_augmented_manifest(pop, _sd, _pops_dict)
                     _any_loaded = False
@@ -885,7 +902,7 @@ def resolve_pop_actions(
         elif action == "deposit_cargo":
             _deposit_handled = False
             for _sd in _sr_directives:
-                if _supply_run_phase(pop, _sd, _pops_dict) == "deposit":
+                if _supply_run_phase(pop, _sd, _pops_dict, pop_loc=pop_loc) == "deposit":
                     _pub = _public_stockpile(pop_loc)
                     _manifest = _sd.cargo_manifest or {}
                     if not _manifest and _sd.cargo_resource_type:
@@ -912,8 +929,26 @@ def resolve_pop_actions(
                                 _interval += 1                       # barely touched — wait longer
                     ps.supply_run_interval[str(_sd.id)] = _interval
 
+                    # Estimate one-way return trip cost to reserve self-consumption buffer.
+                    _ret_one_way = 8
+                    _dep_target = _pops_dict.get(str(_sd.target_pop_id)) if _sd.target_pop_id else None
+                    _dep_dest_id = str(_dep_target.current_location) if _dep_target and _dep_target.current_location else None
+                    if ps.knowledge_base is not None and _dep_dest_id:
+                        _dep_route = ps.knowledge_base.route_to(_dep_dest_id)
+                        if _dep_route and _dep_route.ticks_cost > 0:
+                            _ret_one_way = _dep_route.ticks_cost
+                    _ret_scale = 10 ** pop.size_fractional
                     for _rt, _qty in _manifest.items():
-                        _unload_cargo_fn(ps.cargo, _pub, _rt, _qty)
+                        _cat_dep = _RESOURCE_BIOCHEM.get(_rt)
+                        if _cat_dep == "solvent":
+                            _return_need = HYDRATION_CONSUME_RATE * _ret_scale * _ret_one_way
+                        elif _cat_dep == "basis":
+                            _return_need = NOURISHMENT_CONSUME_RATE * _ret_scale * _ret_one_way
+                        else:
+                            _return_need = 0.0
+                        _in_cargo = ps.cargo.quantities.get(_rt, 0.0)
+                        _to_deposit = min(_qty, max(0.0, _in_cargo - _return_need))
+                        _unload_cargo_fn(ps.cargo, _pub, _rt, _to_deposit)
 
                     # Record what was deposited so the next visit can estimate consumption.
                     if _sf_dep is not None:
