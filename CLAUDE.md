@@ -161,6 +161,7 @@ Deep-dive docs live in `docs/.dev/Mechanics/`. Reach for these when working on a
 | Linked Pops — data model, link factor, drift, cascade, travel milieu | [linked-pops.md](docs/.dev/Mechanics/linked-pops.md) |
 | Log narrative events — how to emit, sentinel format, entity linking reference | [narrative-events.md](docs/.dev/Mechanics/narrative-events.md) |
 | Pop splitting and reabsorption — divergence check, probabilistic gate, civ-scale modifier, mortal redistribution, passive drain, identity anchor | [pop-splinter-absorption.md](docs/.dev/Mechanics/pop-splinter-absorption.md) |
+| **SQLite schema for `scenarios/*.db` and `core/core.db`** — all tables, columns, JSON-embedded fields; note that `sqlite3` CLI is unavailable, use Python | [database-schema.md](docs/.dev/Mechanics/database-schema.md) |
 
 ## Extending the system
 
