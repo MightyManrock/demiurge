@@ -281,7 +281,7 @@ def _supply_run_phase(pop, directive, pops: dict):
     return "travel_to_dest" if has_cargo else "travel_home"
 
 
-def _resupply_phase(pop, directive) -> str:
+def _resupply_phase(pop, directive, pop_loc=None) -> str:
     """Return the current phase of a resupply directive for this pop.
 
     Phases: "dormant", "travel_to_source", "dwell_and_load", "travel_home", "deposit"
@@ -319,6 +319,16 @@ def _resupply_phase(pop, directive) -> str:
         )
         if needs_ok and cargo_ok:
             return "travel_home"
+        # Escape: source is depleted — no manifest resources available to load
+        if pop_loc is not None and manifest and not has_cargo:
+            source_has_supply = any(
+                stk.quantities.get(rt, 0.0) > 0
+                for stk in pop_loc.stockpiles
+                if can_access_stockpile(pop, stk)
+                for rt in manifest
+            )
+            if not source_has_supply:
+                return "travel_home"
         return "dwell_and_load"
 
     if at_home:
@@ -328,6 +338,16 @@ def _resupply_phase(pop, directive) -> str:
             n.name in ("nourishment", "hydration") and n.is_pressing
             for n in ps.needs
         ):
+            # Only go to source if home can't supply the need locally
+            if pop_loc is not None and manifest:
+                home_has_supply = any(
+                    stk.quantities.get(rt, 0.0) > 0
+                    for stk in pop_loc.stockpiles
+                    if can_access_stockpile(pop, stk)
+                    for rt in manifest
+                )
+                if home_has_supply:
+                    return "dormant"  # Stay and drink locally
             return "travel_to_source"
         return "dormant"
 
@@ -590,7 +610,7 @@ def resolve_pop_actions(
                 d for d in _f_rs.active_directives if d.directive_type == "resupply" and _sr_scoped(d)
             )
     for _rd in _resupply_directives:
-        _rs_phase = _resupply_phase(pop, _rd)
+        _rs_phase = _resupply_phase(pop, _rd, pop_loc=pop_loc)
         if _rs_phase == "dormant":
             break
         elif _rs_phase == "travel_to_source":
@@ -852,13 +872,19 @@ def resolve_pop_actions(
                                 _bp.migration_travel_location_id = _tl.id
                                 _bp.current_location = _tl.id
 
-                    # Mortal embedding: mortals with matching band_id and no pending travel
+                    # Mortal embedding: mortals with matching band_id and no active travel
                     if _band_id is not None and state is not None:
                         for _m in state.mortals.values():
+                            _m_ti = getattr(_m, "travel_intent", None)
+                            _m_ti_active = (
+                                _m_ti is not None
+                                and _m_ti.travel_location_id is not None
+                                and state.locations.get(str(_m_ti.travel_location_id)) is not None
+                            )
                             if (
                                 getattr(_m, "band_id", None) == _band_id
                                 and _m.current_location == _origin_id
-                                and getattr(_m, "travel_intent", None) is None
+                                and not _m_ti_active
                             ):
                                 if _m.id not in _tl.occupants:
                                     _tl.occupants.append(_m.id)
