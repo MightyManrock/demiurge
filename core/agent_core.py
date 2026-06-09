@@ -232,7 +232,7 @@ class CargoStockpile(BaseModel):
     """Mobile resource store carried by a Pop. Slot-limited."""
     quantities: dict[str, float] = Field(default_factory=dict)
     max_slots: int = 4
-    slot_capacity: float = 20.0
+    slot_capacity: float = 200.0
 
 
 class PopAgentState(BaseModel):
