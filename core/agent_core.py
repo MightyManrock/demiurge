@@ -228,11 +228,12 @@ class PopNeed(BaseModel):
         return self.satisfaction < self.urgent_threshold
 
 
+MORTAL_CARGO_SLOT_CAPACITY: float = 20.0  # per-slot capacity for a single mortal; Pops scale by 10^size_fractional
+
 class CargoStockpile(BaseModel):
-    """Mobile resource store carried by a Pop. Slot-limited."""
+    """Mobile resource store carried by a Pop. Slot-limited; capacity is carrier-dependent."""
     quantities: dict[str, float] = Field(default_factory=dict)
     max_slots: int = 4
-    slot_capacity: float = 200.0
 
 
 class PopAgentState(BaseModel):
@@ -308,8 +309,8 @@ class ResourceStockpile(BaseModel):
 
 class MortalInventory(BaseModel):
     items: list[Resource] = Field(default_factory=list)
-    max_slots: Optional[int] = None       # max distinct resource types; None = unlimited
-    slot_capacity: Optional[float] = None  # max quantity per type; None = unlimited
+    max_slots: Optional[int] = None                            # max distinct resource types; None = unlimited
+    slot_capacity: Optional[float] = MORTAL_CARGO_SLOT_CAPACITY  # max quantity per type; None = unlimited
 
     def get_resource(self, resource_type: str) -> Optional[Resource]:
         return next((r for r in self.items if r.resource_type == resource_type), None)
@@ -353,8 +354,12 @@ def load_cargo(
     stockpile: ResourceStockpile,
     resource_type: str,
     amount: float,
+    slot_capacity: float,
 ) -> float:
-    """Transfer up to `amount` of `resource_type` from stockpile into cargo. Returns amount moved."""
+    """Transfer up to `amount` of `resource_type` from stockpile into cargo. Returns amount moved.
+
+    slot_capacity: max units of this resource type the carrier can hold (caller provides based on carrier size).
+    """
     available = stockpile.quantities.get(resource_type, 0.0)
     amount = min(amount, available)
     if amount <= 0.0:
@@ -363,7 +368,7 @@ def load_cargo(
         if len(cargo.quantities) >= cargo.max_slots:
             return 0.0
     current = cargo.quantities.get(resource_type, 0.0)
-    room = cargo.slot_capacity - current
+    room = slot_capacity - current
     amount = min(amount, room)
     if amount <= 0.0:
         return 0.0

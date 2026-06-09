@@ -9,7 +9,13 @@ if TYPE_CHECKING:
 from core.agent_core import (
     PopAgentState, PopNeed, ResourceFact, StockpileFact, ResourceStockpile, can_access_stockpile,
     load_cargo as _load_cargo_fn, unload_cargo as _unload_cargo_fn, TravelIntent,
+    MORTAL_CARGO_SLOT_CAPACITY,
 )
+
+
+def _cargo_slot_cap(pop) -> float:
+    """Per-slot cargo capacity for this pop, scaled by headcount (10^size_fractional)."""
+    return MORTAL_CARGO_SLOT_CAPACITY * (10 ** pop.size_fractional)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -722,7 +728,7 @@ def resolve_pop_actions(
                         # Deposit gathered resources into the pop's own cargo
                         _c_cur = ps.cargo.quantities.get(cr.resource_type, 0.0)
                         if cr.resource_type in ps.cargo.quantities or len(ps.cargo.quantities) < ps.cargo.max_slots:
-                            _room = ps.cargo.slot_capacity - _c_cur
+                            _room = _cargo_slot_cap(pop) - _c_cur
                             _dep = min(actual, max(0.0, _room))
                             if _dep > 0:
                                 ps.cargo.quantities[cr.resource_type] = _c_cur + _dep
@@ -797,8 +803,9 @@ def resolve_pop_actions(
                     if not _manifest and _sd.cargo_resource_type:
                         _manifest = {_sd.cargo_resource_type: float(_sd.cargo_quantity)}
                     _any_loaded = False
+                    _cap = _cargo_slot_cap(pop)
                     for _rt, _qty in _manifest.items():
-                        if _load_cargo_fn(ps.cargo, _pub, _rt, _qty) > 0:
+                        if _load_cargo_fn(ps.cargo, _pub, _rt, _qty, _cap) > 0:
                             _any_loaded = True
                     if _any_loaded:
                         _purpose = needs_by_name.get("purpose")
@@ -814,8 +821,9 @@ def resolve_pop_actions(
                         if not _manifest and _rd.cargo_resource_type:
                             _manifest = {_rd.cargo_resource_type: float(_rd.cargo_quantity)}
                         _any_loaded = False
+                        _cap = _cargo_slot_cap(pop)
                         for _rt, _qty in _manifest.items():
-                            if _load_cargo_fn(ps.cargo, _pub, _rt, _qty) > 0:
+                            if _load_cargo_fn(ps.cargo, _pub, _rt, _qty, _cap) > 0:
                                 _any_loaded = True
                         if _any_loaded:
                             _purpose = needs_by_name.get("purpose")
@@ -932,12 +940,13 @@ def resolve_pop_actions(
                         if hasattr(_f, "member_pop_ids") and pop.id in _f.member_pop_ids
                     )
                     if not _cargo_directive_active and pop_loc is not None:
+                        _cap = _cargo_slot_cap(pop)
                         for _stk in pop_loc.stockpiles:
                             if not can_access_stockpile(pop, _stk):
                                 continue
                             for _rt, _avail in list(_stk.quantities.items()):
                                 if _avail > 0:
-                                    _load_cargo_fn(ps.cargo, _stk, _rt, _avail)
+                                    _load_cargo_fn(ps.cargo, _stk, _rt, _avail, _cap)
 
                     # Leave origin immediately
                     pop.current_location = _tl.id

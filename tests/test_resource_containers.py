@@ -109,22 +109,24 @@ class TestMortalInventoryCapacity:
         added = inv.add_resource("food_flora", 2.0)  # existing type, slots full but OK
         assert added == 2.0
 
-    def test_no_capacity_limits_by_default_for_backwards_compat(self):
-        """Existing code that doesn't set limits should not be broken."""
-        from core.agent_core import MortalInventory
-        inv = MortalInventory()  # max_slots and slot_capacity default to None/unlimited
+    def test_default_mortal_slot_capacity_is_twenty(self):
+        """MortalInventory defaults to 20 units/slot (single-mortal carry baseline)."""
+        from core.agent_core import MortalInventory, MORTAL_CARGO_SLOT_CAPACITY
+        inv = MortalInventory()
+        inv.add_resource("food_flora", 1000.0)
+        assert inv.get_resource("food_flora").quantity == MORTAL_CARGO_SLOT_CAPACITY
+        # max_slots is still unlimited by default
         for i in range(10):
-            inv.add_resource(f"resource_{i}", 1000.0)
-        assert len(inv.items) == 10
-        assert inv.get_resource("resource_0").quantity == 1000.0
+            inv.add_resource(f"resource_{i}", 1.0)
+        assert len(inv.items) == 11
 
 
 # ── CargoStockpile transfer functions ─────────────────────────────────────────
 
 class TestCargoTransfer:
-    def _cargo(self, max_slots=4, slot_capacity=20.0, **quantities):
+    def _cargo(self, max_slots=4, **quantities):
         from core.agent_core import CargoStockpile
-        c = CargoStockpile(max_slots=max_slots, slot_capacity=slot_capacity)
+        c = CargoStockpile(max_slots=max_slots)
         c.quantities = dict(quantities)
         return c
 
@@ -137,7 +139,7 @@ class TestCargoTransfer:
         from core.agent_core import load_cargo
         cargo = self._cargo()
         stockpile = self._stockpile(food_flora=10.0)
-        transferred = load_cargo(cargo, stockpile, "food_flora", 5.0)
+        transferred = load_cargo(cargo, stockpile, "food_flora", 5.0, slot_capacity=20.0)
         assert transferred == 5.0
         assert cargo.quantities["food_flora"] == 5.0
         assert stockpile.quantities["food_flora"] == 5.0
@@ -146,15 +148,15 @@ class TestCargoTransfer:
         from core.agent_core import load_cargo
         cargo = self._cargo()
         stockpile = self._stockpile(food_flora=3.0)
-        transferred = load_cargo(cargo, stockpile, "food_flora", 10.0)
+        transferred = load_cargo(cargo, stockpile, "food_flora", 10.0, slot_capacity=20.0)
         assert transferred == 3.0
         assert stockpile.quantities["food_flora"] == 0.0
 
     def test_load_cargo_limited_by_cargo_slot_capacity(self):
         from core.agent_core import load_cargo
-        cargo = self._cargo(slot_capacity=5.0, food_flora=4.0)
+        cargo = self._cargo(food_flora=4.0)
         stockpile = self._stockpile(food_flora=10.0)
-        transferred = load_cargo(cargo, stockpile, "food_flora", 5.0)
+        transferred = load_cargo(cargo, stockpile, "food_flora", 5.0, slot_capacity=5.0)
         assert transferred == 1.0
         assert cargo.quantities["food_flora"] == 5.0
 
@@ -162,7 +164,7 @@ class TestCargoTransfer:
         from core.agent_core import load_cargo
         cargo = self._cargo(max_slots=1, food_flora=1.0)
         stockpile = self._stockpile(potable_water=10.0)
-        transferred = load_cargo(cargo, stockpile, "potable_water", 5.0)
+        transferred = load_cargo(cargo, stockpile, "potable_water", 5.0, slot_capacity=20.0)
         assert transferred == 0.0
 
     def test_unload_cargo_basic(self):
