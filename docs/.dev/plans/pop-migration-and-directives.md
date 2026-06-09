@@ -1,4 +1,4 @@
-> status: active | last updated: 2026-06-08
+> status: active | last updated: 2026-06-09
 
 # Pop Migration and Faction Directives
 
@@ -161,6 +161,23 @@ When a Pop begins migration, any mortal whose `band_id` matches the Pop's band (
 - `utilities/travel_routing.py` — shared routing helpers (no new logic, just reuse)
 - `logic/tick_logic.py` — `_process_pop_travel`, phase ordering, mortal-embedding hook
 - `logic/pop_agent_logic.py` — migration decision in `compute_pop_priorities`
+
+---
+
+## Phase 2.61: Stockpile Ownership Transitions
+
+**Status:** Complete (2026-06-09).
+
+Steady-state ownership rules that fire every tick after all movement resolves:
+
+- **Band abandons location** → band-owned stockpile converts to public; all public stockpiles at the location merge into one.
+- **Faction abandons its home** → faction-owned stockpile at that home converts to public; merge as above.
+- **Band is sole occupant** (non-faction home, all pops/mortals same band) → claims any unclaimed public stockpile.
+- **Faction member re-enters faction home** → claims any unclaimed public stockpile (priority over band rule).
+
+Charity-donated public stockpiles (`ResourceStockpile.is_charity = True`) are exempt from both claiming rules and the flag propagates through merges. Set by `_charity_rate()` gather splits in `pop_agent_logic.py`.
+
+Also implemented in this block: `Faction.home_location_id`, `Faction.values` (faction-level trait dict, e.g. `{"charity": 0.3}`), `_entitled_stockpile()` helper that routes gather output to faction-owned (at home), band-owned (away), or public stockpile. Demand calculation for owned stockpiles sweeps all entitled pops across state rather than only co-located ones.
 
 ---
 

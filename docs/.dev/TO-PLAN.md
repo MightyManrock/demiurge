@@ -104,9 +104,6 @@ The `entitlement_resolver` grants mortals access to Pop stockpiles but imposes n
 **Mortal inventory capacity / encumbrance**
 `MortalInventory` has no capacity limit; mortals who forage and hunt could accumulate resources indefinitely. A capacity model (weight- or slot-based) would gate this and connect naturally to `MortalAsset` vehicle cargo capacity once that is formalized.
 
-**KnowledgeBase on PopAgentState**
-`PopAgentState` has no `KnowledgeBase`; Pops currently have omniscient access to all `CollectibleResource` objects at their current `PopLocation` and no awareness model for other locations. Add `knowledge_base: KnowledgeBase = Field(default_factory=KnowledgeBase)` to `PopAgentState`, with loader/exporter/schema support. Once present, the KB can gate resource-aware travel decisions (a Pop should only migrate toward a resource-rich location it actually knows about) and support the same seeding/discovery mechanics that mortals already have.
-
 **Unified directive targeting and Pop/mortal KB propagation**
 Currently pops and mortals receive faction directives through different mechanisms: pops via an inline filter in `_collect_directive_modifiers` (checking `territory_pop_ids`), mortals via `_sync_faction_directives` which projects faction directives into their KB as `DirectiveFact` objects each tick. The intended unified design:
 
@@ -114,10 +111,7 @@ Currently pops and mortals receive faction directives through different mechanis
 - Add a `_sync_faction_directives_to_pops` pass (mirrors the mortal version) that pushes all faction directives into each member Pop's KB each tick.
 - Pop agent reads from KB rather than walking raw directive lists. Checks `target_member_ids` to determine whether to follow; if not in the list, the directive is "known but not followed" — stored in KB for potential future use (resentment, drift, morale effects).
 - Mortal side: same "known but not followed" distinction should apply. Currently all faction directives are injected unconditionally.
-- Prerequisite: Pop KB (see above).
-
-**Move mortal KnowledgeBase and MortalAssets onto MortalAgentState**
-`NotableMortal.knowledge_base` currently lives on the mortal model itself rather than on `MortalAgentState`. Agent-runtime state (KB, needs, desires, cooldowns) should be colocated. Moving it to `MortalAgentState` requires updating every reference to `mortal.knowledge_base` across tick_logic, mortal_agent_logic, loader, and exporter. Similarly, `NotableMortal.assets: list[MortalAsset]` belongs on `MortalAgentState` — parallel to how `PopAgentState.cargo: CargoStockpile` holds the Pop's mobile inventory. Low urgency but the right home for both.
+- Prerequisite: Pop KB (now on `PopAgentState`; seeding still needed — see below).
 
 **Scale CargoStockpile capacity with Pop size**
 `CargoStockpile` on `PopAgentState` currently uses fixed defaults (`max_slots: int = 4`, `slot_capacity: float = 20.0`). A larger Pop should be able to carry proportionally more. The model: `max_slots` and/or `slot_capacity` should be derived from `pop.population` at state initialization time (and recomputed when population changes significantly). Exact scaling law TBD — linear, stepped, or logarithmic are all viable.
