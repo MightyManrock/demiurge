@@ -919,8 +919,19 @@ def resolve_pop_actions(
                     pop.migration_destination_id = _dest_id
                     pop.migration_travel_location_id = _tl.id
 
-                    # Pre-departure: fill cargo from accessible stockpiles at origin
-                    if pop_loc is not None:
+                    # Pre-departure: fill cargo from accessible stockpiles at origin.
+                    # Skip for supply_run/resupply carriers — those directives manage cargo
+                    # explicitly; loading here would silently take back what was just deposited.
+                    _cargo_directive_active = any(
+                        d.directive_type in ("supply_run", "resupply")
+                        for d in pop.active_directives
+                    ) or any(
+                        d.directive_type in ("supply_run", "resupply")
+                        for _f in factions_dict.values()
+                        for d in getattr(_f, "active_directives", [])
+                        if hasattr(_f, "member_pop_ids") and pop.id in _f.member_pop_ids
+                    )
+                    if not _cargo_directive_active and pop_loc is not None:
                         for _stk in pop_loc.stockpiles:
                             if not can_access_stockpile(pop, _stk):
                                 continue
