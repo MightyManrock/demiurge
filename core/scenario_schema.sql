@@ -284,7 +284,9 @@ CREATE TABLE IF NOT EXISTS factions (
     mortal_leader_ids   TEXT    NOT NULL DEFAULT '[]',
     active_directives   TEXT    NOT NULL DEFAULT '[]',
     visibility          REAL    NOT NULL DEFAULT 1.0,
-    pinned              INTEGER NOT NULL DEFAULT 0
+    pinned              INTEGER NOT NULL DEFAULT 0,
+    home_location_id    TEXT,
+    values              TEXT    NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE IF NOT EXISTS mortals (

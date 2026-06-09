@@ -551,8 +551,9 @@ def _write_factions(conn, state: "SimulationState") -> None:
             """INSERT INTO factions
                (id, name, description, civilization_id,
                 member_pop_ids, member_mortal_ids, mortal_leader_ids,
-                active_directives, visibility, pinned)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                active_directives, visibility, pinned,
+                home_location_id, values)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(f.id),
                 f.name,
@@ -564,6 +565,8 @@ def _write_factions(conn, state: "SimulationState") -> None:
                 json.dumps([d.model_dump(mode="json") for d in f.active_directives]),
                 f.visibility,
                 int(f.pinned),
+                str(f.home_location_id) if f.home_location_id else None,
+                json.dumps(f.values),
             ),
         )
 

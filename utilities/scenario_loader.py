@@ -1011,6 +1011,8 @@ def _load_factions(conn) -> "dict[str, Faction]":
             active_directives=directives,
             visibility=float(row.get("visibility", 1.0)),
             pinned=bool(row.get("pinned", 0)),
+            home_location_id=_uuid(row.get("home_location_id")),
+            values=_j(row.get("values", "{}")),
         )
         result[str(f.id)] = f
     return result

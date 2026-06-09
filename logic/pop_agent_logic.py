@@ -118,6 +118,54 @@ def _public_stockpile(pop_loc) -> ResourceStockpile:
     return s
 
 
+def _entitled_stockpile(pop, pop_loc, factions: dict) -> ResourceStockpile:
+    """Return the stockpile this pop should gather into at pop_loc.
+
+    At faction home_location: faction-owned stockpile (created if absent).
+    Away from home with a band: band-owned stockpile (created if absent).
+    Otherwise: public stockpile.
+    """
+    from uuid import UUID as _UUID
+    try:
+        _faction_id = _UUID(str(pop.faction_ids[0])) if pop.faction_ids else None
+    except Exception:
+        _faction_id = None
+    try:
+        _band_id = _UUID(str(pop.band_id)) if pop.band_id is not None else None
+    except Exception:
+        _band_id = None
+
+    faction = factions.get(str(_faction_id)) if _faction_id else None
+    if (
+        faction is not None
+        and faction.home_location_id is not None
+        and str(faction.home_location_id) == str(pop_loc.id)
+    ):
+        for s in pop_loc.stockpiles:
+            if s.owner_faction_id == _faction_id and s.owner_band_id is None:
+                return s
+        s = ResourceStockpile(owner_faction_id=_faction_id)
+        pop_loc.stockpiles.append(s)
+        return s
+    if _band_id is not None:
+        for s in pop_loc.stockpiles:
+            if s.owner_band_id == _band_id:
+                return s
+        s = ResourceStockpile(owner_band_id=_band_id)
+        pop_loc.stockpiles.append(s)
+        return s
+    return _public_stockpile(pop_loc)
+
+
+def _charity_rate(pop, factions: dict) -> float:
+    """Return the faction charity donation rate for this pop (0.0 if none)."""
+    faction_id = pop.faction_ids[0] if pop.faction_ids else None
+    if faction_id is None:
+        return 0.0
+    faction = factions.get(str(faction_id))
+    return faction.values.get("charity", 0.0) if faction else 0.0
+
+
 def _find_matching_resources(collectible_resources: list, action: str) -> list:
     """Return CollectibleResources usable by this action (action_types=[] means any)."""
     return [
@@ -485,9 +533,10 @@ def resolve_pop_actions(
 
     needs_by_name = {n.name: n for n in ps.needs}
 
+    factions_dict = factions if isinstance(factions, dict) else {}
+
     # Compute priorities on demand when caller passes none
     if not priorities:
-        factions_dict = factions if isinstance(factions, dict) else {}
         priorities = compute_pop_priorities(pop, factions_dict)
 
     # KB co-location sync + yield-aware priority dampening.
@@ -518,32 +567,31 @@ def resolve_pop_actions(
                     learned_at_tick=current_tick,
                 ))
         if not in_transit:
-            _pub_d = _public_stockpile(pop_loc)
+            _ent_d = _entitled_stockpile(pop, pop_loc, factions_dict)
 
-            # Sync StockpileFact: snapshot the public stockpile for this location
+            # Sync StockpileFact: snapshot the entitled stockpile for this location
             _sf = ps.knowledge_base.get_stockpile_fact(_loc_id_str)
             if _sf is not None:
-                _sf.quantities = dict(_pub_d.quantities)
+                _sf.quantities = dict(_ent_d.quantities)
                 _sf.learned_at_tick = current_tick
             else:
                 ps.knowledge_base.facts.append(StockpileFact(
                     location_id=_loc_id_str,
-                    quantities=dict(_pub_d.quantities),
+                    quantities=dict(_ent_d.quantities),
                     learned_at_tick=current_tick,
                 ))
 
         # Demand = log-sum of sizes of entitled Pops, with noise.
-        # For owned stockpiles, sweep all pops in state who can access it — absent
-        # entitled pops still count against demand so gatherers don't over-dampen.
-        # For public stockpiles, fall back to co-located pops (no enumerable entitlement).
-        # In transit, no shared stockpile exists, so use yield dampening only.
-        _stockpile_qtys: dict[str, float] = {} if in_transit else _pub_d.quantities
+        # For owned stockpiles (faction or band), sweep all pops in state who can access it
+        # so absent entitled pops count against demand and resident gatherers don't under-stock.
+        # Public stockpiles use co-located pops. In transit, no shared stockpile exists.
+        _stockpile_qtys: dict[str, float] = {} if in_transit else _ent_d.quantities
         if in_transit:
             _demand_pops = []
-        elif (_pub_d.owner_faction_id is not None or _pub_d.owner_band_id is not None) and state is not None:
-            _demand_pops = [p for p in state.pops.values() if can_access_stockpile(p, _pub_d)]
+        elif (_ent_d.owner_faction_id is not None or _ent_d.owner_band_id is not None) and state is not None:
+            _demand_pops = [p for p in state.pops.values() if can_access_stockpile(p, _ent_d)]
         else:
-            _demand_pops = [p for p in (colocated_pops or []) if can_access_stockpile(p, _pub_d)]
+            _demand_pops = [p for p in (colocated_pops or []) if can_access_stockpile(p, _ent_d)]
         _demand = sum(
             math.log(p.size_fractional + 1)
             for p in _demand_pops
@@ -663,7 +711,8 @@ def resolve_pop_actions(
         if action in ("forage", "hunt", "collect"):
             matching = _find_matching_resources(pop_loc.collectible_resources, action)
             if not in_transit:
-                _pub = _public_stockpile(pop_loc)
+                _ent = _entitled_stockpile(pop, pop_loc, factions_dict)
+                _charity = _charity_rate(pop, factions_dict)
             if matching:
                 per_resource_output = output / len(matching)
                 for cr in matching:
@@ -678,13 +727,24 @@ def resolve_pop_actions(
                             if _dep > 0:
                                 ps.cargo.quantities[cr.resource_type] = _c_cur + _dep
                     else:
-                        _pub.quantities[cr.resource_type] = _pub.quantities.get(cr.resource_type, 0.0) + actual
+                        _charity_amt = actual * _charity
+                        _ent_amt = actual - _charity_amt
+                        _ent.quantities[cr.resource_type] = _ent.quantities.get(cr.resource_type, 0.0) + _ent_amt
+                        if _charity_amt > 0:
+                            _pub_shared = _public_stockpile(pop_loc)
+                            _pub_shared.quantities[cr.resource_type] = _pub_shared.quantities.get(cr.resource_type, 0.0) + _charity_amt
             elif not in_transit:
                 # Environment fallback (stationary pops only)
+                _charity_amt_f = output * BASE_FORAGE_YIELD * _charity
+                _ent_amt_f = output * BASE_FORAGE_YIELD - _charity_amt_f
                 if action == "forage":
-                    _pub.quantities["food_flora"] = _pub.quantities.get("food_flora", 0.0) + output * BASE_FORAGE_YIELD
+                    _ent.quantities["food_flora"] = _ent.quantities.get("food_flora", 0.0) + _ent_amt_f
+                    if _charity_amt_f > 0:
+                        _public_stockpile(pop_loc).quantities["food_flora"] = _public_stockpile(pop_loc).quantities.get("food_flora", 0.0) + _charity_amt_f
                 elif action == "hunt":
-                    _pub.quantities["food_fauna"] = _pub.quantities.get("food_fauna", 0.0) + output * BASE_FORAGE_YIELD
+                    _ent.quantities["food_fauna"] = _ent.quantities.get("food_fauna", 0.0) + _ent_amt_f
+                    if _charity_amt_f > 0:
+                        _public_stockpile(pop_loc).quantities["food_fauna"] = _public_stockpile(pop_loc).quantities.get("food_fauna", 0.0) + _charity_amt_f
                 # collect with no matching resource → no output
 
         elif action == "commune":
@@ -727,7 +787,7 @@ def resolve_pop_actions(
             _load_handled = False
             for _sd in _sr_directives:
                 if _supply_run_phase(pop, _sd, _pops_dict) == "load":
-                    _pub = _public_stockpile(pop_loc)
+                    _pub = _entitled_stockpile(pop, pop_loc, factions_dict)
                     _manifest = _sd.cargo_manifest or {}
                     if not _manifest and _sd.cargo_resource_type:
                         _manifest = {_sd.cargo_resource_type: float(_sd.cargo_quantity)}
@@ -744,7 +804,7 @@ def resolve_pop_actions(
             if not _load_handled:
                 for _rd in _resupply_directives:
                     if _resupply_phase(pop, _rd) == "dwell_and_load":
-                        _pub = _public_stockpile(pop_loc)
+                        _pub = _entitled_stockpile(pop, pop_loc, factions_dict)
                         _manifest = _rd.cargo_manifest or {}
                         if not _manifest and _rd.cargo_resource_type:
                             _manifest = {_rd.cargo_resource_type: float(_rd.cargo_quantity)}
@@ -801,10 +861,13 @@ def resolve_pop_actions(
                     # delay the next run by the current adapted interval.
                     _post_qtys = _pub.quantities
                     _total_stocked = sum(_post_qtys.get(_rt, 0.0) for _rt in _manifest)
+                    _is_pub_owned = _pub.owner_faction_id is not None or _pub.owner_band_id is not None
+                    if _is_pub_owned and state is not None:
+                        _dep_demand_pops = [p for p in state.pops.values() if can_access_stockpile(p, _pub) and p.id != pop.id]
+                    else:
+                        _dep_demand_pops = [p for p in (colocated_pops or []) if can_access_stockpile(p, _pub) and p.id != pop.id]
                     _dest_demand = sum(
-                        math.log(p.size_fractional + 1)
-                        for p in (colocated_pops or [])
-                        if can_access_stockpile(p, _pub) and p.id != pop.id
+                        math.log(p.size_fractional + 1) for p in _dep_demand_pops
                     ) * random.uniform(0.6, 1.4)
                     _dest_demand = max(_dest_demand, 1e-6)
                     if _total_stocked / _dest_demand >= 1.0:
@@ -814,7 +877,7 @@ def resolve_pop_actions(
             if not _deposit_handled:
                 for _rd in _resupply_directives:
                     if _resupply_phase(pop, _rd) == "deposit":
-                        _pub = _public_stockpile(pop_loc)
+                        _pub = _entitled_stockpile(pop, pop_loc, factions_dict)
                         _manifest = _rd.cargo_manifest or {}
                         if not _manifest and _rd.cargo_resource_type:
                             _manifest = {_rd.cargo_resource_type: float(_rd.cargo_quantity)}

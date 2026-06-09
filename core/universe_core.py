@@ -648,6 +648,8 @@ class Faction(BaseModel):
     active_directives: list[Directive] = Field(default_factory=list)
     visibility: float = Field(ge=0.0, le=1.0, default=1.0)
     pinned: bool = False
+    home_location_id: Optional[UUID] = None
+    values: dict[str, float] = Field(default_factory=dict)
 
 
 class Band(BaseModel):
