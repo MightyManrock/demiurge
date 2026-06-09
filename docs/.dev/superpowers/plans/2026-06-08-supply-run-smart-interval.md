@@ -1,5 +1,7 @@
 # supply_run Smart Delivery Interval Implementation Plan
 
+> **Status: complete (2026-06-09).** All three tasks implemented and playtested.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Prevent `supply_run` carriers from making redundant delivery trips when the destination stockpile is already adequately stocked, by checking demand vs. stockpile immediately after depositing and delaying the next run if supply is sufficient.

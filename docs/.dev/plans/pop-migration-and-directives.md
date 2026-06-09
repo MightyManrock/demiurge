@@ -183,7 +183,13 @@ Also implemented in this block: `Faction.home_location_id`, `Faction.values` (fa
 
 ## Phase 2: Faction Directive Types for Pops
 
-**Status:** `hold_position` and `supply_run` complete and playtested (2026-06-08). `patrol` implemented but not yet playtested end-to-end. `pilgrimage`, `raid`, `support_garrison` deferred.
+**Status:** `hold_position`, `supply_run`, and `patrol` complete and playtested (2026-06-09). `resupply` implemented (need-triggered, four-phase loop, dwell-and-load). `pilgrimage`, `raid`, `support_garrison` deferred.
+
+**supply_run robustness additions (2026-06-09):**
+- *Smart delivery interval:* `StockpileFact` KB type added; Pop KB (`PopAgentState.knowledge_base`) syncs a stockpile snapshot each tick. After deposit, if destination stockpile / demand ratio ≥ 1.0, `supply_run_skip_until` delays the next outbound leg by the adaptive `interval_ticks`. Adaptive interval itself adjusts based on last-deposit consumption ratio (hungry → tighten, barely touched → extend).
+- *Source-exhaustion departure gate:* `_supply_run_phase` accepts `pop_loc` and treats a resource as "ready" when source accessible stockpile ≤ 1.0 units — carrier departs with partial cargo rather than deadlocking waiting for an unachievable threshold.
+- *Return-trip buffer on deposit:* deposit action reserves enough cargo for one-way return-trip self-consumption before unloading, preventing the carrier from arriving home dehydrated after a partial load.
+- *Pop KB infrastructure:* `MortalFact` type added; `PopAgentState.knowledge_base` field added; `MortalAgentState.assets` migrated off `NotableMortal` to live in `MortalAgentState`.
 
 **Goal:** A Faction can issue typed directives to Pops it owns. Each directive type drives a specific behavior pattern that overrides the Pop's default welfare-maximizing logic.
 

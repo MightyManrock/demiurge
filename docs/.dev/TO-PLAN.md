@@ -18,12 +18,6 @@ In-transit behavior: a Pop on the move dedicates one action slot to travel each 
 
 Improvements to Phase 2 directive types identified during Oros playtesting.
 
-**supply_run: smart delivery interval**
-Carriers currently run a continuous tight loop regardless of how full the destination stockpile is or how satisfied the destination Pops are. Two tiers of improvement:
-
-- *At-deposit check (no KB required):* on a successful `deposit_cargo`, the carrier is co-located with the destination Pop and has direct access to its stockpile and need state. If both stockpile depth and Pop satisfaction are above a threshold, set a longer `interval_ticks` before the next run — carrier stays home longer, contributing to the local economy rather than making redundant trips. Resets to tight interval when destination dips back below threshold.
-- *Pre-travel check (requires Pop KB):* before beginning the outbound leg, carrier checks its KB for the last-known stockpile and need state at the destination. If destination is already well-supplied, skips the trip entirely for this interval. Deferred until Pop KBs exist.
-
 **hold_position: wanderlust relief valve**
 `hold_position` currently suppresses migration with a hard −10 modifier, which saturates purpose but lets wanderlust decay unchecked. Two additions:
 - Lower wanderlust decay rate significantly while the directive is active — pops that have a place and a role accumulate wanderlust pressure much more slowly.
