@@ -1574,6 +1574,9 @@ class TickLoop:
         travel_arrivals  = self._process_mortal_travel(state)
         result.mortal_narratives.extend(travel_decisions + travel_arrivals)
 
+        # ── Phase 2.61: Stockpile Ownership Transitions ─
+        self._tick_stockpile_ownership(state)
+
         # ── Pop aggregate recomputation ────────────────
         # Recompute Civilization.dominant_beliefs and culture_tags as size-weighted
         # averages of constituent Pop beliefs/tags. Peripheral (non-core) Pops are
@@ -5609,6 +5612,126 @@ class TickLoop:
                 pop.migration_travel_location_id = None
 
         return []
+
+    def _tick_stockpile_ownership(self, state: "SimulationState") -> None:
+        """Phase 2.61 — Transition ResourceStockpile ownership based on location occupancy.
+
+        Runs every tick as a steady-state rule; no 'arrival' detection is needed because
+        the rules converge on the right ownership within one tick of any movement.
+
+        Release (abandoned → public):
+          - Band-owned stockpile: if the owning band has no pops or mortals at this location.
+          - Faction-owned stockpile at faction's home: if the faction has no members here.
+          - After any release, merge all public stockpiles at the location into one.
+
+        Claim (public → owned):
+          - Faction home priority: if any faction member is present at the faction's
+            home_location and no faction-owned stockpile exists → claim public.
+          - Band sole-occupancy: if exactly one band is the only occupant (no non-band
+            pops or mortals) and the location is not any faction's home → claim public.
+        """
+        from core.universe_core import PopLocation
+        from uuid import UUID
+
+        for loc in state.locations.values():
+            if not isinstance(loc, PopLocation) or not loc.stockpiles:
+                continue
+
+            loc_id_str = str(loc.id)
+
+            # Build present-member sets from current_location of all pops and mortals
+            present_band_ids: set[str] = set()
+            present_faction_ids: set[str] = set()
+
+            for pop in state.pops.values():
+                if str(pop.current_location) != loc_id_str:
+                    continue
+                if pop.band_id is not None:
+                    present_band_ids.add(str(pop.band_id))
+                for fid in pop.faction_ids:
+                    present_faction_ids.add(str(fid))
+
+            for mortal in state.mortals.values():
+                if str(mortal.current_location) != loc_id_str:
+                    continue
+                if getattr(mortal, "band_id", None) is not None:
+                    present_band_ids.add(str(mortal.band_id))
+                for fid in getattr(mortal, "faction_ids", []):
+                    present_faction_ids.add(str(fid))
+
+            # Phase A: release abandoned owned stockpiles to public
+            released = False
+            for stk in loc.stockpiles:
+                if stk.owner_band_id is not None:
+                    if str(stk.owner_band_id) not in present_band_ids:
+                        stk.owner_band_id = None
+                        released = True
+                elif stk.owner_faction_id is not None:
+                    faction = state.factions.get(str(stk.owner_faction_id))
+                    if (
+                        faction is not None
+                        and faction.home_location_id is not None
+                        and str(faction.home_location_id) == loc_id_str
+                        and str(stk.owner_faction_id) not in present_faction_ids
+                    ):
+                        stk.owner_faction_id = None
+                        released = True
+
+            # Merge all public stockpiles into one after any release
+            if released:
+                public_stks = [
+                    s for s in loc.stockpiles
+                    if s.owner_faction_id is None and s.owner_band_id is None
+                ]
+                if len(public_stks) > 1:
+                    merged = public_stks[0]
+                    for other in public_stks[1:]:
+                        for rt, qty in other.quantities.items():
+                            merged.quantities[rt] = merged.quantities.get(rt, 0.0) + qty
+                    loc.stockpiles = [s for s in loc.stockpiles if s not in public_stks[1:]]
+
+            # Phase B: claim unclaimed public stockpile
+            home_faction_ids = {
+                str(f.id)
+                for f in state.factions.values()
+                if f.home_location_id is not None and str(f.home_location_id) == loc_id_str
+            }
+
+            # Faction home takes priority: any faction member present at home reclaims public
+            faction_claimed = False
+            for fid_str in home_faction_ids & present_faction_ids:
+                faction_uuid = UUID(fid_str)
+                if any(
+                    s.owner_faction_id == faction_uuid and s.owner_band_id is None
+                    for s in loc.stockpiles
+                ):
+                    faction_claimed = True
+                    continue
+                for stk in loc.stockpiles:
+                    if stk.owner_faction_id is None and stk.owner_band_id is None:
+                        stk.owner_faction_id = faction_uuid
+                        faction_claimed = True
+                        break
+
+            # Band sole-occupancy: one band, no other pops/mortals, not a faction home
+            if not faction_claimed and not home_faction_ids and len(present_band_ids) == 1:
+                band_id_str = next(iter(present_band_ids))
+                all_same_band = all(
+                    str(getattr(p, "band_id", None)) == band_id_str
+                    for p in state.pops.values()
+                    if str(p.current_location) == loc_id_str
+                ) and all(
+                    str(getattr(m, "band_id", None)) == band_id_str
+                    for m in state.mortals.values()
+                    if str(m.current_location) == loc_id_str
+                )
+                if all_same_band:
+                    band_uuid = UUID(band_id_str)
+                    if not any(s.owner_band_id == band_uuid for s in loc.stockpiles):
+                        for stk in loc.stockpiles:
+                            if stk.owner_faction_id is None and stk.owner_band_id is None:
+                                stk.owner_band_id = band_uuid
+                                break
 
     def _tick_pop_agents(self, state: "SimulationState", current_tick: int) -> list[str]:
         """Phase 2.57 — run PopAgent logic for each Pop with pop_state."""
