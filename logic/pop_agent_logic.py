@@ -532,13 +532,21 @@ def resolve_pop_actions(
                     learned_at_tick=current_tick,
                 ))
 
-        # Demand = log-sum of sizes of entitled co-located Pops, with noise.
+        # Demand = log-sum of sizes of entitled Pops, with noise.
+        # For owned stockpiles, sweep all pops in state who can access it — absent
+        # entitled pops still count against demand so gatherers don't over-dampen.
+        # For public stockpiles, fall back to co-located pops (no enumerable entitlement).
         # In transit, no shared stockpile exists, so use yield dampening only.
         _stockpile_qtys: dict[str, float] = {} if in_transit else _pub_d.quantities
+        if in_transit:
+            _demand_pops = []
+        elif (_pub_d.owner_faction_id is not None or _pub_d.owner_band_id is not None) and state is not None:
+            _demand_pops = [p for p in state.pops.values() if can_access_stockpile(p, _pub_d)]
+        else:
+            _demand_pops = [p for p in (colocated_pops or []) if can_access_stockpile(p, _pub_d)]
         _demand = sum(
             math.log(p.size_fractional + 1)
-            for p in (colocated_pops or [])
-            if in_transit or can_access_stockpile(p, _pub_d)
+            for p in _demand_pops
         ) * random.uniform(0.6, 1.4)
         _demand = max(_demand, 1e-6)
         # Apply asymptotic dampening: yield × stockpile each via ratio / (ratio + 1).
