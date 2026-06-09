@@ -5458,6 +5458,11 @@ class TickLoop:
                     mortal = state.mortals.get(str(occ_id))
                     if mortal:
                         mortal.current_location = loc_uuid
+                # Keep migrating pops at the TravelLocation during the leg
+                for _pop_id in loc.pop_ids:
+                    _pop = state.pops.get(str(_pop_id))
+                    if _pop and _pop.migration_travel_location_id == loc.id:
+                        _pop.current_location = loc_uuid
                 continue
 
             leg_keys = list(loc.legs.keys())
@@ -5525,6 +5530,11 @@ class TickLoop:
                         mortal.current_location = next_wp_uuid
                         if mortal.mortal_state is not None:
                             mortal.mortal_state.pending_transfer = True
+                # Pops stay at the TravelLocation between legs (waypoint is resource context only)
+                for _pop_id in loc.pop_ids:
+                    _pop = state.pops.get(str(_pop_id))
+                    if _pop and _pop.migration_travel_location_id == loc.id:
+                        _pop.current_location = loc.id
 
         for lid in to_remove:
             tl = state.locations.get(lid)
@@ -5549,80 +5559,61 @@ class TickLoop:
                     if dest_pop_loc is not None and hasattr(dest_pop_loc, "pop_ids"):
                         if pop_id not in dest_pop_loc.pop_ids:
                             dest_pop_loc.pop_ids.append(pop_id)
+                    # Clear migration state and unload cargo for self-migrating pops
+                    if crew.migration_travel_location_id == tl.id:
+                        crew.migration_ticks_remaining = 0
+                        crew.migration_destination_id = None
+                        crew.migration_travel_location_id = None
+                        _cs = crew.pop_state
+                        if _cs is not None and _cs.cargo.quantities and dest_pop_loc is not None:
+                            from core.agent_core import ResourceStockpile, can_access_stockpile, unload_cargo as _uc
+                            _target_stk = None
+                            for _stk in getattr(dest_pop_loc, "stockpiles", []):
+                                if can_access_stockpile(crew, _stk):
+                                    _target_stk = _stk
+                                    break
+                            if _target_stk is None:
+                                _target_stk = ResourceStockpile(
+                                    owner_band_id=crew.band_id,
+                                    owner_faction_id=(
+                                        crew.faction_ids[0]
+                                        if not crew.band_id and crew.faction_ids
+                                        else None
+                                    ),
+                                )
+                                dest_pop_loc.stockpiles.append(_target_stk)
+                            for _rt, _qty in list(_cs.cargo.quantities.items()):
+                                if _qty > 0:
+                                    _uc(_cs.cargo, _target_stk, _rt, _qty)
             state.locations.pop(lid, None)
 
         return narratives
 
     def _process_pop_travel(self, state: "SimulationState") -> list[str]:
-        """Phase 2.58 — advance pop migration countdowns; land pops on arrival."""
-        from core.universe_core import TravelLocation, PopLocation
-        from uuid import UUID
+        """Phase 2.58 — clear stale migration state for pops whose TravelLocation is gone.
 
-        narratives: list[str] = []
-        tls_to_check: set[str] = set()
+        Leg advancement and arrival are handled by _process_mortal_travel (Phase 2.6b),
+        which iterates over TravelLocations and owns tl.ticks_remaining. This phase
+        handles only the edge case where a pop's migration_travel_location_id points
+        to a TravelLocation that no longer exists.
+        """
+        from core.universe_core import TravelLocation
 
         for pop in state.pops.values():
             if pop.migration_travel_location_id is None:
                 continue
-            tl_id = str(pop.migration_travel_location_id)
-            tl = state.locations.get(tl_id)
+            tl = state.locations.get(str(pop.migration_travel_location_id))
             if not isinstance(tl, TravelLocation):
-                # TravelLocation gone (already arrived or cleaned up); clear stale state
                 pop.migration_ticks_remaining = 0
                 pop.migration_destination_id = None
                 pop.migration_travel_location_id = None
-                continue
 
-            if tl.skip_initial_tick:
-                tls_to_check.add(tl_id)
-                continue
-
-            pop.migration_ticks_remaining = max(0, pop.migration_ticks_remaining - 1)
-            tls_to_check.add(tl_id)
-
-        # Clear skip_initial_tick for any TravelLocation that was skipped this pass
-        for tl_id in tls_to_check:
-            tl = state.locations.get(tl_id)
-            if isinstance(tl, TravelLocation) and tl.skip_initial_tick:
-                tl.skip_initial_tick = False
-
-        # Arrive pops whose countdown hit 0
-        to_remove: list[str] = []
-        for pop in state.pops.values():
-            if pop.migration_travel_location_id is None:
-                continue
-            if pop.migration_ticks_remaining > 0:
-                continue
-
-            dest_id = pop.migration_destination_id
-            tl_id = str(pop.migration_travel_location_id)
-            tl = state.locations.get(tl_id)
-
-            if dest_id is not None:
-                pop.current_location = dest_id
-                dest_loc = state.locations.get(str(dest_id))
-                if isinstance(dest_loc, PopLocation):
-                    if pop.id not in dest_loc.pop_ids:
-                        dest_loc.pop_ids.append(pop.id)
-
-            if tl is not None and pop.id in tl.pop_ids:
-                tl.pop_ids.remove(pop.id)
-            if tl is not None and not tl.pop_ids and not tl.occupants:
-                to_remove.append(tl_id)
-
-            pop.migration_ticks_remaining = 0
-            pop.migration_destination_id = None
-            pop.migration_travel_location_id = None
-
-        for tl_id in to_remove:
-            state.locations.pop(tl_id, None)
-
-        return narratives
+        return []
 
     def _tick_pop_agents(self, state: "SimulationState", current_tick: int) -> list[str]:
         """Phase 2.57 — run PopAgent logic for each Pop with pop_state."""
         from logic.pop_agent_logic import compute_pop_priorities, compute_active_slots, resolve_pop_actions
-        from core.universe_core import PopLocation
+        from core.universe_core import PopLocation, TravelLocation
         from collections import defaultdict
 
         narratives: list[str] = []
@@ -5639,8 +5630,18 @@ class TickLoop:
             if ps is None:
                 continue
 
-            pop_loc = state.locations.get(str(pop.current_location))
-            if not isinstance(pop_loc, PopLocation):
+            pop_loc_raw = state.locations.get(str(pop.current_location))
+            in_transit = False
+
+            if isinstance(pop_loc_raw, TravelLocation):
+                _effective = state.locations.get(pop_loc_raw.current_waypoint)
+                if not isinstance(_effective, PopLocation):
+                    continue
+                pop_loc = _effective
+                in_transit = True
+            elif isinstance(pop_loc_raw, PopLocation):
+                pop_loc = pop_loc_raw
+            else:
                 continue
 
             # 1. Decay PopNeeds
@@ -5666,11 +5667,13 @@ class TickLoop:
             priorities = compute_pop_priorities(pop, factions)
             ps.action_priorities = priorities
             n_slots = compute_active_slots(pop, factions)
+            if in_transit:
+                n_slots = max(0, n_slots - 1)
 
             # 5–6. Resolve actions + consumption
             _colocated = [p for p in _loc_pops[str(pop.current_location)] if p.id != pop.id]
             events = resolve_pop_actions(pop, pop_loc, priorities, n_slots, factions, current_tick,
-                                         colocated_pops=_colocated, state=state)
+                                         colocated_pops=_colocated, state=state, in_transit=in_transit)
             narratives.extend(events)
 
         return narratives

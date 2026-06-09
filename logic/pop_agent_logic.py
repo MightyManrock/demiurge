@@ -389,6 +389,7 @@ def resolve_pop_actions(
     current_tick: int = 0,
     colocated_pops: list | None = None,
     state=None,
+    in_transit: bool = False,
 ) -> list[str]:
     """Execute top-N priority actions; return narrative strings for notable events.
 
@@ -434,32 +435,34 @@ def resolve_pop_actions(
                     confidence=1.0,
                     learned_at_tick=current_tick,
                 ))
-        _pub_d = _public_stockpile(pop_loc)
+        if not in_transit:
+            _pub_d = _public_stockpile(pop_loc)
 
-        # Sync StockpileFact: snapshot the public stockpile for this location
-        _sf = ps.knowledge_base.get_stockpile_fact(_loc_id_str)
-        if _sf is not None:
-            _sf.quantities = dict(_pub_d.quantities)
-            _sf.learned_at_tick = current_tick
-        else:
-            ps.knowledge_base.facts.append(StockpileFact(
-                location_id=_loc_id_str,
-                quantities=dict(_pub_d.quantities),
-                learned_at_tick=current_tick,
-            ))
+            # Sync StockpileFact: snapshot the public stockpile for this location
+            _sf = ps.knowledge_base.get_stockpile_fact(_loc_id_str)
+            if _sf is not None:
+                _sf.quantities = dict(_pub_d.quantities)
+                _sf.learned_at_tick = current_tick
+            else:
+                ps.knowledge_base.facts.append(StockpileFact(
+                    location_id=_loc_id_str,
+                    quantities=dict(_pub_d.quantities),
+                    learned_at_tick=current_tick,
+                ))
 
-        # Demand = log-sum of sizes of entitled co-located Pops, with noise
+        # Demand = log-sum of sizes of entitled co-located Pops, with noise.
+        # In transit, no shared stockpile exists, so use yield dampening only.
+        _stockpile_qtys: dict[str, float] = {} if in_transit else _pub_d.quantities
         _demand = sum(
             math.log(p.size_fractional + 1)
             for p in (colocated_pops or [])
-            if can_access_stockpile(p, _pub_d)
+            if in_transit or can_access_stockpile(p, _pub_d)
         ) * random.uniform(0.6, 1.4)
         _demand = max(_demand, 1e-6)
         # Apply asymptotic dampening: yield × stockpile each via ratio / (ratio + 1).
         # Yield dampening: low current yield → deprioritise gathering.
         # Stockpile dampening: large existing stockpile → no need to gather more.
         # Both are multiplied together so either signal independently reduces priority.
-        _stockpile_qtys = _pub_d.quantities
         for _ga in ("forage", "hunt", "collect"):
             if _ga not in priorities:
                 continue
@@ -516,6 +519,11 @@ def resolve_pop_actions(
             ps.pending_migration_dest = None
         break  # one supply_run directive at a time
 
+    # Disable actions unavailable while in transit
+    if in_transit:
+        for _blocked in ("collect", "load_cargo", "deposit_cargo", "migrate"):
+            priorities.pop(_blocked, None)
+
     # Select top-N active (non-stub, non-zero) actions by weight
     ranked = sorted(
         [(a, w) for a, w in priorities.items() if a not in STUB_ACTIONS and w > 0],
@@ -531,15 +539,25 @@ def resolve_pop_actions(
 
         if action in ("forage", "hunt", "collect"):
             matching = _find_matching_resources(pop_loc.collectible_resources, action)
-            _pub = _public_stockpile(pop_loc)
+            if not in_transit:
+                _pub = _public_stockpile(pop_loc)
             if matching:
                 per_resource_output = output / len(matching)
                 for cr in matching:
                     actual = min(per_resource_output, cr.current_yield)
                     cr.current_yield = max(0.0, cr.current_yield - actual)
-                    _pub.quantities[cr.resource_type] = _pub.quantities.get(cr.resource_type, 0.0) + actual
-            else:
-                # Environment fallback
+                    if in_transit:
+                        # Deposit gathered resources into the pop's own cargo
+                        _c_cur = ps.cargo.quantities.get(cr.resource_type, 0.0)
+                        if cr.resource_type in ps.cargo.quantities or len(ps.cargo.quantities) < ps.cargo.max_slots:
+                            _room = ps.cargo.slot_capacity - _c_cur
+                            _dep = min(actual, max(0.0, _room))
+                            if _dep > 0:
+                                ps.cargo.quantities[cr.resource_type] = _c_cur + _dep
+                    else:
+                        _pub.quantities[cr.resource_type] = _pub.quantities.get(cr.resource_type, 0.0) + actual
+            elif not in_transit:
+                # Environment fallback (stationary pops only)
                 if action == "forage":
                     _pub.quantities["food_flora"] = _pub.quantities.get("food_flora", 0.0) + output * BASE_FORAGE_YIELD
                 elif action == "hunt":
@@ -677,6 +695,18 @@ def resolve_pop_actions(
                     pop.migration_destination_id = _dest_id
                     pop.migration_travel_location_id = _tl.id
 
+                    # Pre-departure: fill cargo from accessible stockpiles at origin
+                    if pop_loc is not None:
+                        for _stk in pop_loc.stockpiles:
+                            if not can_access_stockpile(pop, _stk):
+                                continue
+                            for _rt, _avail in list(_stk.quantities.items()):
+                                if _avail > 0:
+                                    _load_cargo_fn(ps.cargo, _stk, _rt, _avail)
+
+                    # Leave origin immediately
+                    pop.current_location = _tl.id
+
                     # Band cascade: other band members at this location join automatically
                     _band_id = pop.band_id
                     if _band_id is not None and state is not None:
@@ -692,6 +722,7 @@ def resolve_pop_actions(
                                 _bp.migration_ticks_remaining = _total_ticks
                                 _bp.migration_destination_id = _dest_id
                                 _bp.migration_travel_location_id = _tl.id
+                                _bp.current_location = _tl.id
 
                     # Mortal embedding: mortals with matching band_id and no pending travel
                     if _band_id is not None and state is not None:

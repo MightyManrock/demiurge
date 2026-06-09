@@ -3,8 +3,10 @@
 Covers:
   - New Pop migration fields (migration_ticks_remaining, migration_destination_id,
     migration_travel_location_id) and their defaults
-  - _process_pop_travel tick phase: decrement, arrival, field clearing
-  - Migration decision in resolve_pop_actions: sets fields, creates TravelLocation
+  - _process_pop_travel tick phase: stale-state cleanup (leg advancement and arrival
+    are handled by _process_mortal_travel via the shared TravelLocation loop)
+  - Migration decision in resolve_pop_actions: sets fields, creates TravelLocation,
+    sets current_location to TravelLocation immediately
   - Band cascade migration: band members join at same origin
   - Mortal embedding: mortals with matching band_id enter the same TravelLocation
 """
@@ -70,101 +72,70 @@ def test_pop_migration_fields_settable():
 
 
 # ── Group 2: _process_pop_travel tick phase ───────────────────────────────────
+#
+# _process_pop_travel is now a stale-state cleanup pass only. Leg advancement
+# and arrival are handled by _process_mortal_travel via the shared TravelLocation
+# loop. This phase only clears migration fields when the referenced TravelLocation
+# no longer exists in state.locations.
 
-def _make_travel_state(ticks: int, dest_id: str | None = None):
-    """Build a minimal state with one pop in a TravelLocation."""
-    origin_id = str(uuid4())
-    destination_id = dest_id or str(uuid4())
-
-    dest_loc = _pop_loc(destination_id)
-    dest_loc.pop_ids = []
-
-    tl_id = str(uuid4())
-    tl = TravelLocation(
-        id=UUID(tl_id),
-        name="In transit",
-        legs={origin_id: ticks, destination_id: 0},
-        current_waypoint=origin_id,
-        ticks_remaining=ticks,
-        pop_ids=[],
+def _make_pop_with_migration(tl_id: UUID | None = None) -> Pop:
+    tl_id = tl_id or uuid4()
+    dest_id = uuid4()
+    return _pop(
+        uuid4(),
+        migration_ticks_remaining=3,
+        migration_destination_id=dest_id,
+        migration_travel_location_id=tl_id,
     )
 
-    pop = _pop(
-        origin_id,
-        migration_ticks_remaining=ticks,
-        migration_destination_id=UUID(destination_id),
-        migration_travel_location_id=UUID(tl_id),
-    )
-    pop_id = pop.id
-    tl.pop_ids.append(pop_id)
 
-    locs = {tl_id: tl, destination_id: dest_loc}
-    pops = {str(pop_id): pop}
-    return _simple_state(locs, pops), pop, tl, dest_loc
-
-
-def test_process_pop_travel_decrements_ticks():
+def test_process_pop_travel_does_not_clear_fields_when_tl_exists():
+    """When the TravelLocation still exists, migration fields are left untouched."""
     from logic.tick_logic import TickLoop
-    state, pop, tl, dest = _make_travel_state(ticks=3)
+    tl_id = uuid4()
+    pop = _make_pop_with_migration(tl_id)
+    tl = TravelLocation(id=tl_id, name="In transit", legs={str(uuid4()): 3}, pop_ids=[pop.id])
+    state = _simple_state({str(tl_id): tl}, {str(pop.id): pop})
     loop = TickLoop.__new__(TickLoop)
     loop._process_pop_travel(state)
-    assert pop.migration_ticks_remaining == 2
+    assert pop.migration_travel_location_id == tl_id
+    assert pop.migration_ticks_remaining == 3
 
 
-def test_process_pop_travel_does_not_move_pop_while_in_transit():
+def test_process_pop_travel_clears_fields_when_tl_missing():
+    """When the TravelLocation is gone from state.locations, migration state is cleared."""
     from logic.tick_logic import TickLoop
-    dest_id = str(uuid4())
-    state, pop, tl, dest = _make_travel_state(ticks=3, dest_id=dest_id)
+    pop = _make_pop_with_migration()
+    state = _simple_state({}, {str(pop.id): pop})
+    loop = TickLoop.__new__(TickLoop)
+    loop._process_pop_travel(state)
+    assert pop.migration_travel_location_id is None
+    assert pop.migration_destination_id is None
+    assert pop.migration_ticks_remaining == 0
+
+
+def test_process_pop_travel_clears_fields_when_location_is_not_tl():
+    """If migration_travel_location_id points to a non-TravelLocation, clear migration state."""
+    from logic.tick_logic import TickLoop
+    tl_id = uuid4()
+    pop = _make_pop_with_migration(tl_id)
+    pop_loc = _pop_loc(tl_id)  # a PopLocation at the same ID
+    state = _simple_state({str(tl_id): pop_loc}, {str(pop.id): pop})
+    loop = TickLoop.__new__(TickLoop)
+    loop._process_pop_travel(state)
+    assert pop.migration_travel_location_id is None
+
+
+def test_process_pop_travel_skips_pop_without_migration():
+    """Pops with no migration_travel_location_id are left completely untouched."""
+    from logic.tick_logic import TickLoop
+    pop = _pop(uuid4())
+    state = _simple_state({}, {str(pop.id): pop})
     original_loc = pop.current_location
     loop = TickLoop.__new__(TickLoop)
     loop._process_pop_travel(state)
     assert pop.current_location == original_loc
-
-
-def test_process_pop_travel_arrival_moves_pop_to_destination():
-    from logic.tick_logic import TickLoop
-    dest_id = str(uuid4())
-    state, pop, tl, dest = _make_travel_state(ticks=1, dest_id=dest_id)
-    loop = TickLoop.__new__(TickLoop)
-    loop._process_pop_travel(state)
-    assert pop.current_location == UUID(dest_id)
-
-
-def test_process_pop_travel_arrival_clears_migration_fields():
-    from logic.tick_logic import TickLoop
-    state, pop, tl, dest = _make_travel_state(ticks=1)
-    loop = TickLoop.__new__(TickLoop)
-    loop._process_pop_travel(state)
-    assert pop.migration_ticks_remaining == 0
-    assert pop.migration_destination_id is None
     assert pop.migration_travel_location_id is None
-
-
-def test_process_pop_travel_arrival_adds_pop_to_destination_pop_ids():
-    from logic.tick_logic import TickLoop
-    state, pop, tl, dest = _make_travel_state(ticks=1)
-    loop = TickLoop.__new__(TickLoop)
-    loop._process_pop_travel(state)
-    assert pop.id in dest.pop_ids
-
-
-def test_process_pop_travel_arrival_removes_travel_location():
-    from logic.tick_logic import TickLoop
-    state, pop, tl, dest = _make_travel_state(ticks=1)
-    loop = TickLoop.__new__(TickLoop)
-    loop._process_pop_travel(state)
-    assert str(tl.id) not in state.locations
-
-
-def test_process_pop_travel_skip_initial_tick():
-    """TravelLocation created mid-tick with skip_initial_tick=True should not decrement on first pass."""
-    from logic.tick_logic import TickLoop
-    state, pop, tl, dest = _make_travel_state(ticks=2)
-    tl.skip_initial_tick = True
-    loop = TickLoop.__new__(TickLoop)
-    loop._process_pop_travel(state)
-    assert pop.migration_ticks_remaining == 2
-    assert tl.skip_initial_tick is False
 
 
 # ── Group 3: Migration decision wires travel state ────────────────────────────

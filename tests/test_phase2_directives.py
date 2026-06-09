@@ -759,3 +759,179 @@ def test_supply_run_deposit_no_skip_when_demand_exceeds_stockpile():
             colocated_pops=colocated_pops, state=state,
         )
     assert ps.supply_run_skip_until.get(str(d.id), 0) == 0
+
+
+# ── Group 13: Pop TravelLocation integration ──────────────────────────────────
+
+def _make_migrate_pop(origin_id, dest_id):
+    """Return a minimal pop mock ready to trigger migrate action."""
+    from core.agent_core import PopAgentState
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.current_location = origin_id
+    pop.migration_travel_location_id = None
+    pop.migration_ticks_remaining = 0
+    pop.migration_destination_id = None
+    pop.band_id = None
+    pop.faction_ids = []
+    pop.size_fractional = 1.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.active_directives = []
+    ps = PopAgentState()
+    ps.pending_migration_dest = dest_id
+    pop.pop_state = ps
+    return pop, ps
+
+
+def test_migrate_sets_current_location_to_travel_location():
+    """After resolving a migrate action, pop.current_location is the TravelLocation, not the origin."""
+    from unittest.mock import patch, MagicMock
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.universe_core import PopLocation
+
+    origin_id = uuid4()
+    dest_id = uuid4()
+    tl_id = uuid4()
+
+    pop, ps = _make_migrate_pop(origin_id, dest_id)
+    pop_loc = PopLocation(id=origin_id, name="Origin", location_type="city")
+
+    mock_tl = MagicMock()
+    mock_tl.id = tl_id
+    mock_tl.pop_ids = []
+
+    state = MagicMock()
+    state.pops = {}
+    state.mortals = {}
+
+    with patch("utilities.travel_routing.find_route", return_value=[origin_id, dest_id]), \
+         patch("utilities.travel_routing.route_fact_cost", return_value=2), \
+         patch("utilities.travel_routing.get_or_create_travel_location", return_value=mock_tl):
+        resolve_pop_actions(
+            pop, pop_loc=pop_loc, priorities={"migrate": 5.0},
+            n_slots=2, factions={}, current_tick=1, state=state,
+        )
+
+    assert pop.current_location == tl_id
+    assert pop.id in mock_tl.pop_ids
+    assert pop.migration_travel_location_id == tl_id
+
+
+def test_in_transit_blocks_migrate_and_collect():
+    """When in_transit=True, migrate and collect are stripped from the priority list."""
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState
+    from core.universe_core import PopLocation
+
+    loc_id = uuid4()
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.current_location = loc_id
+    pop.migration_travel_location_id = uuid4()
+    pop.migration_ticks_remaining = 2
+    pop.band_id = None
+    pop.faction_ids = []
+    pop.size_fractional = 1.0
+    pop.occupation = "producer"
+    pop.stratum = "common"
+    pop.active_directives = []
+    ps = PopAgentState()
+    ps.pending_migration_dest = uuid4()
+    pop.pop_state = ps
+
+    pop_loc = PopLocation(id=loc_id, name="Waypoint", location_type="wilderness")
+
+    state = MagicMock()
+    state.pops = {}
+    state.mortals = {}
+
+    resolved = resolve_pop_actions(
+        pop, pop_loc=pop_loc,
+        priorities={"migrate": 5.0, "collect": 3.0, "forage": 1.0},
+        n_slots=2, factions={}, current_tick=1, state=state, in_transit=True,
+    )
+
+    assert "migrate" not in resolved
+    assert "collect" not in resolved
+
+
+def test_predeparture_cargo_loads_from_accessible_stockpile():
+    """Before migrating, the pop's cargo is filled from accessible stockpiles at origin."""
+    from unittest.mock import patch
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, ResourceStockpile
+    from core.universe_core import PopLocation
+
+    origin_id = uuid4()
+    dest_id = uuid4()
+    tl_id = uuid4()
+
+    pop, ps = _make_migrate_pop(origin_id, dest_id)
+    # Give pop access to the stockpile (band_id=None, faction_ids=[] → only public)
+    stk = ResourceStockpile()  # public stockpile
+    stk.quantities["food_flora"] = 15.0
+    pop_loc = PopLocation(id=origin_id, name="Origin", location_type="city")
+    pop_loc.stockpiles.append(stk)
+
+    mock_tl = MagicMock()
+    mock_tl.id = tl_id
+    mock_tl.pop_ids = []
+
+    state = MagicMock()
+    state.pops = {}
+    state.mortals = {}
+
+    with patch("utilities.travel_routing.find_route", return_value=[origin_id, dest_id]), \
+         patch("utilities.travel_routing.route_fact_cost", return_value=1), \
+         patch("utilities.travel_routing.get_or_create_travel_location", return_value=mock_tl):
+        resolve_pop_actions(
+            pop, pop_loc=pop_loc, priorities={"migrate": 5.0},
+            n_slots=2, factions={}, current_tick=1, state=state,
+        )
+
+    assert sum(ps.cargo.quantities.values()) > 0
+    assert stk.quantities.get("food_flora", 0.0) < 15.0
+
+
+def test_in_transit_forage_goes_to_cargo():
+    """While in transit, forage output is routed to CargoStockpile, not the public stockpile."""
+    from logic.pop_agent_logic import resolve_pop_actions
+    from core.agent_core import PopAgentState, CollectibleResource
+    from core.universe_core import PopLocation
+
+    loc_id = uuid4()
+    pop = MagicMock()
+    pop.id = uuid4()
+    pop.current_location = loc_id
+    pop.migration_travel_location_id = uuid4()
+    pop.migration_ticks_remaining = 2
+    pop.band_id = None
+    pop.faction_ids = []
+    pop.size_fractional = 1.0
+    pop.occupation = "forager"
+    pop.stratum = "common"
+    pop.active_directives = []
+    ps = PopAgentState()
+    ps.pending_migration_dest = uuid4()
+    pop.pop_state = ps
+
+    cr = CollectibleResource(resource_type="food_flora", action_types=["forage"], current_yield=20.0)
+    pop_loc = PopLocation(id=loc_id, name="Waypoint", location_type="wilderness")
+    pop_loc.collectible_resources.append(cr)
+
+    state = MagicMock()
+    state.pops = {}
+    state.mortals = {}
+
+    initial_public = sum(s.quantities.get("food_flora", 0.0) for s in pop_loc.stockpiles)
+
+    resolve_pop_actions(
+        pop, pop_loc=pop_loc,
+        priorities={"forage": 5.0},
+        n_slots=1, factions={}, current_tick=1, state=state, in_transit=True,
+    )
+
+    public_after = sum(s.quantities.get("food_flora", 0.0) for s in pop_loc.stockpiles)
+    assert public_after == initial_public  # nothing went to shared stockpile
+    assert ps.cargo.quantities.get("food_flora", 0.0) > 0

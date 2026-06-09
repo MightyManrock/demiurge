@@ -8,6 +8,10 @@
 
 Full spec in the plan file. Summary of what's covered: real Pop routing using the existing TravelLocation infrastructure; band cascade migration via linked_pop_ids; mortal embedding (mortal travels with their Pop); six Faction Directive types for Pops (`hold_position`, `supply_run`, `pilgrimage`, `patrol`, `raid`, `support_garrison`); location action bonuses on `PopLocation` for sacred sites; mass ritual scaling for co-located Pops; `POP_NEED_PURPOSE` re-activation tied to directive execution. Contested mechanics (raid resistance, thrall capture, path interdiction, charity/appeal) are acknowledged but deferred to Phase 5 pending a conflict layer.
 
+**Pop TravelLocation integration** (fold into Phase 1 of this plan): Pops currently travel via `pending_migration_dest` + `migration_ticks_remaining`, which keeps `current_location` at the origin throughout the journey — making them invisible to co-location logic and stockpile demand calculations while in transit, and making their destination dwell time appear inflated in tracking tools. Replace with the same TravelLocation pass-through model mortals use: a migrating Pop's `current_location` advances through leg waypoints, giving them accurate spatial position at each step of the route.
+
+In-transit behavior: a Pop on the move dedicates one action slot to travel each tick; remaining slots resolve normally against whatever collectible resources actually exist at the current leg location (same as mortal pass-through). Since they're away from their home `ResourceStockpile`, in-transit resource interactions draw from and deposit into their `CargoStockpile` (already present on `PopAgentState`). Efficiency of non-travel actions is reduced while moving — a simple multiplier on `compute_active_slots` output is the natural hook.
+
 ---
 
 ### Faction directive refinements
